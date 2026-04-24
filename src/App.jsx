@@ -18,18 +18,22 @@ export default function App() {
   const [loading, setLoading] = useState(false);
   const [history, setHistory] = useState([]);
   const [error, setError] = useState(null);
+  const [mode, setMode] = useState("short");
+  const [expanded, setExpanded] = useState(false);
 
-  const generate = async (q) => {
+  const generate = async (q, selectedMode) => {
     const query = (q || input).trim();
+    const answerMode = selectedMode || mode;
     if (!query || loading) return;
     setLoading(true);
     setResult(null);
+    setExpanded(false);
     setError(null);
     try {
       const res = await fetch("/api/ask", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ query })
+        body: JSON.stringify({ query, mode: answerMode })
       });
       if (!res.ok) throw new Error("Request failed");
       const data = await res.json();
@@ -43,43 +47,61 @@ export default function App() {
 
   return (
     <div className="wrap">
-      <p className="label">Vegan Q&A</p>
-      <h1 className="heading">Ask anything</h1>
-      <p className="sub">Grounded in the original 1951 definition and abolitionist philosophy.</p>
+      <div className="hero">
+        <span className="logo">Vegan Q&A</span>
+        <p className="sub">Grounded in the original 1951 definition and abolitionist philosophy.</p>
 
-      <div className="input-row">
-        <input
-          className="input"
-          value={input}
-          onChange={e => setInput(e.target.value)}
-          onKeyDown={e => e.key === "Enter" && generate()}
-          placeholder="Type a question or topic..."
-        />
-        <button
-          className="btn-primary"
-          onClick={() => generate()}
-          disabled={loading || !input.trim()}
-        >
-          {loading ? "…" : "Ask"}
-        </button>
-      </div>
+        <div className="search-box">
+          <input
+            className="search-input"
+            value={input}
+            onChange={e => setInput(e.target.value)}
+            onKeyDown={e => e.key === "Enter" && generate()}
+            placeholder="Type a question or topic..."
+            autoFocus
+          />
+          <div className="search-controls">
+            <div className="mode-toggle">
+              <button
+                className={`mode-btn ${mode === "short" ? "active" : ""}`}
+                onClick={() => setMode("short")}
+              >Short</button>
+              <button
+                className={`mode-btn ${mode === "long" ? "active" : ""}`}
+                onClick={() => setMode("long")}
+              >Detailed</button>
+            </div>
+            <button
+              className="search-btn"
+              onClick={() => generate()}
+              disabled={loading || !input.trim()}
+            >
+              {loading ? "…" : "Ask"}
+            </button>
+          </div>
+        </div>
 
-      <div className="pills">
-        {SUGGESTIONS.map(sug => (
-          <button key={sug} className="pill" onClick={() => { setInput(sug); generate(sug); }}>
-            {sug}
-          </button>
-        ))}
+        <div className="pills">
+          {SUGGESTIONS.map(sug => (
+            <button key={sug} className="pill" onClick={() => { setInput(sug); generate(sug); }}>
+              {sug}
+            </button>
+          ))}
+        </div>
       </div>
 
       {error && <p className="error">{error}</p>}
-
       {loading && <p className="thinking">Thinking…</p>}
 
       {result && !loading && (
         <div className="card">
           <p className="question">{result.question}</p>
-          <p className="answer">{result.answer}</p>
+          <div className={`answer-wrap ${expanded ? "expanded" : ""}`}>
+            <p className="answer">{result.answer}</p>
+          </div>
+          {!expanded && result.answer && result.answer.length > 400 && (
+            <button className="expand-btn" onClick={() => setExpanded(true)}>Read more</button>
+          )}
           {result.key && <div className="key">{result.key}</div>}
         </div>
       )}
@@ -88,7 +110,7 @@ export default function App() {
         <div className="history">
           <p className="history-label">Previous</p>
           {history.slice(1).map((h, i) => (
-            <button key={i} className="history-item" onClick={() => { setResult(h); setInput(h.query); }}>
+            <button key={i} className="history-item" onClick={() => { setResult(h); setInput(h.query); setExpanded(false); }}>
               {h.question}
             </button>
           ))}
