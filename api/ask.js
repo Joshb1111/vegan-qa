@@ -85,9 +85,11 @@ export default async function handler(req, res) {
 
   const key = cacheKey(query, mode);
 
-  const cached = await kv.get(key);
-  if (cached) {
-    return res.status(200).json(cached);
+  try {
+    const cached = await kv.get(key);
+    if (cached) return res.status(200).json(cached);
+  } catch {
+    // KV unavailable, skip cache
   }
 
   const lengthInstruction = mode === "long"
