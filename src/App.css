@@ -108,15 +108,32 @@ body {
 .search-btn:disabled { opacity: 0.3; cursor: default; }
 .search-btn:hover:not(:disabled) { opacity: 0.85; }
 
+.pills-wrapper {
+  position: relative;
+  margin-bottom: 1.5rem;
+}
+
+.pills-wrapper::after {
+  content: "";
+  position: absolute;
+  right: 0;
+  top: 0;
+  bottom: 0;
+  width: 40px;
+  background: linear-gradient(to right, transparent, #141414);
+  pointer-events: none;
+}
+
 .pills {
   display: flex;
-  flex-wrap: nowrap;
+  flex-wrap: wrap;
   gap: 8px;
   overflow-x: auto;
   -webkit-overflow-scrolling: touch;
   scrollbar-width: none;
   padding-bottom: 4px;
-  margin-bottom: 1.5rem;
+  max-height: 80px;
+  overflow-y: hidden;
 }
 
 .pills::-webkit-scrollbar { display: none; }
@@ -133,6 +150,8 @@ body {
   flex-shrink: 0;
   transition: border-color 0.15s, color 0.15s;
 }
+
+.pill:hover { border-color: #4CAF82; color: #4CAF82; }
 
 .pill:hover { border-color: #4CAF82; color: #4CAF82; }
 

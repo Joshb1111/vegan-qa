@@ -81,12 +81,14 @@ export default function App() {
           </div>
         </div>
 
-        <div className="pills">
-          {SUGGESTIONS.map(sug => (
-            <button key={sug} className="pill" onClick={() => { setInput(sug); generate(sug); }}>
-              {sug}
-            </button>
-          ))}
+        <div className="pills-wrapper">
+          <div className="pills">
+            {SUGGESTIONS.map(sug => (
+              <button key={sug} className="pill" onClick={() => { setInput(sug); generate(sug); }}>
+                {sug}
+              </button>
+            ))}
+          </div>
         </div>
       </div>
 
