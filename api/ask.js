@@ -69,8 +69,9 @@ FORMAT:
 - Respond ONLY with valid JSON, no preamble, no markdown fences: {"question": "...", "answer": "...", "key": "one-sentence takeaway"}
 - Keep answers to 2-4 short paragraphs unless more is truly needed.`;
 
-import { kv } from "@vercel/kv";
+import Redis from "ioredis";
 
+const redis = new Redis(process.env.REDIS_URL);
 const CACHE_TTL = 60 * 60 * 24 * 30; // 30 days in seconds
 
 function cacheKey(query, mode) {
@@ -86,8 +87,8 @@ export default async function handler(req, res) {
   const key = cacheKey(query, mode);
 
   try {
-    const cached = await kv.get(key);
-    if (cached) return res.status(200).json(cached);
+    const cached = await redis.get(key);
+    if (cached) return res.status(200).json(JSON.parse(cached));
   } catch {
     // KV unavailable, skip cache
   }
