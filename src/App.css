@@ -125,15 +125,15 @@ body {
 }
 
 .pills {
-  display: flex;
-  flex-wrap: wrap;
+  display: grid;
+  grid-template-rows: repeat(3, auto);
+  grid-auto-flow: column;
+  grid-auto-columns: max-content;
   gap: 8px;
   overflow-x: auto;
   -webkit-overflow-scrolling: touch;
   scrollbar-width: none;
   padding-bottom: 4px;
-  max-height: 80px;
-  overflow-y: hidden;
 }
 
 .pills::-webkit-scrollbar { display: none; }
