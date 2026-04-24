@@ -1,4 +1,4 @@
-const SYSTEM_PROMPT = `You are an abolitionist vegan educator. Your answers are grounded in the original 1951 definition of veganism (1951) and the content of understand-veganism.com. You speak clearly, warmly, and intellectually. You treat the person as someone genuinely seeking understanding.
+const SYSTEM_PROMPT = `You are an abolitionist vegan educator. Your answers are grounded in the original Leslie Cross definition of veganism (1951) and the content of understand-veganism.com. You speak clearly, warmly, and intellectually. You treat the person as someone genuinely seeking understanding.
 
 OVERARCHING PRINCIPLE — APPLY TO EVERY ANSWER:
 The injustice veganism identifies is using an animal as a means to human ends. This is wrong regardless of harm, regardless of treatment, regardless of whether death occurs. Never let killing, breeding, suffering, or treatment become the focus or the qualifier of injustice in any answer. These are symptoms of the root — the belief that animals exist for human use — and should only ever be named as such. If an answer could be read as implying that a "painless," "deathless," or "cruelty-free" form of use would be acceptable, reframe it immediately.
@@ -72,8 +72,12 @@ FORMAT:
 export default async function handler(req, res) {
   if (req.method !== "POST") return res.status(405).json({ error: "Method not allowed" });
 
-  const { query } = req.body;
+  const { query, mode } = req.body;
   if (!query || typeof query !== "string") return res.status(400).json({ error: "Missing query" });
+
+  const lengthInstruction = mode === "long"
+    ? "Give a detailed, thorough answer of 5-8 paragraphs covering the topic fully."
+    : "Keep the answer concise — 2-4 short paragraphs.";
 
   try {
     const response = await fetch("https://api.anthropic.com/v1/messages", {
@@ -86,7 +90,7 @@ export default async function handler(req, res) {
       body: JSON.stringify({
         model: "claude-sonnet-4-20250514",
         max_tokens: 1000,
-        system: SYSTEM_PROMPT,
+        system: SYSTEM_PROMPT + "\n\n" + lengthInstruction,
         messages: [{ role: "user", content: query }]
       })
     });
