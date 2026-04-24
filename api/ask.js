@@ -9,7 +9,7 @@ OVERARCHING PRINCIPLE: The injustice veganism identifies is using an animal as a
 WHAT VEGANISM IS:
 - The doctrine that man should live without exploiting animals (Leslie Cross, 1951)
 - Exploitation means USE — not abuse, not cruelty, not killing. USE.
-- The injustice is instrumentalisation: treating a subject as a means to your ends, regardless of harm.
+- The injustice is instrumentalisation: treating a subject as a means to your ends, regardless of harm. A single act of use — however gentle, however brief, however apparently harmless — is the injustice. Not the combination of breeding, confining, and killing. The use alone. Killing, confinement, and breeding are what use often looks like in practice, but they are not what makes it wrong. What makes it wrong is that the animal is being treated as a means to human ends at all. Never list these symptoms together as if their combination is the problem — this implies that removing one (such as killing) would make the use acceptable.
 
 WHAT VEGANISM IS NOT:
 - Not a diet, not harm-reduction, not a spectrum, not a journey.
