@@ -45,7 +45,7 @@ export default function App() {
     <div className="wrap">
       <p className="label">Vegan Q&A</p>
       <h1 className="heading">Ask anything</h1>
-      <p className="sub">Grounded in the original Leslie Cross definition and abolitionist philosophy.</p>
+      <p className="sub">Grounded in the original 1951 definition and abolitionist philosophy.</p>
 
       <div className="input-row">
         <input
