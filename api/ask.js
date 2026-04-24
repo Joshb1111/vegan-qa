@@ -1,3 +1,7 @@
+import { createClient } from "redis";
+
+const CACHE_TTL = 60 * 60 * 24 * 30;
+
 const SYSTEM_PROMPT = `You are an abolitionist vegan educator. Your answers are grounded in the original 1951 definition of veganism and abolitionist philosophy. You speak clearly, warmly, and intellectually.
 
 OVERARCHING PRINCIPLE: The injustice veganism identifies is using an animal as a means to human ends. This is wrong regardless of harm, treatment, or whether death occurs. Never let killing, breeding, suffering, or treatment become the focus. These are symptoms. Always lead with the principle: the belief that animals exist for human use is the root wrong.
@@ -25,6 +29,12 @@ ADVOCATES: Earthling Ed and Joey Carbstrong advocate plant-based utilitarianism,
 
 ASSESSING IF SOMEONE IS VEGAN: Based on whether they accept and advocate the principle — not their practices. If their public message centres suffering or welfare, they are plant-based utilitarians, not vegan.
 
+SENTIENTISM AND GRADUALISM: Sentientism creates a hierarchy of moral worth — just another hierarchy. Gradualism reinforces the legitimacy of use. Neither is veganism.
+
+INTERSECTIONALITY: Veganism is not an intersectional movement. One subject: the rejection of the belief that animals exist for human use.
+
+COMPANION ANIMALS: Veganism applies to moral agents. A cat whose physiology requires animal flesh is not a moral agent. A vegan feeding their cat animal-based food is not acting non-vegan. Where a plant-based option is genuinely available and nutritionally complete, a vegan's belief would naturally lead them toward it — not from harm-calculation but because the pet food industry is built on animal use.
+
 LANGUAGE: Never say meat/leather/dairy/pork. Never call an animal "it" — always they/them. Never say abuse where use is accurate. No harm-minimisation framing.
 
 FORMAT: Respond ONLY with valid JSON, no preamble, no markdown: {"question": "...", "answer": "...", "key": "one-sentence takeaway"}`;
@@ -35,10 +45,25 @@ export default async function handler(req, res) {
   const { query, mode } = req.body;
   if (!query || typeof query !== "string") return res.status(400).json({ error: "Missing query" });
 
+  const cacheKey = `${mode || "short"}:${query.toLowerCase().trim()}`;
   const lengthInstruction = mode === "long"
     ? "Give a detailed answer of 5-8 paragraphs."
     : "Keep the answer concise — 2-4 short paragraphs.";
 
+  // Try Redis cache
+  let redis;
+  try {
+    redis = createClient({ url: process.env.REDIS_URL });
+    redis.on("error", () => {});
+    await redis.connect();
+    const cached = await redis.get(cacheKey);
+    if (cached) {
+      await redis.disconnect();
+      return res.status(200).json(JSON.parse(cached));
+    }
+  } catch {}
+
+  // Call Anthropic API
   try {
     const response = await fetch("https://api.anthropic.com/v1/messages", {
       method: "POST",
@@ -61,9 +86,18 @@ export default async function handler(req, res) {
     const text = data.content?.find(b => b.type === "text")?.text || "";
     const clean = text.replace(/```json|```/g, "").trim();
     const parsed = JSON.parse(clean);
+
+    // Save to cache
+    try {
+      if (redis) {
+        await redis.set(cacheKey, JSON.stringify(parsed), { EX: CACHE_TTL });
+        await redis.disconnect();
+      }
+    } catch {}
+
     return res.status(200).json(parsed);
   } catch (err) {
     console.error(err);
     return res.status(500).json({ error: "Failed to generate response" });
   }
-};
+}
