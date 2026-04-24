@@ -71,7 +71,7 @@ FORMAT:
 
 import Redis from "ioredis";
 
-const redis = new Redis(process.env.REDIS_URL);
+const redis = new Redis(process.env.STORAGE_URL);
 const CACHE_TTL = 60 * 60 * 24 * 30; // 30 days in seconds
 
 function cacheKey(query, mode) {
