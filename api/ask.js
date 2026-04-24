@@ -69,11 +69,26 @@ FORMAT:
 - Respond ONLY with valid JSON, no preamble, no markdown fences: {"question": "...", "answer": "...", "key": "one-sentence takeaway"}
 - Keep answers to 2-4 short paragraphs unless more is truly needed.`;
 
+import { kv } from "@vercel/kv";
+
+const CACHE_TTL = 60 * 60 * 24 * 30; // 30 days in seconds
+
+function cacheKey(query, mode) {
+  return `${mode}:${query.toLowerCase().trim()}`;
+}
+
 export default async function handler(req, res) {
   if (req.method !== "POST") return res.status(405).json({ error: "Method not allowed" });
 
   const { query, mode } = req.body;
   if (!query || typeof query !== "string") return res.status(400).json({ error: "Missing query" });
+
+  const key = cacheKey(query, mode);
+
+  const cached = await kv.get(key);
+  if (cached) {
+    return res.status(200).json(cached);
+  }
 
   const lengthInstruction = mode === "long"
     ? "Give a detailed, thorough answer of 5-8 paragraphs covering the topic fully."
