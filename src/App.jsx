@@ -103,12 +103,9 @@ export default function App() {
       {result && !loading && (
         <div className="card">
           <p className="question">{result.question}</p>
-          <div className={`answer-wrap ${expanded ? "expanded" : ""}`}>
+          <div className="answer-wrap expanded">
             <p className="answer">{result.answer}</p>
           </div>
-          {!expanded && result.answer && result.answer.length > 400 && (
-            <button className="expand-btn" onClick={() => setExpanded(true)}>Read more</button>
-          )}
           {result.key && <div className="key">{result.key}</div>}
         </div>
       )}
