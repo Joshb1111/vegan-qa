@@ -76,7 +76,7 @@ export default function App() {
               onClick={() => generate()}
               disabled={loading || !input.trim()}
             >
-              {loading ? "…" : "Ask"}
+              {loading ? "Please wait" : "Ask"}
             </button>
           </div>
         </div>
@@ -91,7 +91,12 @@ export default function App() {
       </div>
 
       {error && <p className="error">{error}</p>}
-      {loading && <p className="thinking">Thinking…</p>}
+      {loading && (
+        <div className="thinking-box">
+          <span className="thinking-dot" /><span className="thinking-dot" /><span className="thinking-dot" />
+          <p className="thinking-text">Finding your answer…</p>
+        </div>
+      )}
 
       {result && !loading && (
         <div className="card">
