@@ -5,13 +5,13 @@ const SUGGESTIONS = [
   "What is veganism?",
   "When did veganism start being diluted?",
   "Why welfare reform fails",
-  "What did Leslie Cross define?",
   "Is reducetarianism veganism?",
   "What is instrumentalisation?",
-  "Why not single-issue campaigns?",
   "What about crop deaths?",
   "Is veganism about suffering?",
-  "What changed in 1979?"
+  "What changed in 1979?",
+  "Why not single-issue campaigns?",
+  "What did Leslie Cross define?"
 ];
 
 export default function App() {
@@ -64,6 +64,7 @@ export default function App() {
       <div className="hero">
         <span className="logo">Vegan Q&A</span>
         <p className="sub">Grounded in the original 1951 definition and abolitionist philosophy.</p>
+      <p className="grounded-note">Not generic AI. Grounded in the work of abolitionist vegan thinkers and the original vegan ethical framework.</p>
 
         <div className="search-box">
           <input
