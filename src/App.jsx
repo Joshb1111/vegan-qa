@@ -63,8 +63,7 @@ export default function App() {
     <div className="wrap">
       <div className="hero">
         <span className="logo">Vegan Q&A</span>
-        <p className="sub">Grounded in the original 1951 definition and abolitionist philosophy.</p>
-      <p className="grounded-note">Not generic AI. Grounded in the work of abolitionist vegan thinkers and the original vegan ethical framework.</p>
+        <p className="sub">Not generic AI. Grounded in the work of abolitionist vegan thinkers and the original vegan ethical framework.</p>
 
         <div className="search-box">
           <input
