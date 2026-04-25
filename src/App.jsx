@@ -9,7 +9,8 @@ const SUGGESTIONS = [
   "Why not single-issue campaigns?",
   "What about crop deaths?",
   "Is veganism about suffering?",
-  "What changed in 1979?"
+  "What changed in 1979?",
+  "When did veganism start being diluted?"
 ];
 
 export default function App() {
@@ -21,10 +22,21 @@ export default function App() {
   const [mode, setMode] = useState("short");
   const [expanded, setExpanded] = useState(false);
 
+  const [clientCache] = useState(() => new Map());
+
   const generate = async (q, selectedMode) => {
     const query = (q || input).trim();
     const answerMode = selectedMode || mode;
     if (!query || loading) return;
+
+    const key = `${answerMode}:${query.toLowerCase().trim()}`;
+    if (clientCache.has(key)) {
+      setResult(clientCache.get(key));
+      setExpanded(false);
+      setError(null);
+      return;
+    }
+
     setLoading(true);
     setResult(null);
     setExpanded(false);
@@ -37,6 +49,7 @@ export default function App() {
       });
       if (!res.ok) throw new Error("Request failed");
       const data = await res.json();
+      clientCache.set(key, data);
       setResult(data);
       setHistory(h => [{ query, ...data }, ...h].slice(0, 20));
     } catch {
