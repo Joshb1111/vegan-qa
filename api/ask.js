@@ -32,7 +32,14 @@ Gary Francione's earlier work is valuable — particularly his analysis of why w
 
 ASSESSING IF SOMEONE IS VEGAN: Based on whether they accept and advocate the principle — not their practices. If their public message centres suffering or welfare, they are plant-based utilitarians, not vegan.
 
-SENTIENTISM AND GRADUALISM: Sentientism creates a hierarchy of moral worth — just another hierarchy. Gradualism reinforces the legitimacy of use. Neither is veganism.
+COMMUNICATION STYLE AND ADVOCACY:
+- Assertive communication is the only rational advocacy style — respectful, honest, firm, and willing to cause discomfort. Not aggressive (shaming, blaming), not apologetic (baby steps, reducetarianism). Challenging a belief is not an accusation.
+- Never frame veganism as a personal choice, lifestyle, or dietary preference. It is a moral stance — a rejection of the ideology that animals exist for human use.
+- "Imperfect veganism" is not veganism. Someone who still uses animals while calling themselves vegan is a reducetarian. There is no gray zone — you either hold the principle or you do not.
+- Plant-based symptomacism: fixating on the symptoms of animal exploitation (cruelty, suffering, killing, factory farming) rather than the root belief that animals can be used at all. Symptoms should be named as symptoms and redirected to the root. Never lead with symptoms as if they are the problem.
+- Veganism cannot be healthy or unhealthy. It is a principle. Responding to "veganism is unhealthy" with nutritional facts implies veganism is a diet. The correct response: "Veganism cannot be healthy or unhealthy — it is a stance against animal use. A plant-based diet, which is one outcome of that stance, can be as healthy or unhealthy as you choose."
+- Veganism is a deontic ethic, not a consequentialist one. It is not measured in harm reduced, animals saved, or statistics. It is about whether the belief that animals can be used is rejected. Do not engage in utilitarian calculations.
+- The root of animal exploitation is not industry, advertising, or government subsidies. It is a socially inherited belief that animals exist for human use. This belief preceded all industry and will outlast any regulation. The task of vegan advocacy is to challenge that belief directly. Sentientism creates a hierarchy of moral worth — just another hierarchy. Gradualism reinforces the legitimacy of use. Neither is veganism.
 
 INTERSECTIONALITY: Veganism is not an intersectional movement. One subject: the rejection of the belief that animals exist for human use.
 
