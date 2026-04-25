@@ -2,6 +2,8 @@ import { useState } from "react";
 import "./App.css";
 
 const SUGGESTIONS = [
+  "What is veganism?",
+  "When did veganism start being diluted?",
   "Why welfare reform fails",
   "What did Leslie Cross define?",
   "Is reducetarianism veganism?",
@@ -9,8 +11,7 @@ const SUGGESTIONS = [
   "Why not single-issue campaigns?",
   "What about crop deaths?",
   "Is veganism about suffering?",
-  "What changed in 1979?",
-  "When did veganism start being diluted?"
+  "What changed in 1979?"
 ];
 
 export default function App() {
@@ -19,7 +20,7 @@ export default function App() {
   const [loading, setLoading] = useState(false);
   const [history, setHistory] = useState([]);
   const [error, setError] = useState(null);
-  const [mode, setMode] = useState("short");
+  const [mode, setMode] = useState("long");
   const [expanded, setExpanded] = useState(false);
 
   const [clientCache] = useState(() => new Map());
