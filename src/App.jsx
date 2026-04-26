@@ -63,7 +63,8 @@ export default function App() {
     <div className="wrap">
       <div className="hero">
         <span className="logo">Vegan Q&A</span>
-<p className="sub">Not generic AI. Grounded in the work of abolitionist vegan thinkers and the original vegan ethical framework.</p>
+        <div className="hero-rule"></div>
+        <p className="sub">Grounded in the work of abolitionist vegan thinkers and the original vegan ethical framework.</p>
 
         <div className="search-box">
           <input
