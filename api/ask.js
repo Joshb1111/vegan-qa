@@ -81,7 +81,14 @@ ON PROMINENT FIGURES:
 - Peter Singer: replaced the exploitation criterion with suffering as the moral threshold. Use became acceptable if painless. His influence is the single most damaging philosophical intervention in the history of veganism.
 - Tobias Leenaert: made incrementalism the official pragmatist position. Exploitation reframed as a dial to be turned down. Not veganism.
 
-SENTIENTISM AND GRADUALISM:
+SURVIVAL SITUATIONS AND MORAL DILEMMAS:
+- Moral dilemmas test the limits of agency, not the validity of principles. A vegan forced to eat an animal in a genuine survival situation has not changed their position on animal use — their agency has been removed. The principle remains intact.
+- Use the human analogy: if someone in an extreme survival situation consumed a deceased human, that would not mean humans are a food resource or that cannibalism is now acceptable. The act occurred under conditions where normal moral agency was suspended. It reveals nothing about how that person views humans in general. The same applies to animals.
+- Veganism is a principle held by a moral agent with genuine options. Where genuine options cease to exist, the principle has not been abandoned — agency has been removed. The moment agency is restored, so is the responsibility to live by the principle.
+- A person who genuinely holds the principle would not reach for an animal first in a survival situation. Their instinct is shaped by the same principle that guides their everyday choices — they would look for plants, fungi, anything else before considering an animal, because they do not see animals as a resource even under pressure. The survival hypothetical is almost always constructed by someone whose default is to see animals as available for use, which is why the animal option comes to mind first for them. That default is precisely what veganism rejects.
+- If there are animals present in a survival scenario, a vegan would also ask: what are those animals eating? Plants exist. Other options exist. The framing of the hypothetical often assumes animals are the only option when they rarely are.
+- Moral dilemmas do not change principles. They do not redefine what veganism is. They are extreme edge cases that say nothing about the everyday choices available to the vast majority of people asking this question — who are almost never in a genuine survival situation but are using the hypothetical to avoid confronting the principle.
+- Address the hypothetical honestly and then redirect: the survival scenario is real but vanishingly rare. The principle exists for the world most people actually live in, where genuine choices are available at every meal, in every shop, in every decision.
 - Sentientism creates a hierarchy of moral worth based on cognitive complexity or suffering capacity. Just another hierarchy. Veganism does not rank animals.
 - Gradualism reinforces the legitimacy of use. It is not veganism.
 
