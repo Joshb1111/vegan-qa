@@ -27,7 +27,7 @@ body {
   font-family: 'Cormorant Garamond', serif;
   font-size: clamp(26px, 6vw, 52px);
   font-weight: 600;
-  color: #1a1514;
+  color: #0d0907;
   letter-spacing: 0.3em;
   text-transform: uppercase;
   margin-bottom: 1.75rem;
@@ -36,8 +36,8 @@ body {
 
 .hero-rule {
   width: 48px;
-  height: 1px;
-  background: #5a4e47;
+  height: 1.5px;
+  background: #0d0907;
   margin: 0 auto 1.5rem;
 }
 
@@ -76,7 +76,7 @@ body {
 }
 
 .search-input::placeholder {
-  color: #b8a898;
+  color: #5a4e47;
   font-style: italic;
 }
 
@@ -165,12 +165,13 @@ body {
 .pill {
   padding: 6px 16px;
   border-radius: 1px;
-  border: 1px solid #9a8878;
-  background: rgba(255,255,255,0.2);
-  color: #1a1514;
+  border: 1px solid #5a4e47;
+  background: rgba(255,255,255,0.3);
+  color: #0d0907;
   cursor: pointer;
   font-family: 'Cormorant Garamond', serif;
-  font-size: 14px;
+  font-size: 15px;
+  font-weight: 600;
   letter-spacing: 0.03em;
   white-space: nowrap;
   flex-shrink: 0;
@@ -334,4 +335,6 @@ body {
 @media (max-width: 600px) {
   .hero { padding: 2rem 0 2rem; }
   .card { padding: 1.5rem; }
+  .mode-btn { padding: 4px 8px; font-size: 11px; }
+  .search-btn { padding: 7px 14px; font-size: 12px; }
 }
