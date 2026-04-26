@@ -1,4 +1,4 @@
-@import url('https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,400;0,600;1,400&family=Lora:ital,wght@0,400;1,400&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,400;0,600;0,700;1,400&family=Lora:ital,wght@0,400;0,700;1,400;1,700&display=swap');
 
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
@@ -43,7 +43,8 @@ body {
 
 .sub {
   font-family: 'Lora', serif;
-  font-style: italic;
+  font-style: normal;
+  font-weight: 700;
   font-size: 15px;
   color: #0a0a0a;
   margin-bottom: 2.5rem;
@@ -69,15 +70,17 @@ body {
   background: transparent;
   border: none;
   outline: none;
-  font-family: 'Cormorant Garamond', serif;
-  font-size: 18px;
+  font-family: 'Lora', serif;
+  font-size: 17px;
+  font-weight: 700;
   color: #0a0a0a;
   padding: 10px 0;
 }
 
 .search-input::placeholder {
-  color: #4a3f3a;
-  font-style: italic;
+  color: #3a3a3a;
+  font-style: normal;
+  font-weight: 700;
 }
 
 .search-controls {
@@ -101,12 +104,12 @@ body {
   border-radius: 2px;
   border: none;
   background: transparent;
-  color: #a09080;
+  color: #555;
   cursor: pointer;
-  font-family: 'Cormorant Garamond', serif;
-  font-size: 13px;
-  font-weight: 600;
-  letter-spacing: 0.05em;
+  font-family: 'Lora', serif;
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.03em;
   transition: background 0.15s, color 0.15s;
 }
 
@@ -166,14 +169,14 @@ body {
 .pill {
   padding: 5px 11px;
   border-radius: 1px;
-  border: 1px solid #4a3f3a;
+  border: 1px solid #2a2a2a;
   background: rgba(255,255,255,0.3);
   color: #0a0a0a;
   cursor: pointer;
-  font-family: 'Cormorant Garamond', serif;
+  font-family: 'Lora', serif;
   font-size: 13px;
-  font-weight: 600;
-  letter-spacing: 0.03em;
+  font-weight: 700;
+  letter-spacing: 0.01em;
   white-space: nowrap;
   flex-shrink: 0;
   transition: border-color 0.15s, color 0.15s, background 0.15s;
@@ -321,13 +324,14 @@ body {
   padding: 10px 16px;
   margin-bottom: 6px;
   border-radius: 1px;
-  border: 1px solid #e0d8ce;
+  border: 1px solid #2a2a2a;
   background: transparent;
-  color: #8a7060;
+  color: #0a0a0a;
   cursor: pointer;
-  font-family: 'Cormorant Garamond', serif;
-  font-size: 15px;
-  letter-spacing: 0.02em;
+  font-family: 'Lora', serif;
+  font-size: 14px;
+  font-weight: 700;
+  letter-spacing: 0.01em;
   transition: border-color 0.15s, color 0.15s;
 }
 
