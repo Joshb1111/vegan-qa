@@ -50,7 +50,8 @@ body::after {
     padding: 1.5rem 0 1.5rem;
   }
   .logo {
-    font-size: 52px;
+    font-size: 36px;
+    letter-spacing: -0.5px;
   }
 }
 
@@ -168,7 +169,7 @@ body::after {
 
 .pills-wrapper {
   position: relative;
-  margin-bottom: 4rem;
+  margin-bottom: 1rem;
 }
 
 .pills-wrapper::after {
@@ -213,7 +214,7 @@ body::after {
 
 .thinking-box {
   text-align: center;
-  padding: 2.5rem 0;
+  padding: 1.25rem 0;
   display: flex;
   flex-direction: column;
   align-items: center;
