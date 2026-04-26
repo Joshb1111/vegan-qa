@@ -4,10 +4,7 @@
 
 body {
   font-family: 'Cormorant Garamond', Georgia, serif;
-  background-image: url('/paper-bg.jpg');
-  background-size: cover;
-  background-attachment: fixed;
-  background-position: center;
+  background: #fff;
   color: #0a0a0a;
   min-height: 100vh;
 }
