@@ -164,14 +164,14 @@ body {
 .pills::-webkit-scrollbar { display: none; }
 
 .pill {
-  padding: 6px 16px;
+  padding: 5px 11px;
   border-radius: 1px;
   border: 1px solid #4a3f3a;
   background: rgba(255,255,255,0.3);
   color: #0a0a0a;
   cursor: pointer;
   font-family: 'Cormorant Garamond', serif;
-  font-size: 15px;
+  font-size: 13px;
   font-weight: 600;
   letter-spacing: 0.03em;
   white-space: nowrap;
