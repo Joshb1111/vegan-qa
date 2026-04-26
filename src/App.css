@@ -279,7 +279,8 @@ body::after {
 }
 
 .answer-wrap.expanded {
-  max-height: 3000px;
+  max-height: none;
+  overflow: visible;
 }
 
 .answer-wrap:not(.expanded)::after {
