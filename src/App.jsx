@@ -63,7 +63,7 @@ export default function App() {
     <div className="wrap">
       <div className="hero">
         <span className="logo">Vegan Q&A</span>
-        <p className="sub">Not generic AI. Grounded in the work of abolitionist vegan thinkers and the original vegan ethical framework.</p>
+<p className="sub">Not generic AI. Grounded in the work of abolitionist vegan thinkers and the original vegan ethical framework.</p>
 
         <div className="search-box">
           <input
@@ -71,7 +71,7 @@ export default function App() {
             value={input}
             onChange={e => setInput(e.target.value)}
             onKeyDown={e => e.key === "Enter" && generate()}
-            placeholder="Type a question or topic..."
+            placeholder="Ask me anything..."
             autoFocus
           />
           <div className="search-controls">
@@ -79,11 +79,11 @@ export default function App() {
               <button
                 className={`mode-btn ${mode === "short" ? "active" : ""}`}
                 onClick={() => setMode("short")}
-              >Short</button>
+              >{mode === "short" ? "Short Answer" : "Short"}</button>
               <button
                 className={`mode-btn ${mode === "long" ? "active" : ""}`}
                 onClick={() => setMode("long")}
-              >Detailed</button>
+              >{mode === "long" ? "Detailed Answer" : "Detailed"}</button>
             </div>
             <button
               className="search-btn"
