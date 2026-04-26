@@ -49,16 +49,11 @@ body::after {
   .hero {
     padding: 1.5rem 0 1.5rem;
   }
-  .logo {
-    font-size: clamp(22px, 7.5vw, 36px);
-    letter-spacing: -0.5px;
-    white-space: nowrap;
-  }
 }
 
 .logo {
   font-family: 'Libre Baskerville', serif;
-  font-size: 68px;
+  font-size: clamp(28px, 8vw, 68px);
   font-weight: 900;
   color: #e8f5ec;
   letter-spacing: -1px;
