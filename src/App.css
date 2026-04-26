@@ -8,7 +8,7 @@ body {
   background-size: cover;
   background-attachment: fixed;
   background-position: center;
-  color: #1a1514;
+  color: #0a0a0a;
   min-height: 100vh;
 }
 
@@ -27,7 +27,7 @@ body {
   font-family: 'Cormorant Garamond', serif;
   font-size: clamp(26px, 6vw, 52px);
   font-weight: 600;
-  color: #0d0907;
+  color: #0a0a0a;
   letter-spacing: 0.3em;
   text-transform: uppercase;
   margin-bottom: 1.75rem;
@@ -37,7 +37,7 @@ body {
 .hero-rule {
   width: 48px;
   height: 1.5px;
-  background: #0d0907;
+  background: #0a0a0a;
   margin: 0 auto 1.5rem;
 }
 
@@ -45,7 +45,7 @@ body {
   font-family: 'Lora', serif;
   font-style: italic;
   font-size: 15px;
-  color: #3a2e28;
+  color: #0a0a0a;
   margin-bottom: 2.5rem;
   line-height: 1.85;
   letter-spacing: 0.01em;
@@ -71,12 +71,12 @@ body {
   outline: none;
   font-family: 'Cormorant Garamond', serif;
   font-size: 18px;
-  color: #1a1514;
+  color: #0a0a0a;
   padding: 10px 0;
 }
 
 .search-input::placeholder {
-  color: #5a4e47;
+  color: #4a3f3a;
   font-style: italic;
 }
 
@@ -129,7 +129,7 @@ body {
   transition: opacity 0.15s;
 }
 
-.search-btn:disabled { opacity: 0.3; cursor: default; }
+.search-btn:disabled { opacity: 0.55; cursor: default; }
 .search-btn:hover:not(:disabled) { opacity: 0.8; }
 
 .pills-wrapper {
@@ -158,6 +158,7 @@ body {
   -webkit-overflow-scrolling: touch;
   scrollbar-width: none;
   padding-bottom: 4px;
+  padding-right: 40px;
 }
 
 .pills::-webkit-scrollbar { display: none; }
@@ -165,9 +166,9 @@ body {
 .pill {
   padding: 6px 16px;
   border-radius: 1px;
-  border: 1px solid #5a4e47;
+  border: 1px solid #4a3f3a;
   background: rgba(255,255,255,0.3);
-  color: #0d0907;
+  color: #0a0a0a;
   cursor: pointer;
   font-family: 'Cormorant Garamond', serif;
   font-size: 15px;
@@ -179,9 +180,9 @@ body {
 }
 
 .pill:hover {
-  border-color: #1a1514;
-  color: #1a1514;
-  background: rgba(26, 21, 20, 0.04);
+  border-color: #0a0a0a;
+  color: #0a0a0a;
+  background: rgba(0, 0, 0, 0.05);
 }
 
 .thinking-box {
@@ -239,7 +240,7 @@ body {
   font-family: 'Cormorant Garamond', serif;
   font-size: 21px;
   font-weight: 600;
-  color: #1a1514;
+  color: #0a0a0a;
   margin-bottom: 1.25rem;
   line-height: 1.4;
   letter-spacing: 0.02em;
@@ -270,7 +271,7 @@ body {
   font-family: 'Lora', serif;
   font-size: 16px;
   line-height: 1.95;
-  color: #3a322e;
+  color: #0a0a0a;
   white-space: pre-line;
 }
 
