@@ -1,4 +1,4 @@
-@import url('https://fonts.googleapis.com/css2?family=Bodoni+Moda:opsz,wght@6..96,700&family=Lora:ital@1&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Libre+Baskerville:wght@700&family=Lora:ital@1&display=swap');
 
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
@@ -45,8 +45,17 @@ body::after {
   padding: 5rem 0 2.5rem;
 }
 
+@media (max-width: 600px) {
+  .hero {
+    padding: 1.5rem 0 1.5rem;
+  }
+  .logo {
+    font-size: 52px;
+  }
+}
+
 .logo {
-  font-family: 'Bodoni Moda', serif;
+  font-family: 'Libre Baskerville', serif;
   font-size: 68px;
   font-weight: 900;
   color: #e8f5ec;
@@ -159,7 +168,7 @@ body::after {
 
 .pills-wrapper {
   position: relative;
-  margin-bottom: 1.5rem;
+  margin-bottom: 4rem;
 }
 
 .pills-wrapper::after {
@@ -231,7 +240,7 @@ body::after {
 
 .thinking-text {
   font-size: 14px;
-  color: #555;
+  color: #fff;
   letter-spacing: 0.02em;
 }
 
