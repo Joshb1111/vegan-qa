@@ -253,14 +253,14 @@ body::after {
 }
 
 .card {
-  background: rgba(0, 20, 30, 0.5);
-  backdrop-filter: blur(18px);
-  -webkit-backdrop-filter: blur(18px);
-  border: 1px solid rgba(255,255,255,0.12);
+  background: rgba(10, 20, 25, 0.85);
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+  border: 1px solid rgba(255,255,255,0.15);
   border-radius: 16px;
   padding: 0;
   margin-bottom: 0.75rem;
-  box-shadow: 0 4px 24px rgba(0,0,0,0.25);
+  box-shadow: 0 4px 24px rgba(0,0,0,0.3);
   overflow: hidden;
 }
 
@@ -333,7 +333,7 @@ body::after {
 .answer {
   font-size: 15px;
   line-height: 1.85;
-  color: #aaa;
+  color: #e8e8e8;
   white-space: pre-line;
 }
 
