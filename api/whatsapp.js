@@ -90,6 +90,21 @@ export default async function handler(req, res) {
   try {
     const reply = await getClaudeReply(query);
     await sendWhatsAppMessage(phoneNumberId, from, reply);
+
+    if (process.env.DISCORD_WEBHOOK_URL) {
+      fetch(process.env.DISCORD_WEBHOOK_URL, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          embeds: [{
+            title: query,
+            description: reply.split("\n\n_")[0].slice(0, 2000),
+            color: 0x25d366,
+            footer: { text: "via WhatsApp" },
+          }],
+        }),
+      }).catch(() => {});
+    }
   } catch (err) {
     console.error(err);
     await sendWhatsAppMessage(
