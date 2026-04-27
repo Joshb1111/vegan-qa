@@ -1,5 +1,10 @@
 import { SYSTEM_PROMPT } from "./_prompt.js";
 
+const WELCOME_MESSAGE =
+  "Welcome to Vegan Q&A — a bot grounded in the work of abolitionist vegan thinkers and the original vegan ethical framework. Ask me anything about veganism, animal use, common arguments, or the history of the movement. Just type your question and I'll answer it.";
+
+const GREETINGS = new Set(["hi", "hello", "hey", "start", "help", "hiya", "yo", "sup"]);
+
 async function sendWhatsAppMessage(phoneNumberId, to, text) {
   await fetch(`https://graph.facebook.com/v19.0/${phoneNumberId}/messages`, {
     method: "POST",
@@ -76,6 +81,11 @@ export default async function handler(req, res) {
   }
 
   const query = message.text.body.trim();
+
+  if (GREETINGS.has(query.toLowerCase())) {
+    await sendWhatsAppMessage(phoneNumberId, from, WELCOME_MESSAGE);
+    return res.status(200).send("OK");
+  }
 
   try {
     const reply = await getClaudeReply(query);
