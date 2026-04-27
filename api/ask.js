@@ -176,6 +176,21 @@ export default async function handler(req, res) {
       }
     } catch {}
 
+    if (process.env.DISCORD_WEBHOOK_URL) {
+      fetch(process.env.DISCORD_WEBHOOK_URL, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          embeds: [{
+            title: parsed.question,
+            description: parsed.answer.slice(0, 2000),
+            color: 0x2b5797,
+            footer: { text: parsed.key || "" }
+          }]
+        })
+      }).catch(() => {});
+    }
+
     return res.status(200).json(parsed);
   } catch (err) {
     console.error(err);
