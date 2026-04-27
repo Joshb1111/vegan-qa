@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import "./App.css";
 
 const SUGGESTIONS = [
@@ -14,16 +14,27 @@ const SUGGESTIONS = [
   "What did Leslie Cross define?"
 ];
 
+const STORAGE_KEY = "vegan-qa-history";
+
 export default function App() {
   const [input, setInput] = useState("");
   const [result, setResult] = useState(null);
   const [loading, setLoading] = useState(false);
-  const [history, setHistory] = useState([]);
+  const [history, setHistory] = useState(() => {
+    try {
+      return JSON.parse(localStorage.getItem(STORAGE_KEY)) || [];
+    } catch {
+      return [];
+    }
+  });
   const [error, setError] = useState(null);
   const [mode, setMode] = useState("long");
-  const [expanded, setExpanded] = useState(false);
 
   const [clientCache] = useState(() => new Map());
+
+  useEffect(() => {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(history));
+  }, [history]);
 
   const generate = async (q, selectedMode) => {
     const query = (q || input).trim();
@@ -33,14 +44,12 @@ export default function App() {
     const key = `${answerMode}:${query.toLowerCase().trim()}`;
     if (clientCache.has(key)) {
       setResult(clientCache.get(key));
-      setExpanded(false);
       setError(null);
       return;
     }
 
     setLoading(true);
     setResult(null);
-    setExpanded(false);
     setError(null);
     try {
       const res = await fetch("/api/ask", {
@@ -52,18 +61,31 @@ export default function App() {
       const data = await res.json();
       clientCache.set(key, data);
       setResult(data);
-      setHistory(h => [{ query, ...data }, ...h].slice(0, 20));
+      setHistory(h => {
+        const entry = { query, ...data, savedAt: Date.now() };
+        const filtered = h.filter(i => i.question !== data.question);
+        return [entry, ...filtered].slice(0, 50);
+      });
     } catch {
       setError("Something went wrong. Please try again.");
     }
     setLoading(false);
   };
 
+  const clearHistory = () => {
+    setHistory([]);
+    localStorage.removeItem(STORAGE_KEY);
+  };
+
+  const previousItems = result
+    ? history.filter(h => h.question !== result.question)
+    : history;
+
   return (
     <div className="wrap">
       <div className="hero">
         <span className="logo">Vegan Q&A</span>
-<p className="sub">Grounded in the work of abolitionist vegan thinkers and the original vegan ethical framework.</p>
+        <p className="sub">Grounded in the work of abolitionist vegan thinkers and the original vegan ethical framework.</p>
 
         <div className="search-box">
           <input
@@ -124,13 +146,20 @@ export default function App() {
         </div>
       )}
 
-      {history.length > 1 && (
+      {previousItems.length > 0 && (
         <div className="history">
-          <p className="history-label">Previous</p>
-          {history.slice(1).map((h, i) => (
-            <button key={i} className="history-item" onClick={() => { setResult(h); setInput(h.query); setExpanded(false); }}>
-              {h.question}
-            </button>
+          <div className="history-header">
+            <p className="history-label">Previous answers</p>
+            <button className="clear-btn" onClick={clearHistory}>Clear</button>
+          </div>
+          {previousItems.map((h, i) => (
+            <div key={i} className="card history-card">
+              <p className="question">{h.question}</p>
+              <div className="answer-wrap expanded">
+                <p className="answer">{h.answer}</p>
+              </div>
+              {h.key && <div className="key">{h.key}</div>}
+            </div>
           ))}
         </div>
       )}
