@@ -111,7 +111,7 @@ export default async function handler(req, ctx) {
     // waitUntil keeps the Claude call alive after the response is returned
     ctx.waitUntil(askAndFollowup(query, application_id, token));
 
-    return new Response(JSON.stringify({ type: 5 }), {
+    return new Response(JSON.stringify({ type: 5, data: { flags: 64 } }), {
       headers: { "Content-Type": "application/json" },
     });
   }
