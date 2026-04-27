@@ -1,0 +1,93 @@
+import { SYSTEM_PROMPT } from "./_prompt.js";
+
+async function sendWhatsAppMessage(phoneNumberId, to, text) {
+  await fetch(`https://graph.facebook.com/v19.0/${phoneNumberId}/messages`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${process.env.WHATSAPP_TOKEN}`,
+    },
+    body: JSON.stringify({
+      messaging_product: "whatsapp",
+      to,
+      type: "text",
+      text: { body: text },
+    }),
+  });
+}
+
+async function getClaudeReply(query) {
+  const response = await fetch("https://api.anthropic.com/v1/messages", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      "x-api-key": process.env.ANTHROPIC_API_KEY,
+      "anthropic-version": "2023-06-01",
+    },
+    body: JSON.stringify({
+      model: "claude-haiku-4-5-20251001",
+      max_tokens: 700,
+      system: SYSTEM_PROMPT + "\n\nKeep the answer concise — 2-4 short paragraphs. Plain text only, no markdown.",
+      messages: [{ role: "user", content: query }],
+    }),
+  });
+
+  const data = await response.json();
+  const text = data.content?.find((b) => b.type === "text")?.text || "";
+  const parsed = JSON.parse(text.replace(/```json|```/g, "").trim());
+  return `${parsed.answer}\n\n_${parsed.key}_`;
+}
+
+export default async function handler(req, res) {
+  // Webhook verification (Meta sends a GET when you first set up the webhook)
+  if (req.method === "GET") {
+    const mode = req.query["hub.mode"];
+    const token = req.query["hub.verify_token"];
+    const challenge = req.query["hub.challenge"];
+
+    if (mode === "subscribe" && token === process.env.WHATSAPP_VERIFY_TOKEN) {
+      return res.status(200).send(challenge);
+    }
+    return res.status(403).send("Forbidden");
+  }
+
+  if (req.method !== "POST") return res.status(405).send("Method not allowed");
+
+  const body = req.body;
+
+  // Ignore status updates (delivery receipts, read receipts)
+  if (!body?.entry?.[0]?.changes?.[0]?.value?.messages) {
+    return res.status(200).send("OK");
+  }
+
+  const value = body.entry[0].changes[0].value;
+  const message = value.messages[0];
+  const phoneNumberId = value.metadata.phone_number_id;
+  const from = message.from;
+
+  // Only handle text messages
+  if (message.type !== "text") {
+    await sendWhatsAppMessage(
+      phoneNumberId,
+      from,
+      "Please send a text question and I'll answer it."
+    );
+    return res.status(200).send("OK");
+  }
+
+  const query = message.text.body.trim();
+
+  try {
+    const reply = await getClaudeReply(query);
+    await sendWhatsAppMessage(phoneNumberId, from, reply);
+  } catch (err) {
+    console.error(err);
+    await sendWhatsAppMessage(
+      phoneNumberId,
+      from,
+      "Sorry, something went wrong. Please try again."
+    );
+  }
+
+  return res.status(200).send("OK");
+}
