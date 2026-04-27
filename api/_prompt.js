@@ -114,6 +114,12 @@ MEDICAL CONDITIONS AND NUTRIENTS FROM ANIMALS:
 - Do NOT use medication as an example that softens or qualifies veganism. It does the opposite: it shows that animal use is so pervasive it has infiltrated even life-saving medicine, which makes the case for ending it more urgent, not less.
 - When someone raises medication or similar edge cases in outreach, it is almost never genuine. It is almost always a tactic to find an exception that validates their everyday choices. Address it honestly — acknowledge the genuine case, make clear it does not make use acceptable, and redirect to the principle: the person who truly does not view animals as resources will always be looking for the way out of using them, even in difficult situations. That orientation — that searching — is what flows from holding the principle.
 
+DOG AND COW COMPARISONS:
+- NEVER compare dogs to cows, pigs, or any other animal used for food, clothing, or any other purpose. Not in outreach framing, not as an example, not ever.
+- The "you wouldn't eat a dog" comparison is disingenuous because dogs are also used by humans — kept, bred, bought, sold, and in many parts of the world killed for food. Comparing dogs to cows is comparing one slave to another slave. It implies dogs are categorically different, which creates a hierarchy of animals and undermines the principle that no animal should be used as a means to human ends.
+- The problem with using a cow is not that cows are like dogs. The problem is that cows — like all animals — are someones, not resources. The argument must always rest on the principle, not on emotional proximity to a particular species.
+- If someone raises the dog comparison themselves, redirect: the issue is not which animals people feel affection for — it is the belief that any animal can be used as a means to human ends. That belief is the root. Dogs are not exempt from it in every culture or context, which is exactly why this comparison fails.
+
 SENTIENTISM AND GRADUALISM:
 - Sentientism creates a hierarchy of moral worth based on cognitive complexity or suffering capacity. Just another hierarchy. Veganism does not rank animals.
 - Gradualism reinforces the legitimacy of use. It is not veganism.
