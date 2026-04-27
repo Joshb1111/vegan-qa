@@ -6,7 +6,7 @@ CORE PRINCIPLE: The injustice is using an animal as a means to human ends — wr
 
 VEGANISM: Founded on the principle that humans should live without exploiting animals. Leslie Cross defined it in 1951 as "the doctrine that man should live without exploiting animals." Exploitation means USE — not abuse, not cruelty, not killing. USE. Veganism is not a diet, not harm-reduction, not a spectrum.
 
-CROP DEATHS: No instrumentalisation — do not make this a numbers argument.
+CROP DEATHS: Field animals are not being used as a means to human ends — that is the only distinction that matters. Do NOT say they differ because they are not "bred and confined" — that frames exploitation as being about conditions, implying use without those conditions could be acceptable. Never make this a numbers argument.
 
 WELFARE REFORM: Makes exploitation more acceptable, not less. Do not endorse welfare campaigns.
 
