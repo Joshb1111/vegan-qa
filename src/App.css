@@ -258,18 +258,55 @@ body::after {
   -webkit-backdrop-filter: blur(18px);
   border: 1px solid rgba(255,255,255,0.12);
   border-radius: 16px;
-  padding: 1.75rem;
-  margin-bottom: 2rem;
+  padding: 0;
+  margin-bottom: 0.75rem;
   box-shadow: 0 4px 24px rgba(0,0,0,0.25);
+  overflow: hidden;
 }
+
+.card-toggle {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  width: 100%;
+  background: none;
+  border: none;
+  padding: 1.25rem 1.75rem;
+  cursor: pointer;
+  text-align: left;
+}
+
+.card-toggle:hover { background: rgba(255,255,255,0.04); }
 
 .question {
   font-size: 18px;
   font-weight: 500;
   color: #e8e8e8;
-  margin-bottom: 1.25rem;
   line-height: 1.4;
+  margin: 0;
 }
+
+.chevron {
+  color: rgba(255,255,255,0.4);
+  font-size: 22px;
+  line-height: 1;
+  flex-shrink: 0;
+  transform: rotate(90deg);
+  transition: transform 0.2s ease;
+  display: inline-block;
+}
+
+.chevron-up {
+  transform: rotate(-90deg);
+}
+
+.answer-wrap,
+.key {
+  padding: 0 1.75rem;
+}
+
+.key { padding-bottom: 1.25rem; }
 
 .answer-wrap {
   max-height: 120px;

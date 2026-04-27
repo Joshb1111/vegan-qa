@@ -16,6 +16,27 @@ const SUGGESTIONS = [
 
 const STORAGE_KEY = "vegan-qa-history";
 
+function AnswerCard({ item, defaultExpanded = false, dimmed = false }) {
+  const [expanded, setExpanded] = useState(defaultExpanded);
+
+  return (
+    <div className={`card ${dimmed ? "history-card" : ""}`}>
+      <button className="card-toggle" onClick={() => setExpanded(e => !e)}>
+        <span className="question">{item.question}</span>
+        <span className={`chevron ${expanded ? "chevron-up" : ""}`}>›</span>
+      </button>
+      {expanded && (
+        <>
+          <div className="answer-wrap expanded">
+            <p className="answer">{item.answer}</p>
+          </div>
+          {item.key && <div className="key">{item.key}</div>}
+        </>
+      )}
+    </div>
+  );
+}
+
 export default function App() {
   const [input, setInput] = useState("");
   const [result, setResult] = useState(null);
@@ -74,6 +95,7 @@ export default function App() {
 
   const clearHistory = () => {
     setHistory([]);
+    setResult(null);
     localStorage.removeItem(STORAGE_KEY);
   };
 
@@ -137,13 +159,7 @@ export default function App() {
       )}
 
       {result && !loading && (
-        <div className="card">
-          <p className="question">{result.question}</p>
-          <div className="answer-wrap expanded">
-            <p className="answer">{result.answer}</p>
-          </div>
-          {result.key && <div className="key">{result.key}</div>}
-        </div>
+        <AnswerCard key={result.question} item={result} defaultExpanded={true} />
       )}
 
       {previousItems.length > 0 && (
@@ -153,13 +169,7 @@ export default function App() {
             <button className="clear-btn" onClick={clearHistory}>Clear</button>
           </div>
           {previousItems.map((h, i) => (
-            <div key={i} className="card history-card">
-              <p className="question">{h.question}</p>
-              <div className="answer-wrap expanded">
-                <p className="answer">{h.answer}</p>
-              </div>
-              {h.key && <div className="key">{h.key}</div>}
-            </div>
+            <AnswerCard key={h.question + i} item={h} defaultExpanded={false} dimmed />
           ))}
         </div>
       )}
