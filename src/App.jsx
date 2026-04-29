@@ -325,10 +325,12 @@ export default function App() {
               </button>
             </div>
 
-            <div className="pills-row">
-              {SUGGESTIONS.map(s => (
-                <button key={s} className="pill" onClick={() => { setInput(s); generate(s); }}>{s}</button>
-              ))}
+            <div className="pills-scroll-wrap">
+              <div className="pills-row">
+                {SUGGESTIONS.map(s => (
+                  <button key={s} className="pill" onClick={() => { setInput(s); generate(s); }}>{s}</button>
+                ))}
+              </div>
             </div>
           </div>
 
