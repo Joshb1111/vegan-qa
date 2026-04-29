@@ -7,6 +7,7 @@ body {
   background: #212121;
   color: #ececec;
   min-height: 100vh;
+  min-height: 100dvh;
   overflow: hidden;
 }
 
@@ -14,6 +15,7 @@ body {
 .layout {
   display: flex;
   height: 100vh;
+  height: 100dvh;
   overflow: hidden;
 }
 
@@ -25,6 +27,7 @@ body {
   display: flex;
   flex-direction: column;
   height: 100vh;
+  height: 100dvh;
   overflow: hidden;
   transform: translateX(-100%);
   transition: transform 0.22s ease;
@@ -195,6 +198,7 @@ body {
   display: flex;
   flex-direction: column;
   height: 100vh;
+  height: 100dvh;
   overflow: hidden;
   min-width: 0;
 }
@@ -472,7 +476,7 @@ body {
 
 /* Floating follow-up bar */
 .input-area.floating {
-  padding: 10px 16px 14px;
+  padding: 10px 16px calc(14px + env(safe-area-inset-bottom, 0px));
   background: #181818;
   border-top: 1px solid #2e2e2e;
   box-shadow: 0 -6px 24px rgba(0,0,0,0.55);
