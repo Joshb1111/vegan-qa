@@ -266,12 +266,12 @@ export default function App() {
             <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M3 6h18M3 12h18M3 18h18"/></svg>
           </button>
           <span className="topbar-brand">Vegan Q&A</span>
+          <button className="about-btn" onClick={() => setAboutOpen(true)}>About</button>
           <div className="topbar-right">
             <div className="mode-toggle">
               <button className={`mode-btn ${mode === "short" ? "active" : ""}`} onClick={() => setMode("short")}>Short answers</button>
               <button className={`mode-btn ${mode === "long" ? "active" : ""}`} onClick={() => setMode("long")}>Detailed answers</button>
             </div>
-            <button className="about-btn" onClick={() => setAboutOpen(true)}>About</button>
           </div>
         </header>
 
