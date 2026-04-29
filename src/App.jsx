@@ -215,7 +215,7 @@ export default function App() {
             <div className="modal" onClick={e => e.stopPropagation()}>
               <button className="modal-close" onClick={() => setAboutOpen(false)}>✕</button>
               <h2 className="modal-title">About Vegan Q&A</h2>
-              <p>This is an AI chatbot powered by a large language model (LLM), grounded in the work of abolitionist vegan thinkers and the original vegan ethical framework as defined by Leslie Cross in 1951.</p>
+              <p>This is an AI chatbot powered by a large language model (LLM), grounded in the work of abolitionist vegan thinkers and the original vegan ethical framework as defined in 1951.</p>
               <p>It is designed to help activists, advocates, and curious people explore questions about veganism, animal use, outreach, and the philosophy behind the movement.</p>
               <p>While every answer is shaped by carefully researched principles, this tool is still in beta — answers may not always be 100% accurate. The bot is continuously reviewed and updated by real humans who hold the abolitionist position.</p>
               <p className="modal-footer-note">If you notice an answer that feels off, treat it as a starting point for your own thinking — not a final authority.</p>
