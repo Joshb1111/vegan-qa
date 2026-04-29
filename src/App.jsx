@@ -131,12 +131,28 @@ export default function App() {
   const [clientCache] = useState(() => new Map());
   const [flagged, setFlagged] = useState(false);
   const [copied, setCopied] = useState(false);
+  const [atBottom, setAtBottom] = useState(false);
+  const contentRef = useRef(null);
+  const bottomSentinelRef = useRef(null);
   const sessionId = getSessionId();
 
   const { listening, toggle: toggleMic } = useSpeech(text => setInput(text));
 
-  // Reset flag/copied state whenever a new answer arrives
-  useEffect(() => { setFlagged(false); setCopied(false); }, [result]);
+  // Reset flag/copied/atBottom state whenever a new answer arrives
+  useEffect(() => { setFlagged(false); setCopied(false); setAtBottom(false); }, [result]);
+
+  // Show follow-up bar only when the bottom of the answer is visible
+  useEffect(() => {
+    const sentinel = bottomSentinelRef.current;
+    const container = contentRef.current;
+    if (!sentinel || !container || !result) return;
+    const observer = new IntersectionObserver(
+      ([entry]) => setAtBottom(entry.isIntersecting),
+      { root: container, threshold: 0 }
+    );
+    observer.observe(sentinel);
+    return () => observer.disconnect();
+  }, [result]);
 
   const flagAnswer = async () => {
     if (!result || flagged) return;
@@ -350,7 +366,7 @@ export default function App() {
         )}
 
         {/* Content */}
-        <div className="content">
+        <div className="content" ref={contentRef}>
           {/* Hero — always visible at the top */}
           <div className={`empty-state ${result || loading || error ? "compact" : ""}`}>
             <h1 className="hero-title">Vegan Q&A</h1>
@@ -413,14 +429,16 @@ export default function App() {
                   {copied ? "✓ Link copied!" : "🔗 Share answer"}
                 </button>
               </div>
+              {/* Sentinel — floating bar appears when this becomes visible */}
+              <div ref={bottomSentinelRef} style={{ height: 1 }} />
             </div>
           )}
 
           {error && <p className="error-text">{error}</p>}
         </div>
 
-        {/* Floating follow-up bar — only when answer is active */}
-        {(result || loading) && (
+        {/* Floating follow-up bar — appears once user reaches bottom of answer */}
+        {result && atBottom && (
           <div className="input-area floating">
             <div className="input-bar">
               <input
