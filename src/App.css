@@ -179,8 +179,17 @@ body {
 .nav-item:hover { background: #2a2a2a; color: #ececec; }
 .nav-item.active { background: #2f2f2f; color: #ececec; }
 
-.clear-history {
+.sidebar-footer {
+  display: flex;
+  gap: 12px;
   margin: 8px 12px 12px;
+  flex-shrink: 0;
+}
+
+.clear-history {
+  display: flex;
+  align-items: center;
+  gap: 5px;
   background: none;
   border: none;
   color: #555;
@@ -188,7 +197,6 @@ body {
   cursor: pointer;
   text-align: left;
   padding: 4px 0;
-  flex-shrink: 0;
 }
 .clear-history:hover { color: #888; }
 
@@ -440,8 +448,14 @@ body {
   font-style: italic;
 }
 
-.flag-btn {
+.answer-actions {
   margin-top: 1.25rem;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.flag-btn {
   display: inline-flex;
   align-items: center;
   gap: 6px;

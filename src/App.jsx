@@ -130,12 +130,13 @@ export default function App() {
   });
   const [clientCache] = useState(() => new Map());
   const [flagged, setFlagged] = useState(false);
+  const [copied, setCopied] = useState(false);
   const sessionId = getSessionId();
 
   const { listening, toggle: toggleMic } = useSpeech(text => setInput(text));
 
-  // Reset flag state whenever a new answer arrives
-  useEffect(() => { setFlagged(false); }, [result]);
+  // Reset flag/copied state whenever a new answer arrives
+  useEffect(() => { setFlagged(false); setCopied(false); }, [result]);
 
   const flagAnswer = async () => {
     if (!result || flagged) return;
@@ -152,6 +153,43 @@ export default function App() {
   useEffect(() => {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(history));
   }, [history]);
+
+  // Auto-ask from ?ask= URL param
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const ask = params.get("ask");
+    if (ask) {
+      window.history.replaceState({}, "", window.location.pathname);
+      generate(ask, "long");
+    }
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const exportHistory = () => {
+    if (!history.length) return;
+    const text = history.map(item =>
+      `Q: ${item.question || item.query}\n\nA: ${item.answer}${item.key ? `\n\n— ${item.key}` : ""}`
+    ).join("\n\n─────────────────────\n\n");
+    const blob = new Blob([text], { type: "text/plain" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = "vegan-qa-history.txt";
+    a.click();
+    URL.revokeObjectURL(url);
+  };
+
+  const shareAnswer = () => {
+    if (!result) return;
+    const q = encodeURIComponent(result.question || result.query);
+    const url = `${window.location.origin}${window.location.pathname}?ask=${q}`;
+    navigator.clipboard.writeText(url).then(() => {
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2500);
+    }).catch(() => {
+      // Fallback for browsers without clipboard API
+      prompt("Copy this link:", url);
+    });
+  };
 
   // Close sidebar on small screens by default
   useEffect(() => {
@@ -265,9 +303,15 @@ export default function App() {
         </nav>
 
         {history.length > 0 && (
-          <button className="clear-history" onClick={() => { setHistory([]); setResult(null); localStorage.removeItem(STORAGE_KEY); }}>
-            Clear history
-          </button>
+          <div className="sidebar-footer">
+            <button className="clear-history" onClick={exportHistory}>
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+              Export history
+            </button>
+            <button className="clear-history" onClick={() => { setHistory([]); setResult(null); localStorage.removeItem(STORAGE_KEY); }}>
+              Clear history
+            </button>
+          </div>
         )}
       </aside>
 
@@ -361,9 +405,14 @@ export default function App() {
               <p className="answer-question">{result.question || result.query}</p>
               <p className="answer-body">{result.answer}</p>
               {result.key && <div className="answer-key">{result.key}</div>}
-              <button className={`flag-btn ${flagged ? "flagged" : ""}`} onClick={flagAnswer} disabled={flagged}>
-                {flagged ? "✓ Submitted for review" : "⚑ Submit for review"}
-              </button>
+              <div className="answer-actions">
+                <button className={`flag-btn ${flagged ? "flagged" : ""}`} onClick={flagAnswer} disabled={flagged}>
+                  {flagged ? "✓ Submitted for review" : "⚑ Submit for review"}
+                </button>
+                <button className={`flag-btn ${copied ? "flagged" : ""}`} onClick={shareAnswer}>
+                  {copied ? "✓ Link copied!" : "🔗 Share answer"}
+                </button>
+              </div>
             </div>
           )}
 
