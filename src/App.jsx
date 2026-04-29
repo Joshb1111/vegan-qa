@@ -10,6 +10,7 @@ const SUGGESTIONS = [
   "Why not single-issue campaigns?",
   "Is veganism about suffering?",
   "What is instrumentalisation?",
+  "What is moral agency?",
 ];
 
 const STORAGE_KEY = "vegan-qa-history";
