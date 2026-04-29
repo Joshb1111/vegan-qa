@@ -350,12 +350,12 @@ body {
   display: flex;
   flex-direction: column;
   align-items: center;
-  justify-content: center;
+  justify-content: flex-start;
   text-align: center;
-  padding: 3rem 1.5rem 2rem;
+  padding: 1.75rem 1.5rem 2rem;
   width: 100%;
   max-width: 700px;
-  gap: 20px;
+  gap: 16px;
 }
 
 /* Once an answer is present, hero shrinks to natural height */
@@ -467,6 +467,8 @@ body {
   overflow-x: auto;
   scrollbar-width: none;
   -ms-overflow-style: none;
+  -webkit-mask-image: linear-gradient(to right, black 85%, transparent 100%);
+  mask-image: linear-gradient(to right, black 85%, transparent 100%);
 }
 .pills-scroll-wrap::-webkit-scrollbar { display: none; }
 
