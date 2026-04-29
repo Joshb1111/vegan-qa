@@ -37,6 +37,15 @@ function AnswerCard({ item, defaultExpanded = false, dimmed = false }) {
   );
 }
 
+function getSessionId() {
+  let id = sessionStorage.getItem("vqa-session");
+  if (!id) {
+    id = crypto.randomUUID();
+    sessionStorage.setItem("vqa-session", id);
+  }
+  return id;
+}
+
 export default function App() {
   const [input, setInput] = useState("");
   const [result, setResult] = useState(null);
@@ -52,6 +61,7 @@ export default function App() {
   const [mode, setMode] = useState("long");
 
   const [clientCache] = useState(() => new Map());
+  const sessionId = getSessionId();
 
   useEffect(() => {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(history));
@@ -76,7 +86,7 @@ export default function App() {
       const res = await fetch("/api/ask", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ query, mode: answerMode })
+        body: JSON.stringify({ query, mode: answerMode, sessionId })
       });
       if (!res.ok) throw new Error("Request failed");
       const data = await res.json();
