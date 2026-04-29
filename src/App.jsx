@@ -269,8 +269,8 @@ export default function App() {
           <button className="about-btn" onClick={() => setAboutOpen(true)}>About</button>
           <div className="topbar-right">
             <div className="mode-toggle">
-              <button className={`mode-btn ${mode === "short" ? "active" : ""}`} onClick={() => setMode("short")}>Short answers</button>
-              <button className={`mode-btn ${mode === "long" ? "active" : ""}`} onClick={() => setMode("long")}>Detailed answers</button>
+              <button className={`mode-btn ${mode === "short" ? "active" : ""}`} onClick={() => setMode("short")}>{mode === "short" ? "Short answers" : "Short"}</button>
+              <button className={`mode-btn ${mode === "long" ? "active" : ""}`} onClick={() => setMode("long")}>{mode === "long" ? "Detailed answers" : "Detailed"}</button>
             </div>
           </div>
         </header>

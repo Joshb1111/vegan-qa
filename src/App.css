@@ -465,15 +465,26 @@ body {
 }
 
 .pills-row {
-  display: grid;
-  grid-template-columns: repeat(3, 1fr);
+  display: flex;
+  flex-wrap: wrap;
   gap: 7px;
   width: 100%;
   max-width: 700px;
 }
 
+@media (max-width: 899px) {
+  .pills-row {
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    scrollbar-width: none;
+    -ms-overflow-style: none;
+    padding-bottom: 4px;
+  }
+  .pills-row::-webkit-scrollbar { display: none; }
+}
+
 .pill {
-  padding: 6px 10px;
+  padding: 6px 14px;
   border-radius: 20px;
   border: 1px solid #3a3a3a;
   background: transparent;
@@ -482,9 +493,7 @@ body {
   font-size: 12.5px;
   transition: border-color 0.12s, color 0.12s, background 0.12s;
   white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  text-align: center;
+  flex-shrink: 0;
 }
 .pill:hover { border-color: #4ade80; color: #ececec; background: #1e1e1e; }
 
@@ -553,8 +562,8 @@ body {
 }
 
 @media (max-width: 500px) {
-  .pills-row { gap: 5px; }
-  .pill { font-size: 11.5px; padding: 5px 8px; }
+  .pills-row { gap: 6px; }
+  .pill { font-size: 12px; padding: 5px 12px; }
   .answer-question { font-size: 18px; }
   .answer-body { font-size: 14px; }
 }
