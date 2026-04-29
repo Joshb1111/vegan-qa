@@ -106,6 +106,29 @@ body {
 .sidebar-search::placeholder { color: #555; }
 .sidebar-search:focus { border-color: #4a4a4a; }
 
+.sidebar-tabs {
+  display: flex;
+  gap: 2px;
+  padding: 8px 8px 0;
+  flex-shrink: 0;
+}
+
+.sidebar-tab {
+  flex: 1;
+  background: none;
+  border: none;
+  border-bottom: 2px solid transparent;
+  color: #555;
+  font-size: 12.5px;
+  font-weight: 500;
+  padding: 6px 0;
+  cursor: pointer;
+  transition: color 0.12s, border-color 0.12s;
+  text-align: center;
+}
+.sidebar-tab:hover { color: #aaa; }
+.sidebar-tab.active { color: #ececec; border-bottom-color: #4ade80; }
+
 .sidebar-nav {
   flex: 1;
   overflow-y: auto;

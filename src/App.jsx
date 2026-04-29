@@ -21,6 +21,55 @@ function getSessionId() {
   return id;
 }
 
+const CATEGORIES = [
+  {
+    label: "What is veganism",
+    keywords: ["what is veganism", "define vegan", "definition", "meaning of vegan", "vegan mean", "vegan is", "principle of vegan"],
+  },
+  {
+    label: "Outreach & activism",
+    keywords: ["outreach", "activist", "activism", "street", "conversation", "advocacy", "persuade", "convince", "talk to", "discuss"],
+  },
+  {
+    label: "Welfare & reform",
+    keywords: ["welfare", "welfarist", "welfarism", "reform", "cage-free", "cage free", "single-issue", "single issue", "humane", "cruelty-free", "free range"],
+  },
+  {
+    label: "Common arguments",
+    keywords: ["crop death", "lab-grown", "lab grown", "cultured", "pesticide", "medical", "protein", "nutrient", "health", "survival", "desert island", "plants feel", "leather", "wool", "honey", "egg"],
+  },
+  {
+    label: "History of veganism",
+    keywords: ["1951", "1979", "history", "founded", "original", "leslie cross", "donald watson", "vegan society", "changed", "diluted", "betrayal"],
+  },
+  {
+    label: "Philosophy",
+    keywords: ["instrumentali", "moral agency", "moral patient", "deontic", "exploitation", "use", "objectif", "sentien", "rights", "justice", "principle", "property"],
+  },
+  {
+    label: "Organisations & figures",
+    keywords: ["earthling ed", "joey carbstrong", "gary francione", "peter singer", "anonymous for the voiceless", "av cube", "we the free", "we stand", "earthlings experience", "organisation", "organization", "peta", "hsus"],
+  },
+];
+
+function categorise(question) {
+  const q = (question || "").toLowerCase();
+  for (const cat of CATEGORIES) {
+    if (cat.keywords.some(k => q.includes(k))) return cat.label;
+  }
+  return "Other";
+}
+
+function groupByCategory(items) {
+  const map = {};
+  for (const item of items) {
+    const cat = item.category || categorise(item.question || item.query || "");
+    if (!map[cat]) map[cat] = [];
+    map[cat].push(item);
+  }
+  return Object.entries(map).sort(([a], [b]) => a.localeCompare(b)).map(([label, items]) => ({ label, items }));
+}
+
 function groupHistory(items) {
   const now = Date.now();
   const DAY = 86400000;
@@ -72,6 +121,7 @@ export default function App() {
   const [error, setError] = useState(null);
   const [mode, setMode] = useState("long");
   const [sidebarOpen, setSidebarOpen] = useState(true);
+  const [sidebarTab, setSidebarTab] = useState("recent");
   const [aboutOpen, setAboutOpen] = useState(false);
   const [search, setSearch] = useState("");
   const [history, setHistory] = useState(() => {
@@ -120,7 +170,7 @@ export default function App() {
       setResult(data);
       setInput("");
       setHistory(h => {
-        const entry = { query, ...data, savedAt: Date.now() };
+        const entry = { query, ...data, savedAt: Date.now(), category: categorise(data.question || query) };
         return [entry, ...h.filter(i => i.question !== data.question)].slice(0, 100);
       });
     } catch {
@@ -162,25 +212,40 @@ export default function App() {
           </div>
         </div>
 
+        <div className="sidebar-tabs">
+          <button className={`sidebar-tab ${sidebarTab === "recent" ? "active" : ""}`} onClick={() => setSidebarTab("recent")}>Recent</button>
+          <button className={`sidebar-tab ${sidebarTab === "topics" ? "active" : ""}`} onClick={() => setSidebarTab("topics")}>Topics</button>
+        </div>
+
         <nav className="sidebar-nav">
-          {grouped.length === 0 && (
-            <p className="sidebar-empty">No previous questions</p>
+          {sidebarTab === "recent" && (
+            grouped.length === 0
+              ? <p className="sidebar-empty">No previous questions</p>
+              : grouped.map(({ label, items }) => (
+                <div key={label} className="nav-group">
+                  <p className="nav-group-label">{label}</p>
+                  {items.map((item, i) => (
+                    <button key={item.question + i} className={`nav-item ${result?.question === item.question ? "active" : ""}`} onClick={() => setResult(item)} title={item.question}>
+                      {item.question}
+                    </button>
+                  ))}
+                </div>
+              ))
           )}
-          {grouped.map(({ label, items }) => (
-            <div key={label} className="nav-group">
-              <p className="nav-group-label">{label}</p>
-              {items.map((item, i) => (
-                <button
-                  key={item.question + i}
-                  className={`nav-item ${result?.question === item.question ? "active" : ""}`}
-                  onClick={() => setResult(item)}
-                  title={item.question}
-                >
-                  {item.question}
-                </button>
-              ))}
-            </div>
-          ))}
+          {sidebarTab === "topics" && (
+            groupByCategory(filteredHistory).length === 0
+              ? <p className="sidebar-empty">No previous questions</p>
+              : groupByCategory(filteredHistory).map(({ label, items }) => (
+                <div key={label} className="nav-group">
+                  <p className="nav-group-label">{label}</p>
+                  {items.map((item, i) => (
+                    <button key={item.question + i} className={`nav-item ${result?.question === item.question ? "active" : ""}`} onClick={() => setResult(item)} title={item.question}>
+                      {item.question}
+                    </button>
+                  ))}
+                </div>
+              ))
+          )}
         </nav>
 
         {history.length > 0 && (
