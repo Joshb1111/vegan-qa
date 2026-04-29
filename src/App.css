@@ -207,6 +207,12 @@ body {
   flex: 1;
 }
 
+.topbar-right {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
 .mode-toggle {
   display: flex;
   gap: 2px;
@@ -215,17 +221,92 @@ body {
   padding: 3px;
 }
 .mode-btn {
-  padding: 5px 14px;
+  padding: 5px 12px;
   border-radius: 6px;
   border: none;
   background: transparent;
   color: #777;
   cursor: pointer;
-  font-size: 12.5px;
+  font-size: 12px;
   font-weight: 500;
   transition: background 0.12s, color 0.12s;
+  white-space: nowrap;
 }
 .mode-btn.active { background: #3f3f3f; color: #ececec; }
+
+.about-btn {
+  background: none;
+  border: 1px solid #3a3a3a;
+  border-radius: 8px;
+  color: #888;
+  font-size: 12.5px;
+  padding: 5px 12px;
+  cursor: pointer;
+  transition: border-color 0.12s, color 0.12s;
+  white-space: nowrap;
+}
+.about-btn:hover { border-color: #555; color: #ececec; }
+
+/* ── Modal ─────────────────────────────────────────────────── */
+.modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0,0,0,0.65);
+  z-index: 500;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 1.5rem;
+}
+
+.modal {
+  background: #1e1e1e;
+  border: 1px solid #333;
+  border-radius: 14px;
+  padding: 2rem;
+  max-width: 500px;
+  width: 100%;
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.modal-close {
+  position: absolute;
+  top: 14px; right: 14px;
+  background: none;
+  border: none;
+  color: #666;
+  font-size: 16px;
+  cursor: pointer;
+  line-height: 1;
+  padding: 4px 6px;
+  border-radius: 6px;
+  transition: color 0.12s, background 0.12s;
+}
+.modal-close:hover { color: #ececec; background: #2a2a2a; }
+
+.modal-title {
+  font-family: 'Libre Baskerville', serif;
+  font-size: 20px;
+  color: #ececec;
+  margin-bottom: 4px;
+}
+
+.modal p {
+  font-size: 14px;
+  line-height: 1.75;
+  color: #aaa;
+}
+
+.modal-footer-note {
+  font-size: 12.5px !important;
+  color: #555 !important;
+  border-top: 1px solid #2a2a2a;
+  padding-top: 12px;
+  font-style: italic;
+}
 
 /* ── Content area ─────────────────────────────────────────── */
 .content {
@@ -246,9 +327,9 @@ body {
   display: flex;
   flex-direction: column;
   align-items: center;
-  justify-content: center;
+  justify-content: flex-start;
   text-align: center;
-  padding: 2rem 1.5rem;
+  padding: 3rem 1.5rem 2rem;
   width: 100%;
   max-width: 700px;
   gap: 20px;

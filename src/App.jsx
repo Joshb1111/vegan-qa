@@ -71,6 +71,7 @@ export default function App() {
   const [error, setError] = useState(null);
   const [mode, setMode] = useState("long");
   const [sidebarOpen, setSidebarOpen] = useState(true);
+  const [aboutOpen, setAboutOpen] = useState(false);
   const [search, setSearch] = useState("");
   const [history, setHistory] = useState(() => {
     try { return JSON.parse(localStorage.getItem(STORAGE_KEY)) || []; }
@@ -199,11 +200,28 @@ export default function App() {
             <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M3 6h18M3 12h18M3 18h18"/></svg>
           </button>
           <span className="topbar-brand">Vegan Q&A</span>
-          <div className="mode-toggle">
-            <button className={`mode-btn ${mode === "short" ? "active" : ""}`} onClick={() => setMode("short")}>Short</button>
-            <button className={`mode-btn ${mode === "long" ? "active" : ""}`} onClick={() => setMode("long")}>Detailed</button>
+          <div className="topbar-right">
+            <div className="mode-toggle">
+              <button className={`mode-btn ${mode === "short" ? "active" : ""}`} onClick={() => setMode("short")}>Short answers</button>
+              <button className={`mode-btn ${mode === "long" ? "active" : ""}`} onClick={() => setMode("long")}>Detailed answers</button>
+            </div>
+            <button className="about-btn" onClick={() => setAboutOpen(true)}>About</button>
           </div>
         </header>
+
+        {/* About modal */}
+        {aboutOpen && (
+          <div className="modal-overlay" onClick={() => setAboutOpen(false)}>
+            <div className="modal" onClick={e => e.stopPropagation()}>
+              <button className="modal-close" onClick={() => setAboutOpen(false)}>✕</button>
+              <h2 className="modal-title">About Vegan Q&A</h2>
+              <p>This is an AI chatbot powered by a large language model (LLM), grounded in the work of abolitionist vegan thinkers and the original vegan ethical framework as defined by Leslie Cross in 1951.</p>
+              <p>It is designed to help activists, advocates, and curious people explore questions about veganism, animal use, outreach, and the philosophy behind the movement.</p>
+              <p>While every answer is shaped by carefully researched principles, this tool is still in beta — answers may not always be 100% accurate. The bot is continuously reviewed and updated by real humans who hold the abolitionist position.</p>
+              <p className="modal-footer-note">If you notice an answer that feels off, treat it as a starting point for your own thinking — not a final authority.</p>
+            </div>
+          </div>
+        )}
 
         {/* Content */}
         <div className="content">
