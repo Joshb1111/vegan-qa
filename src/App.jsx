@@ -229,7 +229,7 @@ export default function App() {
           {!result && !loading && !error && (
             <div className="empty-state">
               <h1 className="hero-title">Vegan Q&A</h1>
-              <p className="hero-sub">Grounded in the work of abolitionist vegan thinkers and the original vegan ethical framework.</p>
+              <p className="hero-sub">Not generic AI. Grounded in the work of abolitionist vegan thinkers and the original vegan ethical framework.</p>
 
               {/* Input bar — centred in empty state */}
               <div className="input-bar centered-input">
