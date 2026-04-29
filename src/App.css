@@ -436,6 +436,23 @@ body {
   font-style: italic;
 }
 
+.flag-btn {
+  margin-top: 1.25rem;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 14px;
+  border-radius: 20px;
+  border: 1px solid #3a3a3a;
+  background: transparent;
+  color: #666;
+  font-size: 12.5px;
+  cursor: pointer;
+  transition: border-color 0.12s, color 0.12s;
+}
+.flag-btn:hover:not(:disabled) { border-color: #f87171; color: #f87171; }
+.flag-btn.flagged { border-color: #4ade80; color: #4ade80; cursor: default; }
+
 .error-text {
   color: #f87171;
   font-size: 14px;

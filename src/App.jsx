@@ -129,9 +129,25 @@ export default function App() {
     catch { return []; }
   });
   const [clientCache] = useState(() => new Map());
+  const [flagged, setFlagged] = useState(false);
   const sessionId = getSessionId();
 
   const { listening, toggle: toggleMic } = useSpeech(text => setInput(text));
+
+  // Reset flag state whenever a new answer arrives
+  useEffect(() => { setFlagged(false); }, [result]);
+
+  const flagAnswer = async () => {
+    if (!result || flagged) return;
+    try {
+      await fetch("/api/flag", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ question: result.question || result.query, answer: result.answer }),
+      });
+    } catch {}
+    setFlagged(true);
+  };
 
   useEffect(() => {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(history));
@@ -284,7 +300,7 @@ export default function App() {
               <p>This is an AI chatbot powered by a large language model (LLM), grounded in the work of abolitionist vegan thinkers and the original vegan ethical framework as defined in 1951.</p>
               <p>It is designed to help activists, advocates, and curious people explore questions about veganism, animal use, outreach, and the philosophy behind the movement.</p>
               <p>While every answer is shaped by carefully researched principles, this tool is still in beta — answers may not always be 100% accurate. The bot is continuously reviewed and updated by real humans who hold the abolitionist position.</p>
-              <p className="modal-footer-note">If you notice an answer that feels off, treat it as a starting point for your own thinking — not a final authority.</p>
+              <p className="modal-footer-note">If you notice an answer that feels off, use the <strong>Submit for review</strong> button at the bottom of the answer — it will be checked and updated by a real person.</p>
             </div>
           </div>
         )}
@@ -345,6 +361,9 @@ export default function App() {
               <p className="answer-question">{result.question || result.query}</p>
               <p className="answer-body">{result.answer}</p>
               {result.key && <div className="answer-key">{result.key}</div>}
+              <button className={`flag-btn ${flagged ? "flagged" : ""}`} onClick={flagAnswer} disabled={flagged}>
+                {flagged ? "✓ Submitted for review" : "⚑ Submit for review"}
+              </button>
             </div>
           )}
 
