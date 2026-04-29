@@ -291,49 +291,46 @@ export default function App() {
 
         {/* Content */}
         <div className="content">
-          {!result && !loading && !error && (
-            <div className="empty-state">
-              <h1 className="hero-title">Vegan Q&A</h1>
-              <p className="hero-sub">Not generic AI. Grounded in the work of abolitionist vegan thinkers and the original vegan ethical framework.</p>
+          {/* Hero — always visible at the top */}
+          <div className={`empty-state ${result || loading || error ? "compact" : ""}`}>
+            <h1 className="hero-title">Vegan Q&A</h1>
+            <p className="hero-sub">Not generic AI. Grounded in the work of abolitionist vegan thinkers and the original vegan ethical framework.</p>
 
-              {/* Input bar — centred in empty state */}
-              <div className="input-bar centered-input">
-                <input
-                  className="chat-input"
-                  value={input}
-                  onChange={e => setInput(e.target.value)}
-                  onKeyDown={e => e.key === "Enter" && !e.shiftKey && generate()}
-                  placeholder="Ask me anything..."
-                  autoFocus
-                />
-                <button
-                  className={`icon-btn mic-btn ${listening ? "active" : ""}`}
-                  onClick={toggleMic}
-                  title={listening ? "Stop" : "Voice input"}
-                >
-                  {listening ? (
-                    <svg width="15" height="15" viewBox="0 0 24 24" fill="currentColor"><rect x="6" y="6" width="12" height="12" rx="2"/></svg>
-                  ) : (
-                    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M12 2a3 3 0 0 1 3 3v7a3 3 0 0 1-6 0V5a3 3 0 0 1 3-3z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><line x1="12" y1="19" x2="12" y2="22"/></svg>
-                  )}
-                </button>
-                <button
-                  className="icon-btn send-btn"
-                  onClick={() => generate()}
-                  disabled={loading || !input.trim()}
-                >
-                  <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M12 19V5M5 12l7-7 7 7"/></svg>
-                </button>
-              </div>
-
-              {/* Pills — just below input in empty state */}
-              <div className="pills-row">
-                {SUGGESTIONS.map(s => (
-                  <button key={s} className="pill" onClick={() => { setInput(s); generate(s); }}>{s}</button>
-                ))}
-              </div>
+            <div className="input-bar centered-input">
+              <input
+                className="chat-input"
+                value={input}
+                onChange={e => setInput(e.target.value)}
+                onKeyDown={e => e.key === "Enter" && !e.shiftKey && generate()}
+                placeholder="Ask me anything..."
+                autoFocus={!result}
+              />
+              <button
+                className={`icon-btn mic-btn ${listening ? "active" : ""}`}
+                onClick={toggleMic}
+                title={listening ? "Stop" : "Voice input"}
+              >
+                {listening ? (
+                  <svg width="15" height="15" viewBox="0 0 24 24" fill="currentColor"><rect x="6" y="6" width="12" height="12" rx="2"/></svg>
+                ) : (
+                  <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M12 2a3 3 0 0 1 3 3v7a3 3 0 0 1-6 0V5a3 3 0 0 1 3-3z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><line x1="12" y1="19" x2="12" y2="22"/></svg>
+                )}
+              </button>
+              <button
+                className="icon-btn send-btn"
+                onClick={() => generate()}
+                disabled={loading || !input.trim()}
+              >
+                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M12 19V5M5 12l7-7 7 7"/></svg>
+              </button>
             </div>
-          )}
+
+            <div className="pills-row">
+              {SUGGESTIONS.map(s => (
+                <button key={s} className="pill" onClick={() => { setInput(s); generate(s); }}>{s}</button>
+              ))}
+            </div>
+          </div>
 
           {loading && (
             <div className="thinking">
@@ -352,38 +349,40 @@ export default function App() {
           {error && <p className="error-text">{error}</p>}
         </div>
 
-        {/* Input area — only shown when there's an active answer */}
-        <div className="input-area">
-          {(result || loading) && <div className="input-bar">
-            <input
-              className="chat-input"
-              value={input}
-              onChange={e => setInput(e.target.value)}
-              onKeyDown={e => e.key === "Enter" && !e.shiftKey && generate()}
-              placeholder="Ask a follow-up..."
-              autoFocus={!!result}
-            />
-            <button
-              className={`icon-btn mic-btn ${listening ? "active" : ""}`}
-              onClick={toggleMic}
-              title={listening ? "Stop" : "Voice input"}
-            >
-              {listening ? (
-                <svg width="15" height="15" viewBox="0 0 24 24" fill="currentColor"><rect x="6" y="6" width="12" height="12" rx="2"/></svg>
-              ) : (
-                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M12 2a3 3 0 0 1 3 3v7a3 3 0 0 1-6 0V5a3 3 0 0 1 3-3z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><line x1="12" y1="19" x2="12" y2="22"/></svg>
-              )}
-            </button>
-            <button
-              className="icon-btn send-btn"
-              onClick={() => generate()}
-              disabled={loading || !input.trim()}
-            >
-              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M12 19V5M5 12l7-7 7 7"/></svg>
-            </button>
-          </div>}
-          <p className="input-disclaimer">Grounded in abolitionist vegan philosophy · Not affiliated with any organisation</p>
-        </div>
+        {/* Floating follow-up bar — only when answer is active */}
+        {(result || loading) && (
+          <div className="input-area floating">
+            <div className="input-bar">
+              <input
+                className="chat-input"
+                value={input}
+                onChange={e => setInput(e.target.value)}
+                onKeyDown={e => e.key === "Enter" && !e.shiftKey && generate()}
+                placeholder="Ask a follow-up..."
+                autoFocus={!!result}
+              />
+              <button
+                className={`icon-btn mic-btn ${listening ? "active" : ""}`}
+                onClick={toggleMic}
+                title={listening ? "Stop" : "Voice input"}
+              >
+                {listening ? (
+                  <svg width="15" height="15" viewBox="0 0 24 24" fill="currentColor"><rect x="6" y="6" width="12" height="12" rx="2"/></svg>
+                ) : (
+                  <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M12 2a3 3 0 0 1 3 3v7a3 3 0 0 1-6 0V5a3 3 0 0 1 3-3z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><line x1="12" y1="19" x2="12" y2="22"/></svg>
+                )}
+              </button>
+              <button
+                className="icon-btn send-btn"
+                onClick={() => generate()}
+                disabled={loading || !input.trim()}
+              >
+                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M12 19V5M5 12l7-7 7 7"/></svg>
+              </button>
+            </div>
+            <p className="input-disclaimer">Grounded in abolitionist vegan philosophy · Not affiliated with any organisation</p>
+          </div>
+        )}
       </div>
     </div>
   );
