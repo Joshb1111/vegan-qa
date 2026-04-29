@@ -1,80 +1,104 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import "./App.css";
 
 const SUGGESTIONS = [
   "What is veganism?",
-  "When did veganism start being diluted?",
-  "Why welfare reform fails",
   "Is reducetarianism veganism?",
-  "What is instrumentalisation?",
+  "Why welfare reform fails",
   "What about crop deaths?",
-  "Is veganism about suffering?",
   "What changed in 1979?",
   "Why not single-issue campaigns?",
-  "What did Leslie Cross define?"
+  "Is veganism about suffering?",
+  "What is instrumentalisation?",
 ];
 
 const STORAGE_KEY = "vegan-qa-history";
 
-function AnswerCard({ item, defaultExpanded = false, dimmed = false }) {
-  const [expanded, setExpanded] = useState(defaultExpanded);
-
-  return (
-    <div className={`card ${dimmed ? "history-card" : ""}`}>
-      <button className="card-toggle" onClick={() => setExpanded(e => !e)}>
-        <span className="question">{item.question}</span>
-        <span className={`chevron ${expanded ? "chevron-up" : ""}`}>›</span>
-      </button>
-      {expanded && (
-        <>
-          <div className="answer-wrap expanded">
-            <p className="answer">{item.answer}</p>
-          </div>
-          {item.key && <div className="key">{item.key}</div>}
-        </>
-      )}
-    </div>
-  );
-}
-
 function getSessionId() {
   let id = sessionStorage.getItem("vqa-session");
-  if (!id) {
-    id = crypto.randomUUID();
-    sessionStorage.setItem("vqa-session", id);
-  }
+  if (!id) { id = crypto.randomUUID(); sessionStorage.setItem("vqa-session", id); }
   return id;
+}
+
+function groupHistory(items) {
+  const now = Date.now();
+  const DAY = 86400000;
+  const todayStart = new Date().setHours(0, 0, 0, 0);
+  const groups = [
+    { label: "Today", items: [] },
+    { label: "Yesterday", items: [] },
+    { label: "This week", items: [] },
+    { label: "Older", items: [] },
+  ];
+  for (const item of items) {
+    const t = item.savedAt || 0;
+    if (t >= todayStart) groups[0].items.push(item);
+    else if (t >= todayStart - DAY) groups[1].items.push(item);
+    else if (t >= now - 7 * DAY) groups[2].items.push(item);
+    else groups[3].items.push(item);
+  }
+  return groups.filter(g => g.items.length > 0);
+}
+
+function useSpeech(onResult) {
+  const recogRef = useRef(null);
+  const [listening, setListening] = useState(false);
+  const supported = typeof window !== "undefined" &&
+    !!(window.SpeechRecognition || window.webkitSpeechRecognition);
+
+  const toggle = useCallback(() => {
+    if (!supported) return alert("Voice input isn't supported in this browser. Try Chrome.");
+    if (listening) { recogRef.current?.stop(); setListening(false); return; }
+    const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+    const r = new SR();
+    r.lang = "en-US";
+    r.interimResults = false;
+    r.onresult = e => { onResult(e.results[0][0].transcript); setListening(false); };
+    r.onerror = () => setListening(false);
+    r.onend = () => setListening(false);
+    recogRef.current = r;
+    r.start();
+    setListening(true);
+  }, [listening, onResult, supported]);
+
+  return { listening, toggle, supported };
 }
 
 export default function App() {
   const [input, setInput] = useState("");
   const [result, setResult] = useState(null);
   const [loading, setLoading] = useState(false);
-  const [history, setHistory] = useState(() => {
-    try {
-      return JSON.parse(localStorage.getItem(STORAGE_KEY)) || [];
-    } catch {
-      return [];
-    }
-  });
   const [error, setError] = useState(null);
   const [mode, setMode] = useState("long");
-
+  const [sidebarOpen, setSidebarOpen] = useState(true);
+  const [search, setSearch] = useState("");
+  const [history, setHistory] = useState(() => {
+    try { return JSON.parse(localStorage.getItem(STORAGE_KEY)) || []; }
+    catch { return []; }
+  });
   const [clientCache] = useState(() => new Map());
   const sessionId = getSessionId();
+
+  const { listening, toggle: toggleMic } = useSpeech(text => setInput(text));
 
   useEffect(() => {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(history));
   }, [history]);
 
-  const generate = async (q, selectedMode) => {
+  // Close sidebar on small screens by default
+  useEffect(() => {
+    if (window.innerWidth < 768) setSidebarOpen(false);
+  }, []);
+
+  const generate = async (q, m) => {
     const query = (q || input).trim();
-    const answerMode = selectedMode || mode;
+    const answerMode = m || mode;
     if (!query || loading) return;
 
-    const key = `${answerMode}:${query.toLowerCase().trim()}`;
-    if (clientCache.has(key)) {
-      setResult(clientCache.get(key));
+    const cacheKey = `${answerMode}:${query.toLowerCase()}`;
+    if (clientCache.has(cacheKey)) {
+      setResult(clientCache.get(cacheKey));
+      setInput("");
       setError(null);
       return;
     }
@@ -86,16 +110,16 @@ export default function App() {
       const res = await fetch("/api/ask", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ query, mode: answerMode, sessionId })
+        body: JSON.stringify({ query, mode: answerMode, sessionId }),
       });
-      if (!res.ok) throw new Error("Request failed");
+      if (!res.ok) throw new Error();
       const data = await res.json();
-      clientCache.set(key, data);
+      clientCache.set(cacheKey, data);
       setResult(data);
+      setInput("");
       setHistory(h => {
         const entry = { query, ...data, savedAt: Date.now() };
-        const filtered = h.filter(i => i.question !== data.question);
-        return [entry, ...filtered].slice(0, 50);
+        return [entry, ...h.filter(i => i.question !== data.question)].slice(0, 100);
       });
     } catch {
       setError("Something went wrong. Please try again.");
@@ -103,86 +127,151 @@ export default function App() {
     setLoading(false);
   };
 
-  const clearHistory = () => {
-    setHistory([]);
+  const newChat = () => {
     setResult(null);
-    localStorage.removeItem(STORAGE_KEY);
+    setInput("");
+    setError(null);
+    sessionStorage.removeItem("vqa-session");
   };
 
-  const previousItems = result
-    ? history.filter(h => h.question !== result.question)
-    : history;
+  const filteredHistory = history.filter(h =>
+    !search || h.question?.toLowerCase().includes(search.toLowerCase())
+  );
+  const grouped = groupHistory(filteredHistory);
 
   return (
-    <div className="wrap">
-      <div className="hero">
-        <span className="logo">Vegan Q&A</span>
-        <p className="sub">Grounded in the work of abolitionist vegan thinkers and the original vegan ethical framework.</p>
+    <div className={`layout ${sidebarOpen ? "sidebar-open" : ""}`}>
 
-        <div className="search-box">
-          <input
-            className="search-input"
-            value={input}
-            onChange={e => setInput(e.target.value)}
-            onKeyDown={e => e.key === "Enter" && generate()}
-            placeholder="Ask me anything..."
-            autoFocus
-          />
-          <div className="search-controls">
-            <div className="mode-toggle">
-              <button
-                className={`mode-btn ${mode === "short" ? "active" : ""}`}
-                onClick={() => setMode("short")}
-              >{mode === "short" ? "Short Answer" : "Short"}</button>
-              <button
-                className={`mode-btn ${mode === "long" ? "active" : ""}`}
-                onClick={() => setMode("long")}
-              >{mode === "long" ? "Detailed Answer" : "Detailed"}</button>
+      {/* Sidebar */}
+      <aside className="sidebar">
+        <div className="sidebar-header">
+          <button className="new-chat" onClick={newChat}>
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M12 5v14M5 12h14"/></svg>
+            New conversation
+          </button>
+          <div className="sidebar-search-wrap">
+            <svg className="search-icon" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
+            <input
+              className="sidebar-search"
+              placeholder="Search..."
+              value={search}
+              onChange={e => setSearch(e.target.value)}
+            />
+          </div>
+        </div>
+
+        <nav className="sidebar-nav">
+          {grouped.length === 0 && (
+            <p className="sidebar-empty">No previous questions</p>
+          )}
+          {grouped.map(({ label, items }) => (
+            <div key={label} className="nav-group">
+              <p className="nav-group-label">{label}</p>
+              {items.map((item, i) => (
+                <button
+                  key={item.question + i}
+                  className={`nav-item ${result?.question === item.question ? "active" : ""}`}
+                  onClick={() => setResult(item)}
+                  title={item.question}
+                >
+                  {item.question}
+                </button>
+              ))}
             </div>
+          ))}
+        </nav>
+
+        {history.length > 0 && (
+          <button className="clear-history" onClick={() => { setHistory([]); setResult(null); localStorage.removeItem(STORAGE_KEY); }}>
+            Clear history
+          </button>
+        )}
+      </aside>
+
+      {/* Overlay for mobile */}
+      {sidebarOpen && <div className="overlay" onClick={() => setSidebarOpen(false)} />}
+
+      {/* Main */}
+      <div className="main">
+        {/* Topbar */}
+        <header className="topbar">
+          <button className="sidebar-toggle" onClick={() => setSidebarOpen(o => !o)} title="Toggle sidebar">
+            <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M3 6h18M3 12h18M3 18h18"/></svg>
+          </button>
+          <span className="topbar-brand">Vegan Q&A</span>
+          <div className="mode-toggle">
+            <button className={`mode-btn ${mode === "short" ? "active" : ""}`} onClick={() => setMode("short")}>Short</button>
+            <button className={`mode-btn ${mode === "long" ? "active" : ""}`} onClick={() => setMode("long")}>Detailed</button>
+          </div>
+        </header>
+
+        {/* Content */}
+        <div className="content">
+          {!result && !loading && !error && (
+            <div className="empty-state">
+              <h1 className="hero-title">Vegan Q&A</h1>
+              <p className="hero-sub">Grounded in the work of abolitionist vegan thinkers and the original vegan ethical framework.</p>
+            </div>
+          )}
+
+          {loading && (
+            <div className="thinking">
+              <span className="dot" /><span className="dot" /><span className="dot" />
+            </div>
+          )}
+
+          {result && !loading && (
+            <div className="answer-block">
+              <p className="answer-question">{result.question || result.query}</p>
+              <p className="answer-body">{result.answer}</p>
+              {result.key && <div className="answer-key">{result.key}</div>}
+            </div>
+          )}
+
+          {error && <p className="error-text">{error}</p>}
+        </div>
+
+        {/* Input area */}
+        <div className="input-area">
+          {!result && !loading && (
+            <div className="pills-row">
+              {SUGGESTIONS.map(s => (
+                <button key={s} className="pill" onClick={() => { setInput(s); generate(s); }}>{s}</button>
+              ))}
+            </div>
+          )}
+
+          <div className="input-bar">
+            <input
+              className="chat-input"
+              value={input}
+              onChange={e => setInput(e.target.value)}
+              onKeyDown={e => e.key === "Enter" && !e.shiftKey && generate()}
+              placeholder="Ask me anything..."
+              autoFocus
+            />
             <button
-              className="search-btn"
+              className={`icon-btn mic-btn ${listening ? "active" : ""}`}
+              onClick={toggleMic}
+              title={listening ? "Stop" : "Voice input"}
+            >
+              {listening ? (
+                <svg width="15" height="15" viewBox="0 0 24 24" fill="currentColor"><rect x="6" y="6" width="12" height="12" rx="2"/></svg>
+              ) : (
+                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M12 2a3 3 0 0 1 3 3v7a3 3 0 0 1-6 0V5a3 3 0 0 1 3-3z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><line x1="12" y1="19" x2="12" y2="22"/></svg>
+              )}
+            </button>
+            <button
+              className="icon-btn send-btn"
               onClick={() => generate()}
               disabled={loading || !input.trim()}
             >
-              {loading ? "Please wait" : "Ask"}
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M12 19V5M5 12l7-7 7 7"/></svg>
             </button>
           </div>
-        </div>
-
-        <div className="pills-wrapper">
-          <div className="pills">
-            {SUGGESTIONS.map(sug => (
-              <button key={sug} className="pill" onClick={() => { setInput(sug); generate(sug); }}>
-                {sug}
-              </button>
-            ))}
-          </div>
+          <p className="input-disclaimer">Grounded in abolitionist vegan philosophy · Not affiliated with any organisation</p>
         </div>
       </div>
-
-      {error && <p className="error">{error}</p>}
-      {loading && (
-        <div className="thinking-box">
-          <span className="thinking-dot" /><span className="thinking-dot" /><span className="thinking-dot" />
-          <p className="thinking-text">Finding your answer…</p>
-        </div>
-      )}
-
-      {result && !loading && (
-        <AnswerCard key={result.question} item={result} defaultExpanded={true} />
-      )}
-
-      {previousItems.length > 0 && (
-        <div className="history">
-          <div className="history-header">
-            <p className="history-label">Previous answers</p>
-            <button className="clear-btn" onClick={clearHistory}>Clear</button>
-          </div>
-          {previousItems.map((h, i) => (
-            <AnswerCard key={h.question + i} item={h} defaultExpanded={false} dimmed />
-          ))}
-        </div>
-      )}
     </div>
   );
 }
