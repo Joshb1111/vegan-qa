@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import "./App.css";
+import VoiceConversation from "./VoiceConversation.jsx";
 
 const SUGGESTIONS = [
   "What is veganism?",
@@ -123,6 +124,7 @@ export default function App() {
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [sidebarTab, setSidebarTab] = useState("recent");
   const [aboutOpen, setAboutOpen] = useState(false);
+  const [voiceOpen, setVoiceOpen] = useState(false);
   const [search, setSearch] = useState("");
   const [history, setHistory] = useState(() => {
     try { return JSON.parse(localStorage.getItem(STORAGE_KEY)) || []; }
@@ -170,13 +172,25 @@ export default function App() {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(history));
   }, [history]);
 
-  // Auto-ask from ?ask= URL param
+  // Auto-ask from ?ask= URL param, or claim cookie after Stripe checkout returns
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
     const ask = params.get("ask");
+    const checkout = params.get("checkout");
+    const stripeSession = params.get("session_id");
     if (ask) {
       window.history.replaceState({}, "", window.location.pathname);
       generate(ask, "long");
+    }
+    if (checkout === "success" && stripeSession) {
+      fetch(`/api/checkout-claim?session_id=${encodeURIComponent(stripeSession)}`, { credentials: "include" })
+        .finally(() => {
+          window.history.replaceState({}, "", window.location.pathname);
+          setVoiceOpen(true);
+        });
+    } else if (params.get("restored") === "1") {
+      window.history.replaceState({}, "", window.location.pathname);
+      setVoiceOpen(true);
     }
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -344,12 +358,18 @@ export default function App() {
           <span className="topbar-brand">Vegan Q&A</span>
           <button className="about-btn" onClick={() => setAboutOpen(true)}>About</button>
           <div className="topbar-right">
+            <button className="voice-btn" onClick={() => setVoiceOpen(true)} title="5-min voice conversation">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M12 2a3 3 0 0 1 3 3v7a3 3 0 0 1-6 0V5a3 3 0 0 1 3-3z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><line x1="12" y1="19" x2="12" y2="22"/></svg>
+              Voice
+            </button>
             <div className="mode-toggle">
               <button className={`mode-btn ${mode === "short" ? "active" : ""}`} onClick={() => setMode("short")}>{mode === "short" ? "Short answers" : "Short"}</button>
               <button className={`mode-btn ${mode === "long" ? "active" : ""}`} onClick={() => setMode("long")}>{mode === "long" ? "Detailed answers" : "Detailed"}</button>
             </div>
           </div>
         </header>
+
+        <VoiceConversation open={voiceOpen} onClose={() => setVoiceOpen(false)} />
 
         {/* About modal */}
         {aboutOpen && (
