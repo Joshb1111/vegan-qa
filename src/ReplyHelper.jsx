@@ -1,9 +1,7 @@
 import { useState, useRef } from "react";
 
-const REGISTER_LABELS = {
-  intellectual: "Intellectual",
-  simple: "Simple",
-};
+// Display "Answer 1" / "Answer 2" rather than the internal register names —
+// keeps the UI neutral so the reader compares them without being pre-judged.
 
 export default function ReplyHelper() {
   const [comment, setComment] = useState("");
@@ -110,7 +108,7 @@ export default function ReplyHelper() {
           {replies.map((r, i) => (
             <div key={i} className="reply-result">
               <div className="reply-result-head">
-                <span className="reply-register">{REGISTER_LABELS[r.register] || r.register}</span>
+                <span className="reply-register">Answer {i + 1}</span>
                 <button
                   className={`reply-copy ${copiedIndex === i ? "copied" : ""}`}
                   onClick={() => copy(r.text, i)}
