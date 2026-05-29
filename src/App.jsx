@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import "./App.css";
 import VoiceConversation from "./VoiceConversation.jsx";
+import ReplyHelper from "./ReplyHelper.jsx";
 
 const SUGGESTIONS = [
   "What is veganism?",
@@ -125,6 +126,7 @@ export default function App() {
   const [sidebarTab, setSidebarTab] = useState("recent");
   const [aboutOpen, setAboutOpen] = useState(false);
   const [voiceOpen, setVoiceOpen] = useState(false);
+  const [view, setView] = useState("qa"); // "qa" | "reply"
   const [search, setSearch] = useState("");
   const [history, setHistory] = useState(() => {
     try { return JSON.parse(localStorage.getItem(STORAGE_KEY)) || []; }
@@ -357,15 +359,21 @@ export default function App() {
           </button>
           <span className="topbar-brand">Vegan Q&A</span>
           <button className="about-btn" onClick={() => setAboutOpen(true)}>About</button>
+          <div className="view-toggle">
+            <button className={`view-btn ${view === "qa" ? "active" : ""}`} onClick={() => setView("qa")}>Q&A</button>
+            <button className={`view-btn ${view === "reply" ? "active" : ""}`} onClick={() => setView("reply")}>Reply</button>
+          </div>
           <div className="topbar-right">
             <button className="voice-btn" onClick={() => setVoiceOpen(true)} title="5-min voice conversation">
               <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M12 2a3 3 0 0 1 3 3v7a3 3 0 0 1-6 0V5a3 3 0 0 1 3-3z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><line x1="12" y1="19" x2="12" y2="22"/></svg>
               Voice
             </button>
-            <div className="mode-toggle">
-              <button className={`mode-btn ${mode === "short" ? "active" : ""}`} onClick={() => setMode("short")}>{mode === "short" ? "Short answers" : "Short"}</button>
-              <button className={`mode-btn ${mode === "long" ? "active" : ""}`} onClick={() => setMode("long")}>{mode === "long" ? "Detailed answers" : "Detailed"}</button>
-            </div>
+            {view === "qa" && (
+              <div className="mode-toggle">
+                <button className={`mode-btn ${mode === "short" ? "active" : ""}`} onClick={() => setMode("short")}>{mode === "short" ? "Short answers" : "Short"}</button>
+                <button className={`mode-btn ${mode === "long" ? "active" : ""}`} onClick={() => setMode("long")}>{mode === "long" ? "Detailed answers" : "Detailed"}</button>
+              </div>
+            )}
           </div>
         </header>
 
@@ -387,6 +395,9 @@ export default function App() {
 
         {/* Content */}
         <div className="content" ref={contentRef}>
+          {view === "reply" ? (
+            <ReplyHelper />
+          ) : (<>
           {/* Hero — always visible at the top */}
           <div className={`empty-state ${result || loading || error ? "compact" : ""}`}>
             <h1 className="hero-title">Vegan Q&A</h1>
@@ -455,10 +466,11 @@ export default function App() {
           )}
 
           {error && <p className="error-text">{error}</p>}
+          </>)}
         </div>
 
         {/* Floating follow-up bar — appears once user reaches bottom of answer */}
-        {result && atBottom && (
+        {view === "qa" && result && atBottom && (
           <div className="input-area floating">
             <div className="input-bar">
               <input
