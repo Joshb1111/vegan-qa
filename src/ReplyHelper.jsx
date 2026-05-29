@@ -1,17 +1,11 @@
 import { useState, useRef } from "react";
 
-const ANGLE_LABELS = {
-  direct: "Direct",
-  question: "Question back",
-  reframe: "Reframe",
-};
-
 export default function ReplyHelper() {
   const [comment, setComment] = useState("");
-  const [variants, setVariants] = useState([]);
+  const [reply, setReply] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
-  const [copiedIndex, setCopiedIndex] = useState(-1);
+  const [copied, setCopied] = useState(false);
   const textareaRef = useRef(null);
 
   async function generate() {
@@ -19,7 +13,8 @@ export default function ReplyHelper() {
     if (!trimmed || loading) return;
     setLoading(true);
     setError("");
-    setVariants([]);
+    setReply("");
+    setCopied(false);
     try {
       const r = await fetch("/api/reply", {
         method: "POST",
@@ -27,27 +22,28 @@ export default function ReplyHelper() {
         body: JSON.stringify({ comment: trimmed }),
       });
       const data = await r.json();
-      if (!r.ok) throw new Error(data.error || "Failed to generate replies");
-      setVariants(data.variants || []);
+      if (!r.ok) throw new Error(data.error || "Failed to generate reply");
+      setReply(data.reply || "");
     } catch (err) {
       setError(err.message);
     }
     setLoading(false);
   }
 
-  function copy(text, index) {
-    navigator.clipboard.writeText(text).then(() => {
-      setCopiedIndex(index);
-      setTimeout(() => setCopiedIndex(-1), 1800);
+  function copy() {
+    navigator.clipboard.writeText(reply).then(() => {
+      setCopied(true);
+      setTimeout(() => setCopied(false), 1800);
     }).catch(() => {
-      prompt("Copy this reply:", text);
+      prompt("Copy this reply:", reply);
     });
   }
 
   function clear() {
     setComment("");
-    setVariants([]);
+    setReply("");
     setError("");
+    setCopied(false);
     textareaRef.current?.focus();
   }
 
@@ -56,7 +52,7 @@ export default function ReplyHelper() {
       <div className="reply-header">
         <h1 className="reply-title">Reply Helper</h1>
         <p className="reply-sub">
-          Paste a comment from social media. You'll get 3 short reply angles to choose from.
+          Paste a comment from social media. You'll get a short, principled reply you can copy.
         </p>
         <p className="reply-caveat">
           These are starting points — edit before sending. Your own voice matters more than the wording.
@@ -69,7 +65,7 @@ export default function ReplyHelper() {
           className="reply-textarea"
           value={comment}
           onChange={e => setComment(e.target.value)}
-          placeholder='Paste a comment here — e.g., "Lions kill animals too, why should humans be different? It’s just nature."'
+          placeholder='Paste a comment here — e.g., "Lab-grown meat is the solution, it reduces suffering, why would you oppose it?"'
           rows={5}
           maxLength={2000}
           onKeyDown={e => {
@@ -90,7 +86,7 @@ export default function ReplyHelper() {
               disabled={loading || !comment.trim()}
               title="Cmd/Ctrl+Enter"
             >
-              {loading ? "Generating…" : "Generate replies"}
+              {loading ? "Generating…" : reply ? "Regenerate" : "Generate reply"}
             </button>
           </div>
         </div>
@@ -104,22 +100,17 @@ export default function ReplyHelper() {
         </div>
       )}
 
-      {variants.length > 0 && (
-        <div className="reply-variants">
-          {variants.map((v, i) => (
-            <div key={i} className="reply-variant">
-              <div className="reply-variant-head">
-                <span className="reply-angle">{ANGLE_LABELS[v.angle] || v.angle}</span>
-                <button
-                  className={`reply-copy ${copiedIndex === i ? "copied" : ""}`}
-                  onClick={() => copy(v.text, i)}
-                >
-                  {copiedIndex === i ? "✓ Copied" : "Copy"}
-                </button>
-              </div>
-              <p className="reply-text">{v.text}</p>
-            </div>
-          ))}
+      {reply && !loading && (
+        <div className="reply-result">
+          <p className="reply-text">{reply}</p>
+          <div className="reply-result-actions">
+            <button
+              className={`reply-copy ${copied ? "copied" : ""}`}
+              onClick={copy}
+            >
+              {copied ? "✓ Copied" : "Copy reply"}
+            </button>
+          </div>
         </div>
       )}
     </div>

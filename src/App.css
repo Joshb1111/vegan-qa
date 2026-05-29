@@ -682,41 +682,33 @@ body {
 .reply-error { margin: 10px 0; }
 .reply-thinking { margin: 20px auto; }
 
-.reply-variants { display: flex; flex-direction: column; gap: 14px; margin-top: 8px; }
-.reply-variant {
+.reply-result {
   background: #1e1e1e;
   border: 1px solid #2a2a2a;
   border-radius: 10px;
-  padding: 14px 16px;
-  transition: border-color 0.12s;
+  padding: 18px 20px;
+  margin-top: 8px;
 }
-.reply-variant:hover { border-color: #3a3a3a; }
-.reply-variant-head {
-  display: flex; align-items: center; justify-content: space-between;
-  margin-bottom: 10px;
+.reply-text {
+  margin: 0 0 14px;
+  font-size: 15px; line-height: 1.65;
+  color: #ececec;
+  white-space: pre-wrap;
 }
-.reply-angle {
-  font-size: 11px;
-  text-transform: uppercase;
-  letter-spacing: 0.06em;
-  color: #4ade80;
-  font-weight: 600;
+.reply-result-actions {
+  display: flex; justify-content: flex-end;
+  padding-top: 12px;
+  border-top: 1px solid #2a2a2a;
 }
 .reply-copy {
-  padding: 5px 12px; border-radius: 6px;
+  padding: 7px 16px; border-radius: 6px;
   background: #2a2a2a; color: #ececec;
   border: none; cursor: pointer;
-  font-size: 12px; font-weight: 500;
+  font-size: 13px; font-weight: 500;
   transition: background 0.12s, color 0.12s;
 }
 .reply-copy:hover { background: #4ade80; color: #111; }
 .reply-copy.copied { background: #4ade80; color: #111; }
-.reply-text {
-  margin: 0;
-  font-size: 14px; line-height: 1.6;
-  color: #ececec;
-  white-space: pre-wrap;
-}
 
 @media (max-width: 500px) {
   .view-toggle { margin-left: 4px; }
