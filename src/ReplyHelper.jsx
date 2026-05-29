@@ -1,11 +1,16 @@
 import { useState, useRef } from "react";
 
+const REGISTER_LABELS = {
+  intellectual: "Intellectual",
+  simple: "Simple",
+};
+
 export default function ReplyHelper() {
   const [comment, setComment] = useState("");
-  const [reply, setReply] = useState("");
+  const [replies, setReplies] = useState([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
-  const [copied, setCopied] = useState(false);
+  const [copiedIndex, setCopiedIndex] = useState(-1);
   const textareaRef = useRef(null);
 
   async function generate() {
@@ -13,8 +18,8 @@ export default function ReplyHelper() {
     if (!trimmed || loading) return;
     setLoading(true);
     setError("");
-    setReply("");
-    setCopied(false);
+    setReplies([]);
+    setCopiedIndex(-1);
     try {
       const r = await fetch("/api/reply", {
         method: "POST",
@@ -22,28 +27,28 @@ export default function ReplyHelper() {
         body: JSON.stringify({ comment: trimmed }),
       });
       const data = await r.json();
-      if (!r.ok) throw new Error(data.error || "Failed to generate reply");
-      setReply(data.reply || "");
+      if (!r.ok) throw new Error(data.error || "Failed to generate replies");
+      setReplies(data.replies || []);
     } catch (err) {
       setError(err.message);
     }
     setLoading(false);
   }
 
-  function copy() {
-    navigator.clipboard.writeText(reply).then(() => {
-      setCopied(true);
-      setTimeout(() => setCopied(false), 1800);
+  function copy(text, index) {
+    navigator.clipboard.writeText(text).then(() => {
+      setCopiedIndex(index);
+      setTimeout(() => setCopiedIndex(-1), 1800);
     }).catch(() => {
-      prompt("Copy this reply:", reply);
+      prompt("Copy this reply:", text);
     });
   }
 
   function clear() {
     setComment("");
-    setReply("");
+    setReplies([]);
     setError("");
-    setCopied(false);
+    setCopiedIndex(-1);
     textareaRef.current?.focus();
   }
 
@@ -52,7 +57,7 @@ export default function ReplyHelper() {
       <div className="reply-header">
         <h1 className="reply-title">Reply Helper</h1>
         <p className="reply-sub">
-          Paste a comment from social media. You'll get a short, principled reply you can copy.
+          Paste a comment from social media. You'll get two short, principled replies in different registers — pick whichever fits your voice.
         </p>
         <p className="reply-caveat">
           These are starting points — edit before sending. Your own voice matters more than the wording.
@@ -86,7 +91,7 @@ export default function ReplyHelper() {
               disabled={loading || !comment.trim()}
               title="Cmd/Ctrl+Enter"
             >
-              {loading ? "Generating…" : reply ? "Regenerate" : "Generate reply"}
+              {loading ? "Generating…" : replies.length > 0 ? "Regenerate" : "Generate replies"}
             </button>
           </div>
         </div>
@@ -100,17 +105,22 @@ export default function ReplyHelper() {
         </div>
       )}
 
-      {reply && !loading && (
-        <div className="reply-result">
-          <p className="reply-text">{reply}</p>
-          <div className="reply-result-actions">
-            <button
-              className={`reply-copy ${copied ? "copied" : ""}`}
-              onClick={copy}
-            >
-              {copied ? "✓ Copied" : "Copy reply"}
-            </button>
-          </div>
+      {replies.length > 0 && !loading && (
+        <div className="reply-results">
+          {replies.map((r, i) => (
+            <div key={i} className="reply-result">
+              <div className="reply-result-head">
+                <span className="reply-register">{REGISTER_LABELS[r.register] || r.register}</span>
+                <button
+                  className={`reply-copy ${copiedIndex === i ? "copied" : ""}`}
+                  onClick={() => copy(r.text, i)}
+                >
+                  {copiedIndex === i ? "✓ Copied" : "Copy"}
+                </button>
+              </div>
+              <p className="reply-text">{r.text}</p>
+            </div>
+          ))}
         </div>
       )}
     </div>

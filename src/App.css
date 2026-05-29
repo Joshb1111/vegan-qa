@@ -682,29 +682,40 @@ body {
 .reply-error { margin: 10px 0; }
 .reply-thinking { margin: 20px auto; }
 
+.reply-results {
+  display: flex; flex-direction: column;
+  gap: 14px; margin-top: 8px;
+}
 .reply-result {
   background: #1e1e1e;
   border: 1px solid #2a2a2a;
   border-radius: 10px;
-  padding: 18px 20px;
-  margin-top: 8px;
+  padding: 16px 20px;
+  transition: border-color 0.12s;
+}
+.reply-result:hover { border-color: #3a3a3a; }
+.reply-result-head {
+  display: flex; align-items: center; justify-content: space-between;
+  margin-bottom: 12px;
+}
+.reply-register {
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: #4ade80;
+  font-weight: 600;
 }
 .reply-text {
-  margin: 0 0 14px;
+  margin: 0;
   font-size: 15px; line-height: 1.65;
   color: #ececec;
   white-space: pre-wrap;
 }
-.reply-result-actions {
-  display: flex; justify-content: flex-end;
-  padding-top: 12px;
-  border-top: 1px solid #2a2a2a;
-}
 .reply-copy {
-  padding: 7px 16px; border-radius: 6px;
+  padding: 5px 14px; border-radius: 6px;
   background: #2a2a2a; color: #ececec;
   border: none; cursor: pointer;
-  font-size: 13px; font-weight: 500;
+  font-size: 12px; font-weight: 500;
   transition: background 0.12s, color 0.12s;
 }
 .reply-copy:hover { background: #4ade80; color: #111; }
