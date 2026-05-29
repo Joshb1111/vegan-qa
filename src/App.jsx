@@ -1,6 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import "./App.css";
-import VoiceConversation from "./VoiceConversation.jsx";
 import ReplyHelper from "./ReplyHelper.jsx";
 
 const SUGGESTIONS = [
@@ -125,7 +124,6 @@ export default function App() {
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [sidebarTab, setSidebarTab] = useState("recent");
   const [aboutOpen, setAboutOpen] = useState(false);
-  const [voiceOpen, setVoiceOpen] = useState(false);
   const [view, setView] = useState("qa"); // "qa" | "reply"
   const [search, setSearch] = useState("");
   const [history, setHistory] = useState(() => {
@@ -174,25 +172,13 @@ export default function App() {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(history));
   }, [history]);
 
-  // Auto-ask from ?ask= URL param, or claim cookie after Stripe checkout returns
+  // Auto-ask from ?ask= URL param
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
     const ask = params.get("ask");
-    const checkout = params.get("checkout");
-    const stripeSession = params.get("session_id");
     if (ask) {
       window.history.replaceState({}, "", window.location.pathname);
       generate(ask, "long");
-    }
-    if (checkout === "success" && stripeSession) {
-      fetch(`/api/checkout-claim?session_id=${encodeURIComponent(stripeSession)}`, { credentials: "include" })
-        .finally(() => {
-          window.history.replaceState({}, "", window.location.pathname);
-          setVoiceOpen(true);
-        });
-    } else if (params.get("restored") === "1") {
-      window.history.replaceState({}, "", window.location.pathname);
-      setVoiceOpen(true);
     }
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -364,10 +350,6 @@ export default function App() {
             <button className={`view-btn ${view === "reply" ? "active" : ""}`} onClick={() => setView("reply")}>Reply</button>
           </div>
           <div className="topbar-right">
-            <button className="voice-btn" onClick={() => setVoiceOpen(true)} title="5-min voice conversation">
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M12 2a3 3 0 0 1 3 3v7a3 3 0 0 1-6 0V5a3 3 0 0 1 3-3z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><line x1="12" y1="19" x2="12" y2="22"/></svg>
-              Voice
-            </button>
             {view === "qa" && (
               <div className="mode-toggle">
                 <button className={`mode-btn ${mode === "short" ? "active" : ""}`} onClick={() => setMode("short")}>{mode === "short" ? "Short answers" : "Short"}</button>
@@ -376,8 +358,6 @@ export default function App() {
             )}
           </div>
         </header>
-
-        <VoiceConversation open={voiceOpen} onClose={() => setVoiceOpen(false)} />
 
         {/* About modal */}
         {aboutOpen && (
