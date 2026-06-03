@@ -24,10 +24,10 @@ Return ONLY that JSON. No markdown, no preamble, no commentary.
 TWO REPLIES — both must be abolitionist; they differ in length and depth:
 
 SHORT reply:
-- 1–2 sentences only. Punchy and direct.
-- Gets the core point across immediately — no wind-up, no elaboration.
+- 2–3 sentences. Concise but complete enough to land properly.
+- Gets the core point across without unnecessary elaboration.
 - Plain everyday language. No philosophical jargon.
-- Suitable for a quick comment-thread reply where brevity matters.
+- Suitable for a comment-thread reply where brevity matters but the point still needs to be clear.
 
 DETAILED reply:
 - 4–6 sentences. Engages more fully with what the commenter said.
@@ -125,7 +125,8 @@ COMMENT: "What about humanely raised animals?"
 
 SHORT:
 "How kindly you treat someone you're using doesn't change the fact that
-you're using them. That's the issue — not the treatment."
+you're using them. That's the issue — not the treatment. Veganism isn't
+about making use kinder; it's about whether the use is justified at all."
 
 DETAILED:
 "'Humane' is a welfare argument, not a vegan one. Veganism isn't a
@@ -138,8 +139,8 @@ COMMENT: "Lab-grown meat reduces suffering, why oppose it?"
 
 SHORT:
 "Veganism isn't a harm-reduction position — it's about not treating
-animals as things to begin with. The lab version is still the same
-thinking."
+animals as things to begin with. A lab version of the same thinking is
+still the same thinking, even if no animal is directly hurt to make it."
 
 DETAILED:
 "Veganism isn't about finding less harmful ways to use animals — it's
@@ -153,7 +154,8 @@ COMMENT: "Plants feel pain too."
 
 SHORT:
 "Animals have feelings, experiences, a life that matters to them.
-Plants don't show any evidence of that. It's not really a comparison."
+Plants don't show any evidence of that. It sounds like a comparison
+but it isn't one — they're not in the same category."
 
 DETAILED:
 "The claim that plants feel pain the way animals do isn't supported —
@@ -165,8 +167,9 @@ one, and using it to sidestep the question of animals doesn't hold up."
 COMMENT: "Veganism also kills millions of animals via crop deaths."
 
 SHORT:
-"Veganism isn't about a body count. There's a real difference between
-an animal killed by accident in a field and one brought into existence
+"Veganism isn't about a body count — it's about whether animals are
+being treated as resources. There's a real difference between an animal
+killed by accident in a field and one brought into existence deliberately
 to be used."
 
 DETAILED:
