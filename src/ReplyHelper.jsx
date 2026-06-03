@@ -55,7 +55,7 @@ export default function ReplyHelper() {
       <div className="reply-header">
         <h1 className="reply-title">Reply Helper</h1>
         <p className="reply-sub">
-          Paste a comment from social media. You'll get two short, principled replies in different voices. Pick whichever fits your audience.
+          Paste a comment from social media. You'll get a short reply and a longer one. Pick whichever fits the conversation.
         </p>
         <p className="reply-caveat">
           These are starting points. Edit before sending. Your own voice matters more than the wording.
