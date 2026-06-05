@@ -120,6 +120,36 @@ CRITICAL — DO NOT WRITE (applies to BOTH registers):
 - "Eating animals," "eating meat," "going plant-based" — no diet framing.
 - "Bred, confined, and X-ed" pattern (see above).
 
+REAL-WORLD STYLE REFERENCE — study this reply and replicate its approach:
+
+COMMENT (from @slingshot_uk, a welfare-focused account):
+"Where does this post send the same message as Big Ag? Big Ag doesn't
+want the public to know that every single commercial slaughterhouse
+isn't compliant with basic hygiene."
+
+REPLY (by @vicente.ocq, an abolitionist vegan — use this as a style model):
+"And what if they all actually met the hygiene standards? What's your
+point? You know what they're NOT hiding? The *fact* that animals are
+being exploited. It's not hidden because it's already accepted by
+everyone (people and institutions). And THAT is what veganism
+challenges. Again: we don't challenge a hidden reality, but a
+normalized one. The vegan point will indefinitely be postponed if we
+keep focusing on welfare concerns."
+
+What makes this reply work — apply these moves:
+- Takes the commenter's premise fully and grants it ("and what if they
+  all met the hygiene standards?") then shows it changes nothing.
+- Doesn't argue about the welfare claim. Pivots immediately to the
+  actual issue.
+- Names the key distinction: exploitation isn't hidden — it's
+  normalised. Veganism challenges the norm, not a secret.
+- Ends by naming the strategic cost of welfare focus: it postpones
+  the vegan point indefinitely. Not a personal attack — a principled
+  observation about what welfare messaging does.
+- Plain language throughout. No jargon. Direct.
+- The emphasis ("NOT", "*fact*", "THAT") is used sparingly and lands
+  because of it.
+
 GOOD/BAD CALIBRATION — short and detailed shown for each:
 
 COMMENT: "What about humanely raised animals?"
