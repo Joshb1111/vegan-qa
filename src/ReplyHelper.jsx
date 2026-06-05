@@ -4,7 +4,7 @@ import { useState, useRef } from "react";
 // keeps the UI neutral so the reader compares them without being pre-judged.
 
 export default function ReplyHelper() {
-  const [comment, setComment] = useState("But animals exploit other animals too.");
+  const [comment, setComment] = useState("");
   const [replies, setReplies] = useState([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
@@ -12,8 +12,8 @@ export default function ReplyHelper() {
   const textareaRef = useRef(null);
 
   async function generate() {
-    const trimmed = comment.trim();
-    if (!trimmed || loading) return;
+    const trimmed = comment.trim() || "But animals exploit other animals too.";
+    if (loading) return;
     setLoading(true);
     setError("");
     setReplies([]);
@@ -86,7 +86,7 @@ export default function ReplyHelper() {
             <button
               className="reply-generate"
               onClick={generate}
-              disabled={loading || !comment.trim()}
+              disabled={loading}
               title="Cmd/Ctrl+Enter"
             >
               {loading ? "Generating…" : replies.length > 0 ? "Regenerate" : "Generate replies"}
