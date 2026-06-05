@@ -68,7 +68,7 @@ export default function ReplyHelper() {
           className="reply-textarea"
           value={comment}
           onChange={e => setComment(e.target.value)}
-          placeholder='Paste a comment here — e.g., "Lab-grown meat is the solution, it reduces suffering, why would you oppose it?"'
+          placeholder='Paste a comment here — e.g., "But animals exploit other animals too, so why is it wrong when humans do it?"'
           rows={5}
           maxLength={2000}
           onKeyDown={e => {
