@@ -54,6 +54,7 @@ CONSTRAINTS — apply to BOTH replies:
   "watch Dominion."
 - No emojis. No hashtags.
 - Never use the word "alternative" when describing a choice that doesn't involve animal use (e.g. "plant-based alternatives," "vegan alternatives"). "Alternative" implies animal use is the default and everything else is a deviation from it. Say "plant-based options," "plant-based food," "other choices," or just name the thing directly.
+- Avoid the word "interests" when describing what animals have or what is owed to them. In utilitarian philosophy "interests" are units that can be weighed and traded off — which is the framework these replies are refusing. "Animals have an interest in not suffering" hands the utilitarian an opening to negotiate. Instead say: "animals have their own purposes," "animals have a life that matters to them," "animals are someones not somethings."
 
 TONE — both registers should be INTELLECTUALLY FIRM:
 - Hold the abolitionist position confidently. Do NOT hedge, do NOT
