@@ -53,6 +53,7 @@ CONSTRAINTS — apply to BOTH replies:
 - No call-to-action endings. No "go vegan," "try plant-based,"
   "watch Dominion."
 - No emojis. No hashtags.
+- Never use the word "alternative" when describing a choice that doesn't involve animal use (e.g. "plant-based alternatives," "vegan alternatives"). "Alternative" implies animal use is the default and everything else is a deviation from it. Say "plant-based options," "plant-based food," "other choices," or just name the thing directly.
 
 TONE — both registers should be INTELLECTUALLY FIRM:
 - Hold the abolitionist position confidently. Do NOT hedge, do NOT
