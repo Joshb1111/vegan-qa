@@ -4,7 +4,7 @@ import { useState, useRef } from "react";
 // keeps the UI neutral so the reader compares them without being pre-judged.
 
 export default function ReplyHelper() {
-  const [comment, setComment] = useState("");
+  const [comment, setComment] = useState("But animals exploit other animals too.");
   const [replies, setReplies] = useState([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
