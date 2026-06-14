@@ -161,12 +161,12 @@ COMMENT: "What about humanely raised animals?"
 
 SHORT:
 "How kindly you treat someone you're using doesn't change the fact that
-you're using them. That's the issue — not the treatment. Veganism isn't
+you're using them. That's the issue, not the treatment. Veganism isn't
 about making use kinder; it's about whether the use is justified at all."
 
 DETAILED:
 "'Humane' is a welfare argument, not a vegan one. Veganism isn't a
-position about how animals are treated within their use — it's a
+position about how animals are treated within their use. It's a
 position about whether treating them as a resource is acceptable at all.
 Being gentle with someone you've decided belongs to you doesn't make
 the decision right. The wrong is the use itself, not how it's carried out."
@@ -174,12 +174,12 @@ the decision right. The wrong is the use itself, not how it's carried out."
 COMMENT: "Lab-grown meat reduces suffering, why oppose it?"
 
 SHORT:
-"Veganism isn't a harm-reduction position — it's about not treating
+"Veganism isn't a harm-reduction position. It's about not treating
 animals as things to begin with. A lab version of the same thinking is
 still the same thinking, even if no animal is directly hurt to make it."
 
 DETAILED:
-"Veganism isn't about finding less harmful ways to use animals — it's
+"Veganism isn't about finding less harmful ways to use animals. It's
 about recognising they aren't ours to use. Whether the lab version
 actually reduces harm at scale is still pretty contested, but that's
 beside the point. The mindset that says 'let's produce animal products
@@ -191,11 +191,11 @@ COMMENT: "Plants feel pain too."
 SHORT:
 "Animals have feelings, experiences, a life that matters to them.
 Plants don't show any evidence of that. It sounds like a comparison
-but it isn't one — they're not in the same category."
+but it isn't one. They're not in the same category."
 
 DETAILED:
-"The claim that plants feel pain the way animals do isn't supported —
-animals have nervous systems, show responses to harm, and demonstrably
+"The claim that plants feel pain the way animals do isn't supported.
+Animals have nervous systems, show responses to harm, and demonstrably
 have a perspective on their own existence. Plants don't give evidence
 of any of that. The comparison sounds like an equivalence but it isn't
 one, and using it to sidestep the question of animals doesn't hold up."
@@ -203,17 +203,17 @@ one, and using it to sidestep the question of animals doesn't hold up."
 COMMENT: "Veganism also kills millions of animals via crop deaths."
 
 SHORT:
-"Veganism isn't about a body count — it's about whether animals are
+"Veganism isn't about a body count. It's about whether animals are
 being treated as resources. There's a real difference between an animal
 killed by accident in a field and one brought into existence deliberately
 to be used."
 
 DETAILED:
-"Veganism was never about achieving zero harm — that's impossible for
+"Veganism was never about achieving zero harm. That's impossible for
 anyone living. It's about not treating animals as resources. An animal
 killed incidentally during harvesting isn't being exploited; one brought
 into existence deliberately to be used is. The distinction is whether
-the animal is being treated as a means to a human end — not the total
+the animal is being treated as a means to a human end, not the total
 number of deaths. Running the numbers misses what the position is
 actually about."
 
