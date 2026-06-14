@@ -263,12 +263,23 @@ export default async function handler(req, res) {
 
     const data = await anthropicRes.json();
     const text = data.content?.find(b => b.type === "text")?.text || "";
-    const clean = text.replace(/```json|```/g, "").trim();
+    const clean = text.replace(/```json\n?|```/g, "").trim();
 
     let parsed;
-    try { parsed = JSON.parse(clean); } catch {
-      console.error("Could not parse reply JSON:", clean);
-      return res.status(502).json({ error: "Reply format error — try again" });
+    try {
+      parsed = JSON.parse(clean);
+    } catch {
+      const start = clean.indexOf("{");
+      const end = clean.lastIndexOf("}");
+      if (start !== -1 && end > start) {
+        try { parsed = JSON.parse(clean.slice(start, end + 1)); } catch {
+          console.error("Could not parse reply JSON:", clean.slice(0, 500));
+          return res.status(502).json({ error: "Reply format error — try again" });
+        }
+      } else {
+        console.error("No JSON in reply response:", clean.slice(0, 500));
+        return res.status(502).json({ error: "Reply format error — try again" });
+      }
     }
 
     if (!Array.isArray(parsed.replies) || parsed.replies.length === 0) {

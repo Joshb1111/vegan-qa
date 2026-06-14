@@ -64,12 +64,35 @@ export default async function handler(req, res) {
       })
     });
 
-    if (!response.ok) throw new Error("Anthropic API error");
+    if (!response.ok) {
+      const errText = await response.text();
+      console.error("Anthropic API error:", response.status, errText.slice(0, 500));
+      throw new Error("Anthropic API error");
+    }
 
     const data = await response.json();
     const text = data.content?.find(b => b.type === "text")?.text || "";
-    const clean = text.replace(/```json|```/g, "").trim();
-    const parsed = JSON.parse(clean);
+    const clean = text.replace(/```json\n?|```/g, "").trim();
+
+    let parsed;
+    try {
+      parsed = JSON.parse(clean);
+    } catch {
+      // Model occasionally outputs text before/after the JSON object — extract it
+      const start = clean.indexOf("{");
+      const end = clean.lastIndexOf("}");
+      if (start !== -1 && end > start) {
+        try {
+          parsed = JSON.parse(clean.slice(start, end + 1));
+        } catch (e2) {
+          console.error("JSON parse failed after extraction. Raw text:", clean.slice(0, 500));
+          throw e2;
+        }
+      } else {
+        console.error("No JSON object found in response. Raw text:", clean.slice(0, 500));
+        throw new Error("No JSON in response");
+      }
+    }
 
     // Save updated conversation history
     if (redis && historyKey) {
