@@ -58,7 +58,7 @@ export default async function handler(req, res) {
       },
       body: JSON.stringify({
         model: "claude-sonnet-4-20250514",
-        max_tokens: 1000,
+        max_tokens: mode === "long" ? 2000 : 1000,
         system: SYSTEM_PROMPT + "\n\n" + lengthInstruction,
         messages
       })
@@ -78,19 +78,21 @@ export default async function handler(req, res) {
     try {
       parsed = JSON.parse(clean);
     } catch {
-      // Model occasionally outputs text before/after the JSON object — extract it
+      // Try extracting a JSON object if there's surrounding text
       const start = clean.indexOf("{");
       const end = clean.lastIndexOf("}");
       if (start !== -1 && end > start) {
         try {
           parsed = JSON.parse(clean.slice(start, end + 1));
-        } catch (e2) {
-          console.error("JSON parse failed after extraction. Raw text:", clean.slice(0, 500));
-          throw e2;
+        } catch {
+          // JSON object present but broken (likely truncated) — use raw text as answer
+          console.error("Broken JSON, using raw text. Preview:", clean.slice(0, 200));
+          parsed = { question: query, answer: clean.slice(start + 1).replace(/^"answer"\s*:\s*"/, "").replace(/"[\s,}]*$/, "").trim() || clean, key: "" };
         }
       } else {
-        console.error("No JSON object found in response. Raw text:", clean.slice(0, 500));
-        throw new Error("No JSON in response");
+        // Model returned plain text with no JSON at all — use it directly
+        console.error("No JSON in response, using plain text. Preview:", clean.slice(0, 200));
+        parsed = { question: query, answer: clean, key: "" };
       }
     }
 
