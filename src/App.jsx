@@ -134,14 +134,40 @@ export default function App() {
   const [flagged, setFlagged] = useState(false);
   const [copied, setCopied] = useState(false);
   const [atBottom, setAtBottom] = useState(false);
+  const [progress, setProgress] = useState(0);
   const contentRef = useRef(null);
   const bottomSentinelRef = useRef(null);
+  const progressTimerRef = useRef(null);
   const sessionId = getSessionId();
 
   const { listening, toggle: toggleMic } = useSpeech(text => setInput(text));
 
   // Reset flag/copied/atBottom state whenever a new answer arrives
   useEffect(() => { setFlagged(false); setCopied(false); setAtBottom(false); }, [result]);
+
+  // Progress bar: eases toward ~88% over 12s, jumps to 100% on completion
+  useEffect(() => {
+    if (loading) {
+      const start = Date.now();
+      setProgress(0);
+      progressTimerRef.current = setInterval(() => {
+        const elapsed = (Date.now() - start) / 1000;
+        const t = Math.min(elapsed / 11, 1);
+        // Ease-out curve: fast at first, slows near the end
+        const eased = 1 - Math.pow(1 - t, 2.5);
+        const base = eased * 88;
+        // After 11s, crawl toward 95% so the bar never stalls completely
+        const extra = elapsed > 11 ? Math.min((elapsed - 11) * 0.4, 7) : 0;
+        setProgress(Math.min(base + extra, 95));
+      }, 80);
+      return () => clearInterval(progressTimerRef.current);
+    } else {
+      clearInterval(progressTimerRef.current);
+      setProgress(p => p > 0 ? 100 : 0);
+      const t = setTimeout(() => setProgress(0), 500);
+      return () => clearTimeout(t);
+    }
+  }, [loading]);
 
   // Show follow-up bar only when the bottom of the answer is visible
   useEffect(() => {
@@ -427,8 +453,10 @@ export default function App() {
                 <span className="dot" /><span className="dot" /><span className="dot" />
               </div>
               <p className="thinking-label">Thinking through your question…</p>
-              <div className="thinking-bar" />
-              <p className="thinking-sub">Usually takes a few seconds</p>
+              <div className="thinking-progress-wrap">
+                <div className="thinking-progress-bar" style={{ width: `${progress}%` }} />
+              </div>
+              <p className="thinking-pct">{Math.round(progress)}%</p>
             </div>
           )}
 

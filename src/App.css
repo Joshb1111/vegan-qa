@@ -424,6 +424,30 @@ body {
   color: #d0d0d0;
   letter-spacing: 0.01em;
 }
+
+/* Q&A timed progress bar */
+.thinking-progress-wrap {
+  width: min(480px, calc(100vw - 80px));
+  height: 6px;
+  background: #252525;
+  border-radius: 6px;
+  overflow: hidden;
+}
+.thinking-progress-bar {
+  height: 100%;
+  background: #4ade80;
+  border-radius: 6px;
+  transition: width 0.12s ease-out;
+}
+.thinking-pct {
+  font-size: 0.8rem;
+  color: #666;
+  font-variant-numeric: tabular-nums;
+  min-width: 3ch;
+  text-align: center;
+}
+
+/* Reply Helper sliding bar (no progress info) */
 .thinking-bar {
   width: 180px;
   height: 2px;
