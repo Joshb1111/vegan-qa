@@ -152,13 +152,13 @@ export default function App() {
       setProgress(0);
       progressTimerRef.current = setInterval(() => {
         const elapsed = (Date.now() - start) / 1000;
-        const t = Math.min(elapsed / 12, 1);
-        // Gentle ease-out: consistent pace throughout, very slight slowdown at the end
+        const t = Math.min(elapsed / 14, 1);
+        // Nearly linear — runs freely to 95% over 14s, only slows after that
         const eased = 1 - Math.pow(1 - t, 1.2);
-        const base = eased * 88;
-        // After 12s, crawl toward 95% so the bar never stalls completely
-        const extra = elapsed > 12 ? Math.min((elapsed - 12) * 0.4, 7) : 0;
-        setProgress(Math.min(base + extra, 95));
+        const base = eased * 95;
+        // After 14s, crawl very slowly so it never fully stalls
+        const extra = elapsed > 14 ? Math.min((elapsed - 14) * 0.2, 3) : 0;
+        setProgress(Math.min(base + extra, 98));
       }, 80);
       return () => clearInterval(progressTimerRef.current);
     } else {
