@@ -153,8 +153,8 @@ export default function App() {
       progressTimerRef.current = setInterval(() => {
         const elapsed = (Date.now() - start) / 1000;
         const t = Math.min(elapsed / 12, 1);
-        // Ease-out curve: fast at first, slows near the end
-        const eased = 1 - Math.pow(1 - t, 2.5);
+        // Gentle ease-out: consistent pace throughout, very slight slowdown at the end
+        const eased = 1 - Math.pow(1 - t, 1.2);
         const base = eased * 88;
         // After 12s, crawl toward 95% so the bar never stalls completely
         const extra = elapsed > 12 ? Math.min((elapsed - 12) * 0.4, 7) : 0;
