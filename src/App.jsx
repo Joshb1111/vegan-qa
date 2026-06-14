@@ -423,7 +423,12 @@ export default function App() {
 
           {loading && (
             <div className="thinking">
-              <span className="dot" /><span className="dot" /><span className="dot" />
+              <div className="thinking-dots">
+                <span className="dot" /><span className="dot" /><span className="dot" />
+              </div>
+              <p className="thinking-label">Thinking through your question…</p>
+              <div className="thinking-bar" />
+              <p className="thinking-sub">Usually takes a few seconds</p>
             </div>
           )}
 

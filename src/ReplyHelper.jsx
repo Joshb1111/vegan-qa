@@ -99,7 +99,11 @@ export default function ReplyHelper() {
 
       {loading && (
         <div className="thinking reply-thinking">
-          <span className="dot" /><span className="dot" /><span className="dot" />
+          <div className="thinking-dots">
+            <span className="dot" /><span className="dot" /><span className="dot" />
+          </div>
+          <p className="thinking-label">Generating replies…</p>
+          <div className="thinking-bar" />
         </div>
       )}
 

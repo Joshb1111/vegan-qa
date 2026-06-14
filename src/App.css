@@ -394,12 +394,17 @@ body {
   max-width: 420px;
 }
 
-/* Thinking dots */
+/* Thinking / loading state */
 .thinking {
   flex: 1;
   display: flex;
+  flex-direction: column;
   align-items: center;
   justify-content: center;
+  gap: 14px;
+}
+.thinking-dots {
+  display: flex;
   gap: 6px;
 }
 .dot {
@@ -413,6 +418,38 @@ body {
 @keyframes pulse {
   0%, 80%, 100% { opacity: 0.25; transform: scale(0.9); }
   40% { opacity: 1; transform: scale(1.1); }
+}
+.thinking-label {
+  font-size: 0.95rem;
+  color: #d0d0d0;
+  letter-spacing: 0.01em;
+}
+.thinking-bar {
+  width: 180px;
+  height: 2px;
+  background: #2e2e2e;
+  border-radius: 2px;
+  overflow: hidden;
+  position: relative;
+}
+.thinking-bar::after {
+  content: '';
+  position: absolute;
+  left: -55%;
+  top: 0;
+  height: 100%;
+  width: 55%;
+  background: #4ade80;
+  border-radius: 2px;
+  animation: sweep 1.6s ease-in-out infinite;
+}
+@keyframes sweep {
+  0%   { left: -55%; }
+  100% { left: 100%; }
+}
+.thinking-sub {
+  font-size: 0.78rem;
+  color: #666;
 }
 
 /* Answer block */
