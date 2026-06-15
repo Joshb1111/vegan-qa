@@ -1,4 +1,4 @@
-@import url('https://fonts.googleapis.com/css2?family=Libre+Baskerville:wght@700&family=Bebas+Neue&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Libre+Baskerville:wght@700&display=swap');
 
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
@@ -380,14 +380,11 @@ body {
 }
 
 .hero-title {
-  font-family: 'Bebas Neue', sans-serif;
-  font-size: clamp(36px, 7vw, 64px);
-  font-weight: 400;
-  letter-spacing: 0.04em;
-  text-transform: uppercase;
-  color: #f0e6cc;
+  font-family: 'Libre Baskerville', serif;
+  font-size: clamp(28px, 5vw, 44px);
+  font-weight: 700;
+  color: #ffffff;
   margin-bottom: 12px;
-  line-height: 1.05;
 }
 
 .hero-sub {
