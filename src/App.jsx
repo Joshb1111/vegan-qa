@@ -121,7 +121,7 @@ export default function App() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
   const [mode, setMode] = useState("long");
-  const [sidebarOpen, setSidebarOpen] = useState(true);
+  const [sidebarOpen, setSidebarOpen] = useState(false);
   const [sidebarTab, setSidebarTab] = useState("recent");
   const [aboutOpen, setAboutOpen] = useState(false);
   const [view, setView] = useState("qa"); // "qa" | "reply"
@@ -235,10 +235,6 @@ export default function App() {
     });
   };
 
-  // Close sidebar on small screens by default
-  useEffect(() => {
-    if (window.innerWidth < 768) setSidebarOpen(false);
-  }, []);
 
   const generate = async (q, m) => {
     const query = (q || input).trim();
@@ -406,7 +402,7 @@ export default function App() {
           ) : (<>
           {/* Hero — always visible at the top */}
           <div className={`empty-state ${result || loading || error ? "compact" : ""}`}>
-            <h1 className="hero-title">Vegan Q&A</h1>
+            <h1 className="hero-title">Ask me anything about veganism</h1>
             <p className="hero-sub">Not generic AI. Grounded in the work of abolitionist vegan thinkers and the original vegan ethical framework.</p>
 
             <div className="input-bar centered-input">
