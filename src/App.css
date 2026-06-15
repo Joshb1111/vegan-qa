@@ -42,15 +42,14 @@ body {
 
 @media (min-width: 900px) {
   .sidebar {
-    position: relative;
+    position: fixed;
     transform: translateX(-100%);
-    flex-shrink: 0;
   }
   .layout.sidebar-open .sidebar {
     transform: translateX(0);
   }
   .layout.sidebar-open .main {
-    margin-left: 0;
+    margin-left: 260px;
   }
   .overlay { display: none !important; }
 }
