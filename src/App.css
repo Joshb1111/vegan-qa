@@ -373,7 +373,7 @@ body {
 .empty-state::before {
   content: '';
   position: absolute;
-  top: 52%;
+  top: 46%;
   left: 50%;
   transform: translate(-50%, -50%) scale(1);
   width: 900px;
