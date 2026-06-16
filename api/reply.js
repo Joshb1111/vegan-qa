@@ -244,13 +244,7 @@ export default async function handler(req, res) {
       body: JSON.stringify({
         model: "claude-sonnet-4-20250514",
         max_tokens: 1400,
-        system: [
-          {
-            type: "text",
-            text: SYSTEM_PROMPT + "\n\n" + REPLY_SYSTEM_ADDENDUM,
-            cache_control: { type: "ephemeral" },
-          },
-        ],
+        system: SYSTEM_PROMPT + "\n\n" + REPLY_SYSTEM_ADDENDUM,
         messages: [
           { role: "user", content: `Comment to reply to:\n\n${comment}` },
         ],
