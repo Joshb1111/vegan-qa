@@ -242,7 +242,7 @@ export default async function handler(req, res) {
         "anthropic-version": "2023-06-01",
       },
       body: JSON.stringify({
-        model: "claude-sonnet-4-20250514",
+        model: "claude-sonnet-4-6",
         max_tokens: 1400,
         system: SYSTEM_PROMPT + "\n\n" + REPLY_SYSTEM_ADDENDUM,
         messages: [
@@ -254,7 +254,7 @@ export default async function handler(req, res) {
     if (!anthropicRes.ok) {
       const errText = await anthropicRes.text();
       console.error("Anthropic error status:", anthropicRes.status, errText);
-      return res.status(502).json({ error: `Reply failed (${anthropicRes.status}): ${errText.slice(0, 200)}` });
+      return res.status(502).json({ error: "Reply service unavailable — please try again." });
     }
 
     const data = await anthropicRes.json();
