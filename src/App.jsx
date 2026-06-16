@@ -145,6 +145,7 @@ export default function App() {
   const [clientCache] = useState(() => new Map());
   const [flagged, setFlagged] = useState(false);
   const [copied, setCopied] = useState(false);
+  const [textCopied, setTextCopied] = useState(false);
   const [atBottom, setAtBottom] = useState(false);
   const [progress, setProgress] = useState(0);
   const contentRef = useRef(null);
@@ -155,7 +156,7 @@ export default function App() {
   const { listening, toggle: toggleMic, micError, clearMicError } = useSpeech(text => setInput(text));
 
   // Reset flag/copied/atBottom state whenever a new answer arrives
-  useEffect(() => { setFlagged(false); setCopied(false); setAtBottom(false); }, [result]);
+  useEffect(() => { setFlagged(false); setCopied(false); setTextCopied(false); setAtBottom(false); }, [result]);
 
   // Progress bar: eases toward ~88% over 12s, jumps to 100% on completion
   useEffect(() => {
@@ -232,6 +233,14 @@ export default function App() {
     a.download = "vegan-qa-history.txt";
     a.click();
     URL.revokeObjectURL(url);
+  };
+
+  const copyAnswer = () => {
+    if (!result) return;
+    navigator.clipboard.writeText(result.answer).then(() => {
+      setTextCopied(true);
+      setTimeout(() => setTextCopied(false), 2500);
+    }).catch(() => prompt("Copy this answer:", result.answer));
   };
 
   const shareAnswer = () => {
@@ -478,6 +487,9 @@ export default function App() {
               <p className="answer-body">{result.answer}</p>
               {result.key && <div className="answer-key">{result.key}</div>}
               <div className="answer-actions">
+                <button className={`flag-btn ${textCopied ? "flagged" : ""}`} onClick={copyAnswer}>
+                  {textCopied ? "✓ Copied!" : "⎘ Copy answer"}
+                </button>
                 <button className={`flag-btn ${flagged ? "flagged" : ""}`} onClick={flagAnswer} disabled={flagged}>
                   {flagged ? "✓ Submitted for review" : "⚑ Submit for review"}
                 </button>
