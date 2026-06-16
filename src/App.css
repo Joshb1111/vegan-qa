@@ -4,7 +4,7 @@
 
 body {
   font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
-  background: #212121;
+  background: #000;
   color: #ececec;
   min-height: 100vh;
   min-height: 100dvh;
@@ -23,7 +23,7 @@ body {
 .sidebar {
   width: 260px;
   min-width: 260px;
-  background: #171717;
+  background: #0d0d0d;
   display: flex;
   flex-direction: column;
   height: 100vh;
@@ -370,27 +370,16 @@ body {
   position: relative;
 }
 
-.empty-state::before {
-  content: '';
-  position: absolute;
-  top: 52%;
-  left: 50%;
-  transform: translate(-50%, -50%) scale(1);
-  width: 800px;
-  height: 500px;
-  background: radial-gradient(ellipse at center, rgba(37, 99, 235, 0.55) 0%, rgba(29, 78, 216, 0.22) 38%, transparent 65%);
-  border-radius: 50%;
-  pointer-events: none;
-  z-index: 0;
+.empty-state {
   animation: glow-breathe 4s ease-in-out infinite;
 }
 
-.empty-state > * { position: relative; z-index: 1; }
-
 @keyframes glow-breathe {
-  0%, 100% { opacity: 0.65; transform: translate(-50%, -50%) scale(1); }
-  50%       { opacity: 1;    transform: translate(-50%, -50%) scale(1.13); }
+  0%, 100% { background: radial-gradient(ellipse 700px 420px at 50% 28%, rgba(37, 99, 235, 0.45) 0%, rgba(29, 78, 216, 0.18) 42%, transparent 68%); }
+  50%       { background: radial-gradient(ellipse 760px 460px at 50% 28%, rgba(37, 99, 235, 0.62) 0%, rgba(29, 78, 216, 0.24) 42%, transparent 68%); }
 }
+
+
 
 /* Once an answer is present, hero shrinks to natural height */
 .empty-state.compact {
@@ -575,7 +564,7 @@ body {
 /* Floating follow-up bar */
 .input-area.floating {
   padding: 10px 16px calc(14px + env(safe-area-inset-bottom, 0px));
-  background: #181818;
+  background: #111;
   border-top: 1px solid #2e2e2e;
   box-shadow: 0 -6px 24px rgba(0,0,0,0.55);
 }
@@ -627,8 +616,10 @@ body {
   gap: 6px;
   width: 100%;
   max-width: 700px;
-  background: #2f2f2f;
-  border: 1px solid #3a3a3a;
+  background: rgba(30, 30, 40, 0.55);
+  border: 1px solid rgba(255,255,255,0.1);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
   border-radius: 14px;
   padding: 6px 8px 6px 16px;
   transition: border-color 0.15s;
