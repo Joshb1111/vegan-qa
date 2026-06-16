@@ -389,14 +389,14 @@ body {
   border-radius: 50%;
   pointer-events: none;
   z-index: 0;
-  animation: glow-breathe 4s ease-in-out infinite;
+  animation: glow-appear 1.8s ease-out 1 forwards;
 }
 
 .empty-state > * { position: relative; z-index: 1; }
 
-@keyframes glow-breathe {
-  0%, 100% { opacity: 0.75; transform: translate(-50%, -50%) scale(1); }
-  50%       { opacity: 1;    transform: translate(-50%, -50%) scale(1.1); }
+@keyframes glow-appear {
+  0%   { opacity: 0; transform: translate(-50%, -50%) scale(0.82); }
+  100% { opacity: 1; transform: translate(-50%, -50%) scale(1); }
 }
 
 
