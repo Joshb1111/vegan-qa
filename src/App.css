@@ -1,4 +1,4 @@
-@import url('https://fonts.googleapis.com/css2?family=Libre+Baskerville:wght@700&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500&display=swap');
 
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
@@ -373,24 +373,24 @@ body {
 .empty-state::before {
   content: '';
   position: absolute;
-  top: 44%;
+  top: 52%;
   left: 50%;
   transform: translate(-50%, -50%) scale(1);
-  width: 700px;
-  height: 280px;
-  background: radial-gradient(ellipse at center, rgba(29, 78, 216, 0.28) 0%, rgba(37, 99, 235, 0.10) 45%, transparent 72%);
+  width: 800px;
+  height: 500px;
+  background: radial-gradient(ellipse at center, rgba(37, 99, 235, 0.55) 0%, rgba(29, 78, 216, 0.22) 38%, transparent 65%);
   border-radius: 50%;
   pointer-events: none;
   z-index: 0;
   animation: glow-breathe 4s ease-in-out infinite;
 }
 
-@keyframes glow-breathe {
-  0%, 100% { opacity: 0.7; transform: translateX(-50%) scale(1); }
-  50%       { opacity: 1;   transform: translateX(-50%) scale(1.14); }
-}
-
 .empty-state > * { position: relative; z-index: 1; }
+
+@keyframes glow-breathe {
+  0%, 100% { opacity: 0.65; transform: translate(-50%, -50%) scale(1); }
+  50%       { opacity: 1;    transform: translate(-50%, -50%) scale(1.13); }
+}
 
 /* Once an answer is present, hero shrinks to natural height */
 .empty-state.compact {
@@ -402,11 +402,12 @@ body {
 }
 
 .hero-title {
-  font-family: 'Libre Baskerville', serif;
-  font-size: clamp(28px, 5vw, 44px);
-  font-weight: 700;
+  font-family: 'DM Sans', sans-serif;
+  font-size: clamp(30px, 5vw, 48px);
+  font-weight: 300;
   color: #ffffff;
   margin-bottom: 12px;
+  letter-spacing: -0.01em;
 }
 
 .hero-sub {
