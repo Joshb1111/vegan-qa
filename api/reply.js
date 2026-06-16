@@ -253,8 +253,8 @@ export default async function handler(req, res) {
 
     if (!anthropicRes.ok) {
       const errText = await anthropicRes.text();
-      console.error("Anthropic error:", errText);
-      return res.status(502).json({ error: "Reply service unavailable" });
+      console.error("Anthropic error status:", anthropicRes.status, errText);
+      return res.status(502).json({ error: `Reply failed (${anthropicRes.status}): ${errText.slice(0, 200)}` });
     }
 
     const data = await anthropicRes.json();
