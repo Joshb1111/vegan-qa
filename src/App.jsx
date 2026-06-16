@@ -94,25 +94,37 @@ function groupHistory(items) {
 function useSpeech(onResult) {
   const recogRef = useRef(null);
   const [listening, setListening] = useState(false);
+  const [micError, setMicError] = useState(null);
   const supported = typeof window !== "undefined" &&
     !!(window.SpeechRecognition || window.webkitSpeechRecognition);
 
   const toggle = useCallback(() => {
-    if (!supported) return alert("Voice input isn't supported in this browser. Try Chrome.");
+    if (!supported) return alert("Voice input isn't supported in this browser. Try Chrome or Safari.");
     if (listening) { recogRef.current?.stop(); setListening(false); return; }
+    setMicError(null);
     const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
     const r = new SR();
     r.lang = "en-US";
     r.interimResults = false;
     r.onresult = e => { onResult(e.results[0][0].transcript); setListening(false); };
-    r.onerror = () => setListening(false);
+    r.onerror = e => {
+      setListening(false);
+      if (e.error === "not-allowed") setMicError("Microphone access was denied. Check your browser settings.");
+      else if (e.error === "no-speech") setMicError("No speech detected. Try again.");
+      else if (e.error === "network") setMicError("Network error — voice input needs an internet connection.");
+      else setMicError("Voice input failed. Try again.");
+    };
     r.onend = () => setListening(false);
     recogRef.current = r;
-    r.start();
-    setListening(true);
+    try {
+      r.start();
+      setListening(true);
+    } catch {
+      setMicError("Could not start microphone. Try again.");
+    }
   }, [listening, onResult, supported]);
 
-  return { listening, toggle, supported };
+  return { listening, toggle, supported, micError, clearMicError: () => setMicError(null) };
 }
 
 export default function App() {
@@ -140,7 +152,7 @@ export default function App() {
   const progressTimerRef = useRef(null);
   const sessionId = getSessionId();
 
-  const { listening, toggle: toggleMic } = useSpeech(text => setInput(text));
+  const { listening, toggle: toggleMic, micError, clearMicError } = useSpeech(text => setInput(text));
 
   // Reset flag/copied/atBottom state whenever a new answer arrives
   useEffect(() => { setFlagged(false); setCopied(false); setAtBottom(false); }, [result]);
@@ -433,6 +445,10 @@ export default function App() {
                 <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M12 19V5M5 12l7-7 7 7"/></svg>
               </button>
             </div>
+
+            {micError && (
+              <p className="mic-error" onClick={clearMicError}>{micError}</p>
+            )}
 
             <div className="pills-scroll-wrap">
               <div className="pills-row">

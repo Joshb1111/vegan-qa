@@ -556,6 +556,14 @@ body {
   box-shadow: 0 -6px 24px rgba(0,0,0,0.55);
 }
 
+.mic-error {
+  font-size: 13px;
+  color: #f87171;
+  text-align: center;
+  cursor: pointer;
+  padding: 4px 0;
+}
+
 .pills-scroll-wrap {
   width: 100%;
   max-width: 700px;
