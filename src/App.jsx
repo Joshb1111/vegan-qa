@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import "./App.css";
 import ReplyHelper from "./ReplyHelper.jsx";
+import InstallPrompt from "./InstallPrompt.jsx";
 
 const SUGGESTIONS = [
   "What is veganism?",
@@ -308,6 +309,8 @@ export default function App() {
 
   return (
     <div className={`layout ${sidebarOpen ? "sidebar-open" : ""}`}>
+
+      <InstallPrompt />
 
       {/* Sidebar */}
       <aside className="sidebar">
