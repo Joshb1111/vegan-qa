@@ -373,18 +373,18 @@ body {
 .empty-state::before {
   content: '';
   position: absolute;
-  top: 46%;
+  top: 30%;
   left: 50%;
   transform: translate(-50%, -50%) scale(1);
-  width: 900px;
-  height: 560px;
+  width: 780px;
+  height: 440px;
   background: radial-gradient(ellipse at center,
-    rgba(37, 99, 235, 0.50) 0%,
-    rgba(37, 99, 235, 0.35) 18%,
-    rgba(29, 78, 216, 0.20) 35%,
-    rgba(29, 78, 216, 0.08) 52%,
-    rgba(20, 60, 180, 0.02) 68%,
-    transparent 82%
+    rgba(29, 78, 216, 0.45) 0%,
+    rgba(29, 78, 216, 0.32) 22%,
+    rgba(27, 72, 210, 0.18) 42%,
+    rgba(23, 62, 195, 0.07) 62%,
+    rgba(18, 52, 175, 0.02) 78%,
+    transparent 93%
   );
   border-radius: 50%;
   pointer-events: none;
