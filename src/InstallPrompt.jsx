@@ -14,6 +14,7 @@ export default function InstallPrompt() {
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
     if (params.get("install") !== "1") return;
+    if (sessionStorage.getItem("install-dismissed")) return;
 
     const standalone =
       window.matchMedia("(display-mode: standalone)").matches ||
@@ -25,7 +26,10 @@ export default function InstallPrompt() {
 
   if (!open) return null;
 
-  const close = () => setOpen(false);
+  const close = () => {
+    sessionStorage.setItem("install-dismissed", "1");
+    setOpen(false);
+  };
 
   return (
     <div
@@ -66,18 +70,22 @@ export default function InstallPrompt() {
           onClick={close}
           style={{
             position: "absolute",
-            top: 6,
-            right: 8,
-            background: "none",
-            border: 0,
-            color: "rgba(247,243,238,0.6)",
-            fontSize: "1.8rem",
+            top: 10,
+            right: 12,
+            background: "rgba(255,255,255,0.08)",
+            border: "1px solid rgba(255,255,255,0.15)",
+            borderRadius: 6,
+            color: "#f7f3ee",
+            fontSize: "1rem",
             lineHeight: 1,
             cursor: "pointer",
-            padding: "4px 8px",
+            padding: "4px 9px",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
           }}
         >
-          ×
+          ✕
         </button>
 
         <img

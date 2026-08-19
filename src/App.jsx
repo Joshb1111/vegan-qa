@@ -3,19 +3,13 @@ import "./App.css";
 import ReplyHelper from "./ReplyHelper.jsx";
 import InstallPrompt from "./InstallPrompt.jsx";
 
-const SUGGESTIONS = [
-  "What is veganism?",
-  "Is reducetarianism veganism?",
-  "Why welfare reform fails",
-  "What about crop deaths?",
-  "What changed in 1979?",
-  "Why not single-issue campaigns?",
-  "Is veganism about suffering?",
-  "What is instrumentalisation?",
-  "What is moral agency?",
-];
-
 const STORAGE_KEY = "vegan-qa-history";
+const HISTORY_VERSION_KEY = "vegan-qa-history-version";
+// Bump this string to force-clear EVERY visitor's saved Recent/Topics history on their next
+// visit. Used to purge answers that were captured before the prompt was hardened, so old
+// (unwanted) answers can't be referenced from anyone's history.
+const HISTORY_VERSION = "reset-2026-07-06-a";
+const DAILY_IMAGE_LIMIT = 5;
 
 function getSessionId() {
   let id = sessionStorage.getItem("vqa-session");
@@ -133,31 +127,44 @@ export default function App() {
   const [result, setResult] = useState(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
-  const [mode, setMode] = useState("long");
+  const mode = "long"; // answers are always detailed
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [sidebarTab, setSidebarTab] = useState("recent");
   const [aboutOpen, setAboutOpen] = useState(false);
-  const [view, setView] = useState("qa"); // "qa" | "reply"
+  // "qa" by default; the Reply helper is a hidden tool reachable only via ?view=reply
+  const [view] = useState(() => {
+    try { return new URLSearchParams(window.location.search).get("view") === "reply" ? "reply" : "qa"; }
+    catch { return "qa"; }
+  });
   const [search, setSearch] = useState("");
   const [history, setHistory] = useState(() => {
-    try { return JSON.parse(localStorage.getItem(STORAGE_KEY)) || []; }
-    catch { return []; }
+    try {
+      // One-time purge: if saved history predates the current HISTORY_VERSION, wipe it. Bumping
+      // HISTORY_VERSION clears everyone's Recent/Topics history the next time they open the app.
+      if (localStorage.getItem(HISTORY_VERSION_KEY) !== HISTORY_VERSION) {
+        localStorage.removeItem(STORAGE_KEY);
+        localStorage.setItem(HISTORY_VERSION_KEY, HISTORY_VERSION);
+        return [];
+      }
+      return JSON.parse(localStorage.getItem(STORAGE_KEY)) || [];
+    } catch { return []; }
   });
   const [clientCache] = useState(() => new Map());
   const [flagged, setFlagged] = useState(false);
   const [copied, setCopied] = useState(false);
   const [textCopied, setTextCopied] = useState(false);
-  const [atBottom, setAtBottom] = useState(false);
   const [progress, setProgress] = useState(0);
+  const [image, setImage] = useState(null); // { dataUrl }
+  const [imgNotice, setImgNotice] = useState(null);
   const contentRef = useRef(null);
-  const bottomSentinelRef = useRef(null);
   const progressTimerRef = useRef(null);
+  const fileInputRef = useRef(null);
   const sessionId = getSessionId();
 
   const { listening, toggle: toggleMic, micError, clearMicError } = useSpeech(text => setInput(text));
 
-  // Reset flag/copied/atBottom state whenever a new answer arrives
-  useEffect(() => { setFlagged(false); setCopied(false); setTextCopied(false); setAtBottom(false); }, [result]);
+  // Reset flag/copied state whenever a new answer arrives
+  useEffect(() => { setFlagged(false); setCopied(false); setTextCopied(false); }, [result]);
 
   // Progress bar: eases toward ~88% over 12s, jumps to 100% on completion
   useEffect(() => {
@@ -182,19 +189,6 @@ export default function App() {
       return () => clearTimeout(t);
     }
   }, [loading]);
-
-  // Show follow-up bar only when the bottom of the answer is visible
-  useEffect(() => {
-    const sentinel = bottomSentinelRef.current;
-    const container = contentRef.current;
-    if (!sentinel || !container || !result) return;
-    const observer = new IntersectionObserver(
-      ([entry]) => setAtBottom(entry.isIntersecting),
-      { root: container, threshold: 0 }
-    );
-    observer.observe(sentinel);
-    return () => observer.disconnect();
-  }, [result]);
 
   const flagAnswer = async () => {
     if (!result || flagged) return;
@@ -258,13 +252,61 @@ export default function App() {
   };
 
 
+  // Up to 5 image uploads per user per day (client-side guard; server enforces too)
+  const imagesUsedToday = () => {
+    try {
+      const raw = JSON.parse(localStorage.getItem("vqa-image-day") || "{}");
+      return raw.date === new Date().toISOString().slice(0, 10) ? (raw.count || 0) : 0;
+    } catch { return 0; }
+  };
+  const imageLimitReached = () => imagesUsedToday() >= DAILY_IMAGE_LIMIT;
+
+  const openImagePicker = () => {
+    if (image || loading) return;
+    if (imageLimitReached()) { setImgNotice(`You can upload up to ${DAILY_IMAGE_LIMIT} images per day. Try again tomorrow.`); return; }
+    setImgNotice(null);
+    fileInputRef.current?.click();
+  };
+
+  const handleImagePick = (e) => {
+    const file = e.target.files?.[0];
+    e.target.value = ""; // allow re-picking the same file later
+    if (!file) return;
+    if (!file.type.startsWith("image/")) { setImgNotice("Please choose an image file."); return; }
+    if (imageLimitReached()) { setImgNotice(`You can upload up to ${DAILY_IMAGE_LIMIT} images per day. Try again tomorrow.`); return; }
+    // Downscale client-side to keep the upload small and cheap
+    const img = new Image();
+    const url = URL.createObjectURL(file);
+    img.onload = () => {
+      URL.revokeObjectURL(url);
+      const MAX = 1024;
+      const scale = Math.min(1, MAX / Math.max(img.width, img.height));
+      const w = Math.round(img.width * scale), h = Math.round(img.height * scale);
+      const canvas = document.createElement("canvas");
+      canvas.width = w; canvas.height = h;
+      canvas.getContext("2d").drawImage(img, 0, 0, w, h);
+      setImage({ dataUrl: canvas.toDataURL("image/jpeg", 0.85) });
+      setImgNotice(null);
+    };
+    img.onerror = () => { URL.revokeObjectURL(url); setImgNotice("Could not read that image. Try another."); };
+    img.src = url;
+  };
+
   const generate = async (q, m) => {
     const query = (q || input).trim();
     const answerMode = m || mode;
-    if (!query || loading) return;
+    const hasImage = !!image;
+    if ((!query && !hasImage) || loading) return;
 
+    // Dismiss the on-screen keyboard on submit so the answer isn't hidden
+    // behind it (especially on Android). The follow-up input intentionally
+    // does not auto-focus, so the keyboard only opens when the user taps it.
+    if (typeof document !== "undefined") document.activeElement?.blur?.();
+
+    // Single-turn memory: carry the immediately-preceding Q&A as context for this question only.
+    const prev = result;
     const cacheKey = `${answerMode}:${query.toLowerCase()}`;
-    if (clientCache.has(cacheKey)) {
+    if (!hasImage && !prev && clientCache.has(cacheKey)) {
       setResult(clientCache.get(cacheKey));
       setInput("");
       setError(null);
@@ -274,23 +316,59 @@ export default function App() {
     setLoading(true);
     setResult(null);
     setError(null);
+    // Fail loudly instead of spinning forever if the network stalls (common on
+    // mobile). 58s stays just under the serverless function's 60s limit.
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 58000);
     try {
       const res = await fetch("/api/ask", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ query, mode: answerMode, sessionId }),
+        body: JSON.stringify({
+          query: query || "What can you tell me about this image, in relation to veganism?",
+          mode: answerMode,
+          sessionId,
+          image: hasImage ? image.dataUrl : undefined,
+          prev: prev ? { question: prev.question || prev.query, answer: prev.answer } : undefined,
+        }),
+        signal: controller.signal,
       });
+      clearTimeout(timeoutId);
+      if (res.status === 429) {
+        const d = await res.json().catch(() => ({}));
+        // An image upload hitting its cap shows by the image control; a question
+        // rate-limit shows as the main message.
+        if (hasImage) {
+          setImgNotice(d.error || `You can upload up to ${DAILY_IMAGE_LIMIT} images per day. Try again tomorrow.`);
+        } else {
+          setError(d.error || "You've reached today's question limit. Please come back tomorrow.");
+        }
+        setLoading(false);
+        return;
+      }
       if (!res.ok) throw new Error();
       const data = await res.json();
-      clientCache.set(cacheKey, data);
+      if (!hasImage && !prev) clientCache.set(cacheKey, data);
       setResult(data);
       setInput("");
+      if (hasImage) {
+        try {
+          const today = new Date().toISOString().slice(0, 10);
+          localStorage.setItem("vqa-image-day", JSON.stringify({ date: today, count: imagesUsedToday() + 1 }));
+        } catch {}
+        setImage(null);
+      }
       setHistory(h => {
-        const entry = { query, ...data, savedAt: Date.now(), category: categorise(data.question || query) };
+        const entry = { query: query || data.question, ...data, savedAt: Date.now(), category: categorise(data.question || query) };
         return [entry, ...h.filter(i => i.question !== data.question)].slice(0, 100);
       });
-    } catch {
-      setError("Something went wrong. Please try again.");
+    } catch (err) {
+      clearTimeout(timeoutId);
+      if (err?.name === "AbortError") {
+        setError("That took too long — the server may be busy. Please try again.");
+      } else {
+        setError("Something went wrong. Please try again.");
+      }
     }
     setLoading(false);
   };
@@ -299,6 +377,8 @@ export default function App() {
     setResult(null);
     setInput("");
     setError(null);
+    setImage(null);
+    setImgNotice(null);
     sessionStorage.removeItem("vqa-session");
   };
 
@@ -311,6 +391,15 @@ export default function App() {
     <div className={`layout ${sidebarOpen ? "sidebar-open" : ""}`}>
 
       <InstallPrompt />
+
+      {/* Hidden file input for image upload (one per day) */}
+      <input
+        ref={fileInputRef}
+        type="file"
+        accept="image/*"
+        style={{ display: "none" }}
+        onChange={handleImagePick}
+      />
 
       {/* Sidebar */}
       <aside className="sidebar">
@@ -391,18 +480,6 @@ export default function App() {
           </button>
           <span className="topbar-brand">Vegan Q&A</span>
           <button className="about-btn" onClick={() => setAboutOpen(true)}>About</button>
-          <div className="view-toggle">
-            <button className={`view-btn ${view === "qa" ? "active" : ""}`} onClick={() => setView("qa")}>Q&A</button>
-            <button className={`view-btn ${view === "reply" ? "active" : ""}`} onClick={() => setView("reply")}>Reply</button>
-          </div>
-          <div className="topbar-right">
-            {view === "qa" && (
-              <div className="mode-toggle">
-                <button className={`mode-btn ${mode === "short" ? "active" : ""}`} onClick={() => setMode("short")}>{mode === "short" ? "Short answers" : "Short"}</button>
-                <button className={`mode-btn ${mode === "long" ? "active" : ""}`} onClick={() => setMode("long")}>{mode === "long" ? "Detailed answers" : "Detailed"}</button>
-              </div>
-            )}
-          </div>
         </header>
 
         {/* About modal */}
@@ -411,7 +488,7 @@ export default function App() {
             <div className="modal" onClick={e => e.stopPropagation()}>
               <button className="modal-close" onClick={() => setAboutOpen(false)}>✕</button>
               <h2 className="modal-title">About Vegan Q&A</h2>
-              <p>This is an AI chatbot powered by a large language model (LLM), grounded in the work of abolitionist vegan thinkers and the original vegan ethical framework as defined in 1951.</p>
+              <p>This is an AI chatbot powered by a large language model (LLM), grounded in the work of abolitionist vegan thinkers.</p>
               <p>It is designed to help activists, advocates, and curious people explore questions about veganism, animal use, outreach, and the philosophy behind the movement.</p>
               <p>While every answer is shaped by carefully researched principles, this tool is still in beta — answers may not always be 100% accurate. The bot is continuously reviewed and updated by real humans who hold the abolitionist position.</p>
               <p className="modal-footer-note">If you notice an answer that feels off, use the <strong>Submit for review</strong> button at the bottom of the answer — it will be checked and updated by a real person.</p>
@@ -426,10 +503,24 @@ export default function App() {
           ) : (<>
           {/* Hero — always visible at the top */}
           <div className={`empty-state ${result || loading || error ? "compact" : ""}`}>
-            <h1 className="hero-title">Ask me anything</h1>
-            <p className="hero-sub">Not generic AI. Grounded in the work of abolitionist vegan thinkers and the original vegan ethical framework.</p>
+            <h1 className="hero-title">Ask me anything<span className="hero-title-sub">(about veganism)</span></h1>
 
+            {image && (
+              <div className="img-attach">
+                <img src={image.dataUrl} alt="Attached" />
+                <span className="img-name">Image attached</span>
+                <button onClick={() => setImage(null)} aria-label="Remove image">✕</button>
+              </div>
+            )}
             <div className="input-bar centered-input">
+              <button
+                className="icon-btn plus-btn"
+                onClick={openImagePicker}
+                disabled={loading}
+                title="Upload an image (one per day)"
+              >
+                <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M12 5v14M5 12h14"/></svg>
+              </button>
               <input
                 className="chat-input"
                 value={input}
@@ -452,23 +543,18 @@ export default function App() {
               <button
                 className="icon-btn send-btn"
                 onClick={() => generate()}
-                disabled={loading || !input.trim()}
+                disabled={loading || (!input.trim() && !image)}
               >
                 <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M12 19V5M5 12l7-7 7 7"/></svg>
               </button>
             </div>
 
+            {imgNotice && (
+              <p className="img-notice" onClick={() => setImgNotice(null)}>{imgNotice}</p>
+            )}
             {micError && (
               <p className="mic-error" onClick={clearMicError}>{micError}</p>
             )}
-
-            <div className="pills-scroll-wrap">
-              <div className="pills-row">
-                {SUGGESTIONS.map(s => (
-                  <button key={s} className="pill" onClick={() => { setInput(s); generate(s); }}>{s}</button>
-                ))}
-              </div>
-            </div>
           </div>
 
           {loading && (
@@ -500,8 +586,6 @@ export default function App() {
                   {copied ? "✓ Link copied!" : "🔗 Share answer"}
                 </button>
               </div>
-              {/* Sentinel — floating bar appears when this becomes visible */}
-              <div ref={bottomSentinelRef} style={{ height: 1 }} />
             </div>
           )}
 
@@ -509,40 +593,10 @@ export default function App() {
           </>)}
         </div>
 
-        {/* Floating follow-up bar — appears once user reaches bottom of answer */}
-        {view === "qa" && result && atBottom && (
-          <div className="input-area floating">
-            <div className="input-bar">
-              <input
-                className="chat-input"
-                value={input}
-                onChange={e => setInput(e.target.value)}
-                onKeyDown={e => e.key === "Enter" && !e.shiftKey && generate()}
-                placeholder="Ask a follow-up..."
-                autoFocus={!!result}
-              />
-              <button
-                className={`icon-btn mic-btn ${listening ? "active" : ""}`}
-                onClick={toggleMic}
-                title={listening ? "Stop" : "Voice input"}
-              >
-                {listening ? (
-                  <svg width="15" height="15" viewBox="0 0 24 24" fill="currentColor"><rect x="6" y="6" width="12" height="12" rx="2"/></svg>
-                ) : (
-                  <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M12 2a3 3 0 0 1 3 3v7a3 3 0 0 1-6 0V5a3 3 0 0 1 3-3z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><line x1="12" y1="19" x2="12" y2="22"/></svg>
-                )}
-              </button>
-              <button
-                className="icon-btn send-btn"
-                onClick={() => generate()}
-                disabled={loading || !input.trim()}
-              >
-                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M12 19V5M5 12l7-7 7 7"/></svg>
-              </button>
-            </div>
-            <p className="input-disclaimer">Grounded in abolitionist vegan philosophy · Not affiliated with any organisation</p>
-          </div>
-        )}
+        {/* Follow-up bar removed — conversational memory is disabled, so there is no
+            multi-turn context to follow up on. Ask a new question via the input at the top
+            (always visible). This also removes the reserved black strip at the bottom that
+            was covering the lower part of the answer. */}
       </div>
     </div>
   );
