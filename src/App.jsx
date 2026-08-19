@@ -303,10 +303,8 @@ export default function App() {
     // does not auto-focus, so the keyboard only opens when the user taps it.
     if (typeof document !== "undefined") document.activeElement?.blur?.();
 
-    // Single-turn memory: carry the immediately-preceding Q&A as context for this question only.
-    const prev = result;
     const cacheKey = `${answerMode}:${query.toLowerCase()}`;
-    if (!hasImage && !prev && clientCache.has(cacheKey)) {
+    if (!hasImage && clientCache.has(cacheKey)) {
       setResult(clientCache.get(cacheKey));
       setInput("");
       setError(null);
@@ -329,7 +327,6 @@ export default function App() {
           mode: answerMode,
           sessionId,
           image: hasImage ? image.dataUrl : undefined,
-          prev: prev ? { question: prev.question || prev.query, answer: prev.answer } : undefined,
         }),
         signal: controller.signal,
       });
@@ -348,7 +345,7 @@ export default function App() {
       }
       if (!res.ok) throw new Error();
       const data = await res.json();
-      if (!hasImage && !prev) clientCache.set(cacheKey, data);
+      if (!hasImage) clientCache.set(cacheKey, data);
       setResult(data);
       setInput("");
       if (hasImage) {
