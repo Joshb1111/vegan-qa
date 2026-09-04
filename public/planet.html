@@ -142,15 +142,45 @@ const ROOFS=[0x8fb07a,0xc8785a,0x5f7e8c,0x7d6540,0x6d905a,0x9aa7a8];
    SCENE
    ===================================================================== */
 const game=$('#game'), canvas=$('#c');
-const renderer=new THREE.WebGLRenderer({canvas,antialias:true});
-renderer.setPixelRatio(Math.min(devicePixelRatio||1,2));
+const renderer=new THREE.WebGLRenderer({canvas,antialias:false});
+const DPR=Math.min(devicePixelRatio||1,2);renderer.setPixelRatio(DPR);
 const scene=new THREE.Scene(); scene.background=new THREE.Color(0x86c8c6);
-const camera=new THREE.PerspectiveCamera(50,1,0.1,1500); scene.add(camera);
+const camera=new THREE.PerspectiveCamera(66,1,0.3,1400); scene.add(camera);
 const sun=new THREE.DirectionalLight(0xffffff,0.55); sun.position.set(4,7,3); camera.add(sun); sun.target.position.set(0,0,-10); camera.add(sun.target);
 scene.add(new THREE.AmbientLight(0xffffff,0.36));
 let W=0,H=0;
-function resize(){W=game.clientWidth;H=game.clientHeight;renderer.setSize(W,H,false);camera.aspect=W/H;camera.updateProjectionMatrix();}
+/* Ink pass: the scene is rendered to a colour+depth target and a normals target, then a full-screen
+   shader draws hand-drawn lines wherever depth or normals break, with a little wobble and broken
+   strokes, plus paper grain. This is what gives the flat toon geometry its illustrated look. */
+const rt=new THREE.WebGLRenderTarget(2,2,{minFilter:THREE.LinearFilter,magFilter:THREE.LinearFilter});rt.depthTexture=new THREE.DepthTexture();rt.depthTexture.type=THREE.UnsignedIntType;
+const rtN=new THREE.WebGLRenderTarget(2,2,{minFilter:THREE.NearestFilter,magFilter:THREE.NearestFilter});
+const normalMat=new THREE.MeshNormalMaterial();
+const inkPass=new THREE.ShaderMaterial({uniforms:{tColor:{value:rt.texture},tDepth:{value:rt.depthTexture},tNormal:{value:rtN.texture},res:{value:new THREE.Vector2(2,2)},near:{value:camera.near},far:{value:camera.far}},
+  vertexShader:'varying vec2 vUv;void main(){vUv=uv;gl_Position=vec4(position.xy,0.,1.);}',
+  fragmentShader:`precision highp float;varying vec2 vUv;uniform sampler2D tColor,tDepth,tNormal;uniform vec2 res;uniform float near,far;
+  float lin(float d){float z=d*2.-1.;return (2.*near*far)/(far+near-z*(far-near));}
+  float hash(vec2 p){return fract(sin(dot(p,vec2(127.1,311.7)))*43758.5453);}
+  float noise(vec2 p){vec2 i=floor(p),f=fract(p);f=f*f*(3.-2.*f);return mix(mix(hash(i),hash(i+vec2(1,0)),f.x),mix(hash(i+vec2(0,1)),hash(i+vec2(1,1)),f.x),f.y);}
+  void main(){vec2 px=1./res;vec2 sp=vUv*res;
+    vec2 wob=(vec2(noise(sp/7.),noise(sp/7.+31.7))-.5)*2.6*px;vec2 u=vUv+wob;
+    float d0=lin(texture2D(tDepth,u).x);vec3 n0=texture2D(tNormal,u).xyz*2.-1.;
+    float e=0.;
+    // depth: second derivative, so flat surfaces at grazing angles stay clean and only real steps draw a line
+    vec2 ox=vec2(1.3,0.)*px,oy=vec2(0.,1.3)*px;
+    float dl=lin(texture2D(tDepth,u-ox).x),dr=lin(texture2D(tDepth,u+ox).x),du=lin(texture2D(tDepth,u-oy).x),dd=lin(texture2D(tDepth,u+oy).x);
+    if(d0<far*.9){e=max(e,abs(dl+dr-2.*d0)/max(d0,1.)*22.);e=max(e,abs(du+dd-2.*d0)/max(d0,1.)*22.);}
+    for(int i=0;i<4;i++){vec2 o=(i==0?ox:i==1?-ox:i==2?oy:-oy);vec3 n=texture2D(tNormal,u+o).xyz*2.-1.;e=max(e,(1.-dot(n0,n))*2.2);}
+    float line=smoothstep(.3,.85,e);
+    float gap=noise(sp/2.6);line*=mix(.55,1.,step(.18,gap));
+    vec3 col=texture2D(tColor,vUv).rgb;
+    col+=(noise(sp/1.7)-.5)*.035;
+    col=mix(col,vec3(.14,.19,.22),line*.92);
+    gl_FragColor=vec4(col,1.);}`});
+const quadScene=new THREE.Scene();quadScene.add(new THREE.Mesh(new THREE.PlaneGeometry(2,2),inkPass));const quadCam=new THREE.OrthographicCamera(-1,1,1,-1,0,1);
+function resize(){W=game.clientWidth;H=game.clientHeight;renderer.setSize(W,H,false);camera.aspect=W/H;camera.updateProjectionMatrix();const rw=Math.round(W*DPR),rh=Math.round(H*DPR);rt.setSize(rw,rh);rtN.setSize(rw,rh);inkPass.uniforms.res.value.set(rw,rh);}
 window.addEventListener('resize',resize);resize();
+const skyCol=scene.background,normalBg=new THREE.Color(0x8080ff); // background 'normal' faces the camera so the sky stays line-free
+function renderInk(){renderer.setRenderTarget(rt);renderer.render(scene,camera);scene.overrideMaterial=normalMat;scene.background=normalBg;renderer.setRenderTarget(rtN);renderer.render(scene,camera);scene.overrideMaterial=null;scene.background=skyCol;renderer.setRenderTarget(null);renderer.render(quadScene,quadCam);}
 let seed=9;const rnd=()=>{seed=(seed*16807)%2147483647;return seed/2147483647;};
 const pick=a=>a[Math.floor(rnd()*a.length)];
 
@@ -160,7 +190,7 @@ const matCache=new Map();
 const toon=(c,extra)=>{if(extra)return new THREE.MeshToonMaterial(Object.assign({color:c,gradientMap:grad},extra));if(!matCache.has(c))matCache.set(c,new THREE.MeshToonMaterial({color:c,gradientMap:grad}));return matCache.get(c);};
 const inkMat=new THREE.MeshBasicMaterial({color:P.ink,side:THREE.BackSide});
 const O=0.045;
-function outlined(geo,mat,dims){const g=new THREE.Group();g.add(new THREE.Mesh(geo,mat));const o=new THREE.Mesh(geo,inkMat);o.scale.set((dims[0]+2*O)/dims[0],(dims[1]+2*O)/dims[1],(dims[2]+2*O)/dims[2]);g.add(o);return g;}
+function outlined(geo,mat,dims){const g=new THREE.Group();g.add(new THREE.Mesh(geo,mat));return g;} // lines come from the ink pass now
 const box=(w,h,d,c)=>outlined(new THREE.BoxGeometry(w,h,d),toon(c),[w,h,d]);
 const plain=(w,h,d,c)=>new THREE.Mesh(new THREE.BoxGeometry(w,h,d),toon(c));
 const sph=(r,c,seg)=>outlined(new THREE.SphereGeometry(r,seg||16,seg?Math.ceil(seg*.7):11),toon(c),[2*r,2*r,2*r]);
@@ -181,7 +211,8 @@ function poster(){const w=.7+rnd()*.5,h=.9+rnd()*.5;const cv=document.createElem
    ===================================================================== */
 const MAP=84; // half-size
 const STEPS=[{z:38,lo:0,hi:3.2},{z:8,lo:3.2,hi:6.4},{z:-24,lo:6.4,hi:9.6}]; // wall lines (north side is higher)
-const ROADZ=[46,20,-8,-40]; // one street per terrace
+const ROADZ=[48,20,-8,-40]; // one street per terrace
+const roadZ=(t,x)=>ROADZ[t]+2.6*Math.sin(x/21+t*1.7); // streets wander a little, like a real hill town
 const RW=9; // ramp half-length along z
 const RAMPS=[{x:-46,s:0,stairs:false},{x:16,s:0,stairs:true},{x:58,s:0,stairs:false},{x:-14,s:1,stairs:true},{x:40,s:1,stairs:false},{x:-60,s:1,stairs:true},{x:6,s:2,stairs:false},{x:-40,s:2,stairs:true},{x:52,s:2,stairs:true}];
 function level(z){for(const s of STEPS){if(z>s.z)return s.lo;}return STEPS[STEPS.length-1].hi;}
@@ -194,7 +225,7 @@ const blocks=[]; // {x0,x1,z0,z1} the walker may not enter
   const N=168;const geo=new THREE.PlaneGeometry(MAP*2,MAP*2,N,N);geo.rotateX(-Math.PI/2);
   const pos=geo.attributes.position;const col=new Float32Array(pos.count*3);const c=new THREE.Color();
   for(let i=0;i<pos.count;i++){const x=pos.getX(i),z=pos.getZ(i);pos.setY(i,h(x,z));
-    let hex=P.concrete;const t=terraceOf(z);const rz=ROADZ[t];
+    let hex=P.concrete;const t=terraceOf(z);const rz=roadZ(t,x);
     if(Math.abs(z-rz)<3.2)hex=0x6f8a8c;else if(Math.abs(z-rz)<5.4)hex=0xb3b7b1;
     else if(rampAt(x,z))hex=0x6f8a8c;
     else if(rnd()<.08)hex=0xb5b3a6;else if(rnd()<.05)hex=0xa9c68f;
@@ -202,7 +233,9 @@ const blocks=[]; // {x0,x1,z0,z1} the walker may not enter
   geo.setAttribute('color',new THREE.BufferAttribute(col,3));geo.computeVertexNormals();
   scene.add(new THREE.Mesh(geo,toon(0xffffff,{vertexColors:true})));
   // road centre lines
-  for(let t=0;t<ROADZ.length;t++){for(let x=-MAP+2;x<MAP-2;x+=4){const m=plain(2,.02,.16,P.cream);m.position.set(x,h(x,ROADZ[t])+.03,ROADZ[t]);scene.add(m);}}
+  for(let t=0;t<ROADZ.length;t++){for(let x=-MAP+2;x<MAP-2;x+=4){const z=roadZ(t,x);const m=plain(2,.02,.16,P.cream);m.position.set(x,h(x,z)+.03,z);m.rotation.y=-Math.atan2(roadZ(t,x+1)-roadZ(t,x-1),2);scene.add(m);}
+    for(let x=-MAP+1;x<MAP-1;x+=2.2)for(const sd of [-1,1]){const z=roadZ(t,x)+sd*3.3;const k=plain(2.3,.22,.28,0x9ea39d);k.position.set(x,h(x,z)+.11,z);k.rotation.y=-Math.atan2(roadZ(t,x+1)-roadZ(t,x-1),2);scene.add(k);}
+    for(let i=0;i<3;i++){const x=-MAP+20+i*(2*MAP-40)/2+rnd()*10;for(let j=0;j<7;j++){const z=roadZ(t,x)-2.4+j*.8;const st=plain(2.4,.02,.4,P.cream);st.position.set(x,h(x,z)+.03,z);scene.add(st);}}}
   // sea and far ground
   const sea=new THREE.Mesh(new THREE.PlaneGeometry(2400,2400),new THREE.MeshBasicMaterial({color:P.sea}));sea.rotation.x=-Math.PI/2;sea.position.y=-6;scene.add(sea);
   const hill=new THREE.Mesh(new THREE.PlaneGeometry(2400,900),toon(0x8fb07a));hill.rotation.x=-Math.PI/2;hill.position.set(0,9.6,-MAP-450);scene.add(hill);
@@ -256,6 +289,19 @@ function tree(k){const g=new THREE.Group();g.add(at(cyl(.16,.2,1.6,P.wood,8),0,.
 function cat(){const g=new THREE.Group();g.add(at(box(.28,.3,.5,P.ink),0,.22,0));const head=new THREE.Group();head.position.set(0,.5,-.2);head.add(sph(.15,P.ink,12));head.add(at(cone(.06,.12,P.ink,6),-.08,.16,0));head.add(at(cone(.06,.12,P.ink,6),.08,.16,0));head.add(at(plain(.12,.06,.02,P.cream),0,-.04,-.14));head.add(at(sph(.02,P.yellow,6),-.05,.02,-.14));head.add(at(sph(.02,P.yellow,6),.05,.02,-.14));g.add(head);
   g.add(at(plain(.12,.14,.06,P.cream),0,.15,-.24));const tail=plain(.06,.06,.5,P.ink);tail.position.set(.12,.12,.4);tail.rotation.x=.4;g.add(tail);g.userData.head=head;return g;}
 const SHOPS=['TOFU & TEA','BOOKS','FRUIT','CYCLES','RECORDS','NOODLES','BAKERY','PLANTS','CAFÉ','LAUNDRY'];
+function glyphSign(w,h,bg,fg,vertical){ // a sign in an invented blocky script
+  const cv=document.createElement('canvas');const px=110;cv.width=Math.round(w*px);cv.height=Math.round(h*px);const g=cv.getContext('2d');g.fillStyle=bg;g.fillRect(0,0,cv.width,cv.height);g.strokeStyle='#26333a';g.lineWidth=px*.03;g.strokeRect(g.lineWidth/2,g.lineWidth/2,cv.width-g.lineWidth,cv.height-g.lineWidth);
+  const n=vertical?Math.floor(h/.55):Math.floor(w/.55);const cs=Math.min(cv.width,cv.height)*.62;g.fillStyle=fg;g.lineCap='square';
+  for(let i=0;i<n;i++){const cx=vertical?cv.width/2:(i+.5)*cv.width/n,cy=vertical?(i+.5)*cv.height/n:cv.height/2;g.save();g.translate(cx-cs/2,cy-cs/2);g.lineWidth=cs*.13;g.strokeStyle=fg;
+    for(let k=0;k<3+Math.floor(rnd()*3);k++){g.beginPath();const a=rnd(),b=rnd();if(rnd()<.5){g.moveTo(cs*a,cs*b*.9);g.lineTo(cs*a,cs*(b+.4));}else{g.moveTo(cs*a*.9,cs*b);g.lineTo(cs*(a+.45),cs*b);}g.stroke();}
+    if(rnd()<.5)g.fillRect(cs*.3,cs*.3,cs*.25,cs*.25);g.restore();}
+  const t=new THREE.CanvasTexture(cv);return new THREE.Mesh(new THREE.PlaneGeometry(w,h),new THREE.MeshBasicMaterial({map:t}));}
+function waterTank(){const g=new THREE.Group();g.add(at(cyl(2.1,2.1,3,P.green2,20),0,2.7,0));g.add(at(cyl(2.2,2.2,.3,P.green3,20),0,4.2,0));g.add(at(cyl(2.2,2.2,.3,P.green3,20),0,1.4,0));for(const x of [-1.6,1.6])g.add(at(plain(.18,1.2,.18,P.grey2),x,.6,0));const gl=glyphSign(1.6,.5,'#8fb07a','#f3efe4');gl.position.set(0,3.4,2.12);g.add(gl);g.add(at(pcyl(.08,.08,1.6,P.grey2,6),1.8,3,1.2));return g;}
+function postbox(){const g=new THREE.Group();g.add(at(box(.7,1.5,.7,P.red),0,.75,0));g.add(at(cyl(.36,.36,.3,P.red,14),0,1.62,0));g.add(at(plain(.4,.05,.1,P.ink),0,1.2,.36));const gl=glyphSign(.4,.3,'#c8402f','#f3efe4');gl.position.set(0,.9,.36);g.add(gl);return g;}
+function hydrant(){const g=new THREE.Group();g.add(at(cyl(.16,.2,.9,P.red,10),0,.45,0));g.add(at(sph(.17,P.red,10),0,.95,0));g.add(at(pcyl(.09,.09,.5,P.red,8),0,.55,0).clone());const arm=pcyl(.08,.08,.5,P.red,8);arm.rotation.z=Math.PI/2;g.add(at(arm,0,.55,0));return g;}
+function boxes(){const g=new THREE.Group();g.add(at(box(.9,.7,.7,0xc9a97a),0,.35,0));g.add(at(box(.7,.5,.6,0xb8965f),.2,.95,.05));if(rnd()<.5)g.add(at(box(.6,.5,.5,0xc9a97a),-.6,.25,.2));return g;}
+function bollard(){const g=new THREE.Group();g.add(at(cyl(.12,.14,.9,P.grey2,10),0,.45,0));g.add(at(plain(.26,.12,.26,P.yellow),0,.5,0));g.add(at(sph(.13,P.grey2,8),0,.9,0));return g;}
+function triSign(){const g=new THREE.Group();g.add(at(pcyl(.05,.05,3,P.grey2,6),0,1.5,0));const tri=cone(.5,.8,P.cream,3);tri.rotation.y=Math.PI/6;g.add(at(tri,0,3.2,0));const ring=cone(.62,.14,P.red,3);ring.rotation.y=Math.PI/6;g.add(at(ring,0,2.85,0));return g;}
 
 /* =====================================================================
    BUILDINGS — front face is +z (they face the street they stand on)
@@ -281,13 +327,14 @@ function block(w,d){const g=new THREE.Group();const wall=pick(WALLS),floors=2+Ma
   for(let f=0;f<floors;f++){const y=f*fh;if(f>0&&rnd()<.7){const b=balcony(w-1.2);b.position.set(0,y+.1,d/2);g.add(b);}
     const n=Math.max(2,Math.floor(w/2.4));for(let i=0;i<n;i++){const x=-w/2+w/(n+1)*(i+1);g.add(at(windowBox(1.1,1.2),x,y+1.8,d/2+.05));}
     if(f>0&&rnd()<.3){const l=laundry(Math.min(3,w-2));l.position.set(0,y+.2,d/2+.6);g.add(l);}}
-  g.add(at(door(1.2,2.2,0x3d5a66),0,0,d/2+.06));g.add(roofStuff(w,d,hh));
-  if(rnd()<.35)g.add(at(mailboxes(),-w/2+1.2,0,d/2+.2));decorate(g,w,d,hh);return g;}
+  g.add(at(door(1.2,2.2,0x3d5a66),0,0,d/2+.06));g.add(roofStuff(w,d,hh));if(rnd()<.3&&w>8)g.add(at(waterTank(),w/4,hh,-d/5));
+  if(rnd()<.35)g.add(at(mailboxes(),-w/2+1.2,0,d/2+.2));if(rnd()<.35){const vs=glyphSign(.7,2.6,pick(['#f3d24a','#c8402f','#4f86b3','#f3efe4']),pick(['#26333a','#f3efe4']),true);vs.position.set(w/2-.6,hh-2,d/2+.08);g.add(vs);}decorate(g,w,d,hh);return g;}
 function shop(w,d){const g=new THREE.Group();const wall=pick(WALLS),hh=3.6+(rnd()<.4?2.9:0);const name=pick(SHOPS);
   g.add(at(box(w,hh,d,wall),0,hh/2,0));g.add(at(box(w+.4,.3,d+.4,P.grey2),0,hh+.1,0));
   g.add(at(plain(w-1.2,2,.06,P.glass),.3,1.3,d/2+.04));g.add(at(door(1,2.2,0x3d5a66),-w/2+.9,0,d/2+.06));
   const a=awning(w-.6,pick([P.red,P.blue,P.green2,P.orange]));a.position.set(0,2.55,d/2);g.add(a);
-  const l=label(name,w-.8,.7,'#f3efe4','#26333a',.46);l.position.set(0,3.1,d/2+.08);g.add(l);
+  const l=rnd()<.5?label(name,w-.8,.7,'#f3efe4','#26333a',.46):glyphSign(w-.8,.7,pick(['#f3d24a','#f3efe4','#4f86b3','#c8402f']),pick(['#26333a','#f3efe4']));l.position.set(0,3.1,d/2+.08);g.add(l);
+  if(rnd()<.5){const vs=glyphSign(.6,2.2,pick(['#f3d24a','#c8402f','#4f86b3']),'#f3efe4',true);vs.rotation.y=Math.PI/2;vs.position.set(w/2+.32,2.6,d/2-.4);g.add(vs);g.add(at(plain(.7,.06,.06,P.ink),w/2+.35,3.75,d/2-.4));}
   g.add(at(planter(),w/2-.5,0,d/2+.6));if(rnd()<.6)g.add(at(box(.7,1.1,.08,P.cream),.8,.55,d/2+.5));
   if(hh>4){g.add(at(windowBox(1.2,1.1),-w/4,5,d/2+.05));g.add(at(windowBox(1.2,1.1),w/4,5,d/2+.05));}
   g.add(roofStuff(w,d,hh));decorate(g,w,d,hh);return g;}
@@ -299,12 +346,12 @@ const npcSpots=[];
 function place(obj,x,z,yaw){obj.position.set(x,h(x,z),z);obj.rotation.y=yaw||0;scene.add(obj);obj.updateMatrixWorld(true);return obj;}
 function placeBuilding(b,x,z,w,d,yaw){place(b,x,z,yaw);colliders.push(b);const hw=w/2+.5,hd=d/2+.5;blocks.push({x0:x-hw,x1:x+hw,z0:z-hd,z1:z+hd});}
 (function buildTown(){
-  for(let t=0;t<ROADZ.length;t++){const rz=ROADZ[t];const zNorthLimit=t<STEPS.length?STEPS[t].z:-MAP+4; // wall line north of this terrace's road? (walls: STEPS[t].z is the north wall of terrace t)
+  for(let t=0;t<ROADZ.length;t++){const rz0=ROADZ[t];const zNorthLimit=t<STEPS.length?STEPS[t].z:-MAP+4; // wall line north of this terrace's road? (walls: STEPS[t].z is the north wall of terrace t)
     const northWall=t<STEPS.length?STEPS[t].z:-MAP+6; const southEdge=t>0?STEPS[t-1].z:MAP-6;
     for(const side of [-1,1]){ // -1 = north of the street (faces south), +1 = south of the street (faces north)
       let x=-MAP+4+rnd()*3;
       while(x<MAP-8){
-        const w=6+rnd()*6,d=4.5+rnd()*2.5;
+        const w=6+rnd()*6,d=4.5+rnd()*2.5;const rz=roadZ(t,x+w/2);
         const clear=RAMPS.some(r=>Math.abs(r.x-(x+w/2))<w/2+5.5&&(r.s===t||r.s===t-1));
         const step=w+1.5+rnd()*3;
         if(!clear){
@@ -325,10 +372,12 @@ function placeBuilding(b,x,z,w,d,yaw){place(b,x,z,yaw);colliders.push(b);const h
         else if(pr<.66){place(mirror(),gx,gz);}
         else if(pr<.76){const tr=tree(Math.floor(rnd()*3));place(tr,gx,rz+side*5);colliders.push(tr);}
         else if(pr<.84){place(hedge(2+rnd()*2),gx,rz+side*4.9);}
+        else if(pr<.88){place(postbox(),gx,gz);}else if(pr<.91){place(hydrant(),gx,gz);}else if(pr<.95){place(boxes(),gx,rz+side*5,rnd()*.6);}else if(pr<.98){place(triSign(),gx,gz);}else{place(bollard(),gx,rz+side*3.6);place(bollard(),gx+1.2,rz+side*3.6);}
         x+=step;
       }
     }
-    for(let i=0;i<4;i++)place(manhole(),-MAP+10+rnd()*(2*MAP-20),rz+(rnd()-.5)*3);
+    for(let i=0;i<4;i++){const mx=-MAP+10+rnd()*(2*MAP-20);place(manhole(),mx,roadZ(t,mx)+(rnd()-.5)*3);}
+    for(let i=0;i<5;i++){const gx=-MAP+8+rnd()*(2*MAP-16);const gz=roadZ(t,gx)+(rnd()<.5?-2.9:2.9);const gr=plain(1.2,.03,.5,0x4f6366);gr.position.set(gx,h(gx,gz)+.04,gz);scene.add(gr);for(let k=0;k<5;k++){const sl=plain(.14,.03,.42,0x2b3a3c);sl.position.set(gx-.48+k*.24,h(gx,gz)+.05,gz);scene.add(sl);}}
   }
   // guard rails along the sea edge and a few hillside trees
   for(let x=-MAP+2;x<MAP-2;x+=12){const g=guardrail(11.5);place(g,x+5.75,MAP-3);}
@@ -392,7 +441,9 @@ function person(o){
   if(o.hairStyle==='short'){hair.scale.set(1,.8,.98);hair.position.y=.08;}
   if(o.hat){head.add(at(cyl(.24,.24,.14,o.hat,14),0,.24,0));head.add(at(cyl(.32,.32,.03,o.hat,14),0,.17,0));}
   if(o.glasses){head.add(at(plain(.26,.04,.02,P.ink),0,-.02,-.2));}
-  head.add(at(sph(.025,P.ink,6),-.075,-.02,-.19));head.add(at(sph(.025,P.ink,6),.075,-.02,-.19));
+  for(const sx of [-1,1]){const eye=sph(.028,P.ink,8);eye.scale.set(1,1.5,.6);eye.position.set(sx*.075,-.02,-.19);head.add(eye);}
+  head.add(at(plain(.07,.012,.02,0x8d5a3b),0,-.1,-.2));head.add(at(sph(.02,o.skin,6),0,-.055,-.205));
+  legL.knee.add(sph(.075,o.skinLegs?o.skin:o.legs,8));legR.knee.add(sph(.075,o.skinLegs?o.skin:o.legs,8));armL.el.add(sph(.06,o.sleeves?o.top:o.skin,8));armR.el.add(sph(.06,o.sleeves?o.top:o.skin,8));
   const rig={group:g,body,head,legL,legR,armL,armR,phase:0,blend:0};
   rig.pose=(speed,dt,gait)=>{
     const run=gait==='run';const rate=run?3.6:4.4;
@@ -428,7 +479,7 @@ const npcs=[];
   PEOPLE.forEach((p,i)=>{const rig=person(outfits());scene.add(rig.group);
     const spot=spots.length?spots.splice(Math.floor(rnd()*spots.length),1)[0]:{x:0,z:ROADZ[1]+3,yaw:0};
     const walker=i%2===1;const t=terraceOf(spot.z);
-    const n={...p,id:'p'+i,rig,x:spot.x,z:walker?ROADZ[t]+(rnd()<.5?1.6:-1.6):spot.z,yaw:walker?(rnd()<.5?Math.PI/2:-Math.PI/2):spot.yaw,walker,speed:1.5+rnd()*.6,range:[Math.max(-MAP+6,spot.x-14-rnd()*14),Math.min(MAP-6,spot.x+14+rnd()*14)],paused:false,session:'planet-'+Math.random().toString(36).slice(2)};
+    const lane=rnd()<.5?1.6:-1.6;const n={...p,id:'p'+i,rig,t,lane,x:spot.x,z:walker?roadZ(t,spot.x)+lane:spot.z,yaw:walker?(rnd()<.5?Math.PI/2:-Math.PI/2):spot.yaw,walker,speed:1.5+rnd()*.6,range:[Math.max(-MAP+6,spot.x-14-rnd()*14),Math.min(MAP-6,spot.x+14+rnd()*14)],paused:false,session:'planet-'+Math.random().toString(36).slice(2)};
     npcs.push(n);
     const b=document.createElement('button');b.type='button';b.dataset.go=n.id;b.innerHTML='<i></i>'+n.name+'<small>'+n.sub+'</small>';$('#stops').appendChild(b);});
 })();
@@ -452,10 +503,10 @@ let camInit=false,nearN=null,shownN=null,talking=null;
 const isTouch=matchMedia('(hover:none)').matches;
 // simple route planning along the streets and ramps between terraces
 function planRoute(tx,tz){const pts=[];const t0=terraceOf(pl.z),t1=terraceOf(tz);let cx=pl.x,cz=pl.z;
-  pts.push({x:cx,z:ROADZ[t0]});cz=ROADZ[t0];
+  pts.push({x:cx,z:roadZ(t0,cx)});cz=roadZ(t0,cx);
   const dir=t1>t0?1:-1;for(let t=t0;t!==t1;t+=dir){const si=dir>0?t:t-1;const s=STEPS[si];const ramps=RAMPS.filter(r=>r.s===si);let best=ramps[0];for(const r of ramps)if(Math.abs(r.x-cx)<Math.abs(best.x-cx))best=r;
-    pts.push({x:best.x,z:cz});pts.push({x:best.x,z:s.z-RW*dir*1.1});pts.push({x:best.x,z:s.z+RW*dir*1.1});cx=best.x;cz=ROADZ[t+dir];pts.push({x:cx,z:cz});}
-  pts.push({x:tx,z:cz});pts.push({x:tx,z:tz});return pts;}
+    pts.push({x:best.x,z:roadZ(t,best.x)});pts.push({x:best.x,z:s.z+RW*dir*1.1});pts.push({x:best.x,z:s.z-RW*dir*1.1});cx=best.x;cz=roadZ(t+dir,cx);pts.push({x:cx,z:cz});}
+  pts.push({x:tx,z:roadZ(t1,tx)});pts.push({x:tx,z:tz});return pts;}
 
 function update(dt){
   let fw=(hold.u?1:0)-(hold.d?1:0),tn=(hold.l?1:0)-(hold.r?1:0);
@@ -471,6 +522,7 @@ function update(dt){
   const target=fw>0?MAXV:fw<0?-MAXV*.5:0;
   v+=(target-v)*(1-Math.exp(-7*dt));if(!fw&&Math.abs(v)<.05)v=0;
   pl.yaw+=tn*TURN*dt*(Math.abs(v)>4?.8:1); // a little less twitchy at full speed
+  pl.yaw=Math.atan2(Math.sin(pl.yaw),Math.cos(pl.yaw));
   let step=v*dt;const drain=pendingMove*(1-Math.exp(-7*dt));pendingMove-=drain;if(Math.abs(pendingMove)<.02)pendingMove=0;step+=clamp(drain,-MAXV*1.2*dt,MAXV*1.2*dt);
   const f=fwdOf(pl.yaw);let moved=true;if(step)moved=tryMove(f.x*step,f.z*step);if(!moved){v*=.5;if(autoTarget){autoTarget.stuck+=dt;if(autoTarget.stuck>1.5){autoTarget.retarget=0;autoTarget.stuck=0;}}}
   const speed=moved?Math.abs(step/Math.max(dt,1e-4)):0;
@@ -479,6 +531,7 @@ function update(dt){
   for(const n of npcs){
     if(n===talking){n.yaw=Math.atan2(-(pl.x-n.x),-(pl.z-n.z));n.rig.pose(0,dt,'idle');}
     else{let sp=0;if(n.walker&&!n.paused){const dir=n.yaw>0?-1:1;n.x+=dir*n.speed*dt;if(n.x>n.range[1]){n.yaw=Math.PI/2;}if(n.x<n.range[0]){n.yaw=-Math.PI/2;}sp=n.speed;}n.rig.pose(sp,dt,'walk');}
+    if(n.walker&&!n.paused&&n!==talking){const tz=roadZ(n.t,n.x)+n.lane;n.z+=(tz-n.z)*Math.min(1,dt*3);}
     n.rig.group.position.set(n.x,h(n.x,n.z),n.z);n.rig.group.rotation.y=n.yaw;}
   // the cat watches you
   {const d=Math.hypot(pl.x-theCat.position.x,pl.z-theCat.position.z);const hd=theCat.userData.head;if(d<9){const a=Math.atan2(-(pl.x-theCat.position.x),-(pl.z-theCat.position.z))-theCat.rotation.y;hd.rotation.y+=((Math.atan2(Math.sin(a),Math.cos(a)))-hd.rotation.y)*Math.min(1,dt*4);}else hd.rotation.y*=1-Math.min(1,dt*2);}
@@ -486,7 +539,7 @@ function update(dt){
   const head=new THREE.Vector3(pl.x,py+1.7,pl.z);let desired,look;
   if(talking){const o=new THREE.Vector3(talking.x,h(talking.x,talking.z),talking.z);const me=new THREE.Vector3(pl.x,py,pl.z);const to=o.clone().sub(me);to.y=0;to.normalize();const side=new THREE.Vector3(-to.z,0,to.x);
     desired=me.clone().add(new THREE.Vector3(0,3.1,0)).addScaledVector(to,-3.6).addScaledVector(side,3.4);look=me.clone().lerp(o,.6).add(new THREE.Vector3(0,1.4,0));}
-  else{desired=new THREE.Vector3(pl.x,py+3.6,pl.z).addScaledVector(f,-7.6);look=head.clone().addScaledVector(f,2.6);}
+  else{const rt_=new THREE.Vector3(-f.z,0,f.x);desired=new THREE.Vector3(pl.x,py+2.5,pl.z).addScaledVector(f,-5.6).addScaledVector(rt_,-1.1);look=new THREE.Vector3(pl.x,py+1.45,pl.z).addScaledVector(f,5).addScaledVector(rt_,-1.1);}
   // keep the camera above the ground it is over, and in front of anything blocking the view
   desired.y=Math.max(desired.y,h(clamp(desired.x,-MAP,MAP),clamp(desired.z,-MAP,MAP))+1.4);
   const eye=talking?look.clone():head;const ray=desired.clone().sub(eye);const len=ray.length();raycaster.set(eye,ray.clone().normalize());raycaster.far=len;
@@ -500,8 +553,9 @@ function update(dt){
     else{pr.classList.add('off');ba.classList.add('off');}}
   for(const n of npcs)if(n!==nearN&&n!==talking)n.paused=false;
 }
+window.__dbg=()=>({x:+pl.x.toFixed(1),z:+pl.z.toFixed(1),yaw:+pl.yaw.toFixed(2),h:+h(pl.x,pl.z).toFixed(1),route:route&&route.slice(0,3).map(w=>[+w.x.toFixed(0),+w.z.toFixed(0)]),tgt:autoTarget&&[+autoTarget.npc.x.toFixed(0),+autoTarget.npc.z.toFixed(0),autoTarget.npc.t],v:+v.toFixed(1)});
 let last=performance.now();
-function frame(now){const dt=Math.min(.05,(now-last)/1000);last=now;if(!paused)update(dt);renderer.render(scene,camera);requestAnimationFrame(frame);}
+function frame(now){const dt=Math.min(.05,(now-last)/1000);last=now;if(!paused)update(dt);renderInk();requestAnimationFrame(frame);}
 requestAnimationFrame(frame);
 
 /* =====================================================================
