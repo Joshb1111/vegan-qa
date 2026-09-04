@@ -730,7 +730,7 @@ let titleGone=false;
 const music=new Audio('assets/music.m4a');music.loop=true;music.volume=0;let musicOn=true;try{musicOn=localStorage.getItem('planet-music')!=='off';}catch(_){}
 let musicTarget=0;const MUSIC_VOL=.32;
 /* footsteps: Josh's jogging loop, kept running silently and faded up only while the kid is on the move (quieter when walking); the ♪ button mutes it with the music */
-const steps=new Audio('assets/steps.m4a');steps.loop=true;steps.volume=0;let stepsTarget=0;const STEP_VOL=.14;
+const steps=new Audio('assets/steps.m4a');steps.loop=true;steps.volume=0;let stepsTarget=0;const STEP_VOL=.3;
 function startSteps(){steps.play().catch(()=>{});}
 window.__audio={music,steps};
 function musicUI(){const b=$('#musicbtn');b.setAttribute('aria-pressed',String(musicOn));b.title=musicOn?'Music on':'Music off';}
