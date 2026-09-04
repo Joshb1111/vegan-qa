@@ -452,7 +452,7 @@ const outfits=()=>{const skin=pick([0xf2cfae,0xe0b48a,0xc68a5a,0x8d5a3b,0x6b4227
 const player=person({skin:0xf2cfae,hair:0x2a2430,top:P.red,bottom:0xb9a66e,legs:0xf2cfae,sock:P.cream,shoe:P.red,shoeCap:P.cream,skinLegs:true,cargo:true,collar:true,bag:true,hairStyle:'bob'});
 scene.add(player.group);
 /* ---------- the modelled character (Tripo GLB), with its own walk animation ---------- */
-let kidModel=null,mixer=null;const clips={};let gait={walk:0,idle:1};const mixers=[];const birdGroups=[];
+let kidModel=null,mixer=null;const clips={};let gait={walk:0,run:0,fidget:0};const mixers=[];let jump={on:false,t:0,dur:0},idleFor=0,fidgetUntil=0;const birdGroups=[];
 const _bv=new THREE.Vector3(),_bu=new THREE.Vector3(),_bf=new THREE.Vector3(),_bs=new THREE.Vector3(),_bm=new THREE.Matrix4();
 function updateBirds(dt,t){for(const g of birdGroups){g.th+=g.w*dt;const v=new THREE.Vector3().crossVectors(g.axis,g.u);
   for(const bd of g.birds){const th=g.th+bd.along/g.rad;const c=Math.cos(th),s_=Math.sin(th);_bv.copy(g.u).multiplyScalar(c).addScaledVector(v,s_);_bf.copy(g.u).multiplyScalar(-s_).addScaledVector(v,c).multiplyScalar(Math.sign(g.w));
@@ -477,7 +477,9 @@ function groundFix(holder,root){holder.updateMatrixWorld(true);let minY=Infinity
       let travel=0;c.tracks=c.tracks.filter(t=>{if(!t.name.endsWith('.position'))return true;const v=t.values;let mn=[1e9,1e9,1e9],mx=[-1e9,-1e9,-1e9];for(let i=0;i<v.length;i+=3)for(let k=0;k<3;k++){mn[k]=Math.min(mn[k],v[i+k]);mx[k]=Math.max(mx[k],v[i+k]);}
         const range=Math.max(mx[0]-mn[0],mx[1]-mn[1],mx[2]-mn[2]);if(range>.2)travel=Math.max(travel,range);return !/^(Root|Hip|Hips|Pelvis)\./i.test(t.name)&&range<=.2;}); // hip/root position tracks carry root motion and lifted offsets: drop them
       if(n.includes('walk')&&travel>0)clips.walkSpeed=travel*sc_/c.duration; // world units per second at timeScale 1
-      const a=mixer.clipAction(c);a.play();a.setEffectiveWeight(0);if(n.includes('walk'))clips.walk=a;else if(n.includes('run'))clips.run=a;else clips.idle=clips.idle||a;}
+      if(n.includes('run')&&travel>0)clips.runSpeed=travel*sc_/c.duration;
+      const a=mixer.clipAction(c);a.play();a.setEffectiveWeight(0);
+      if(n.includes('walk'))clips.walk=a;else if(n.includes('run'))clips.run=a;else if(n.includes('jump')){clips.jump=a;a.setLoop(THREE.LoopOnce,1);a.clampWhenFinished=false;}else if(n.includes('scratch')){clips.fidget=a;a.setLoop(THREE.LoopOnce,1);}else clips.idle=clips.idle||a;}
     if(!clips.idle&&clips.walk){clips.idle=clips.walk;}
     player.group.visible=false;scene.add(holder);kidModel=holder;kidModel.userData.root=root;kidModel.userData.groundAt=performance.now()+1200;sceneDirty=true;},undefined,e=>console.warn('character not loaded',e));
     // modelled buildings and props from Josh's asset folder
@@ -505,15 +507,15 @@ function groundFix(holder,root){holder.updateMatrixWorld(true);let minY=Infinity
       NPC_MODELS.forEach((file,mi)=>loader.load(file,g=>{
         const clips={};for(const c of g.animations){const n_=c.name.toLowerCase();let travel=0;
           c.tracks=c.tracks.filter(t=>{if(!t.name.endsWith('.position'))return true;const v=t.values;let mn=[1e9,1e9,1e9],mx=[-1e9,-1e9,-1e9];for(let i=0;i<v.length;i+=3)for(let k=0;k<3;k++){mn[k]=Math.min(mn[k],v[i+k]);mx[k]=Math.max(mx[k],v[i+k]);}const range=Math.max(mx[0]-mn[0],mx[1]-mn[1],mx[2]-mn[2]);if(range>.2)travel=Math.max(travel,range);return !/^(Root|Hip|Hips|Pelvis)\./i.test(t.name)&&range<=.2;});
-          if(n_.includes('walk')){clips.walk=c;clips.travel=travel;}else if(n_.includes('agree'))clips.talk=c;else clips.idle=c;}
-        if(!clips.idle)clips.idle=clips.talk||clips.walk;
+          if(n_.includes('walk')){clips.walk=c;clips.travel=travel;}else if(n_.includes('agree'))clips.talk=c;else if(n_.includes('scratch'))clips.fidget=c;else if(n_.includes('run'))clips.run=c;else clips.idle=c;}
+        if(!clips.idle)clips.idle=clips.fidget||clips.talk||clips.walk;
         const bb=new THREE.Box3().setFromObject(g.scene);const hgt=bb.max.y-bb.min.y;const sc_=1.78/hgt;
         npcs.forEach((n,i)=>{if((NPC_FOR[n.name]??(i%NPC_MODELS.length))!==mi)return;
           const root=THREE.SkeletonUtils.clone(g.scene);root.scale.setScalar(sc_);root.position.y=-bb.min.y*sc_;root.rotation.y=Math.PI;
           root.traverse(m=>{if(m.isMesh){const old=m.material;const mat=new THREE.MeshBasicMaterial({map:old.map||null,color:old.map?0xffffff:old.color,skinning:!!m.isSkinnedMesh});mat.onBeforeCompile=sh=>{sh.fragmentShader=sh.fragmentShader.replace('#include <dithering_fragment>','#include <dithering_fragment>\n gl_FragColor.rgb=clamp(pow(gl_FragColor.rgb,vec3(0.85))*1.08,0.0,1.0);');};m.material=mat;m.frustumCulled=false;m.userData.noInk=true;}});
           const holder=new THREE.Group();holder.add(root);scene.add(holder);
-          const mixer=new THREE.AnimationMixer(root);const act={};for(const k of ['walk','idle','talk']){if(clips[k]){act[k]=mixer.clipAction(clips[k]);act[k].play();act[k].setEffectiveWeight(k==='idle'?1:0);}}
-          n.model={holder,mixer,act,root,walkSpeed:clips.travel?clips.travel*sc_/clips.walk.duration:1,w:{walk:0,talk:0},groundAt:performance.now()+1200};mixers.push(mixer);n.rig.group.visible=false;});
+          const mixer=new THREE.AnimationMixer(root);const act={};for(const k of ['walk','idle','talk','fidget']){if(clips[k]){act[k]=mixer.clipAction(clips[k]);act[k].play();act[k].setEffectiveWeight(k==='idle'?1:0);if(k==='fidget')act[k].setLoop(THREE.LoopOnce,1);}}
+          n.model={holder,mixer,act,root,walkSpeed:clips.travel?clips.travel*sc_/clips.walk.duration:1,w:{walk:0,talk:0,fidget:0},fidgetAt:performance.now()/1000+5+Math.random()*10,groundAt:performance.now()+1200};mixers.push(mixer);n.rig.group.visible=false;});
         sceneDirty=true;},undefined,e=>console.warn('resident not loaded',file,e)));};
     document.head.appendChild(su);
     // birds: tiny gulls that circle the planet in small flocks and on their own; wings flap in the shader
@@ -560,7 +562,7 @@ function npcPos(n){return sphere(n.lon,n.lat);}
    ===================================================================== */
 const START_LON=0.3;
 let up=sphere(START_LON,0), fwd=new THREE.Vector3(-Math.sin(START_LON),0,Math.cos(START_LON)), right=new THREE.Vector3();
-const MAXV=3.4, TURN=2.0; // a brisk walk; the world moves at the pace of the character's stride
+const MAXV=4.6, TURN=2.0; // a light jog by default
 let v=0, pendingMove=0, autoTarget=null, autoFace=null, paused=false, hintGone=false;
 const hold={u:false,d:false,l:false,r:false};
 function orthonormalize(){fwd.addScaledVector(up,-fwd.dot(up)).normalize();right.crossVectors(fwd,up).normalize();}
@@ -595,9 +597,19 @@ function update(dt){
   player.pose(speed,dt,speed>3?'run':'walk');
   if(kidModel){kidModel.quaternion.copy(player.group.quaternion);kidModel.position.copy(player.group.position);
     if(kidModel.userData.groundAt&&performance.now()>kidModel.userData.groundAt){kidModel.userData.groundAt=0;groundFix(kidModel,kidModel.userData.root);}
-    const moving=speed>.3;const target=moving?1:0;gait.walk+=(target-gait.walk)*Math.min(1,dt*6);gait.idle=1-gait.walk;
-    if(clips.walk){clips.walk.setEffectiveWeight(gait.walk);clips.walk.setEffectiveTimeScale(clamp(speed/(clips.walkSpeed||1.5)*.75,.5,3.2));/* longer, fewer strides (a touch of slide, deliberately) */}
-    if(clips.idle&&clips.idle!==clips.walk)clips.idle.setEffectiveWeight(gait.idle);}
+    // gait: run is the default when moving; walk only when easing off; look-around when standing; a scratch now and then
+    const moving=speed>.3,running=speed>2.4&&clips.run;
+    gait.run+=((running?1:0)-gait.run)*Math.min(1,dt*6);gait.walk+=((moving&&!running?1:0)-gait.walk)*Math.min(1,dt*6);
+    idleFor=moving?0:idleFor+dt;const now_=performance.now()/1000;
+    if(clips.fidget&&!moving&&idleFor>7&&now_>fidgetUntil){clips.fidget.reset().play();fidgetUntil=now_+clips.fidget.getClip().duration+9+Math.random()*8;idleFor=0;}
+    const fidgeting=clips.fidget&&clips.fidget.isRunning()&&!moving;gait.fidget+=((fidgeting?1:0)-gait.fidget)*Math.min(1,dt*5);
+    if(jump.on){jump.t+=dt;if(jump.t>=jump.dur)jump.on=false;kidModel.position.addScaledVector(up,Math.sin(Math.PI*clamp(jump.t/jump.dur,0,1))*.75);}
+    const jw=jump.on?1:0;
+    if(clips.run){clips.run.setEffectiveWeight(gait.run*(1-jw));clips.run.setEffectiveTimeScale(clamp(speed/(clips.runSpeed||3)*.9,.6,2.2));}
+    if(clips.walk){clips.walk.setEffectiveWeight(gait.walk*(1-jw));clips.walk.setEffectiveTimeScale(clamp(speed/(clips.walkSpeed||1.5)*.75,.5,3.2));}
+    if(clips.jump)clips.jump.setEffectiveWeight(jw);
+    if(clips.fidget)clips.fidget.setEffectiveWeight(gait.fidget*(1-jw));
+    if(clips.idle&&clips.idle!==clips.walk)clips.idle.setEffectiveWeight(Math.max(0,1-gait.run-gait.walk-gait.fidget)*(1-jw));}
   // people
   for(const n of npcs){
     let sp=0;
@@ -612,9 +624,11 @@ function update(dt){
       if(md.groundAt&&performance.now()>md.groundAt){md.groundAt=0;groundFix(md.holder,md.root);}
       const speaking=n===talking&&((voiceAudio&&!voiceAudio.paused)||(canSpeak&&speechSynthesis.speaking)||!sbN.hidden);
       md.w.walk+=((sp>.1?1:0)-md.w.walk)*Math.min(1,dt*6);md.w.talk+=((speaking&&sp<=.1?1:0)-md.w.talk)*Math.min(1,dt*4);
+      const tnow=performance.now()/1000;if(md.act.fidget&&md.act.fidget!==md.act.idle&&sp<=.1&&n!==talking&&tnow>md.fidgetAt){md.act.fidget.reset().play();md.fidgetAt=tnow+md.act.fidget.getClip().duration+8+Math.random()*12;}
+      const fid=md.act.fidget&&md.act.fidget!==md.act.idle&&md.act.fidget.isRunning()&&sp<=.1&&n!==talking;md.w.fidget+=((fid?1:0)-md.w.fidget)*Math.min(1,dt*5);if(md.act.fidget&&md.act.fidget!==md.act.idle)md.act.fidget.setEffectiveWeight(md.w.fidget);
       if(md.act.walk){md.act.walk.setEffectiveWeight(md.w.walk);md.act.walk.setEffectiveTimeScale(clamp(sp/(md.walkSpeed||1)*.75,.5,2.5));}
       if(md.act.talk)md.act.talk.setEffectiveWeight(md.w.talk*(md.act.talk===md.act.idle?0:1));
-      if(md.act.idle)md.act.idle.setEffectiveWeight(Math.max(0,1-md.w.walk-md.w.talk));}
+      if(md.act.idle)md.act.idle.setEffectiveWeight(Math.max(0,1-md.w.walk-md.w.talk-md.w.fidget));}
   }
   // camera
   let desired,look;
@@ -647,14 +661,15 @@ requestAnimationFrame(frame);
 /* =====================================================================
    INPUT
    ===================================================================== */
-if(isTouch)$('#hint').textContent='▲ ▼ to walk · ◀ ▶ to turn · walk up to someone';
+if(isTouch)$('#hint').textContent='▲ ▼ to move · ◀ ▶ to turn · tap ▲ twice to jump';else $('#hint').textContent='↑ ↓ to move · ← → to turn · space to jump';
 const KEYS={ArrowUp:'u',w:'u',W:'u',ArrowDown:'d',s:'d',S:'d',ArrowLeft:'l',a:'l',A:'l',ArrowRight:'r',d:'r',D:'r'};
 window.addEventListener('keydown',e=>{
   if(e.metaKey||e.ctrlKey||e.altKey)return;
   if(talking){if(e.key==='Escape')endTalk();else if((e.key==='Enter'||e.key===' ')&&document.activeElement!==q){nextChunk();e.preventDefault();}return;}
   if(!$('#stops').hidden&&e.key==='Escape'){toggleStops(false);return;}
   if(KEYS[e.key]){hold[KEYS[e.key]]=true;e.preventDefault();return;}
-  if(e.key==='e'||e.key==='E'||e.key==='Enter'||e.key===' '){action();e.preventDefault();}
+  if(e.key===' '){doJump();e.preventDefault();return;}
+  if(e.key==='e'||e.key==='E'||e.key==='Enter'){action();e.preventDefault();}
 });
 window.addEventListener('keyup',e=>{if(KEYS[e.key])hold[KEYS[e.key]]=false;});
 window.addEventListener('blur',()=>{for(const k in hold)hold[k]=false;drag=null;});
@@ -664,8 +679,9 @@ canvas.addEventListener('pointerdown',e=>{if(talking)return;drag={id:e.pointerId
 canvas.addEventListener('pointermove',e=>{if(!drag||e.pointerId!==drag.id)return;const dx=e.clientX-drag.x,dy=e.clientY-drag.y;drag.x=e.clientX;drag.y=e.clientY;if(dx){turn(-dx*.006);autoTarget=null;autoFace=null;}if(dy){pendingMove=clamp(pendingMove-dy*.05,-30,30);}if(dx||dy)firstMove();});
 const endDrag=e=>{if(drag&&e.pointerId===drag.id){drag=null;canvas.classList.remove('drag');}};
 ['pointerup','pointercancel'].forEach(ev=>canvas.addEventListener(ev,endDrag));
+let lastUpTap=0;
 $$('.dpad .dir').forEach(el=>{const key=el.dataset.k;
-  const on=e=>{e.preventDefault();hold[key]=true;el.classList.add('down');try{el.setPointerCapture(e.pointerId)}catch(_){}};
+  const on=e=>{e.preventDefault();if(key==='u'){const t=performance.now();if(t-lastUpTap<320)doJump();lastUpTap=t;}hold[key]=true;el.classList.add('down');try{el.setPointerCapture(e.pointerId)}catch(_){}};
   const off=()=>{hold[key]=false;el.classList.remove('down');};
   el.addEventListener('pointerdown',on);['pointerup','pointercancel','lostpointercapture'].forEach(ev=>el.addEventListener(ev,off));el.addEventListener('contextmenu',e=>e.preventDefault());});
 $('#ba').addEventListener('click',()=>action());
@@ -747,6 +763,7 @@ function meBubble(text){sbMe.innerHTML=esc(text);sbMe.hidden=false;clearTimeout(
 function hideBubbles(){clearTimeout(bubble.timer);bubble.who=null;sbN.hidden=true;sbMe.hidden=true;}
 function say(html,n,plainForVoice,key){if(typer){clearInterval(typer);typer=null;}const plain=plainForVoice||html.replace(/<[^>]+>/g,'');sayBubble(n,plain,key||'');if(plainForVoice)speak(plainForVoice,n);}
 function action(){unlockAudio();if(nearN&&!talking)startTalk(nearN);}
+function doJump(){if(talking||jump.on||!clips.jump)return;jump.on=true;jump.t=0;jump.dur=clips.jump.getClip().duration;clips.jump.reset().play();firstMove();}
 function startTalk(n){
   talking=n;n.paused=true;autoTarget=null;for(const k in hold)hold[k]=false;v=0;pendingMove=0;
   autoFace=npcPos(n).clone().multiplyScalar(R).sub(player.group.position).normalize();
