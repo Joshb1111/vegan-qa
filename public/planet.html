@@ -186,7 +186,8 @@ Object.assign(sunL.shadow.camera,{left:-3.5,right:3.5,top:3.5,bottom:-3.5,near:2
 scene.add(sunL);scene.add(sunL.target);
 const shadowCap=new THREE.Mesh(new THREE.SphereGeometry(R+.075,48,10,0,Math.PI*2,0,.16),new THREE.ShadowMaterial({color:0x1b2630,opacity:.34,transparent:true,depthWrite:false}));
 shadowCap.receiveShadow=true;shadowCap.userData.skipInk=true;shadowCap.frustumCulled=false;scene.add(shadowCap);
-const _se=new THREE.Vector3(),_sn=new THREE.Vector3(),_sd=new THREE.Vector3();
+const _se=new THREE.Vector3(),_sn=new THREE.Vector3(),_sd=new THREE.Vector3(),_sm=new THREE.Matrix4();
+function updateSky(up){if(!skyDome)return;_se.set(0,1,0);if(Math.abs(up.y)>.98)_se.set(1,0,0);_se.addScaledVector(up,-_se.dot(up)).normalize();_sn.crossVectors(_se,up);_sm.makeBasis(_se,up,_sn);skyDome.quaternion.setFromRotationMatrix(_sm);}
 function updateShadowRig(pos,up,q){shadowCap.quaternion.copy(q); /* cap pole = local Y = up, so the patch hugs the ground under the player */
   _se.set(-up.z,0,up.x).normalize();_sn.crossVectors(_se,up).normalize();
   _sd.copy(up).multiplyScalar(1.6).addScaledVector(_se,.7).addScaledVector(_sn,.5).normalize();
@@ -271,7 +272,7 @@ function placeOn(obj,lon,lat,yaw){scene.add(obj);return poseOn(obj,lon,lat,yaw);
    so the corners meet the grass and the middle sits a little into it. */
 function sinkFor(obj){const bb=new THREE.Box3().setFromObject(obj);if(bb.isEmpty())return 0;const hx=(bb.max.x-bb.min.x)/2,hz=(bb.max.z-bb.min.z)/2;return R-Math.sqrt(Math.max(0,R*R-(hx*hx+hz*hz)));}
 function placeOnGround(obj,lon,lat,yaw){const s=sinkFor(obj);placeOn(obj,lon,lat,yaw);obj.translateY(-s);obj.updateMatrixWorld(true);return obj;}
-const colliders=[];
+const colliders=[];let skyDome=null;
 (function makePlanet(){
   const cv=document.createElement('canvas');cv.width=2048;cv.height=1024;const g=cv.getContext('2d');
   g.fillStyle='#8ab862';g.fillRect(0,0,2048,1024);
@@ -289,9 +290,10 @@ const colliders=[];
     const m=new THREE.Mesh(geo,new THREE.MeshBasicMaterial({map:tex,side:THREE.DoubleSide,polygonOffset:true,polygonOffsetFactor:-2,polygonOffsetUnits:-2}));scene.add(m);})();
 })();
 (function makeSky(){
-  // Josh's painted sky on a dome; mirrored repeat hides the seam
-  const tex=new THREE.TextureLoader().load('assets/sky.jpg');tex.wrapS=THREE.MirroredRepeatWrapping;tex.repeat.x=2;
-  const dome=new THREE.Mesh(new THREE.SphereGeometry(420,48,32),new THREE.MeshBasicMaterial({map:tex,side:THREE.BackSide}));dome.userData.noInk=true;dome.rotation.y=.6;scene.add(dome);
+  // Josh's painted sky on a dome; mirrored repeat hides the seam. The dome is re-oriented every frame so its
+  // equator (the pale horizon band in the picture) lies on the player's own horizon wherever they are on the planet.
+  const tex=new THREE.TextureLoader().load('assets/sky.jpg?v=2');tex.wrapS=THREE.MirroredRepeatWrapping;tex.repeat.x=2;
+  const dome=new THREE.Mesh(new THREE.SphereGeometry(420,48,32),new THREE.MeshBasicMaterial({map:tex,side:THREE.BackSide}));dome.userData.noInk=true;scene.add(dome);skyDome=dome;
   // hills behind the town
   for(let i=0;i<14;i++){const lon=rnd()*Math.PI*2,lat=(rnd()<.5?1:-1)*(.3+rnd()*.25);const h=sph(6+rnd()*8,pick([P.green,P.green2,P.green3]),14);h.scale.y=.45;placeOn(h,lon,lat);}
 })();
@@ -632,7 +634,7 @@ function update(dt){
   moveForward(step);
   const speed=Math.abs(step/Math.max(dt,1e-4));
   // player pose
-  _m.makeBasis(right,up,fwd.clone().negate());player.group.quaternion.setFromRotationMatrix(_m);player.group.position.copy(up).multiplyScalar(R);updateShadowRig(player.group.position,up,player.group.quaternion);
+  _m.makeBasis(right,up,fwd.clone().negate());player.group.quaternion.setFromRotationMatrix(_m);player.group.position.copy(up).multiplyScalar(R);updateShadowRig(player.group.position,up,player.group.quaternion);updateSky(up);
   player.pose(speed,dt,speed>3?'run':'walk');
   if(kidModel){kidModel.quaternion.copy(player.group.quaternion);kidModel.position.copy(player.group.position);
     if(kidModel.userData.groundAt&&performance.now()>kidModel.userData.groundAt){kidModel.userData.groundAt=0;groundFix(kidModel,kidModel.userData.root);}
