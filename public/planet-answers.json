@@ -1,7 +1,7 @@
 {
  "is honey vegan?": {
-  "answer": "No. Honey is made by bees from nectar, and taking it means treating bees as a resource — appropriating their labour and their food for human purposes. When someone keeps bees and harvests their honey, they're using the bees' bodies and work to produce something for human benefit. That's the core of what veganism rejects: using animals as means to our ends. It doesn't matter if the bees aren't harmed in the process, or if they're treated well. The wrong is the use itself — the decision that bees exist to produce honey for us. A vegan doesn't take honey because they don't view bees as theirs to use.",
-  "key": "Veganism rejects using animals as resources, regardless of harm; honey is use."
+  "answer": "No. Honey comes from bees—it's what they produce for their own use, and taking it means treating them as a resource. A vegan doesn't use bees or what comes from their bodies, the same way they don't use any animal as a means to a human end. The principle is straightforward: bees are someones, not something to be taken from.",
+  "key": "Honey is use; veganism rejects using animals as resources."
  },
  "isn't veganism just a diet?": {
   "answer": "No. Veganism is a principle — the recognition that humans have no right to use animals as means to our ends. One expression of that principle is not eating animal flesh or dairy or eggs, but it applies equally to clothing, entertainment, experimentation, and every other form of use. Someone who changes their diet without holding the principle isn't vegan; someone who holds the principle will naturally arrive at the practices because they no longer see animals as resources available for their use. A plant-based diet is a symptom of veganism, not the definition of it.",
@@ -82,5 +82,9 @@
  "is veganism about suffering?": {
   "answer": "No. Veganism is about use — about the principle that animals are not ours to use as means to our ends. Suffering matters morally, but it's not what makes veganism vegan. A well-treated dairy cow is still being used, still treated as a resource, still wronged — and that's why a vegan doesn't consume her milk. The wrong is the use itself, regardless of whether suffering is present or absent. If veganism were about suffering, then painless exploitation would be fine, and a \"humane\" farm would be acceptable. That's not the vegan position at all.",
   "key": "Veganism rejects use, not suffering; the principle holds regardless of how the animal is treated."
+ },
+ "is lab-grown flesh vegan?": {
+  "answer": "No. Lab-grown flesh is not vegan because it is built on the exact belief veganism was created to reject: that animals exist as resources for humans to use. The cells come from an animal — that animal is still being treated as a means to a human end, still being used for human purposes. The wrong is not that the process is cruel or that an animal dies; the wrong is that an animal's body is being appropriated and exploited. Lab-grown flesh perpetuates the idea that animals are ours to take from and use. It does nothing to challenge the entitlement that sits at the root of all animal exploitation — it just makes that entitlement seem more palatable and progressive. Veganism opposes the use of animals altogether, not just the most violent or visible forms of it.",
+  "key": "Lab-grown flesh treats animals as a resource and perpetuates the mindset veganism exists to oppose."
  }
 }
