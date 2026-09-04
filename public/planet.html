@@ -435,7 +435,14 @@ let kidModel=null,mixer=null;const clips={};let gait={walk:0,idle:1};
     player.group.visible=false;scene.add(holder);kidModel=holder;sceneDirty=true;},undefined,e=>console.warn('character not loaded',e));
     // modelled buildings and props from Josh's asset folder
     const loader=new THREE.GLTFLoader();
-    const toonify=root=>root.traverse(m=>{if(m.isMesh){const old=m.material;m.material=new THREE.MeshToonMaterial({map:old.map||null,color:old.map?0xffffff:old.color,gradientMap:grad});}});
+    // Modelled assets arrive with light and shadow baked into their textures, so they are drawn unlit,
+    // lifted a little, and posterised so the colours flatten back toward cel shading.
+    const flatMat=(map,color)=>{const m=new THREE.MeshBasicMaterial({map:map||null,color:map?0xffffff:color});
+      m.onBeforeCompile=sh=>{sh.fragmentShader=sh.fragmentShader.replace('#include <dithering_fragment>',`#include <dithering_fragment>
+        vec3 c=gl_FragColor.rgb;c=pow(c,vec3(0.78));c=c*1.12+0.03;
+        float l=dot(c,vec3(.299,.587,.114));float lq=floor(l*6.0+0.5)/6.0;c*=(lq+0.02)/max(l,0.02);
+        gl_FragColor.rgb=clamp(c,0.0,1.0);`);};return m;};
+    const toonify=root=>root.traverse(m=>{if(m.isMesh){const old=m.material;m.material=flatMat(old.map,old.color);}});
     const fit=(root,height)=>{const bb=new THREE.Box3().setFromObject(root);const sc=height/(bb.max.y-bb.min.y);root.scale.setScalar(sc);root.position.y=-bb.min.y*sc;root.position.x=-(bb.min.x+bb.max.x)/2*sc;root.position.z=-(bb.min.z+bb.max.z)/2*sc;};
     loader.load('assets/building1.glb',g=>{toonify(g.scene);fit(g.scene,9);for(const sl of modelSlots){const inst=new THREE.Group();inst.add(g.scene.clone());placeOn(inst,sl.lon,sl.lat,sl.yaw);colliders.push(inst);}sceneDirty=true;},undefined,e=>console.warn('building not loaded',e));
     loader.load('assets/stairs1.glb',g=>{toonify(g.scene);fit(g.scene,2.4);for(const sl of stairSlots){const inst=new THREE.Group();inst.add(g.scene.clone());placeOn(inst,sl.lon,sl.lat,sl.yaw);}sceneDirty=true;},undefined,e=>console.warn('stairs not loaded',e));};
