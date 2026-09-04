@@ -310,6 +310,8 @@ function greenHouse(w,d){ // the tall green building with the mailboxes
   return g;}
 
 const npcSpots=[]; // places people like to stand
+const modelSlots=[]; // plots kept free for Josh's modelled buildings: {lon,lat,yaw}
+const stairSlots=[]; // spots for the modelled staircase
 (function buildTown(){
   const roadLat=(18/1024)*Math.PI; // road half-width in radians
   for(const side of [1,-1]){
@@ -317,7 +319,8 @@ const npcSpots=[]; // places people like to stand
     while(lon<Math.PI*2-.05){
       const w=6+rnd()*5,d=4.5+rnd()*2.5;const step=(w+1.5+rnd()*2.5)/R;
       const t=rnd();let b=null;
-      if(t<.28)b=house(w,d);else if(t<.55)b=block(w,d);else if(t<.8)b=shop(w,d);else if(t<.86)b=greenHouse(w,d);
+      if(t<.22)b=house(w,d);else if(t<.46)b=block(w,d);else if(t<.68)b=shop(w,d);else if(t<.74)b=greenHouse(w,d);
+      else if(t<.9&&w>=7.5){modelSlots.push({lon:lon+step/2,lat:side*(roadLat+(2.2+2.7+(rnd()<.25?2.5:0))/R),yaw:side<0?Math.PI:0});}
       const setback=(rnd()<.25?2.5:0);
       const lat=side*(roadLat+ (2.2+ d/2 + setback)/R);
       if(b){placeOn(b,lon+step/2,lat,side<0?Math.PI:0);colliders.push(b);
@@ -335,6 +338,7 @@ const npcSpots=[]; // places people like to stand
       else if(pr<.34){placeOn(roundSign(pick([P.red,P.blue]),pick(['↑','30','P','!'])),gapLon,pl);}
       else if(pr<.44){const vm=placeOn(vend(),gapLon,side*(roadLat+1.5/R),side<0?Math.PI:0);colliders.push(vm);npcSpots.push({lon:gapLon+1.4/R,lat:pl});}
       else if(pr<.52){placeOn(bin(),gapLon,pl);}
+      else if(pr<.56){stairSlots.push({lon:gapLon,lat:side*(roadLat+2.4/R),yaw:side<0?Math.PI:0});}
       else if(pr<.6){const bs=placeOn(busStop(),gapLon,side*(roadLat+1.6/R),side<0?Math.PI:0);colliders.push(bs);npcSpots.push({lon:gapLon+.8/R,lat:pl});}
       else if(pr<.68){placeOn(bench(),gapLon,side*(roadLat+1.6/R),side<0?Math.PI:0);npcSpots.push({lon:gapLon,lat:pl-side*.6/R});}
       else if(pr<.74){placeOn(coneProp(),gapLon,side*(roadLat-.6/R));}
@@ -428,7 +432,13 @@ let kidModel=null,mixer=null;const clips={};let gait={walk:0,idle:1};
       if(n.includes('walk')&&travel>0)clips.walkSpeed=travel*sc_/c.duration; // world units per second at timeScale 1
       const a=mixer.clipAction(c);a.play();a.setEffectiveWeight(0);if(n.includes('walk'))clips.walk=a;else if(n.includes('run'))clips.run=a;else clips.idle=clips.idle||a;}
     if(!clips.idle&&clips.walk){clips.idle=clips.walk;}
-    player.group.visible=false;scene.add(holder);kidModel=holder;sceneDirty=true;},undefined,e=>console.warn('character not loaded',e));};
+    player.group.visible=false;scene.add(holder);kidModel=holder;sceneDirty=true;},undefined,e=>console.warn('character not loaded',e));
+    // modelled buildings and props from Josh's asset folder
+    const loader=new THREE.GLTFLoader();
+    const toonify=root=>root.traverse(m=>{if(m.isMesh){const old=m.material;m.material=new THREE.MeshToonMaterial({map:old.map||null,color:old.map?0xffffff:old.color,gradientMap:grad});}});
+    const fit=(root,height)=>{const bb=new THREE.Box3().setFromObject(root);const sc=height/(bb.max.y-bb.min.y);root.scale.setScalar(sc);root.position.y=-bb.min.y*sc;root.position.x=-(bb.min.x+bb.max.x)/2*sc;root.position.z=-(bb.min.z+bb.max.z)/2*sc;};
+    loader.load('assets/building1.glb',g=>{toonify(g.scene);fit(g.scene,9);for(const sl of modelSlots){const inst=new THREE.Group();inst.add(g.scene.clone());placeOn(inst,sl.lon,sl.lat,sl.yaw);colliders.push(inst);}sceneDirty=true;},undefined,e=>console.warn('building not loaded',e));
+    loader.load('assets/stairs1.glb',g=>{toonify(g.scene);fit(g.scene,2.4);for(const sl of stairSlots){const inst=new THREE.Group();inst.add(g.scene.clone());placeOn(inst,sl.lon,sl.lat,sl.yaw);}sceneDirty=true;},undefined,e=>console.warn('stairs not loaded',e));};
   document.head.appendChild(sc);})();
 
 /* ---------- the people you can talk to ---------- */
