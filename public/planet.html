@@ -473,10 +473,13 @@ scene.add(player.group);
 let kidModel=null,mixer=null;const clips={};let gait={walk:0,run:0,fidget:0};const mixers=[];let jump={on:false,t:0,dur:0},idleFor=0,fidgetUntil=0;const birdGroups=[];
 const _bv=new THREE.Vector3(),_bu=new THREE.Vector3(),_bf=new THREE.Vector3(),_bs=new THREE.Vector3(),_bm=new THREE.Matrix4();
 function updateBirds(dt,t){for(const g of birdGroups){g.th+=g.w*dt;const v=new THREE.Vector3().crossVectors(g.axis,g.u);
+  /* the whole group weaves: a slow sideways S-curve and a gentle rise and fall, with a matching bank */
+  const sw=Math.sin(t*.32+g.ph)*3.2,swd=Math.cos(t*.32+g.ph),rise=Math.sin(t*.47+g.ph2)*1.6;
+  const glide=clamp(Math.sin(t*.38+g.ph2)*2.2+.4,0,1); /* 1 = flapping, 0 = wings held out in a glide */
   for(const bd of g.birds){const th=g.th+bd.along/g.rad;const c=Math.cos(th),s_=Math.sin(th);_bv.copy(g.u).multiplyScalar(c).addScaledVector(v,s_);_bf.copy(g.u).multiplyScalar(-s_).addScaledVector(v,c).multiplyScalar(Math.sign(g.w));
-    _bu.copy(_bv);_bs.crossVectors(_bf,_bu).normalize();_bv.multiplyScalar(g.rad).addScaledVector(_bs,bd.side).addScaledVector(_bu,bd.upo);
-    bd.b.h.position.copy(_bv);_bm.makeBasis(_bs,_bu,_bf.clone().negate());bd.b.h.quaternion.setFromRotationMatrix(_bm);bd.b.h.rotateOnAxis(new THREE.Vector3(0,0,1),-Math.sign(g.w)*.25);
-    const sh=bd.b.mat.userData.sh;if(sh)sh.uniforms.uT.value=t;}}
+    _bu.copy(_bv);_bs.crossVectors(_bf,_bu).normalize();_bv.multiplyScalar(g.rad).addScaledVector(_bs,bd.side+sw).addScaledVector(_bu,bd.upo+rise);
+    bd.b.h.position.copy(_bv);_bm.makeBasis(_bs,_bu,_bf.clone().negate());bd.b.h.quaternion.setFromRotationMatrix(_bm);bd.b.h.rotateOnAxis(new THREE.Vector3(0,0,1),-Math.sign(g.w)*.18-swd*.4);
+    for(const jn of bd.b.joints){const flap=-0.3+0.75*Math.sin(t*9.5+bd.b.ph+jn.lag);const ang=jn.sign*jn.amp*(flap*glide+0.12*(1-glide));jn.b.quaternion.setFromAxisAngle(jn.axis,ang).multiply(jn.q0);}}}
 }
 // Put a posed character's lowest skinned vertex exactly on the ground of its holder
 const _gv=new THREE.Vector3();
@@ -535,18 +538,28 @@ function groundFix(holder,root){holder.updateMatrixWorld(true);let minY=Infinity
           n.model={holder,mixer,act,root,walkSpeed:clips.travel?clips.travel*sc_/clips.walk.duration:1,w:{walk:0,talk:0,fidget:0},fidgetAt:performance.now()/1000+5+Math.random()*10,groundAt:performance.now()+1200};mixers.push(mixer);n.rig.group.visible=false;});
         sceneDirty=true;},undefined,e=>console.warn('resident not loaded',file,e)));};
     document.head.appendChild(su);
-    // birds: tiny gulls that circle the planet in small flocks and on their own; wings flap in the shader
-    loader.load('assets/bird.glb',g=>{let src=null;g.scene.traverse(m=>{if(m.isMesh&&!src)src=m;});if(!src)return;
-      const geo=src.geometry;const bb=new THREE.Box3().setFromObject(src);const len=bb.max.x-bb.min.x,hgt=bb.max.y-bb.min.y,yS=bb.min.y+.42*hgt;const sc=(location.search.includes('bigbirds')?8:1)/len;/* body runs along x, wings rise either side in z */
-      const mkBird=(ph)=>{const mat=new THREE.MeshBasicMaterial({map:src.material.map||null,color:src.material.map?0xffffff:0xf3efe4});
-        mat.onBeforeCompile=sh=>{sh.uniforms.uT={value:0};sh.uniforms.uPh={value:ph};mat.userData.sh=sh;
-          sh.vertexShader='uniform float uT;uniform float uPh;\n'+sh.vertexShader.replace('#include <begin_vertex>','#include <begin_vertex>\n float yS='+yS.toFixed(3)+';float w=smoothstep(yS-0.04,yS+0.08,position.y);float th=sign(position.z)*1.9*(0.5+0.5*sin(uT*7.0+uPh));float dy=position.y-yS;float cz=position.z;float c=cos(th),s_=sin(th);vec3 rot=vec3(position.x, yS+dy*c-cz*s_, dy*s_+cz*c);transformed=mix(transformed,rot,w);');};
-        const m=new THREE.Mesh(geo,mat);m.scale.setScalar(sc);m.rotation.y=-Math.PI/2;/* beak forward */m.userData.noInk=true;m.frustumCulled=false;const h=new THREE.Group();h.add(m);scene.add(h);return {h,mat};};
+    // birds: Josh's rigged bird, one skeleton clone each; the wings flap from code by hinging the shoulder
+    // and mid-wing bones about the bird's forward axis, so the whole wing sweeps down and up from the body
+    loader.load('assets/bird2.glb',g=>{const go=()=>{
+      const bb=new THREE.Box3().setFromObject(g.scene);const span=bb.max.x-bb.min.x;const sc=(location.search.includes('bigbirds')?8:.62)/span;
+      const mkBird=(ph)=>{const root=THREE.SkeletonUtils.clone(g.scene);root.scale.setScalar(sc);root.updateMatrixWorld(true);
+        root.traverse(m=>{if(m.isMesh){const old=m.material;m.material=new THREE.MeshBasicMaterial({map:old.map||null,color:old.map?0xffffff:0xf3efe4,skinning:!!m.isSkinnedMesh});m.userData.noInk=true;m.frustumCulled=false;}});
+        const bones={};root.traverse(o=>{if(o.isBone)bones[o.name]=o;});
+        const rq=new THREE.Quaternion();root.getWorldQuaternion(rq);
+        const joint=(nm,sign,amp,lag)=>{const b=bones[nm];if(!b)return null;const pq=new THREE.Quaternion();b.parent.getWorldQuaternion(pq);
+          const axis=new THREE.Vector3(0,0,1).applyQuaternion(rq).applyQuaternion(pq.invert()).normalize(); /* bird forward (+Z), in this bone's parent frame */
+          return {b,q0:b.quaternion.clone(),axis,sign,amp,lag};};
+        /* Tripo parented the left shoulder (bone_11) under the right one (bone_6), so it swings twice as far the other way: once to undo the right wing's lift, once for its own */
+        const joints=[joint('bone_6',1,1,0),joint('bone_7',1,.55,-.7),joint('bone_11',-1,2,0),joint('bone_12',-1,.55,-.7)].filter(Boolean);
+        root.rotation.y=Math.PI;/* beak to -Z, the way the flight holder points */
+        const h=new THREE.Group();h.add(root);scene.add(h);return {h,joints,ph};};
       const perp=a=>{const t=Math.abs(a.y)<.9?new THREE.Vector3(0,1,0):new THREE.Vector3(1,0,0);return new THREE.Vector3().crossVectors(a,t).normalize();};
-      const groups=[];for(let f=0;f<4;f++){const axis=new THREE.Vector3(rnd()-.5,rnd()-.5,rnd()-.5).normalize();const n=3+Math.floor(rnd()*3);
-        groups.push({axis,u:perp(axis),rad:R+12+rnd()*8,w:(.05+rnd()*.03)*(rnd()<.5?1:-1),th:rnd()*Math.PI*2,birds:Array.from({length:n},(_,i)=>({b:mkBird(rnd()*6),along:-i*1.1,side:(i%2?1:-1)*Math.ceil(i/2)*1.0,upo:(rnd()-.5)*.6}))});}
-      for(let f=0;f<5;f++){const axis=new THREE.Vector3(rnd()-.5,rnd()-.5,rnd()-.5).normalize();groups.push({axis,u:perp(axis),rad:R+10+rnd()*12,w:(.04+rnd()*.05)*(rnd()<.5?1:-1),th:rnd()*Math.PI*2,birds:[{b:mkBird(rnd()*6),along:0,side:0,upo:0}]});}
-      birdGroups.push(...groups);window.__birds=birdGroups;sceneDirty=true;},undefined,e=>console.warn('bird not loaded',e));};
+      const MAIN=new THREE.Vector3(.35,1,-.25).normalize();const scat=()=>new THREE.Vector3(MAIN.x+(rnd()-.5)*.5,MAIN.y+(rnd()-.5)*.5,MAIN.z+(rnd()-.5)*.5).normalize(); /* every flock circles the same way, tilted a little differently */
+      const groups=[];for(let f=0;f<4;f++){const axis=scat();const n=3+Math.floor(rnd()*3);
+        groups.push({axis,u:perp(axis),rad:R+22+rnd()*9,w:.2+rnd()*.06,ph:rnd()*6.3,ph2:rnd()*6.3,th:rnd()*Math.PI*2,birds:Array.from({length:n},(_,i)=>({b:mkBird(rnd()*6),along:-i*1.1,side:(i%2?1:-1)*Math.ceil(i/2)*1.0,upo:(rnd()-.5)*.6}))});}
+      for(let f=0;f<5;f++){const axis=scat();groups.push({axis,u:perp(axis),rad:R+20+rnd()*14,w:.18+rnd()*.08,ph:rnd()*6.3,ph2:rnd()*6.3,th:rnd()*Math.PI*2,birds:[{b:mkBird(rnd()*6),along:0,side:0,upo:0}]});}
+      birdGroups.push(...groups);window.__birds=birdGroups;sceneDirty=true;};
+      if(THREE.SkeletonUtils)go();else su.addEventListener('load',go);},undefined,e=>console.warn('bird not loaded',e));};
   document.head.appendChild(sc);})();
 
 /* ---------- the people you can talk to ---------- */
