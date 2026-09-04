@@ -720,8 +720,8 @@ function groundFix(holder,root){holder.updateMatrixWorld(true);let minY=Infinity
     for(const kind in PROPS){const [file,hgt,cross]=PROPS[kind];loader.load(file,g=>{toonify(g.scene);fit(g.scene,hgt);for(const sl of propSlots){if(sl.kind!==kind)continue;const inst=new THREE.Group();inst.add(g.scene.clone());if(cross){const w=new THREE.Group();w.add(g.scene.clone());w.rotation.y=Math.PI/2;inst.add(w);}if(sl.k)inst.scale.setScalar(sl.k);placeOn(inst,sl.lon,sl.lat,sl.yaw);if(sl.collide)colliders.push(inst);const SR={treeBig:.5,treeSmall:.4,mailbox:.35,rock:.6*(sl.k||1),crate:.5}[kind];if(SR)solidCircle(inst,SR);}sceneDirty=true;},undefined,e=>console.warn(kind,'not loaded',e));}
     // residents: Josh's four modelled characters, cloned with their skeletons
     const su=document.createElement('script');su.src='https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/utils/SkeletonUtils.js';
-    su.onload=()=>{const NPC_MODELS=['assets/npc1.glb','assets/npc2.glb','assets/npc3.glb','assets/npc4.glb'];
-      const NPC_FOR={Theo:0,Kofi:0,Ravi:0,Sam:0,Mina:1,Elin:1,Ada:2,June:3}; // npc1 = the man in the waistcoat; 2 = girl with the bag; 3 = the mum; 4 = the girl with buns
+    su.onload=()=>{const NPC_MODELS=['assets/npc1.glb','assets/npc2.glb','assets/npc3.glb','assets/npc4.glb','assets/npc5.glb'];
+      const NPC_FOR={Theo:0,Kofi:0,Ravi:0,Sam:4,Mina:1,Elin:1,Ada:2,June:3}; // npc1 = the man in the waistcoat; 2 = girl with the bag; 3 = the mum; 4 = the girl with buns; 5 = the skate park boy (Sam)
       NPC_MODELS.forEach((file,mi)=>loader.load(file,g=>{
         const clips={};for(const c of g.animations){const n_=c.name.toLowerCase();let travel=0;
           c.tracks=c.tracks.filter(t=>{if(!t.name.endsWith('.position'))return true;const v=t.values;let mn=[1e9,1e9,1e9],mx=[-1e9,-1e9,-1e9];for(let i=0;i<v.length;i+=3)for(let k=0;k<3;k++){mn[k]=Math.min(mn[k],v[i+k]);mx[k]=Math.max(mx[k],v[i+k]);}const range=Math.max(mx[0]-mn[0],mx[1]-mn[1],mx[2]-mn[2]);if(range>.2)travel=Math.max(travel,range);return !/^(Root|Hip|Hips|Pelvis)\./i.test(t.name)&&range<=.2;});
