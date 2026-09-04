@@ -189,7 +189,7 @@ const shadowCap=new THREE.Mesh(new THREE.SphereGeometry(R+.075,48,8,0,Math.PI*2,
 shadowCap.receiveShadow=true;shadowCap.userData.skipInk=true;shadowCap.frustumCulled=false;scene.add(shadowCap);
 const _se=new THREE.Vector3(),_sn=new THREE.Vector3(),_sd=new THREE.Vector3(),_sm=new THREE.Matrix4();
 function updateSky(up){if(!skyDome)return;_se.set(0,1,0);if(Math.abs(up.y)>.98)_se.set(1,0,0);_se.addScaledVector(up,-_se.dot(up)).normalize();_sn.crossVectors(_se,up);_sm.makeBasis(_se,up,_sn);skyDome.quaternion.setFromRotationMatrix(_sm);if(nightDome)nightDome.quaternion.copy(skyDome.quaternion);}
-function updateShadowRig(pos,up,q){shadowCap.quaternion.copy(q);shadowCap.position.copy(up).multiplyScalar(terrainH(up)); /* cap pole = local Y = up, so the patch hugs the ground under the player */
+function updateShadowRig(pos,up,q){shadowCap.quaternion.copy(q);shadowCap.position.copy(up).multiplyScalar(terrainH(up)+parkH(up)); /* cap pole = local Y = up, so the patch hugs the ground under the player */
   _se.set(-up.z,0,up.x).normalize();_sn.crossVectors(_se,up).normalize();
   _sd.copy(up).multiplyScalar(1.6).addScaledVector(_se,.7).addScaledVector(_sn,.5).normalize();
   sunL.position.copy(pos).addScaledVector(_sd,18);sunL.target.position.copy(pos);sunL.target.updateMatrixWorld();}
@@ -268,11 +268,25 @@ function label(text,w,h,bg,fg,size,opts){
 const sphere=(lon,lat)=>new THREE.Vector3(Math.cos(lat)*Math.cos(lon),Math.sin(lat),Math.cos(lat)*Math.sin(lon));
 function frameAt(lon,lat){const n=sphere(lon,lat);const east=new THREE.Vector3(-Math.sin(lon),0,Math.cos(lon));const north=new THREE.Vector3().crossVectors(east,n).normalize();return {n,east,north};}
 /* ---------- terrain: the town sits at radius R; south of it the ground falls away to a sea, and the skate park has a bowl ---------- */
-const SEA_LEVEL=-2.4, PLAZA={lon:3.5,lat:.33,r:8};
-const BOWL_N=sphere(PLAZA.lon-.06,PLAZA.lat+.07);
+const SEA_LEVEL=-2.4, PLAZA={lon:3.5,lat:.30,r:12,hx:11.6,hz:10.7}; /* the park model's half-extents east/north */
+const PLAZA_N=sphere(PLAZA.lon,PLAZA.lat);const PARK=(()=>{const {east,north}=frameAt(PLAZA.lon,PLAZA.lat);return {C:PLAZA_N,east,north};})();
+const parkPt=(dx,dz)=>new THREE.Vector3().copy(PARK.C).addScaledVector(PARK.east,dx/R).addScaledVector(PARK.north,dz/R).normalize();
+/* the skate park model (assets/skatepark.glb) laid out in plaza units, east/north of the centre; measured from the model:
+   big quarter pipe at the back (dz 6.2..10.4, wall at the north end, 3.8 tall), fun box in the middle (top 1.5),
+   bowl to the south-west (1.8 deep), a floor-level rail along the south edge */
+const BOWL_N=parkPt(-5.1,-6.2);const RAIL={dz:-9.2,x0:-3.7,x1:4.6};
+const _pq=new THREE.Vector3();
+function parkXZ(n){const d=_pq.copy(n).sub(PARK.C);return [d.dot(PARK.east)*R,d.dot(PARK.north)*R];}
+function parkH(n){const [dx,dz]=parkXZ(n);let h=0;
+  if(dx>-3.7&&dx<4.6&&dz>6.2&&dz<10.4){const t=(dz-6.2)/4.2;h=Math.max(h,3.8*(1-Math.cos(t*Math.PI/2)));}
+  if(dx>-1.2&&dx<5&&dz>-2.3&&dz<4.6){const t=dz<-.5?(dz+2.3)/1.8:dz>2.3?(4.6-dz)/2.3:1;h=Math.max(h,1.5*clamp(t,0,1));}
+  return h;}
 function smooth(a,b,x){const t=clamp((x-a)/(b-a),0,1);return t*t*(3-2*t);}
 function terrainH(n){const lat=Math.asin(clamp(n.y,-1,1));let h=-3.2*smooth(-.2,-.46,lat);
-  const db=Math.acos(clamp(n.dot(BOWL_N),-1,1))*R;if(db<3.8)h-=1.5*(1-smooth(1.1,3.6,db));return h;}
+  /* the skate park is a flat platform: the ground rises to the tangent plane at the plaza centre, with a slope round the rim */
+  const dp=Math.acos(clamp(n.dot(PLAZA_N),-1,1));if(dp*R<PLAZA.r+8){const [px,pz]=parkXZ(n);const d=Math.max(Math.abs(px)-PLAZA.hx,Math.abs(pz)-PLAZA.hz,0);if(d<2.5)h+=(R/Math.cos(dp)-R)*(1-smooth(0,2.5,d));}
+  const db=Math.acos(clamp(n.dot(BOWL_N),-1,1))*R;if(db<3.8)h-=1.8*(1-smooth(.8,3.6,db));return h;}
+const gAt=n=>hAt(n)+parkH(n); /* where the player's feet go: terrain plus the park's ramps */
 const hAt=n=>R+terrainH(n);
 function lonLatOf(v){return [Math.atan2(v.z,v.x),Math.asin(clamp(v.y,-1,1))];}
 /* yaw that makes an object placed with poseOn face along world direction f (buildings face +Z; rigs face -Z, so they use yawFace) */
@@ -330,10 +344,10 @@ const colliders=[];let skyDome=null,nightDome=null,SUNSET=null;const PLACES={};
   const RING=addRoad('ring',loopPts(ringLat,20),true,3.6,'road',.06);
   [[0.85,0.95,.06],[2.55,2.45,-.05],[4.35,4.5,.05]].forEach(([a,b,k],i)=>addRoad('side'+i,[[a,mainLat(a)],[(a+b)/2+k,(mainLat(a)+ringLat(b))/2],[b,ringLat(b)]],false,3.6,'road',.07));
   [[1.75,1.85],[5.2,5.12]].forEach(([a,b],i)=>addRoad('alley'+i,[[a,mainLat(a)],[a+.02,mainLat(a)+.13],[b-.03,mainLat(a)+.3],[b,ringLat(b)]],false,1.5,'alley',.08));
-  addRoad('skate',[[3.5,mainLat(3.5)],[3.47,.16],[PLAZA.lon,PLAZA.lat-.1]],false,3.2,'road',.07);
+  addRoad('skate',[[3.5,mainLat(3.5)],[3.49,(mainLat(3.5)+PLAZA.lat-(PLAZA.r+1)/R)/2],[PLAZA.lon,PLAZA.lat-(PLAZA.r+1)/R]],false,3.2,'road',.07);
   addRoad('beach',[[1.3,mainLat(1.3)],[1.36,-.12],[1.26,-.23],[1.32,-.325]],false,2.2,'path',.03);
   window.__roads={MAIN,RING,mainLat,ringLat};
-  ZONES.push({n:sphere(PLAZA.lon,PLAZA.lat),r:PLAZA.r+3},{n:sphere(1.32,-.36),r:9});
+  ZONES.push({n:sphere(PLAZA.lon,PLAZA.lat),r:18},{n:sphere(1.32,-.36),r:9});
   /* ground texture: grass, a sandy shore, foam at the waterline, the concrete plaza */
   const cv=document.createElement('canvas');cv.width=2048;cv.height=1024;const g=cv.getContext('2d');
   const cy=lat=>(Math.PI/2-lat)/Math.PI*1024,cx=lon=>(((Math.PI-lon)/(Math.PI*2))%1+1)%1*2048;
@@ -344,9 +358,7 @@ const colliders=[];let skyDome=null,nightDome=null,SUNSET=null;const PLACES={};
   g.fillStyle='#d9c99a';g.fillRect(0,cy(-.35),2048,cy(-.5)-cy(-.35)); // wetter sand near the water
   g.fillStyle='#b9c7a0';g.fillRect(0,cy(-.5),2048,1024-cy(-.5)); // sea bed (under the water)
   g.fillStyle='rgba(255,255,255,.75)';for(let x=0;x<2048;x+=14){g.fillRect(x,cy(-.371),9,3);} // foam
-  g.fillStyle='#bcc0bc';g.beginPath();g.ellipse(cx(PLAZA.lon),cy(PLAZA.lat),PLAZA.r*6.52/Math.cos(PLAZA.lat),PLAZA.r*6.52,0,0,Math.PI*2);g.fill(); // skate plaza concrete
-  const [blon,blat]=lonLatOf(BOWL_N);g.fillStyle='#a8adaa';g.beginPath();g.ellipse(cx(blon),cy(blat),3.6*6.52/Math.cos(blat),3.6*6.52,0,0,Math.PI*2);g.fill();
-  g.strokeStyle='rgba(38,51,58,.35)';g.lineWidth=2;g.beginPath();g.ellipse(cx(PLAZA.lon),cy(PLAZA.lat),PLAZA.r*6.52/Math.cos(PLAZA.lat),PLAZA.r*6.52,0,0,Math.PI*2);g.stroke();
+  g.fillStyle='#bcc0bc';{const w=(PLAZA.hx+2.2)*6.52/Math.cos(PLAZA.lat),hh=(PLAZA.hz+2.2)*6.52;g.fillRect(cx(PLAZA.lon)-w,cy(PLAZA.lat)-hh,2*w,2*hh);} // skate plaza concrete
   const tex=new THREE.CanvasTexture(cv);tex.anisotropy=8;
   const geo=new THREE.SphereGeometry(R,256,160);const pa=geo.attributes.position;
   for(let i=0;i<pa.count;i++){_q.set(pa.getX(i),pa.getY(i),pa.getZ(i)).normalize();const h=hAt(_q);pa.setXYZ(i,_q.x*h,_q.y*h,_q.z*h);}geo.computeVertexNormals();
@@ -457,7 +469,7 @@ function greenHouse(w,d){ // the tall green building with the mailboxes
 const npcSpots=[]; // places people like to stand
 const modelSlots=[]; // plots kept free for Josh's modelled buildings: {lon,lat,yaw}
 const propSlots=[]; // {kind,lon,lat,yaw} filled with Josh's modelled props once they load
-let BENCH=null;
+let BENCH=null,SKATE_SPOT=null,BOARD=null;
 /* a fingerpost: arms of text, each pointing along a world direction */
 function yawX(lon,lat,d){const {n,north}=frameAt(lon,lat);const Z=north.clone().negate(),X=new THREE.Vector3().crossVectors(n,Z);return Math.atan2(-d.dot(Z),d.dot(X));}
 function fingerpost(lon,lat,arms){const g=new THREE.Group();g.add(at(cyl(.07,.08,2.9,P.wood,8),0,1.45,0));
@@ -540,10 +552,9 @@ function townAlong(road,o){o=o||{};const kerb=road.kerb;const end=Math.min(road.
       const w1=wedge(l/2);g.add(w1);const w2=wedge(-l/2);w2.rotation.y=Math.PI/2;w2.position.set(-w/2,0,-l/2);g.add(w2);return g;}
     function rail(len){const g=new THREE.Group();const r=cyl(.05,.05,len,P.grey2,8);r.rotation.z=Math.PI/2;r.position.y=.55;g.add(r);for(const x of [-len/2+.3,len/2-.3])g.add(at(cyl(.04,.04,.55,P.grey2,6),x,.27,0));return g;}
     function skateboard(){const g=new THREE.Group();g.add(at(box(.82,.05,.24,pick([P.red,P.blue,P.yellow])),0,.11,0));for(const x of [-.28,.28])for(const z of [-.1,.1])g.add(at(cyl(.045,.045,.05,P.cream2,8),x,.05,z));g.children.slice(1).forEach(w_=>w_.rotation.x=Math.PI/2);return g;}
-    const items=[[halfPipe(5,2.1,3.2),2.6,1.4,.35],[funBox(2.4,4.2,.7),-3.2,-2.4,-.5],[rail(3.4),1.2,-4,1.1],[rail(2.6),-1,4.6,-.4]];
-    for(const [obj,dx,dz,rot] of items){const [,lon,lat]=pt(dx,dz);placeOnGround(obj,lon,lat,rot);colliders.push(obj);}
-    const [,sl,sa]=pt(-3.6,1.6);npcSpots.push({lon:sl,lat:sa,face:east.clone().negate(),fixed:'Sam'});PLACES.skate={road:byName('skate'),s:byName('skate').L-1,then:pt(0,-3)[0]};const [,kl,ka]=pt(-4.4,1.2);placeOn(skateboard(),kl,ka,.4);
-    const [,tl,ta]=pt(0,-6.6);placeOn(bench(),tl,ta,yawFor(tl,ta,north));const [,ol,oa]=pt(6.5,-4);npcSpots.push({lon:ol,lat:oa,face:north.clone().negate()});
+    SKATE_SPOT=pt;
+    const [,sl,sa]=pt(-6,-9.5);npcSpots.push({lon:sl,lat:sa,face:north,fixed:'Sam'});PLACES.skate={road:byName('skate'),s:byName('skate').L-1,then:pt(0,-8)[0]};const [bn,kl,ka]=pt(-7.2,-9.2);BOARD={prop:placeOn(skateboard(),kl,ka,.4),n:bn.clone()};BOARD.ride=skateboard();BOARD.ride.visible=false;scene.add(BOARD.ride);
+    const [,tl,ta]=pt(4,-10.5);placeOn(bench(),tl,ta,yawFor(tl,ta,north));const [,ol,oa]=pt(9.5,-6);npcSpots.push({lon:ol,lat:oa,face:north.clone().negate()});
   })();
 })();
 // wires between poles (they are the tall wooden ones)
@@ -680,6 +691,11 @@ function groundFix(holder,root){holder.updateMatrixWorld(true);let minY=Infinity
     window.__town={modelSlots,propSlots,slotType};
     BUILDINGS.forEach((file,bi)=>loader.load(file,g=>{toonify(g.scene);fit(g.scene,9);
       modelSlots.forEach((sl,i)=>{if(slotType[i]!==bi)return;const inst=new THREE.Group();inst.add(g.scene.clone());placeOnGround(inst,sl.lon,sl.lat,sl.yaw);colliders.push(inst);});sceneDirty=true;},undefined,e=>console.warn('building not loaded',file,e)));
+    // the skate park: Josh's model, scaled to the plaza and set flat on its platform
+    loader.load('assets/skatepark.glb',g=>{toonify(g.scene);const bb=new THREE.Box3().setFromObject(g.scene);const sc=(PLAZA.r*2*.96)/Math.max(bb.max.x-bb.min.x,bb.max.z-bb.min.z);
+      g.scene.scale.setScalar(sc);g.scene.position.set(-(bb.min.x+bb.max.x)/2*sc,-bb.min.y*sc,-(bb.min.z+bb.max.z)/2*sc);
+      const inst=new THREE.Group();inst.add(g.scene);placeOn(inst,PLAZA.lon,PLAZA.lat,0);inst.translateY(-.081*sc);inst.updateMatrixWorld(true);colliders.push(inst);sceneDirty=true;
+      const wall=parkPt(.45,10.6);solids.push({c:wall.clone().multiplyScalar(R),X:PARK.east.clone(),Z:PARK.north.clone(),hx:4.3,hz:.25});},undefined,e=>console.warn('skate park not loaded',e));
     const PROPS={mailbox:['assets/mailbox.glb',1.5],crate:['assets/crate.glb',.9],rock:['assets/rock.glb',1.1],treeBig:['assets/tree_a.glb',5.8,true],treeSmall:['assets/tree_b.glb',3.4,true]}; // Josh's trees replace the old ball-and-cone ones; they are thin relief models, so they are placed as two copies crossed at 90° to read from any angle
     for(const kind in PROPS){const [file,hgt,cross]=PROPS[kind];loader.load(file,g=>{toonify(g.scene);fit(g.scene,hgt);for(const sl of propSlots){if(sl.kind!==kind)continue;const inst=new THREE.Group();inst.add(g.scene.clone());if(cross){const w=new THREE.Group();w.add(g.scene.clone());w.rotation.y=Math.PI/2;inst.add(w);}if(sl.k)inst.scale.setScalar(sl.k);placeOn(inst,sl.lon,sl.lat,sl.yaw);if(sl.collide)colliders.push(inst);const SR={treeBig:.5,treeSmall:.4,mailbox:.35,rock:.6*(sl.k||1),crate:.5}[kind];if(SR)solidCircle(inst,SR);}sceneDirty=true;},undefined,e=>console.warn(kind,'not loaded',e));}
     // residents: Josh's four modelled characters, cloned with their skeletons
@@ -815,26 +831,32 @@ function update(dt){
     else{const tang=d.addScaledVector(up,-d.dot(up)).normalize();const ang=Math.atan2(tang.dot(right),tang.dot(fwd));tn=clamp(-ang*3,-1,1);fw=Math.abs(ang)<.6?1:0;}
   }
   if(autoFace){const f=autoFace.clone().addScaledVector(up,-autoFace.dot(up)).normalize();const ang=Math.atan2(f.dot(right),f.dot(fwd));if(Math.abs(ang)<.04)autoFace=null;else tn=clamp(-ang*4,-1,1);}
-  const target=fw>0?MAXV:fw<0?-MAXV*.5:0;
-  v+=(target-v)*(1-Math.exp(-8*dt));if(!fw&&Math.abs(v)<.05)v=0;
-  turn(tn*TURN*dt);
+  if(ride.on){if(ride.grind){v=Math.max(Math.abs(v),3.5);}else{const target=fw>0?MAXV*1.8:0;if(fw>0)v+=(target-v)*(1-Math.exp(-1.6*dt));else if(fw<0)v*=Math.exp(-2.5*dt);else v*=Math.exp(-.3*dt);if(v<.03)v=0;}}
+  else{const target=fw>0?MAXV:fw<0?-MAXV*.5:0;v+=(target-v)*(1-Math.exp(-8*dt));if(!fw&&Math.abs(v)<.05)v=0;}
+  turn(ride.grind?0:tn*TURN*(ride.on?.8:1)*dt);
   let step=v*dt;const drain=pendingMove*(1-Math.exp(-7*dt));pendingMove-=drain;if(Math.abs(pendingMove)<.02)pendingMove=0;
   step+=clamp(drain,-MAXV*1.2*dt,MAXV*1.2*dt);
+  if(ride.grind){const g=ride.grind;g.dx+=g.dir*v*dt;up.copy(parkPt(g.dx,RAIL.dz));fwd.copy(PARK.east).multiplyScalar(g.dir);orthonormalize();step=0;
+    if(g.dx<=RAIL.x0||g.dx>=RAIL.x1){ride.grind=null;ride.air=.6;ride.airT=0;ride.airDur=.45;ride.spin=0;}}
   moveForward(step);resolveSolids();
+  if(ride.air>0){ride.airT+=dt;if(ride.airT>=ride.airDur){ride.air=0;ride.spin=0;}}
   const speed=Math.abs(step/Math.max(dt,1e-4));
   if(autoTarget){autoStuck=speed<.5?autoStuck+dt:0;if(autoStuck>2.5){autoTarget=null;autoRoute=[];autoStuck=0;}}
   // player pose
-  _m.makeBasis(right,up,fwd.clone().negate());player.group.quaternion.setFromRotationMatrix(_m);player.group.position.copy(up).multiplyScalar(hAt(up));updateShadowRig(player.group.position,up,player.group.quaternion);updateSky(up);
+  _m.makeBasis(right,up,fwd.clone().negate());player.group.quaternion.setFromRotationMatrix(_m);player.group.position.copy(up).multiplyScalar(gAt(up));updateShadowRig(player.group.position,up,player.group.quaternion);updateSky(up);
   player.pose(speed,dt,speed>3?'run':'walk');
   if(kidModel){kidModel.quaternion.copy(player.group.quaternion);kidModel.position.copy(player.group.position);if(sitting)kidModel.position.addScaledVector(up,-(window.__sitDrop??.26));
+    if(ride.on){const a=ride.air>0?Math.sin(Math.PI*clamp(ride.airT/ride.airDur,0,1))*ride.air:0;const lean=-tn*.22;
+      kidModel.position.addScaledVector(up,.12+a);kidModel.quaternion.multiply(_sq.setFromAxisAngle(_sy,.95+(ride.spin?Math.PI*2*clamp(ride.airT/ride.airDur,0,1):0))).multiply(_sq2.setFromAxisAngle(new THREE.Vector3(0,0,1),lean));
+      const bd=BOARD.ride;bd.position.copy(player.group.position).addScaledVector(up,a);bd.quaternion.copy(player.group.quaternion).multiply(_sq.setFromAxisAngle(_sy,Math.PI/2+(ride.grind?Math.PI/2:0)+(ride.spin?Math.PI*2*clamp(ride.airT/ride.airDur,0,1):0))).multiply(_sq2.setFromAxisAngle(new THREE.Vector3(0,0,1),lean));}
     if(kidModel.userData.groundAt&&performance.now()>kidModel.userData.groundAt){kidModel.userData.groundAt=0;groundFix(kidModel,kidModel.userData.root);}
     // gait: run is the default when moving; walk only when easing off; look-around when standing; a scratch now and then
     const moving=speed>.3,running=speed>2.4&&clips.run;
-    stepsTarget=(moving&&!jump.on)?(running?STEP_VOL:STEP_VOL*.6):0;steps.playbackRate=running?1:.78;
+    stepsTarget=(moving&&!jump.on&&!ride.on)?(running?STEP_VOL:STEP_VOL*.6):0;steps.playbackRate=running?1:.78;
     gait.run+=((running?1:0)-gait.run)*Math.min(1,dt*6);gait.walk+=((moving&&!running?1:0)-gait.walk)*Math.min(1,dt*6);
     idleFor=moving?0:idleFor+dt;const now_=performance.now()/1000;
     if(moving)wasMoving=true;else if(wasMoving){wasMoving=false;fidgetOK=Math.random()<.2;fidgetUntil=now_+4+Math.random()*4;} // about one stop in five earns a stretch, a few seconds in
-    if(clips.fidget&&!moving&&!sitting&&fidgetOK&&now_>fidgetUntil){clips.fidget.reset().play();fidgetOK=false;}
+    if(clips.fidget&&!moving&&!sitting&&!ride.on&&fidgetOK&&now_>fidgetUntil){clips.fidget.reset().play();fidgetOK=false;}
     if(sitting&&clips.fidget&&clips.fidget.isRunning())clips.fidget.stop();
     const fidgeting=clips.fidget&&clips.fidget.isRunning()&&!moving&&!sitting;gait.fidget+=((fidgeting?1:0)-gait.fidget)*Math.min(1,dt*5);
     if(jump.on){jump.t+=dt;if(jump.t>=jump.dur)jump.on=false;kidModel.position.addScaledVector(up,Math.sin(Math.PI*clamp(jump.t/jump.dur,0,1))*.75);}
@@ -871,9 +893,9 @@ function update(dt){
   else{idleT=speed>.3||sitting?0:idleT+dt;const wantYaw=idleT>2.5?1.75:0;camYaw+=(wantYaw-camYaw)*Math.min(1,dt*.7);
     const dir=fwd.clone().multiplyScalar(Math.cos(camYaw)).addScaledVector(right,Math.sin(camYaw));const off=camYaw>.1?1-camYaw/1.75:1;
     if(sitting){const sd=fwd.clone().multiplyScalar(Math.cos(sitOrbit.yaw)).addScaledVector(right,Math.sin(sitOrbit.yaw));desired=up.clone().multiplyScalar(hAt(up)+1.7+sitOrbit.pitch*2.2).addScaledVector(sd,-3.6);look=up.clone().multiplyScalar(hAt(up)+1.25).addScaledVector(fwd,7*Math.max(0,Math.cos(sitOrbit.yaw)));}
-    else{desired=up.clone().multiplyScalar(hAt(up)+2.1+.3*camYaw).addScaledVector(dir,-4.4);
-    look=up.clone().multiplyScalar(hAt(up)+1.4).addScaledVector(fwd,3.6*off);}} // centred behind him while walking
-  const eye=talking?look.clone():up.clone().multiplyScalar(hAt(up)+1.8);const ray=desired.clone().sub(eye);const len=ray.length();
+    else{desired=up.clone().multiplyScalar(gAt(up)+2.1+.3*camYaw).addScaledVector(dir,-(ride.on?5.2:4.4));
+    look=up.clone().multiplyScalar(gAt(up)+1.4).addScaledVector(fwd,3.6*off);}} // centred behind him while walking
+  const eye=talking?look.clone():up.clone().multiplyScalar(gAt(up)+1.8);const ray=desired.clone().sub(eye);const len=ray.length();
   raycaster.set(eye,ray.normalize());raycaster.far=len;
   const hits=raycaster.intersectObjects(colliders,true);
   if(hits.length){const d=Math.max(1.6,hits[0].distance-.4);desired.copy(eye).addScaledVector(ray,d);look.lerp(eye,1-d/len);}
@@ -883,18 +905,22 @@ function update(dt){
   if(talking){if(!sbN.hidden)placeBubble(sbN,headOf(talking.rig.group,2.25),34);if(!sbMe.hidden)placeBubble(sbMe,headOf(player.group,2.25),34);}
   if(nearN&&!talking){_proj.copy(headOf(nearN.rig.group,1.2)).project(camera);const ba=$('#ba');if(_proj.z<1){ba.style.left=clamp((_proj.x+1)/2*W+70,90,W-90)+'px';ba.style.top=clamp((1-_proj.y)/2*H,40,H-140)+'px';}}
   // who is close enough to talk to?
-  nearN=null;let bestD=2.6;if(!talking&&!sitting){for(const n of npcs){const d=npcWorld(n).distanceTo(player.group.position);if(d<bestD){bestD=d;nearN=n;}}}
+  nearN=null;let bestD=2.6;if(!talking&&!sitting&&!ride.on){for(const n of npcs){const d=npcWorld(n).distanceTo(player.group.position);if(d<bestD){bestD=d;nearN=n;}}}
   nearBench=false;if(BENCH&&!talking){const bw=BENCH.n.clone().multiplyScalar(hAt(BENCH.n));const d=bw.distanceTo(player.group.position);if(sitting||(d<2.4&&d<bestD)){if(!sitting){nearBench=true;nearN=null;}
     _proj.copy(bw).addScaledVector(up,1.3).project(camera);const ba=$('#ba');if(_proj.z<1){ba.style.left=clamp((_proj.x+1)/2*W+70,90,W-90)+'px';ba.style.top=clamp((1-_proj.y)/2*H,40,H-140)+'px';}}}
-  const shown=sitting?'sit':nearBench?'bench':nearN;
+  nearBoard=false;if(BOARD&&!talking&&!sitting&&!ride.on){const bw=BOARD.n.clone().multiplyScalar(gAt(BOARD.n));const d=bw.distanceTo(player.group.position);if(d<2.2&&d<bestD&&!nearBench){nearBoard=true;nearN=null;
+    _proj.copy(bw).addScaledVector(up,1.1).project(camera);const ba=$('#ba');if(_proj.z<1){ba.style.left=clamp((_proj.x+1)/2*W+70,90,W-90)+'px';ba.style.top=clamp((1-_proj.y)/2*H,40,H-140)+'px';}}}
+  if(ride.on){_proj.copy(player.group.position).addScaledVector(up,2.1).project(camera);const ba=$('#ba');if(_proj.z<1){ba.style.left=clamp((_proj.x+1)/2*W+70,90,W-90)+'px';ba.style.top=clamp((1-_proj.y)/2*H,40,H-140)+'px';}}
+  const shown=ride.on?'ride':sitting?'sit':nearBench?'bench':nearBoard?'board':nearN;
   if(shown!==shownN){shownN=shown;const pr=$('#prompt'),ba=$('#ba');
     if(nearN){ba.textContent='Talk to '+nearN.name;ba.classList.remove('off');nearN.paused=true;}
     else if(nearBench){ba.textContent='Sit and watch the sunset';ba.classList.remove('off');}
-    else if(!sitting){pr.classList.add('off');ba.classList.add('off');}}
+    else if(nearBoard){ba.textContent='Ride the skateboard';ba.classList.remove('off');}
+    else if(!sitting&&!ride.on){pr.classList.add('off');ba.classList.add('off');}}
   for(const n of npcs)if(n!==nearN&&n!==talking)n.paused=false;
 }
 let last=performance.now();
-function frame(now){const dt=Math.min(.05,(now-last)/1000);last=now;if(!paused)update(dt);if(mixer)mixer.update(dt);applySit();for(const m of mixers)m.update(dt);updateBirds(dt,now/1000);if(window.__water&&window.__water.userData.sh)window.__water.userData.sh.uniforms.uT.value=now/1000;renderInk();requestAnimationFrame(frame);}
+function frame(now){const dt=Math.min(.05,(now-last)/1000);last=now;if(!paused)update(dt);if(mixer)mixer.update(dt);applySit();applyRide();for(const m of mixers)m.update(dt);updateBirds(dt,now/1000);if(window.__water&&window.__water.userData.sh)window.__water.userData.sh.uniforms.uT.value=now/1000;renderInk();requestAnimationFrame(frame);}
 requestAnimationFrame(frame);
 
 /* =====================================================================
@@ -907,6 +933,7 @@ window.addEventListener('keydown',e=>{
   if(talking){if(e.key==='Escape')endTalk();else if((e.key==='Enter'||e.key===' ')&&document.activeElement!==q){nextChunk();e.preventDefault();}return;}
   if(!$('#stops').hidden&&e.key==='Escape'){toggleStops(false);return;}
   if(sitting&&e.key==='Escape'){standUp();return;}
+  if(ride.on&&e.key==='Escape'){stopRide();return;}
   if(KEYS[e.key]){hold[KEYS[e.key]]=true;e.preventDefault();return;}
   if(e.key===' '){doJump();e.preventDefault();return;}
   if(e.key==='e'||e.key==='E'||e.key==='Enter'){action();e.preventDefault();}
@@ -1009,7 +1036,7 @@ function thinkingBubble(n){clearTimeout(bubble.timer);bubble.who=n;bubble.chunks
 function meBubble(text){sbMe.innerHTML=esc(text);sbMe.hidden=false;clearTimeout(sbMe._t);sbMe._t=setTimeout(()=>{sbMe.hidden=true;},Math.max(2000,text.length*60));}
 function hideBubbles(){clearTimeout(bubble.timer);bubble.who=null;sbN.hidden=true;sbMe.hidden=true;}
 function say(html,n,plainForVoice,key){if(typer){clearInterval(typer);typer=null;}const plain=plainForVoice||html.replace(/<[^>]+>/g,'');sayBubble(n,plain,key||'');if(plainForVoice)speak(plainForVoice,n);}
-function action(){unlockAudio();if(sitting){standUp();return;}if(nearBench&&!talking){sitDown();return;}if(nearN&&!talking)startTalk(nearN);}
+function action(){unlockAudio();if(ride.on){stopRide();return;}if(sitting){standUp();return;}if(nearBench&&!talking){sitDown();return;}if(nearBoard&&!talking){startRide();return;}if(nearN&&!talking)startTalk(nearN);}
 /* sitting on the bench: the kid is set on the seat facing the sea and his legs are bent after the animation
    has run; the sun goes down, the stars come out for half a minute, then it brightens again */
 let sitting=false,nearBench=false,nightT=null,night=0;const sitOrbit={yaw:0,pitch:0}; /* while seated the controls swing the camera round him instead */const _sq=new THREE.Quaternion(),_sx=new THREE.Vector3(1,0,0);
@@ -1032,8 +1059,21 @@ function updateNight(dt){if(nightT===null){night=Math.max(0,night-dt*.4);}else{c
   inkPass.uniforms.night.value=night;if(SUNSET){const drop=night*26;SUNSET.parts.forEach((m,i)=>{m.position.copy(SUNSET.base[i]).addScaledVector(SUNSET.B,-drop);m.material.opacity=(i===0?.6:i===1?.95:1)*(1-night*.9);});
     SUNSET.stars.visible=night>.02;SUNSET.stars.material.opacity=Math.max(0,(night-.3)/.7);}
   shadowCap.material.opacity=.34*(1-night*.85);if(nightDome){nightDome.visible=night>.01;nightDome.material.opacity=night;}
-  window.__state=()=>({sitting,auto:!!autoTarget,route:autoRoute.length,night:+night.toFixed(2)});}
-function doJump(){if(talking||sitting||jump.on||!clips.jump)return;jump.on=true;jump.t=0;jump.dur=clips.jump.getClip().duration;clips.jump.reset().play();firstMove();}
+  window.__state=()=>({sitting,riding:ride.on,air:+ride.air.toFixed(2),grind:!!ride.grind,spin:ride.spin,v:+v.toFixed(2),auto:!!autoTarget,route:autoRoute.length,night:+night.toFixed(2)});}
+/* skateboarding: hop on the board by the park entrance; push with the arrows, coast with momentum, Space to ollie.
+   An ollie next to the rail snaps onto it and grinds to the end; an ollie on the big ramp launches higher and spins a 360. */
+const ride={on:false,air:0,airT:0,airDur:0,spin:0,grind:null,pose:null};let nearBoard=false;
+function startRide(){if(!BOARD||ride.on)return;autoTarget=null;autoRoute=[];autoFace=null;ride.on=true;ride.pose=null;ride.air=0;ride.grind=null;BOARD.prop.visible=false;BOARD.ride.visible=true;$('#ba').textContent='Hop off';$('#ba').classList.remove('off');firstMove();}
+function stopRide(){if(!ride.on)return;ride.on=false;ride.grind=null;ride.air=0;ride.pose=null;BOARD.ride.visible=false;const [lon,lat]=lonLatOf(up);poseOn(BOARD.prop,lon,lat,yawFor(lon,lat,fwd)+Math.PI/2);BOARD.n.copy(up);BOARD.prop.visible=true;v=Math.min(v,MAXV);$('#ba').classList.add('off');shownN=undefined;}
+function ollie(){if(ride.air>0||ride.grind)return;const [dx,dz]=parkXZ(up);
+  if(Math.abs(dz-RAIL.dz)<1.5&&dx>RAIL.x0-1&&dx<RAIL.x1+1&&Math.abs(fwd.dot(PARK.east))>.5&&Math.abs(v)>1){ride.grind={dir:fwd.dot(PARK.east)>0?1:-1,dx:clamp(dx,RAIL.x0,RAIL.x1)};ride.air=.35;ride.airT=0;ride.airDur=.35;ride.spin=0;return;}
+  const onRamp=parkH(up)>.6;ride.airT=0;ride.airDur=onRamp?1.15:.7;ride.air=onRamp?2.2:.9;ride.spin=onRamp?1:0;}
+function applyRide(){if(!ride.on||!kidModel)return;const bones=kidModel.userData.bones;if(!bones)return;
+  if(!ride.pose){ride.pose={};for(const k in bones)ride.pose[k]=bones[k].quaternion.clone();}
+  for(const k in ride.pose)bones[k].quaternion.copy(ride.pose[k]);
+  for(const k of ['L_Thigh','R_Thigh']){const b=bones[k];if(b)b.quaternion.multiply(_sq.setFromAxisAngle(_sx,.32));}
+  for(const k of ['L_Calf','R_Calf']){const b=bones[k];if(b)b.quaternion.multiply(_sq.setFromAxisAngle(_sx,-.5));}}
+function doJump(){if(ride.on){ollie();return;}if(talking||sitting||jump.on||!clips.jump)return;jump.on=true;jump.t=0;jump.dur=clips.jump.getClip().duration;clips.jump.reset().play();firstMove();}
 function startTalk(n){
   talking=n;n.paused=true;autoTarget=null;for(const k in hold)hold[k]=false;v=0;pendingMove=0;
   autoFace=npcWorld(n).sub(player.group.position).normalize();
