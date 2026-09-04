@@ -638,6 +638,7 @@ function update(dt){
     if(kidModel.userData.groundAt&&performance.now()>kidModel.userData.groundAt){kidModel.userData.groundAt=0;groundFix(kidModel,kidModel.userData.root);}
     // gait: run is the default when moving; walk only when easing off; look-around when standing; a scratch now and then
     const moving=speed>.3,running=speed>2.4&&clips.run;
+    stepsTarget=(moving&&!jump.on)?(running?STEP_VOL:STEP_VOL*.6):0;steps.playbackRate=running?1:.78;
     gait.run+=((running?1:0)-gait.run)*Math.min(1,dt*6);gait.walk+=((moving&&!running?1:0)-gait.walk)*Math.min(1,dt*6);
     idleFor=moving?0:idleFor+dt;const now_=performance.now()/1000;
     if(clips.fidget&&!moving&&idleFor>7&&now_>fidgetUntil){clips.fidget.reset().play();fidgetUntil=now_+clips.fidget.getClip().duration+9+Math.random()*8;idleFor=0;}
@@ -728,12 +729,16 @@ game.addEventListener('pointerdown',()=>game.focus());game.focus();
 let titleGone=false;
 const music=new Audio('assets/music.m4a');music.loop=true;music.volume=0;let musicOn=true;try{musicOn=localStorage.getItem('planet-music')!=='off';}catch(_){}
 let musicTarget=0;const MUSIC_VOL=.32;
+/* footsteps: Josh's jogging loop, kept running silently and faded up only while the kid is on the move (quieter when walking); the ♪ button mutes it with the music */
+const steps=new Audio('assets/steps.m4a');steps.loop=true;steps.volume=0;let stepsTarget=0;const STEP_VOL=.14;
+function startSteps(){steps.play().catch(()=>{});}
+window.__audio={music,steps};
 function musicUI(){const b=$('#musicbtn');b.setAttribute('aria-pressed',String(musicOn));b.title=musicOn?'Music on':'Music off';}
 function startMusic(){if(!musicOn)return;musicTarget=MUSIC_VOL;music.play().catch(()=>{});}
 $('#musicbtn').addEventListener('click',e=>{e.stopPropagation();musicOn=!musicOn;try{localStorage.setItem('planet-music',musicOn?'on':'off');}catch(_){}musicUI();if(musicOn)startMusic();else{musicTarget=0;}});
 musicUI();
-setInterval(()=>{const want=musicOn?(talking?MUSIC_VOL*.35:musicTarget):0;music.volume+=(want-music.volume)*.15;if(music.volume<.005&&!musicOn)music.pause();},100);
-function dismissTitle(){if(titleGone)return;titleGone=true;$('#title').classList.add('gone');game.focus();startMusic();}
+setInterval(()=>{const want=musicOn?(talking?MUSIC_VOL*.35:musicTarget):0;music.volume+=(want-music.volume)*.15;if(music.volume<.005&&!musicOn)music.pause();const sw=musicOn?stepsTarget:0;steps.volume+=(sw-steps.volume)*.4;},100);
+function dismissTitle(){if(titleGone)return;titleGone=true;$('#title').classList.add('gone');game.focus();startMusic();startSteps();}
 $('#title').addEventListener('click',dismissTitle);
 function toggleStops(show){const s=$('#stops');const vis=show==null?s.hidden:show;s.hidden=!vis;$('#menubtn').setAttribute('aria-expanded',String(vis));}
 $('#menubtn').addEventListener('click',e=>{e.stopPropagation();toggleStops();});
