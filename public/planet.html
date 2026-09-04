@@ -81,6 +81,26 @@ button.ink:active{transform:translate(2px,2px);box-shadow:1px 1px 0 var(--ink)}
 #send{appearance:none;padding:0 18px;font-family:var(--hand);font-size:22px;background:var(--orange);color:var(--cream);cursor:pointer}
 #send:disabled{opacity:.6;cursor:default}
 #chat .note{margin:8px 0 0;font-size:12px;color:var(--muted)}
+
+/* ---------- comic speech bubbles ---------- */
+.sb{position:absolute;left:0;top:0;max-width:min(360px,70vw);background:#fff;border:3px solid var(--ink);border-radius:16px;padding:12px 16px 12px;font-family:var(--hand);font-size:21px;line-height:1.2;letter-spacing:.04em;text-transform:uppercase;color:var(--ink);transform:translate(-50%,-100%);pointer-events:auto;cursor:pointer;z-index:6;box-shadow:3px 3px 0 rgba(38,51,58,.25);transition:opacity .2s}
+.sb:after,.sb:before{content:"";position:absolute;left:50%;bottom:-16px;margin-left:-14px;border:14px solid transparent;border-top:16px solid var(--ink);border-bottom:0}
+.sb:after{bottom:-11px;border-top-color:#fff}
+.sb.key:after{border-top-color:#fff8dc}.sb.me:after{border-top-color:var(--cream)}
+.sb[hidden]{display:none}
+.sb .more{display:block;text-align:right;font-size:14px;letter-spacing:.1em;color:var(--muted);margin-top:4px}
+.sb.key{background:#fff8dc}
+.sb.me{background:var(--cream)}
+.sb .dots span{display:inline-block;animation:blink 1.2s infinite}.sb .dots span:nth-child(2){animation-delay:.2s}.sb .dots span:nth-child(3){animation-delay:.4s}
+@keyframes blink{0%,80%,100%{opacity:.2}40%{opacity:1}}
+#chat{max-height:none;padding:10px 12px calc(10px + env(safe-area-inset-bottom));width:min(720px,100vw)}
+#chat header{margin-bottom:6px}#chat header b{font-size:22px}
+#bubble{display:none}
+#chips{margin:0 0 6px;flex-wrap:nowrap;overflow-x:auto;-webkit-overflow-scrolling:touch;scrollbar-width:none;padding-bottom:2px}#chips::-webkit-scrollbar{display:none}
+#chips button{flex:none;font-size:16px;padding:4px 11px 2px}
+#ask{margin-top:4px}#q{padding:8px 12px;font-size:16px}#send{font-size:20px;padding:0 14px}
+#chat .note{display:none}
+@media (max-height:520px){#chips{display:flex}}
 </style>
 </head>
 <body>
@@ -107,6 +127,8 @@ button.ink:active{transform:translate(2px,2px);box-shadow:1px 1px 0 var(--ink)}
   <form id="ask" autocomplete="off"><input id="q" type="text" maxlength="300" placeholder="Ask anything about veganism…" aria-label="Your question"><button id="send" class="ink" type="submit">Ask</button></form>
   <p class="note">Answers come from the Understand Veganism chatbot.</p>
 </section>
+<div id="sbN" class="sb" hidden></div>
+<div id="sbMe" class="sb me" hidden></div>
 <div id="title" role="button" aria-label="Start">
   <div class="tcard">
     <svg viewBox="0 0 150 150" fill="none" stroke="#26333a" stroke-width="3" stroke-linejoin="round" stroke-linecap="round">
@@ -311,6 +333,7 @@ function greenHouse(w,d){ // the tall green building with the mailboxes
 
 const npcSpots=[]; // places people like to stand
 const modelSlots=[]; // plots kept free for Josh's modelled buildings: {lon,lat,yaw}
+const propSlots=[]; // {kind,lon,lat,yaw} filled with Josh's modelled props once they load
 const stairSlots=[]; // spots for the modelled staircase
 (function buildTown(){
   const roadLat=(18/1024)*Math.PI; // road half-width in radians
@@ -337,12 +360,15 @@ const stairSlots=[]; // spots for the modelled staircase
       if(pr<.22){const p=pole();placeOn(p,gapLon,pl);colliders.push(p);}
       else if(pr<.34){placeOn(roundSign(pick([P.red,P.blue]),pick(['↑','30','P','!'])),gapLon,pl);}
       else if(pr<.44){const vm=placeOn(vend(),gapLon,side*(roadLat+1.5/R),side<0?Math.PI:0);colliders.push(vm);npcSpots.push({lon:gapLon+1.4/R,lat:pl});}
-      else if(pr<.52){placeOn(bin(),gapLon,pl);}
+      else if(pr<.49){placeOn(bin(),gapLon,pl);}
+      else if(pr<.52){propSlots.push({kind:'mailbox',lon:gapLon,lat:pl,yaw:side<0?Math.PI:0});}
       else if(pr<.56){stairSlots.push({lon:gapLon,lat:side*(roadLat+2.4/R),yaw:side<0?Math.PI:0});}
       else if(pr<.6){const bs=placeOn(busStop(),gapLon,side*(roadLat+1.6/R),side<0?Math.PI:0);colliders.push(bs);npcSpots.push({lon:gapLon+.8/R,lat:pl});}
       else if(pr<.68){placeOn(bench(),gapLon,side*(roadLat+1.6/R),side<0?Math.PI:0);npcSpots.push({lon:gapLon,lat:pl-side*.6/R});}
-      else if(pr<.74){placeOn(coneProp(),gapLon,side*(roadLat-.6/R));}
-      else if(pr<.84){const tr=tree(Math.floor(rnd()*3));placeOn(tr,gapLon,side*(roadLat+1.6/R));colliders.push(tr);}
+      else if(pr<.71){placeOn(coneProp(),gapLon,side*(roadLat-.6/R));}
+      else if(pr<.74){propSlots.push({kind:'crate',lon:gapLon,lat:side*(roadLat+1.8/R),yaw:rnd()*Math.PI});}
+      else if(pr<.8){const tr=tree(Math.floor(rnd()*3));placeOn(tr,gapLon,side*(roadLat+1.6/R));colliders.push(tr);}
+      else if(pr<.84){propSlots.push({kind:'rock',lon:gapLon,lat:side*(roadLat+2/R),yaw:rnd()*Math.PI});}
       lon+=step;
     }
   }
@@ -418,7 +444,7 @@ const outfits=()=>{const skin=pick([0xf2cfae,0xe0b48a,0xc68a5a,0x8d5a3b,0x6b4227
 const player=person({skin:0xf2cfae,hair:0x2a2430,top:P.red,bottom:0xb9a66e,legs:0xf2cfae,sock:P.cream,shoe:P.red,shoeCap:P.cream,skinLegs:true,cargo:true,collar:true,bag:true,hairStyle:'bob'});
 scene.add(player.group);
 /* ---------- the modelled character (Tripo GLB), with its own walk animation ---------- */
-let kidModel=null,mixer=null;const clips={};let gait={walk:0,idle:1};
+let kidModel=null,mixer=null;const clips={};let gait={walk:0,idle:1};const mixers=[];
 (function loadKid(){const sc=document.createElement('script');sc.src='https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/GLTFLoader.js';
   sc.onload=()=>{new THREE.GLTFLoader().load('assets/kid.glb',g=>{
     const root=g.scene;const bb=new THREE.Box3().setFromObject(root);const hgt=bb.max.y-bb.min.y;const sc_=1.8/hgt;root.scale.setScalar(sc_);root.position.y=-bb.min.y*sc_;
@@ -445,10 +471,30 @@ let kidModel=null,mixer=null;const clips={};let gait={walk:0,idle:1};
     const toonify=root=>root.traverse(m=>{if(m.isMesh){const old=m.material;m.material=flatMat(old.map,old.color);}});
     const fit=(root,height)=>{const bb=new THREE.Box3().setFromObject(root);const sc=height/(bb.max.y-bb.min.y);root.scale.setScalar(sc);root.position.y=-bb.min.y*sc;root.position.x=-(bb.min.x+bb.max.x)/2*sc;root.position.z=-(bb.min.z+bb.max.z)/2*sc;};
     // Josh's buildings: slots rotate through the list, so each one appears several times around the planet
-    const BUILDINGS=['assets/building1v2.glb','assets/building2.glb'];
+    const BUILDINGS=['assets/building1v2.glb','assets/building3.glb','assets/building4.glb','assets/building5.glb','assets/building6.glb'];
     BUILDINGS.forEach((file,bi)=>loader.load(file,g=>{toonify(g.scene);fit(g.scene,9);
       modelSlots.forEach((sl,i)=>{if(i%BUILDINGS.length!==bi)return;const inst=new THREE.Group();inst.add(g.scene.clone());placeOn(inst,sl.lon,sl.lat,sl.yaw);colliders.push(inst);});sceneDirty=true;},undefined,e=>console.warn('building not loaded',file,e)));
-    loader.load('assets/stairs1.glb',g=>{toonify(g.scene);fit(g.scene,2.4);for(const sl of stairSlots){const inst=new THREE.Group();inst.add(g.scene.clone());placeOn(inst,sl.lon,sl.lat,sl.yaw);}sceneDirty=true;},undefined,e=>console.warn('stairs not loaded',e));};
+    loader.load('assets/stairs1.glb',g=>{toonify(g.scene);fit(g.scene,2.4);for(const sl of stairSlots){const inst=new THREE.Group();inst.add(g.scene.clone());placeOn(inst,sl.lon,sl.lat,sl.yaw);}sceneDirty=true;},undefined,e=>console.warn('stairs not loaded',e));
+    const PROPS={mailbox:['assets/mailbox.glb',1.5],crate:['assets/crate.glb',.9],rock:['assets/rock.glb',1.1]};
+    for(const kind in PROPS){const [file,hgt]=PROPS[kind];loader.load(file,g=>{toonify(g.scene);fit(g.scene,hgt);for(const sl of propSlots){if(sl.kind!==kind)continue;const inst=new THREE.Group();inst.add(g.scene.clone());placeOn(inst,sl.lon,sl.lat,sl.yaw);}sceneDirty=true;},undefined,e=>console.warn(kind,'not loaded',e));}
+    // residents: Josh's four modelled characters, cloned with their skeletons
+    const su=document.createElement('script');su.src='https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/utils/SkeletonUtils.js';
+    su.onload=()=>{const NPC_MODELS=['assets/npc1.glb','assets/npc2.glb','assets/npc3.glb','assets/npc4.glb'];
+      const NPC_FOR={Theo:0,Kofi:0,Ravi:0,Sam:0,Mina:1,Elin:1,Ada:2,June:3}; // npc1 = the man in the waistcoat; 2 = girl with the bag; 3 = the mum; 4 = the girl with buns
+      NPC_MODELS.forEach((file,mi)=>loader.load(file,g=>{
+        const clips={};for(const c of g.animations){const n_=c.name.toLowerCase();let travel=0;
+          c.tracks=c.tracks.filter(t=>{if(!t.name.endsWith('.position'))return true;const v=t.values;let mn=[1e9,1e9,1e9],mx=[-1e9,-1e9,-1e9];for(let i=0;i<v.length;i+=3)for(let k=0;k<3;k++){mn[k]=Math.min(mn[k],v[i+k]);mx[k]=Math.max(mx[k],v[i+k]);}const range=Math.max(mx[0]-mn[0],mx[1]-mn[1],mx[2]-mn[2]);if(range>.2){travel=Math.max(travel,range);return false;}return true;});
+          if(n_.includes('walk')){clips.walk=c;clips.travel=travel;}else if(n_.includes('agree'))clips.talk=c;else clips.idle=c;}
+        if(!clips.idle)clips.idle=clips.talk||clips.walk;
+        const bb=new THREE.Box3().setFromObject(g.scene);const hgt=bb.max.y-bb.min.y;const sc_=1.78/hgt;
+        npcs.forEach((n,i)=>{if((NPC_FOR[n.name]??(i%NPC_MODELS.length))!==mi)return;
+          const root=THREE.SkeletonUtils.clone(g.scene);root.scale.setScalar(sc_);root.position.y=-bb.min.y*sc_;root.rotation.y=Math.PI;
+          root.traverse(m=>{if(m.isMesh){const old=m.material;const mat=new THREE.MeshBasicMaterial({map:old.map||null,color:old.map?0xffffff:old.color,skinning:!!m.isSkinnedMesh});mat.onBeforeCompile=sh=>{sh.fragmentShader=sh.fragmentShader.replace('#include <dithering_fragment>','#include <dithering_fragment>\n gl_FragColor.rgb=clamp(pow(gl_FragColor.rgb,vec3(0.85))*1.08,0.0,1.0);');};m.material=mat;m.frustumCulled=false;}});
+          const holder=new THREE.Group();holder.add(root);scene.add(holder);
+          const mixer=new THREE.AnimationMixer(root);const act={};for(const k of ['walk','idle','talk']){if(clips[k]){act[k]=mixer.clipAction(clips[k]);act[k].play();act[k].setEffectiveWeight(k==='idle'?1:0);}}
+          n.model={holder,mixer,act,walkSpeed:clips.travel?clips.travel*sc_/clips.walk.duration:1,w:{walk:0,talk:0}};mixers.push(mixer);n.rig.group.visible=false;});
+        sceneDirty=true;},undefined,e=>console.warn('resident not loaded',file,e)));};
+    document.head.appendChild(su);};
   document.head.appendChild(sc);})();
 
 /* ---------- the people you can talk to ---------- */
@@ -527,6 +573,12 @@ function update(dt){
     let sp=0;
     if(n.walker&&!n.paused){n.lon+=n.dir*n.speed/(R*Math.cos(n.lat))*dt;if(n.lon>n.range[1]){n.dir=-1;}if(n.lon<n.range[0]){n.dir=1;}n.yaw=n.dir>0?Math.PI/2:-Math.PI/2;sp=n.speed;}
     poseOn(n.rig.group,n.lon,n.lat,n.yaw);n.rig.pose(sp,dt,'walk');
+    if(n.model){const md=n.model;md.holder.quaternion.copy(n.rig.group.quaternion);md.holder.position.copy(n.rig.group.position);
+      const speaking=n===talking&&((voiceAudio&&!voiceAudio.paused)||(canSpeak&&speechSynthesis.speaking)||!sbN.hidden);
+      md.w.walk+=((sp>.1?1:0)-md.w.walk)*Math.min(1,dt*6);md.w.talk+=((speaking&&sp<=.1?1:0)-md.w.talk)*Math.min(1,dt*4);
+      if(md.act.walk){md.act.walk.setEffectiveWeight(md.w.walk);md.act.walk.setEffectiveTimeScale(clamp(sp/(md.walkSpeed||1)*.75,.5,2.5));}
+      if(md.act.talk)md.act.talk.setEffectiveWeight(md.w.talk*(md.act.talk===md.act.idle?0:1));
+      if(md.act.idle)md.act.idle.setEffectiveWeight(Math.max(0,1-md.w.walk-md.w.talk));}
   }
   // camera
   let desired,look;
@@ -543,6 +595,7 @@ function update(dt){
   const k=camInit?1-Math.exp(-5*dt):1;camInit=true;
   camPos.lerp(desired,k);camUp.lerp(up,k).normalize();camLook.lerp(look,k);
   camera.position.copy(camPos);camera.up.copy(camUp);camera.lookAt(camLook);
+  if(talking){if(!sbN.hidden)placeBubble(sbN,headOf(talking.rig.group,2.05),18);if(!sbMe.hidden)placeBubble(sbMe,headOf(player.group,2.05),18);}
   // who is close enough to talk to?
   nearN=null;if(!talking){let best=2.6;for(const n of npcs){const d=npcPos(n).multiplyScalar(R).distanceTo(player.group.position);if(d<best){best=d;nearN=n;}}}
   if(nearN!==shownN){shownN=nearN;const pr=$('#prompt'),ba=$('#ba');
@@ -551,7 +604,7 @@ function update(dt){
   for(const n of npcs)if(n!==nearN&&n!==talking)n.paused=false;
 }
 let last=performance.now();
-function frame(now){const dt=Math.min(.05,(now-last)/1000);last=now;if(!paused)update(dt);if(mixer)mixer.update(dt);renderInk();requestAnimationFrame(frame);}
+function frame(now){const dt=Math.min(.05,(now-last)/1000);last=now;if(!paused)update(dt);if(mixer)mixer.update(dt);for(const m of mixers)m.update(dt);renderInk();requestAnimationFrame(frame);}
 requestAnimationFrame(frame);
 
 /* =====================================================================
@@ -561,7 +614,7 @@ if(isTouch)$('#hint').textContent='▲ ▼ to walk · ◀ ▶ to turn · walk up
 const KEYS={ArrowUp:'u',w:'u',W:'u',ArrowDown:'d',s:'d',S:'d',ArrowLeft:'l',a:'l',A:'l',ArrowRight:'r',d:'r',D:'r'};
 window.addEventListener('keydown',e=>{
   if(e.metaKey||e.ctrlKey||e.altKey)return;
-  if(talking){if(e.key==='Escape')endTalk();return;}
+  if(talking){if(e.key==='Escape')endTalk();else if((e.key==='Enter'||e.key===' ')&&document.activeElement!==q){nextChunk();e.preventDefault();}return;}
   if(!$('#stops').hidden&&e.key==='Escape'){toggleStops(false);return;}
   if(KEYS[e.key]){hold[KEYS[e.key]]=true;e.preventDefault();return;}
   if(e.key==='e'||e.key==='E'||e.key==='Enter'||e.key===' '){action();e.preventDefault();}
@@ -591,7 +644,7 @@ document.addEventListener('pointerdown',e=>{if(!e.target.closest('#stops,#menubt
 /* =====================================================================
    TALKING — questions go to the chatbot, answers are shown and spoken
    ===================================================================== */
-const chat=$('#chat'), bubble=$('#bubble'), chips=$('#chips'), q=$('#q'), send=$('#send');
+const chat=$('#chat'), panel=$('#bubble'), chips=$('#chips'), q=$('#q'), send=$('#send');
 let voiceOn=true;try{voiceOn=localStorage.getItem('planet-voice')!=='off';}catch(_){}
 const canSpeak='speechSynthesis' in window;
 if(!canSpeak){$('#voice').hidden=true;voiceOn=false;}
@@ -621,13 +674,34 @@ async function speak(text,n){if(!voiceOn)return;stopSpeech();const seq=speakSeq;
   if(seq===speakSeq)browserSpeak(text,n);}
 if(canSpeak)speechSynthesis.onvoiceschanged=()=>{};
 let typer=null;
-function say(html,n,plainForVoice){
-  if(typer){clearInterval(typer);typer=null;}
-  bubble.innerHTML='';const span=document.createElement('span');bubble.appendChild(span);
-  const full=html;let i=0;
-  typer=setInterval(()=>{i+=3;span.innerHTML=full.slice(0,i);bubble.scrollTop=bubble.scrollHeight;if(i>=full.length){clearInterval(typer);typer=null;span.innerHTML=full;}},22);
-  if(plainForVoice)speak(plainForVoice,n);
-}
+
+/* =====================================================================
+   SPEECH BUBBLES — text appears above the speaker's head in short comic-style chunks
+   ===================================================================== */
+const sbN=$('#sbN'),sbMe=$('#sbMe');
+const bubble={chunks:[],i:0,timer:null,who:null,key:''};
+const _proj=new THREE.Vector3();
+function placeBubble(el,worldPos,lift){_proj.copy(worldPos).project(camera);if(_proj.z>1){el.style.opacity=0;return;}el.style.opacity=1;
+  const x=clamp((_proj.x+1)/2*W,190,W-190),y=(1-_proj.y)/2*H-(lift||14);el.style.left=x+'px';el.style.top=y+'px';}
+function headOf(obj,h){return obj.position.clone().add(obj.position.clone().normalize().multiplyScalar(h));}
+function splitChunks(text,max){const parts=text.replace(/\s+/g,' ').trim().match(/[^.!?…]+[.!?…]+["’”)]?|[^.!?…]+$/g)||[text];const out=[];let cur='';
+  for(const p of parts){const t=p.trim();if(!t)continue;if(cur&&(cur+' '+t).length>max){out.push(cur);cur=t;}else cur=cur?cur+' '+t:t;
+    while(cur.length>max*1.6){const cut=cur.lastIndexOf(' ',max);out.push(cur.slice(0,cut));cur=cur.slice(cut+1);}}
+  if(cur)out.push(cur);return out;}
+function showChunk(){clearTimeout(bubble.timer);const n=bubble.who;if(!n)return;const i=bubble.i;
+  if(i>=bubble.chunks.length){if(bubble.key){sbN.className='sb key';sbN.innerHTML=esc(bubble.key);bubble.key='';return;}sbN.hidden=true;return;}
+  const last=i===bubble.chunks.length-1&&!bubble.key;sbN.className='sb';sbN.innerHTML=esc(bubble.chunks[i])+(last?'':'<span class="more">▼</span>');sbN.hidden=false;
+  const chars=bubble.chunks[i].length,total=bubble.chunks.reduce((a,c)=>a+c.length,0);
+  let dur=Math.max(2.4,chars/13);
+  if(voiceAudio&&!voiceAudio.paused&&isFinite(voiceAudio.duration)&&voiceAudio.duration>0)dur=Math.max(1.2,voiceAudio.duration*chars/total);
+  bubble.timer=setTimeout(()=>{bubble.i++;showChunk();},dur*1000);}
+function sayBubble(n,text,key){clearTimeout(bubble.timer);bubble.who=n;bubble.chunks=splitChunks(text,150);bubble.i=0;bubble.key=key||'';showChunk();}
+function nextChunk(){if(!bubble.who)return;if(bubble.i<bubble.chunks.length){bubble.i++;showChunk();}else if(bubble.key){showChunk();}else sbN.hidden=true;}
+sbN.addEventListener('click',nextChunk);
+function thinkingBubble(n){clearTimeout(bubble.timer);bubble.who=n;bubble.chunks=[];bubble.key='';sbN.className='sb';sbN.innerHTML='<span class="dots"><span>•</span><span>•</span><span>•</span></span>';sbN.hidden=false;}
+function meBubble(text){sbMe.innerHTML=esc(text);sbMe.hidden=false;clearTimeout(sbMe._t);sbMe._t=setTimeout(()=>{sbMe.hidden=true;},Math.max(2000,text.length*60));}
+function hideBubbles(){clearTimeout(bubble.timer);bubble.who=null;sbN.hidden=true;sbMe.hidden=true;}
+function say(html,n,plainForVoice,key){if(typer){clearInterval(typer);typer=null;}const plain=plainForVoice||html.replace(/<[^>]+>/g,'');sayBubble(n,plain,key||'');if(plainForVoice)speak(plainForVoice,n);}
 function action(){unlockAudio();if(nearN&&!talking)startTalk(nearN);}
 function startTalk(n){
   talking=n;n.paused=true;autoTarget=null;for(const k in hold)hold[k]=false;v=0;pendingMove=0;
@@ -638,15 +712,15 @@ function startTalk(n){
   q.value='';chat.classList.remove('off');say(n.greet,n,n.greet);
   if(!isTouch)setTimeout(()=>q.focus(),350);
 }
-function endTalk(){if(!talking)return;const n=talking;talking=null;n.paused=false;chat.classList.add('off');stopSpeech();if(typer){clearInterval(typer);typer=null;}game.focus();}
+function endTalk(){if(!talking)return;const n=talking;talking=null;n.paused=false;chat.classList.add('off');hideBubbles();stopSpeech();if(typer){clearInterval(typer);typer=null;}game.focus();}
 $('#bye').addEventListener('click',endTalk);
 const esc=s=>s.replace(/[&<>]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;'}[c]));
 async function ask(text){unlockAudio();
   const n=talking;if(!n)return;const query=(text||'').trim();if(!query)return;
   q.value='';send.disabled=true;chips.hidden=true;
-  bubble.innerHTML='<span class="thinking">'+esc(n.name)+' thinks about it…</span>';stopSpeech();
+  meBubble(query);thinkingBubble(n);stopSpeech();
   const pre=ANSWERS[normQ(query)];
-  if(pre&&pre.answer){await new Promise(r=>setTimeout(r,500));let html=esc(pre.answer).replace(/\n\n+/g,'<br><br>').replace(/\n/g,'<br>');if(pre.key)html+='<span class="key">'+esc(pre.key)+'</span>';say(html,n,pre.answer);send.disabled=false;chips.hidden=false;return;}
+  if(pre&&pre.answer){await new Promise(r=>setTimeout(r,900));say(esc(pre.answer),n,pre.answer,pre.key||'');send.disabled=false;chips.hidden=false;return;}
   const ctrl=new AbortController();const to=setTimeout(()=>ctrl.abort(),58000);
   try{
     const r=await fetch(API,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({query,mode:'game',sessionId:n.session}),signal:ctrl.signal});
@@ -655,8 +729,7 @@ async function ask(text){unlockAudio();
     if(!r.ok)throw new Error('bad status');
     const j=await r.json();const answer=(j.answer||'').trim();const key=(j.key||'').trim();
     if(!answer)throw new Error('empty');
-    let html=esc(answer).replace(/\n\n+/g,'<br><br>').replace(/\n/g,'<br>');if(key)html+='<span class="key">'+esc(key)+'</span>';
-    say(html,n,answer);
+    say(esc(answer),n,answer,key);
   }catch(e){
     clearTimeout(to);
     const msg=e.name==='AbortError'?'Sorry, that took too long. Ask me again?':'I can’t reach my notes from here. The planet needs to be hosted alongside the chatbot for me to answer.';
