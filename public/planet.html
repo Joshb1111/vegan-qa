@@ -644,8 +644,10 @@ function groundFix(holder,root){holder.updateMatrixWorld(true);let minY=Infinity
         const range=Math.max(mx[0]-mn[0],mx[1]-mn[1],mx[2]-mn[2]);if(range>.2)travel=Math.max(travel,range);return !/^(Root|Hip|Hips|Pelvis)\./i.test(t.name)&&range<=.2;}); // hip/root position tracks carry root motion and lifted offsets: drop them
       if(n.includes('walk')&&travel>0)clips.walkSpeed=travel*sc_/c.duration; // world units per second at timeScale 1
       if(n.includes('run')&&travel>0)clips.runSpeed=travel*sc_/c.duration;
-      const a=mixer.clipAction(c);a.play();a.setEffectiveWeight(0);
-      if(n.includes('walk'))clips.walk=a;else if(n.includes('run'))clips.run=a;else if(n.includes('jump')){clips.jump=a;a.setLoop(THREE.LoopOnce,1);a.clampWhenFinished=false;}else if(n.includes('scratch')){clips.fidget=a;a.setLoop(THREE.LoopOnce,1);}else clips.idle=clips.idle||a;}
+      /* the idle is only the calm middle of Tripo's look-around (seconds 3.3 to 6.5: head turns, body still), played back and forth so it never jumps */
+      const cc=n.includes('look')?THREE.AnimationUtils.subclip(c,'idle_calm',Math.round(3.3*30),Math.round(6.5*30),30):c;
+      const a=mixer.clipAction(cc);a.play();a.setEffectiveWeight(0);
+      if(n.includes('walk'))clips.walk=a;else if(n.includes('run'))clips.run=a;else if(n.includes('jump')){clips.jump=a;a.setLoop(THREE.LoopOnce,1);a.clampWhenFinished=false;}else if(n.includes('scratch')){clips.fidget=a;a.setLoop(THREE.LoopOnce,1);}else{clips.idle=clips.idle||a;if(n.includes('look'))a.setLoop(THREE.LoopPingPong,Infinity);}}
     if(!clips.idle&&clips.walk){clips.idle=clips.walk;}
     root.traverse(m=>{if(m.isMesh)m.castShadow=true;});player.group.visible=false;scene.add(holder);kidModel=holder;kidModel.userData.root=root;kidModel.userData.bones={};root.traverse(o=>{if(o.isBone)kidModel.userData.bones[o.name]=o;});kidModel.userData.groundAt=performance.now()+1200;sceneDirty=true;},undefined,e=>console.warn('character not loaded',e));
     // modelled buildings and props from Josh's asset folder
