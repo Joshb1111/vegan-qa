@@ -31,7 +31,7 @@ export default async function handler(req, res) {
   const lengthInstruction = mode === "long"
     ? "Give a detailed, thorough answer of 5-8 paragraphs covering the topic fully."
     : isGame
-    ? "This answer will be spoken aloud by a character in a small game, so keep it to 2-4 plain, natural sentences a person would actually say — no lists, headings or markdown. Keep the same JSON shape as always."
+    ? "This answer will be spoken aloud by a character in a small game, so keep it to 2-4 plain, natural sentences a person would actually say — no lists, headings or markdown. Never use the bare word \"meat\" (it is product language): say \"flesh\" or \"animal flesh\", e.g. \"lab-grown flesh\"; if you must echo the word, wrap it in quotation marks. Keep the same JSON shape as always."
     : "Keep the answer concise — 2-4 short paragraphs.";
 
   // Connect Redis — fail fast so a slow/unreachable Redis on a cold start never
@@ -70,7 +70,7 @@ export default async function handler(req, res) {
   }
 
   // Use answer cache only for standalone questions (no prior conversation, no image)
-  const cacheKey = `${PROMPT_VERSION}:${mode || "long"}:${query.toLowerCase().trim()}`;
+  const cacheKey = `${PROMPT_VERSION}:${mode || "long"}${isGame ? "2" : ""}:${query.toLowerCase().trim()}`;
   if (!hasHistory && !image && redis) {
     try {
       const cached = await redis.get(cacheKey);
@@ -179,6 +179,11 @@ export default async function handler(req, res) {
     // stray "\n\n" in the text.
     if (typeof parsed.answer === "string") parsed.answer = parsed.answer.replace(/\\r\\n|\\n/g, "\n");
     if (typeof parsed.key === "string") parsed.key = parsed.key.replace(/\\r\\n|\\n/g, "\n");
+    if (isGame) { // product language guard: "meat" only ever appears in quotation marks
+      const q = (t) => t.replace(/(^|[^"“])\b(meat)\b(?![”"])/gi, (m, pre, w) => `${pre}“${w}”`);
+      if (typeof parsed.answer === "string") parsed.answer = q(parsed.answer);
+      if (typeof parsed.key === "string") parsed.key = q(parsed.key);
+    }
 
     // Conversational memory disabled — nothing is persisted per session (see note above).
 
