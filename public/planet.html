@@ -204,9 +204,10 @@ function resize(){W=game.clientWidth;H=game.clientHeight;renderer.setSize(W,H,fa
 window.addEventListener('resize',resize);resize();
 const skyCol=scene.background,normalBg=new THREE.Color(0x8080ff); // background 'normal' faces the camera so the sky stays line-free
 let meshList=[],sceneDirty=true;const nmPlain=new THREE.MeshNormalMaterial(),nmSkin=new THREE.MeshNormalMaterial({skinning:true});
+const nmFlat=new THREE.MeshBasicMaterial({color:0x8080ff}),nmFlatSkin=new THREE.MeshBasicMaterial({color:0x8080ff,skinning:true}); // 'facing the camera': no interior lines, silhouette only
 function refreshMeshes(){meshList=[];scene.traverse(o=>{if(o.isMesh)meshList.push(o);});sceneDirty=false;}
 function renderInk(){renderer.setRenderTarget(rt);renderer.render(scene,camera);
-  if(sceneDirty)refreshMeshes();for(const m of meshList){m.userData.mat=m.material;m.material=m.isSkinnedMesh?nmSkin:nmPlain;}
+  if(sceneDirty)refreshMeshes();for(const m of meshList){m.userData.mat=m.material;m.material=m.userData.noInk?(m.isSkinnedMesh?nmFlatSkin:nmFlat):(m.isSkinnedMesh?nmSkin:nmPlain);}
   scene.background=normalBg;renderer.setRenderTarget(rtN);renderer.render(scene,camera);
   for(const m of meshList)m.material=m.userData.mat;scene.background=skyCol;renderer.setRenderTarget(null);renderer.render(quadScene,quadCam);}
 
@@ -448,6 +449,12 @@ const player=person({skin:0xf2cfae,hair:0x2a2430,top:P.red,bottom:0xb9a66e,legs:
 scene.add(player.group);
 /* ---------- the modelled character (Tripo GLB), with its own walk animation ---------- */
 let kidModel=null,mixer=null;const clips={};let gait={walk:0,idle:1};const mixers=[];
+// Put a posed character's lowest skinned vertex exactly on the ground of its holder
+const _gv=new THREE.Vector3();
+function groundFix(holder,root){holder.updateMatrixWorld(true);let minY=Infinity;
+  root.traverse(m=>{if(!m.isSkinnedMesh)return;const pa=m.geometry.attributes.position;const step=Math.max(1,Math.floor(pa.count/1500));
+    for(let i=0;i<pa.count;i+=step){m.boneTransform(i,_gv);_gv.applyMatrix4(m.matrixWorld);holder.worldToLocal(_gv);if(_gv.y<minY)minY=_gv.y;}});
+  if(isFinite(minY)&&Math.abs(minY)<1.5)root.position.y-=minY;}
 (function loadKid(){const sc=document.createElement('script');sc.src='https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/GLTFLoader.js';
   sc.onload=()=>{new THREE.GLTFLoader().load('assets/kid.glb',g=>{
     const root=g.scene;const bb=new THREE.Box3().setFromObject(root);const hgt=bb.max.y-bb.min.y;const sc_=1.8/hgt;root.scale.setScalar(sc_);root.position.y=-bb.min.y*sc_;
@@ -461,17 +468,17 @@ let kidModel=null,mixer=null;const clips={};let gait={walk:0,idle:1};const mixer
       if(n.includes('walk')&&travel>0)clips.walkSpeed=travel*sc_/c.duration; // world units per second at timeScale 1
       const a=mixer.clipAction(c);a.play();a.setEffectiveWeight(0);if(n.includes('walk'))clips.walk=a;else if(n.includes('run'))clips.run=a;else clips.idle=clips.idle||a;}
     if(!clips.idle&&clips.walk){clips.idle=clips.walk;}
-    player.group.visible=false;scene.add(holder);kidModel=holder;sceneDirty=true;},undefined,e=>console.warn('character not loaded',e));
+    player.group.visible=false;scene.add(holder);kidModel=holder;kidModel.userData.root=root;kidModel.userData.groundAt=performance.now()+1200;sceneDirty=true;},undefined,e=>console.warn('character not loaded',e));
     // modelled buildings and props from Josh's asset folder
     const loader=new THREE.GLTFLoader();
     // Modelled assets arrive with light and shadow baked into their textures, so they are drawn unlit,
     // lifted a little, and posterised so the colours flatten back toward cel shading.
     const flatMat=(map,color)=>{const m=new THREE.MeshBasicMaterial({map:map||null,color:map?0xffffff:color});
       m.onBeforeCompile=sh=>{sh.fragmentShader=sh.fragmentShader.replace('#include <dithering_fragment>',`#include <dithering_fragment>
-        vec3 c=gl_FragColor.rgb;c=pow(c,vec3(0.78));c=c*1.12+0.03;
-        float l=dot(c,vec3(.299,.587,.114));float lq=floor(l*6.0+0.5)/6.0;c*=(lq+0.02)/max(l,0.02);
+        vec3 c=gl_FragColor.rgb;c=pow(c,vec3(0.72));c=c*1.18+0.04;
+        float l=dot(c,vec3(.299,.587,.114));float lq=floor(l*8.0+0.5)/8.0;c=mix(c,c*(lq+0.02)/max(l,0.02),0.6);
         gl_FragColor.rgb=clamp(c,0.0,1.0);`);};return m;};
-    const toonify=root=>root.traverse(m=>{if(m.isMesh){const old=m.material;m.material=flatMat(old.map,old.color);}});
+    const toonify=root=>root.traverse(m=>{if(m.isMesh){const old=m.material;m.material=flatMat(old.map,old.color);m.userData.noInk=true;}});
     const fit=(root,height)=>{const bb=new THREE.Box3().setFromObject(root);const sc=height/(bb.max.y-bb.min.y);root.scale.setScalar(sc);root.position.y=-bb.min.y*sc;root.position.x=-(bb.min.x+bb.max.x)/2*sc;root.position.z=-(bb.min.z+bb.max.z)/2*sc;};
     // Josh's buildings: slots rotate through the list, so each one appears several times around the planet
     const BUILDINGS=['assets/building1v2.glb','assets/building3.glb','assets/building4.glb','assets/building6.glb','assets/building5.glb','assets/building7.glb'];
@@ -492,10 +499,10 @@ let kidModel=null,mixer=null;const clips={};let gait={walk:0,idle:1};const mixer
         const bb=new THREE.Box3().setFromObject(g.scene);const hgt=bb.max.y-bb.min.y;const sc_=1.78/hgt;
         npcs.forEach((n,i)=>{if((NPC_FOR[n.name]??(i%NPC_MODELS.length))!==mi)return;
           const root=THREE.SkeletonUtils.clone(g.scene);root.scale.setScalar(sc_);root.position.y=-bb.min.y*sc_;root.rotation.y=Math.PI;
-          root.traverse(m=>{if(m.isMesh){const old=m.material;const mat=new THREE.MeshBasicMaterial({map:old.map||null,color:old.map?0xffffff:old.color,skinning:!!m.isSkinnedMesh});mat.onBeforeCompile=sh=>{sh.fragmentShader=sh.fragmentShader.replace('#include <dithering_fragment>','#include <dithering_fragment>\n gl_FragColor.rgb=clamp(pow(gl_FragColor.rgb,vec3(0.85))*1.08,0.0,1.0);');};m.material=mat;m.frustumCulled=false;}});
+          root.traverse(m=>{if(m.isMesh){const old=m.material;const mat=new THREE.MeshBasicMaterial({map:old.map||null,color:old.map?0xffffff:old.color,skinning:!!m.isSkinnedMesh});mat.onBeforeCompile=sh=>{sh.fragmentShader=sh.fragmentShader.replace('#include <dithering_fragment>','#include <dithering_fragment>\n gl_FragColor.rgb=clamp(pow(gl_FragColor.rgb,vec3(0.85))*1.08,0.0,1.0);');};m.material=mat;m.frustumCulled=false;m.userData.noInk=true;}});
           const holder=new THREE.Group();holder.add(root);scene.add(holder);
           const mixer=new THREE.AnimationMixer(root);const act={};for(const k of ['walk','idle','talk']){if(clips[k]){act[k]=mixer.clipAction(clips[k]);act[k].play();act[k].setEffectiveWeight(k==='idle'?1:0);}}
-          n.model={holder,mixer,act,walkSpeed:clips.travel?clips.travel*sc_/clips.walk.duration:1,w:{walk:0,talk:0}};mixers.push(mixer);n.rig.group.visible=false;});
+          n.model={holder,mixer,act,root,walkSpeed:clips.travel?clips.travel*sc_/clips.walk.duration:1,w:{walk:0,talk:0},groundAt:performance.now()+1200};mixers.push(mixer);n.rig.group.visible=false;});
         sceneDirty=true;},undefined,e=>console.warn('resident not loaded',file,e)));};
     document.head.appendChild(su);};
   document.head.appendChild(sc);})();
@@ -564,6 +571,7 @@ function update(dt){
   _m.makeBasis(right,up,fwd.clone().negate());player.group.quaternion.setFromRotationMatrix(_m);player.group.position.copy(up).multiplyScalar(R);
   player.pose(speed,dt,speed>3?'run':'walk');
   if(kidModel){kidModel.quaternion.copy(player.group.quaternion);kidModel.position.copy(player.group.position);
+    if(kidModel.userData.groundAt&&performance.now()>kidModel.userData.groundAt){kidModel.userData.groundAt=0;groundFix(kidModel,kidModel.userData.root);}
     const moving=speed>.3;const target=moving?1:0;gait.walk+=(target-gait.walk)*Math.min(1,dt*6);gait.idle=1-gait.walk;
     if(clips.walk){clips.walk.setEffectiveWeight(gait.walk);clips.walk.setEffectiveTimeScale(clamp(speed/(clips.walkSpeed||1.5)*.75,.5,3.2));/* longer, fewer strides (a touch of slide, deliberately) */}
     if(clips.idle&&clips.idle!==clips.walk)clips.idle.setEffectiveWeight(gait.idle);}
@@ -578,6 +586,7 @@ function update(dt){
     if(n.walker&&!n.paused){n.lon+=n.dir*n.speed/(R*Math.cos(n.lat))*dt;if(n.lon>n.range[1]){n.dir=-1;}if(n.lon<n.range[0]){n.dir=1;}n.yaw=n.dir>0?Math.PI/2:-Math.PI/2;sp=n.speed;}
     poseOn(n.rig.group,n.lon,n.lat,n.yaw);n.rig.pose(sp,dt,'walk');
     if(n.model){const md=n.model;md.holder.quaternion.copy(n.rig.group.quaternion);md.holder.position.copy(n.rig.group.position);
+      if(md.groundAt&&performance.now()>md.groundAt){md.groundAt=0;groundFix(md.holder,md.root);}
       const speaking=n===talking&&((voiceAudio&&!voiceAudio.paused)||(canSpeak&&speechSynthesis.speaking)||!sbN.hidden);
       md.w.walk+=((sp>.1?1:0)-md.w.walk)*Math.min(1,dt*6);md.w.talk+=((speaking&&sp<=.1?1:0)-md.w.talk)*Math.min(1,dt*4);
       if(md.act.walk){md.act.walk.setEffectiveWeight(md.w.walk);md.act.walk.setEffectiveTimeScale(clamp(sp/(md.walkSpeed||1)*.75,.5,2.5));}
