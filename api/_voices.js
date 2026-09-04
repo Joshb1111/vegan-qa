@@ -2,7 +2,7 @@
 // browser's built-in voice. Replace the IDs with the ones you pick in ElevenLabs (Voices → ⋯ → Copy voice ID).
 export const VOICES = {
   // male residents — Josh's chosen voices
-  Theo: "UmQN7jS1Ee8B1czsUtQh",
+  Theo: "85o4S4rAEvTIDGtpFNUq",
   Kofi: "KYq5lC0WZo5uHYKcpjGC",
   Ravi: "KYq5lC0WZo5uHYKcpjGC",
   Sam:  "KYq5lC0WZo5uHYKcpjGC",
