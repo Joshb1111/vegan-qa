@@ -628,6 +628,12 @@ function updateBirds(dt,t){for(const g of birdGroups){g.th+=g.w*dt;const v=new T
 }
 // Put a posed character's lowest skinned vertex exactly on the ground of its holder
 const _gv=new THREE.Vector3();
+/* cut a clip between two times, sampling every track at the cut points so bones the clip only keys at its
+   ends (the arms in Tripo's look-around) keep their pose instead of falling back to the bind pose */
+function cutClip(c,t0,t1){const tracks=[];for(const tr of c.tracks){const n=tr.getValueSize();const times=[],vals=[];const ip=tr.createInterpolant();
+  const add=t=>{const v=ip.evaluate(t);times.push(t-t0);for(let i=0;i<n;i++)vals.push(v[i]);};
+  add(t0);for(let i=0;i<tr.times.length;i++){const t=tr.times[i];if(t>t0+1e-4&&t<t1-1e-4)add(t);}add(t1);
+  tracks.push(new tr.constructor(tr.name,times,vals));}return new THREE.AnimationClip('idle_calm',t1-t0,tracks);}
 function groundFix(holder,root){holder.updateMatrixWorld(true);let minY=Infinity;
   root.traverse(m=>{if(!m.isSkinnedMesh)return;const pa=m.geometry.attributes.position;const step=Math.max(1,Math.floor(pa.count/1500));
     for(let i=0;i<pa.count;i+=step){m.boneTransform(i,_gv);_gv.applyMatrix4(m.matrixWorld);holder.worldToLocal(_gv);if(_gv.y<minY)minY=_gv.y;}});
@@ -645,7 +651,7 @@ function groundFix(holder,root){holder.updateMatrixWorld(true);let minY=Infinity
       if(n.includes('walk')&&travel>0)clips.walkSpeed=travel*sc_/c.duration; // world units per second at timeScale 1
       if(n.includes('run')&&travel>0)clips.runSpeed=travel*sc_/c.duration;
       /* the idle is only the calm middle of Tripo's look-around (seconds 3.3 to 6.5: head turns, body still), played back and forth so it never jumps */
-      const cc=n.includes('look')?THREE.AnimationUtils.subclip(c,'idle_calm',Math.round(3.3*30),Math.round(6.5*30),30):c;
+      const cc=n.includes('look')?cutClip(c,3.3,6.5):c;
       const a=mixer.clipAction(cc);a.play();a.setEffectiveWeight(0);
       if(n.includes('walk'))clips.walk=a;else if(n.includes('run'))clips.run=a;else if(n.includes('jump')){clips.jump=a;a.setLoop(THREE.LoopOnce,1);a.clampWhenFinished=false;}else if(n.includes('scratch')){clips.fidget=a;a.setLoop(THREE.LoopOnce,1);}else{clips.idle=clips.idle||a;if(n.includes('look'))a.setLoop(THREE.LoopPingPong,Infinity);}}
     if(!clips.idle&&clips.walk){clips.idle=clips.walk;}
@@ -790,7 +796,7 @@ function resolveSolids(){const PR=.42;const p=_sc.copy(up).multiplyScalar(R);
     if(ox<oz)slide(_sb.copy(s.X).multiplyScalar(lx<0?-1:1),ox);else slide(_sb.copy(s.Z).multiplyScalar(lz<0?-1:1),oz);p.copy(up).multiplyScalar(R);}}
 function firstMove(){if(!hintGone){hintGone=true;$('#hint').classList.add('gone');}dismissTitle();}
 orthonormalize();
-window.__tp=(lon,lat,h)=>{up.copy(sphere(lon,lat));const {east,north}=frameAt(lon,lat);fwd.copy(h==='n'?north:h==='s'?north.clone().negate():h==='w'?east.clone().negate():east);orthonormalize();camInit=false;};window.__up=()=>up.clone(); /* debug: jump somewhere facing n/s/e/w; read the player's position */
+window.__tp=(lon,lat,h)=>{up.copy(sphere(lon,lat));const {east,north}=frameAt(lon,lat);fwd.copy(h==='n'?north:h==='s'?north.clone().negate():h==='w'?east.clone().negate():east);orthonormalize();camInit=false;};window.__up=()=>up.clone();window.__resnap=()=>{sitPose=null;};window.__bone=n=>kidModel.userData.bones[n].quaternion.toArray().map(v=>+v.toFixed(3)); /* debug: jump somewhere facing n/s/e/w; read the player's position */
 const camPos=new THREE.Vector3(), camUp=up.clone(), camLook=new THREE.Vector3(), raycaster=new THREE.Raycaster();
 let camInit=false, nearN=null, shownN=null, talking=null, idleT=0, camYaw=0;
 const isTouch=matchMedia('(hover:none)').matches;
@@ -1009,11 +1015,19 @@ function action(){unlockAudio();if(sitting){standUp();return;}if(nearBench&&!tal
 let sitting=false,nearBench=false,nightT=null,night=0;const sitOrbit={yaw:0,pitch:0}; /* while seated the controls swing the camera round him instead */const _sq=new THREE.Quaternion(),_sx=new THREE.Vector3(1,0,0);
 function sitDown(){if(!BENCH)return;autoTarget=null;autoRoute=[];autoFace=null;v=0;pendingMove=0;up.copy(BENCH.n);fwd.copy(BENCH.face);if(SUNSET){const toSun=SUNSET.base[2].clone().sub(up.clone().multiplyScalar(hAt(up)));toSun.addScaledVector(up,-toSun.dot(up));if(toSun.lengthSq()>1e-6)fwd.copy(toSun);}orthonormalize();sitting=true;sitOrbit.yaw=0;sitOrbit.pitch=0;nightT=performance.now()/1000;$('#ba').textContent='Stand up';$('#ba').classList.remove('off');}
 function standUp(){if(!sitting)return;sitting=false;sitPose=null;if(nightT!==null&&performance.now()/1000-nightT<10)nightT=null;moveForward(.9);$('#ba').classList.add('off');shownN=undefined;}
-let sitPose=null;
+let sitPose=null,sitT0=0;const _sy=new THREE.Vector3(0,1,0),_sq2=new THREE.Quaternion();
+/* seated: the whole body is frozen from a snapshot taken as he sits; only the head and neck move, by code:
+   a slow look left and right, and every so often a look up at the sky */
 function applySit(){if(!sitting||!kidModel)return;const bones=kidModel.userData.bones;if(!bones)return;const S={t:1.45,c:-1.45};
-  if(!sitPose){sitPose={};for(const k of ['L_Thigh','R_Thigh','L_Calf','R_Calf']){if(bones[k])sitPose[k]=bones[k].quaternion.clone();}} // snapshot once, then hold the legs still
-  for(const k of ['L_Thigh','R_Thigh']){const b=bones[k];if(b&&sitPose[k])b.quaternion.copy(sitPose[k]).multiply(_sq.setFromAxisAngle(_sx,S.t));}
-  for(const k of ['L_Calf','R_Calf']){const b=bones[k];if(b&&sitPose[k])b.quaternion.copy(sitPose[k]).multiply(_sq.setFromAxisAngle(_sx,S.c));}}
+  if(!sitPose){sitPose={};for(const k in bones)sitPose[k]=bones[k].quaternion.clone();sitT0=performance.now()/1000;}
+  for(const k in sitPose)bones[k].quaternion.copy(sitPose[k]);
+  for(const k of ['L_Thigh','R_Thigh']){const b=bones[k];if(b)b.quaternion.multiply(_sq.setFromAxisAngle(_sx,S.t));}
+  for(const k of ['L_Calf','R_Calf']){const b=bones[k];if(b)b.quaternion.multiply(_sq.setFromAxisAngle(_sx,S.c));}
+  const t=performance.now()/1000-sitT0,L=window.__look||{yaw:1,pitch:1};
+  const yaw=(.4*Math.sin(t*.45)+.18*Math.sin(t*1.1))*L.yaw;const ph=t%13;const upv=smooth(4,5.6,ph)*(1-smooth(8.2,9.8,ph))*.42*L.pitch; /* a look up at the sky every 13 s */
+  const head=bones.Head,neck=bones.NeckTwist01;
+  if(neck)neck.quaternion.multiply(_sq.setFromAxisAngle(_sy,yaw*.45)).multiply(_sq2.setFromAxisAngle(_sx,upv*.4));
+  if(head)head.quaternion.multiply(_sq.setFromAxisAngle(_sy,yaw*.55)).multiply(_sq2.setFromAxisAngle(_sx,upv*.6));}
 function updateNight(dt){if(nightT===null){night=Math.max(0,night-dt*.4);}else{const t=performance.now()/1000-nightT-10;night=t<0?0:t<8?smooth(0,8,t):t<38?1:t<46?1-smooth(38,46,t):0;if(t>=46)nightT=null;}
   inkPass.uniforms.night.value=night;if(SUNSET){const drop=night*26;SUNSET.parts.forEach((m,i)=>{m.position.copy(SUNSET.base[i]).addScaledVector(SUNSET.B,-drop);m.material.opacity=(i===0?.6:i===1?.95:1)*(1-night*.9);});
     SUNSET.stars.visible=night>.02;SUNSET.stars.material.opacity=Math.max(0,(night-.3)/.7);}
