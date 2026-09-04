@@ -458,7 +458,7 @@ function update(dt){
   if(talking){const other=npcPos(talking).multiplyScalar(R);const me=up.clone().multiplyScalar(R);const to=other.clone().sub(me);to.addScaledVector(up,-to.dot(up)).normalize();const side=new THREE.Vector3().crossVectors(to,up).normalize();
     desired=me.clone().addScaledVector(up,3.2).addScaledVector(to,-3.6).addScaledVector(side,3.4);look=me.clone().lerp(other,.6).addScaledVector(up,1.4);}
   else{desired=up.clone().multiplyScalar(R+3.6).addScaledVector(fwd,-7.8);look=up.clone().multiplyScalar(R+1.7).addScaledVector(fwd,2.5);}
-  const eye=up.clone().multiplyScalar(R+1.8);const ray=desired.clone().sub(eye);const len=ray.length();
+  const eye=talking?look.clone():up.clone().multiplyScalar(R+1.8);const ray=desired.clone().sub(eye);const len=ray.length();
   raycaster.set(eye,ray.normalize());raycaster.far=len;
   const hits=raycaster.intersectObjects(colliders,true);
   if(hits.length){const d=Math.max(1.6,hits[0].distance-.4);desired.copy(eye).addScaledVector(ray,d);look.lerp(eye,1-d/len);}
