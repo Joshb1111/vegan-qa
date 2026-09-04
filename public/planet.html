@@ -378,7 +378,7 @@ const propSlots=[]; // {kind,lon,lat,yaw} filled with Josh's modelled props once
         if(rnd()<.35){const hb=hedge(2+rnd()*2);placeOn(hb,lon+step/2+(w/2+1)/R*(rnd()<.5?1:-1),side*(roadLat+2.2/R));}
       }else{ // an open plot: wall, stairs up the hill, trees
         const wl=lowWall(w,1.1,pick([P.cream2,P.grey]));placeOnGround(wl,lon+step/2,side*(roadLat+2.4/R),side<0?Math.PI:0);
-        const tr=tree(Math.floor(rnd()*3));placeOn(tr,lon+step/2,side*(roadLat+6/R));colliders.push(tr);
+        propSlots.push({kind:rnd()<.6?'treeBig':'treeSmall',lon:lon+step/2,lat:side*(roadLat+6/R),yaw:rnd()*Math.PI*2,k:.85+rnd()*.3,collide:true});
         npcSpots.push({lon:lon+step/2,lat:side*(roadLat+1.2/R)});
       }
       // pavement furniture in the gap after the plot
@@ -393,13 +393,13 @@ const propSlots=[]; // {kind,lon,lat,yaw} filled with Josh's modelled props once
       else if(pr<.68){placeOn(bench(),gapLon,side*(roadLat+1.6/R),side<0?Math.PI:0);npcSpots.push({lon:gapLon,lat:pl-side*.6/R});}
       else if(pr<.71){placeOn(coneProp(),gapLon,side*(roadLat-.6/R));}
       else if(pr<.74){propSlots.push({kind:'crate',lon:gapLon,lat:side*(roadLat+1.8/R),yaw:rnd()*Math.PI});}
-      else if(pr<.8){const tr=tree(Math.floor(rnd()*3));placeOn(tr,gapLon,side*(roadLat+1.6/R));colliders.push(tr);}
+      else if(pr<.8){propSlots.push({kind:rnd()<.3?'treeBig':'treeSmall',lon:gapLon,lat:side*(roadLat+1.9/R),yaw:rnd()*Math.PI*2,k:.8+rnd()*.3,collide:true});}
       else if(pr<.84){propSlots.push({kind:'rock',lon:gapLon,lat:side*(roadLat+2/R),yaw:rnd()*Math.PI});}
       lon+=step;
     }
   }
   // signposts and a few far trees
-  for(let i=0;i<10;i++){const tr=tree(Math.floor(rnd()*3));placeOn(tr,rnd()*Math.PI*2,(rnd()<.5?1:-1)*(.2+rnd()*.1));}
+  for(let i=0;i<10;i++){propSlots.push({kind:rnd()<.5?'treeBig':'treeSmall',lon:rnd()*Math.PI*2,lat:(rnd()<.5?1:-1)*(.2+rnd()*.1),yaw:rnd()*Math.PI*2,k:.9+rnd()*.5});}
 })();
 // wires between poles (they are the tall wooden ones)
 (function wires(){
@@ -516,10 +516,19 @@ function groundFix(holder,root){holder.updateMatrixWorld(true);let minY=Infinity
     const fit=(root,height)=>{const bb=new THREE.Box3().setFromObject(root);const sc=height/(bb.max.y-bb.min.y);root.scale.setScalar(sc);root.position.y=-bb.min.y*sc;root.position.x=-(bb.min.x+bb.max.x)/2*sc;root.position.z=-(bb.min.z+bb.max.z)/2*sc;};
     // Josh's buildings: slots rotate through the list, so each one appears several times around the planet
     const BUILDINGS=['assets/building1v2.glb','assets/building3.glb','assets/building4.glb','assets/building6.glb','assets/building5.glb','assets/building7.glb'];
+    /* Spread the types out: walk the slots and give each one the building whose nearest copy so far is
+       furthest away round the planet (ties go to the least-used type), so the same building is never
+       next to, or across the road from, itself. */
+    const slotType=[];const dLon=(a,b)=>{let d=Math.abs(a-b)%(Math.PI*2);return Math.min(d,Math.PI*2-d);};
+    modelSlots.forEach((sl,i)=>{const cand=[];for(let t=0;t<BUILDINGS.length;t++){let dmin=Infinity,n=0;for(let j=0;j<i;j++)if(slotType[j]===t){n++;dmin=Math.min(dmin,dLon(sl.lon,modelSlots[j].lon));}cand.push({t,dmin,n});}
+      const fewest=Math.min(...cand.map(c=>c.n));let pool=cand.filter(c=>c.n===fewest).sort((a,b)=>b.dmin-a.dmin); /* least-used types first, furthest from their own copies */
+      if(pool[0].dmin<Math.PI/4)pool=cand.sort((a,b)=>b.dmin-a.dmin); /* unless that would put one within 45° of itself */
+      slotType[i]=pool[0].t;});
+    window.__town={modelSlots,propSlots,slotType};
     BUILDINGS.forEach((file,bi)=>loader.load(file,g=>{toonify(g.scene);fit(g.scene,9);
-      modelSlots.forEach((sl,i)=>{if(i%BUILDINGS.length!==bi)return;const inst=new THREE.Group();inst.add(g.scene.clone());placeOnGround(inst,sl.lon,sl.lat,sl.yaw);colliders.push(inst);});sceneDirty=true;},undefined,e=>console.warn('building not loaded',file,e)));
-    const PROPS={mailbox:['assets/mailbox.glb',1.5],crate:['assets/crate.glb',.9],rock:['assets/rock.glb',1.1]};
-    for(const kind in PROPS){const [file,hgt]=PROPS[kind];loader.load(file,g=>{toonify(g.scene);fit(g.scene,hgt);for(const sl of propSlots){if(sl.kind!==kind)continue;const inst=new THREE.Group();inst.add(g.scene.clone());placeOn(inst,sl.lon,sl.lat,sl.yaw);}sceneDirty=true;},undefined,e=>console.warn(kind,'not loaded',e));}
+      modelSlots.forEach((sl,i)=>{if(slotType[i]!==bi)return;const inst=new THREE.Group();inst.add(g.scene.clone());placeOnGround(inst,sl.lon,sl.lat,sl.yaw);colliders.push(inst);});sceneDirty=true;},undefined,e=>console.warn('building not loaded',file,e)));
+    const PROPS={mailbox:['assets/mailbox.glb',1.5],crate:['assets/crate.glb',.9],rock:['assets/rock.glb',1.1],treeBig:['assets/tree_a.glb',5.8,true],treeSmall:['assets/tree_b.glb',3.4,true]}; // Josh's trees replace the old ball-and-cone ones; they are thin relief models, so they are placed as two copies crossed at 90° to read from any angle
+    for(const kind in PROPS){const [file,hgt,cross]=PROPS[kind];loader.load(file,g=>{toonify(g.scene);fit(g.scene,hgt);for(const sl of propSlots){if(sl.kind!==kind)continue;const inst=new THREE.Group();inst.add(g.scene.clone());if(cross){const w=new THREE.Group();w.add(g.scene.clone());w.rotation.y=Math.PI/2;inst.add(w);}if(sl.k)inst.scale.setScalar(sl.k);placeOn(inst,sl.lon,sl.lat,sl.yaw);if(sl.collide)colliders.push(inst);}sceneDirty=true;},undefined,e=>console.warn(kind,'not loaded',e));}
     // residents: Josh's four modelled characters, cloned with their skeletons
     const su=document.createElement('script');su.src='https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/utils/SkeletonUtils.js';
     su.onload=()=>{const NPC_MODELS=['assets/npc1.glb','assets/npc2.glb','assets/npc3.glb','assets/npc4.glb'];
