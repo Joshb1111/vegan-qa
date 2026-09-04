@@ -454,7 +454,7 @@ let kidModel=null,mixer=null;const clips={};let gait={walk:0,idle:1};const mixer
     for(const c of g.animations){const n=c.name.toLowerCase();
       // remove horizontal root motion (the model would stride forward, then snap back each loop); remember how far it went
       let travel=0;c.tracks=c.tracks.filter(t=>{if(!t.name.endsWith('.position'))return true;const v=t.values;let mn=[1e9,1e9,1e9],mx=[-1e9,-1e9,-1e9];for(let i=0;i<v.length;i+=3)for(let k=0;k<3;k++){mn[k]=Math.min(mn[k],v[i+k]);mx[k]=Math.max(mx[k],v[i+k]);}
-        const range=Math.max(mx[0]-mn[0],mx[1]-mn[1],mx[2]-mn[2]);if(range>.2){travel=Math.max(travel,range);return false;}return true;}); // root motion can sit on any axis of the hip bone
+        const range=Math.max(mx[0]-mn[0],mx[1]-mn[1],mx[2]-mn[2]);if(range>.2)travel=Math.max(travel,range);return !/^(Root|Hip|Hips|Pelvis)\./i.test(t.name)&&range<=.2;}); // hip/root position tracks carry root motion and lifted offsets: drop them
       if(n.includes('walk')&&travel>0)clips.walkSpeed=travel*sc_/c.duration; // world units per second at timeScale 1
       const a=mixer.clipAction(c);a.play();a.setEffectiveWeight(0);if(n.includes('walk'))clips.walk=a;else if(n.includes('run'))clips.run=a;else clips.idle=clips.idle||a;}
     if(!clips.idle&&clips.walk){clips.idle=clips.walk;}
@@ -471,7 +471,7 @@ let kidModel=null,mixer=null;const clips={};let gait={walk:0,idle:1};const mixer
     const toonify=root=>root.traverse(m=>{if(m.isMesh){const old=m.material;m.material=flatMat(old.map,old.color);}});
     const fit=(root,height)=>{const bb=new THREE.Box3().setFromObject(root);const sc=height/(bb.max.y-bb.min.y);root.scale.setScalar(sc);root.position.y=-bb.min.y*sc;root.position.x=-(bb.min.x+bb.max.x)/2*sc;root.position.z=-(bb.min.z+bb.max.z)/2*sc;};
     // Josh's buildings: slots rotate through the list, so each one appears several times around the planet
-    const BUILDINGS=['assets/building1v2.glb','assets/building3.glb','assets/building4.glb','assets/building5.glb','assets/building6.glb'];
+    const BUILDINGS=['assets/building1v2.glb','assets/building3.glb','assets/building4.glb','assets/building6.glb']; // building5 (old-settings storefront) dropped: its texture shatters into speckles
     BUILDINGS.forEach((file,bi)=>loader.load(file,g=>{toonify(g.scene);fit(g.scene,9);
       modelSlots.forEach((sl,i)=>{if(i%BUILDINGS.length!==bi)return;const inst=new THREE.Group();inst.add(g.scene.clone());placeOn(inst,sl.lon,sl.lat,sl.yaw);colliders.push(inst);});sceneDirty=true;},undefined,e=>console.warn('building not loaded',file,e)));
     loader.load('assets/stairs1.glb',g=>{toonify(g.scene);fit(g.scene,2.4);for(const sl of stairSlots){const inst=new THREE.Group();inst.add(g.scene.clone());placeOn(inst,sl.lon,sl.lat,sl.yaw);}sceneDirty=true;},undefined,e=>console.warn('stairs not loaded',e));
@@ -483,7 +483,7 @@ let kidModel=null,mixer=null;const clips={};let gait={walk:0,idle:1};const mixer
       const NPC_FOR={Theo:0,Kofi:0,Ravi:0,Sam:0,Mina:1,Elin:1,Ada:2,June:3}; // npc1 = the man in the waistcoat; 2 = girl with the bag; 3 = the mum; 4 = the girl with buns
       NPC_MODELS.forEach((file,mi)=>loader.load(file,g=>{
         const clips={};for(const c of g.animations){const n_=c.name.toLowerCase();let travel=0;
-          c.tracks=c.tracks.filter(t=>{if(!t.name.endsWith('.position'))return true;const v=t.values;let mn=[1e9,1e9,1e9],mx=[-1e9,-1e9,-1e9];for(let i=0;i<v.length;i+=3)for(let k=0;k<3;k++){mn[k]=Math.min(mn[k],v[i+k]);mx[k]=Math.max(mx[k],v[i+k]);}const range=Math.max(mx[0]-mn[0],mx[1]-mn[1],mx[2]-mn[2]);if(range>.2){travel=Math.max(travel,range);return false;}return true;});
+          c.tracks=c.tracks.filter(t=>{if(!t.name.endsWith('.position'))return true;const v=t.values;let mn=[1e9,1e9,1e9],mx=[-1e9,-1e9,-1e9];for(let i=0;i<v.length;i+=3)for(let k=0;k<3;k++){mn[k]=Math.min(mn[k],v[i+k]);mx[k]=Math.max(mx[k],v[i+k]);}const range=Math.max(mx[0]-mn[0],mx[1]-mn[1],mx[2]-mn[2]);if(range>.2)travel=Math.max(travel,range);return !/^(Root|Hip|Hips|Pelvis)\./i.test(t.name)&&range<=.2;});
           if(n_.includes('walk')){clips.walk=c;clips.travel=travel;}else if(n_.includes('agree'))clips.talk=c;else clips.idle=c;}
         if(!clips.idle)clips.idle=clips.talk||clips.walk;
         const bb=new THREE.Box3().setFromObject(g.scene);const hgt=bb.max.y-bb.min.y;const sc_=1.78/hgt;
@@ -566,11 +566,12 @@ function update(dt){
     if(clips.idle&&clips.idle!==clips.walk)clips.idle.setEffectiveWeight(gait.idle);}
   // people
   for(const n of npcs){
+    let sp=0;
     if(n===talking){ // face the player
       const {n:nn}=frameAt(n.lon,n.lat);const toP=up.clone().multiplyScalar(R).sub(nn.clone().multiplyScalar(R));toP.addScaledVector(nn,-toP.dot(nn)).normalize();
       poseOn(n.rig.group,n.lon,n.lat,0);const f=new THREE.Vector3(0,0,-1).applyQuaternion(n.rig.group.quaternion);const r=new THREE.Vector3(1,0,0).applyQuaternion(n.rig.group.quaternion);
-      n.yaw=Math.atan2(toP.dot(r),toP.dot(f));poseOn(n.rig.group,n.lon,n.lat,n.yaw);n.rig.pose(0,dt,'idle');continue;}
-    let sp=0;
+      n.yaw=Math.atan2(toP.dot(r),toP.dot(f));}
+    else
     if(n.walker&&!n.paused){n.lon+=n.dir*n.speed/(R*Math.cos(n.lat))*dt;if(n.lon>n.range[1]){n.dir=-1;}if(n.lon<n.range[0]){n.dir=1;}n.yaw=n.dir>0?Math.PI/2:-Math.PI/2;sp=n.speed;}
     poseOn(n.rig.group,n.lon,n.lat,n.yaw);n.rig.pose(sp,dt,'walk');
     if(n.model){const md=n.model;md.holder.quaternion.copy(n.rig.group.quaternion);md.holder.position.copy(n.rig.group.position);
@@ -595,7 +596,7 @@ function update(dt){
   const k=camInit?1-Math.exp(-5*dt):1;camInit=true;
   camPos.lerp(desired,k);camUp.lerp(up,k).normalize();camLook.lerp(look,k);
   camera.position.copy(camPos);camera.up.copy(camUp);camera.lookAt(camLook);
-  if(talking){if(!sbN.hidden)placeBubble(sbN,headOf(talking.rig.group,2.05),18);if(!sbMe.hidden)placeBubble(sbMe,headOf(player.group,2.05),18);}
+  if(talking){if(!sbN.hidden)placeBubble(sbN,headOf(talking.rig.group,2.25),34);if(!sbMe.hidden)placeBubble(sbMe,headOf(player.group,2.25),34);}
   // who is close enough to talk to?
   nearN=null;if(!talking){let best=2.6;for(const n of npcs){const d=npcPos(n).multiplyScalar(R).distanceTo(player.group.position);if(d<best){best=d;nearN=n;}}}
   if(nearN!==shownN){shownN=nearN;const pr=$('#prompt'),ba=$('#ba');
