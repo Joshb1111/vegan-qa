@@ -517,16 +517,16 @@ function groundFix(holder,root){holder.updateMatrixWorld(true);let minY=Infinity
     document.head.appendChild(su);
     // birds: tiny gulls that circle the planet in small flocks and on their own; wings flap in the shader
     loader.load('assets/bird.glb',g=>{let src=null;g.scene.traverse(m=>{if(m.isMesh&&!src)src=m;});if(!src)return;
-      const geo=src.geometry;const bb=new THREE.Box3().setFromObject(src);const span=bb.max.x-bb.min.x;const sc=0.9/span;
+      const geo=src.geometry;const bb=new THREE.Box3().setFromObject(src);const len=bb.max.x-bb.min.x,hgt=bb.max.y-bb.min.y,yS=bb.min.y+.42*hgt;const sc=(location.search.includes('bigbirds')?8:1)/len;/* body runs along x, wings rise either side in z */
       const mkBird=(ph)=>{const mat=new THREE.MeshBasicMaterial({map:src.material.map||null,color:src.material.map?0xffffff:0xf3efe4});
         mat.onBeforeCompile=sh=>{sh.uniforms.uT={value:0};sh.uniforms.uPh={value:ph};mat.userData.sh=sh;
-          sh.vertexShader='uniform float uT;uniform float uPh;\n'+sh.vertexShader.replace('#include <begin_vertex>','#include <begin_vertex>\n transformed.y+=sin(uT*8.0+uPh)*pow(abs(position.x)/'+(span/2).toFixed(3)+',1.5)*'+(span*0.32).toFixed(3)+';');};
-        const m=new THREE.Mesh(geo,mat);m.scale.setScalar(sc);m.userData.noInk=true;m.frustumCulled=false;const h=new THREE.Group();h.add(m);scene.add(h);return {h,mat};};
+          sh.vertexShader='uniform float uT;uniform float uPh;\n'+sh.vertexShader.replace('#include <begin_vertex>','#include <begin_vertex>\n float wg=pow(max(position.y-'+yS.toFixed(3)+',0.0)/'+(hgt-yS+bb.min.y).toFixed(3)+',1.4);float fl=sin(uT*8.0+uPh);transformed.z+=fl*sign(position.z)*wg*'+(hgt*.5).toFixed(3)+';transformed.y-=abs(fl)*wg*'+(hgt*.3).toFixed(3)+';');};
+        const m=new THREE.Mesh(geo,mat);m.scale.setScalar(sc);m.rotation.y=-Math.PI/2;/* beak forward */m.userData.noInk=true;m.frustumCulled=false;const h=new THREE.Group();h.add(m);scene.add(h);return {h,mat};};
       const perp=a=>{const t=Math.abs(a.y)<.9?new THREE.Vector3(0,1,0):new THREE.Vector3(1,0,0);return new THREE.Vector3().crossVectors(a,t).normalize();};
       const groups=[];for(let f=0;f<4;f++){const axis=new THREE.Vector3(rnd()-.5,rnd()-.5,rnd()-.5).normalize();const n=3+Math.floor(rnd()*3);
         groups.push({axis,u:perp(axis),rad:R+12+rnd()*8,w:(.05+rnd()*.03)*(rnd()<.5?1:-1),th:rnd()*Math.PI*2,birds:Array.from({length:n},(_,i)=>({b:mkBird(rnd()*6),along:-i*1.1,side:(i%2?1:-1)*Math.ceil(i/2)*1.0,upo:(rnd()-.5)*.6}))});}
       for(let f=0;f<5;f++){const axis=new THREE.Vector3(rnd()-.5,rnd()-.5,rnd()-.5).normalize();groups.push({axis,u:perp(axis),rad:R+10+rnd()*12,w:(.04+rnd()*.05)*(rnd()<.5?1:-1),th:rnd()*Math.PI*2,birds:[{b:mkBird(rnd()*6),along:0,side:0,upo:0}]});}
-      birdGroups.push(...groups);sceneDirty=true;},undefined,e=>console.warn('bird not loaded',e));};
+      birdGroups.push(...groups);window.__birds=birdGroups;sceneDirty=true;},undefined,e=>console.warn('bird not loaded',e));};
   document.head.appendChild(sc);})();
 
 /* ---------- the people you can talk to ---------- */
