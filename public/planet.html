@@ -458,7 +458,8 @@ function updateBirds(dt,t){for(const g of birdGroups){g.th+=g.w*dt;const v=new T
   for(const bd of g.birds){const th=g.th+bd.along/g.rad;const c=Math.cos(th),s_=Math.sin(th);_bv.copy(g.u).multiplyScalar(c).addScaledVector(v,s_);_bf.copy(g.u).multiplyScalar(-s_).addScaledVector(v,c).multiplyScalar(Math.sign(g.w));
     _bu.copy(_bv);_bs.crossVectors(_bf,_bu).normalize();_bv.multiplyScalar(g.rad).addScaledVector(_bs,bd.side).addScaledVector(_bu,bd.upo);
     bd.b.h.position.copy(_bv);_bm.makeBasis(_bs,_bu,_bf.clone().negate());bd.b.h.quaternion.setFromRotationMatrix(_bm);bd.b.h.rotateOnAxis(new THREE.Vector3(0,0,1),-Math.sign(g.w)*.25);
-    const sh=bd.b.mat.userData.sh;if(sh)sh.uniforms.uT.value=t;}}}
+    const sh=bd.b.mat.userData.sh;if(sh)sh.uniforms.uT.value=t;}}
+}
 // Put a posed character's lowest skinned vertex exactly on the ground of its holder
 const _gv=new THREE.Vector3();
 function groundFix(holder,root){holder.updateMatrixWorld(true);let minY=Infinity;
@@ -520,7 +521,7 @@ function groundFix(holder,root){holder.updateMatrixWorld(true);let minY=Infinity
       const geo=src.geometry;const bb=new THREE.Box3().setFromObject(src);const len=bb.max.x-bb.min.x,hgt=bb.max.y-bb.min.y,yS=bb.min.y+.42*hgt;const sc=(location.search.includes('bigbirds')?8:1)/len;/* body runs along x, wings rise either side in z */
       const mkBird=(ph)=>{const mat=new THREE.MeshBasicMaterial({map:src.material.map||null,color:src.material.map?0xffffff:0xf3efe4});
         mat.onBeforeCompile=sh=>{sh.uniforms.uT={value:0};sh.uniforms.uPh={value:ph};mat.userData.sh=sh;
-          sh.vertexShader='uniform float uT;uniform float uPh;\n'+sh.vertexShader.replace('#include <begin_vertex>','#include <begin_vertex>\n float wg=pow(max(position.y-'+yS.toFixed(3)+',0.0)/'+(hgt-yS+bb.min.y).toFixed(3)+',1.4);float fl=sin(uT*8.0+uPh);transformed.z+=fl*sign(position.z)*wg*'+(hgt*.5).toFixed(3)+';transformed.y-=abs(fl)*wg*'+(hgt*.3).toFixed(3)+';');};
+          sh.vertexShader='uniform float uT;uniform float uPh;\n'+sh.vertexShader.replace('#include <begin_vertex>','#include <begin_vertex>\n float yS='+yS.toFixed(3)+';float w=smoothstep(yS-0.04,yS+0.08,position.y);float th=sign(position.z)*1.9*(0.5+0.5*sin(uT*7.0+uPh));float dy=position.y-yS;float cz=position.z;float c=cos(th),s_=sin(th);vec3 rot=vec3(position.x, yS+dy*c-cz*s_, dy*s_+cz*c);transformed=mix(transformed,rot,w);');};
         const m=new THREE.Mesh(geo,mat);m.scale.setScalar(sc);m.rotation.y=-Math.PI/2;/* beak forward */m.userData.noInk=true;m.frustumCulled=false;const h=new THREE.Group();h.add(m);scene.add(h);return {h,mat};};
       const perp=a=>{const t=Math.abs(a.y)<.9?new THREE.Vector3(0,1,0):new THREE.Vector3(1,0,0);return new THREE.Vector3().crossVectors(a,t).normalize();};
       const groups=[];for(let f=0;f<4;f++){const axis=new THREE.Vector3(rnd()-.5,rnd()-.5,rnd()-.5).normalize();const n=3+Math.floor(rnd()*3);
