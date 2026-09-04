@@ -576,14 +576,25 @@ let voiceOn=true;try{voiceOn=localStorage.getItem('planet-voice')!=='off';}catch
 const canSpeak='speechSynthesis' in window;
 if(!canSpeak){$('#voice').hidden=true;voiceOn=false;}
 $('#voice').setAttribute('aria-pressed',String(voiceOn));$('#voice').textContent=voiceOn?'Voice on':'Voice off';
-$('#voice').addEventListener('click',()=>{voiceOn=!voiceOn;$('#voice').setAttribute('aria-pressed',String(voiceOn));$('#voice').textContent=voiceOn?'Voice on':'Voice off';try{localStorage.setItem('planet-voice',voiceOn?'on':'off');}catch(_){}if(!voiceOn&&canSpeak)speechSynthesis.cancel();});
+$('#voice').addEventListener('click',()=>{voiceOn=!voiceOn;$('#voice').setAttribute('aria-pressed',String(voiceOn));$('#voice').textContent=voiceOn?'Voice on':'Voice off';try{localStorage.setItem('planet-voice',voiceOn?'on':'off');}catch(_){}if(!voiceOn)stopSpeech();});
 // Each character gets their own voice: a preferred named voice when the device has it, otherwise a
 // different one of whatever English voices exist, plus their own pitch and pace.
 const VOICE_WISH=['Daniel','Kate','Serena','Oliver','Moira','Rishi','Fiona','Alex','Karen','Samantha','Tessa','Google UK English Female','Google UK English Male'];
 function pickVoice(n){if(!canSpeak)return null;const vs=speechSynthesis.getVoices();const en=vs.filter(v=>/^en/i.test(v.lang));if(!en.length)return null;
   const i=npcs.indexOf(n);if(n.voiceWish){const w=en.find(v=>v.name.startsWith(n.voiceWish));if(w)return w;}
   const gb=en.filter(v=>/en-GB/i.test(v.lang));const pool=gb.length>=3?gb:en;return pool[(i*5+2)%pool.length];}
-function speak(text,n){if(!canSpeak||!voiceOn)return;speechSynthesis.cancel();const u=new SpeechSynthesisUtterance(text);const vc=pickVoice(n);if(vc)u.voice=vc;u.rate=n.rate||1;u.pitch=n.pitch||1;speechSynthesis.speak(u);}
+/* Hosted voices: residents with an ElevenLabs voice fetch audio from /api/speak (cached server-side);
+   anyone else, or any failure, falls back to the browser's own voice. */
+const hosted={};let audioEl=null,speakSeq=0;
+function browserSpeak(text,n){if(!canSpeak)return;speechSynthesis.cancel();const u=new SpeechSynthesisUtterance(text);const vc=pickVoice(n);if(vc)u.voice=vc;u.rate=n.rate||1;u.pitch=n.pitch||1;speechSynthesis.speak(u);}
+function stopSpeech(){speakSeq++;if(audioEl){audioEl.pause();audioEl.src='';audioEl=null;}if(canSpeak)speechSynthesis.cancel();}
+async function speak(text,n){if(!voiceOn)return;stopSpeech();const seq=speakSeq;
+  if(hosted[n.name]!==false){try{const ctrl=new AbortController();const to=setTimeout(()=>ctrl.abort(),20000);
+      const r=await fetch('/api/speak',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({who:n.name,text}),signal:ctrl.signal});clearTimeout(to);
+      if(r.status===404){hosted[n.name]=false;}
+      else if(r.ok){const blob=await r.blob();if(seq!==speakSeq||!voiceOn)return;const url=URL.createObjectURL(blob);audioEl=new Audio(url);audioEl.onended=()=>URL.revokeObjectURL(url);await audioEl.play();hosted[n.name]=true;return;}
+    }catch(e){}}
+  if(seq===speakSeq)browserSpeak(text,n);}
 if(canSpeak)speechSynthesis.onvoiceschanged=()=>{};
 let typer=null;
 function say(html,n,plainForVoice){
@@ -603,13 +614,13 @@ function startTalk(n){
   q.value='';chat.classList.remove('off');say(n.greet,n,n.greet);
   if(!isTouch)setTimeout(()=>q.focus(),350);
 }
-function endTalk(){if(!talking)return;const n=talking;talking=null;n.paused=false;chat.classList.add('off');if(canSpeak)speechSynthesis.cancel();if(typer){clearInterval(typer);typer=null;}game.focus();}
+function endTalk(){if(!talking)return;const n=talking;talking=null;n.paused=false;chat.classList.add('off');stopSpeech();if(typer){clearInterval(typer);typer=null;}game.focus();}
 $('#bye').addEventListener('click',endTalk);
 const esc=s=>s.replace(/[&<>]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;'}[c]));
 async function ask(text){
   const n=talking;if(!n)return;const query=(text||'').trim();if(!query)return;
   q.value='';send.disabled=true;chips.hidden=true;
-  bubble.innerHTML='<span class="thinking">'+esc(n.name)+' thinks about it…</span>';if(canSpeak)speechSynthesis.cancel();
+  bubble.innerHTML='<span class="thinking">'+esc(n.name)+' thinks about it…</span>';stopSpeech();
   const pre=ANSWERS[normQ(query)];
   if(pre&&pre.answer){await new Promise(r=>setTimeout(r,500));let html=esc(pre.answer).replace(/\n\n+/g,'<br><br>').replace(/\n/g,'<br>');if(pre.key)html+='<span class="key">'+esc(pre.key)+'</span>';say(html,n,pre.answer);send.disabled=false;chips.hidden=false;return;}
   const ctrl=new AbortController();const to=setTimeout(()=>ctrl.abort(),58000);
