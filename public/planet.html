@@ -248,16 +248,19 @@ function placeOn(obj,lon,lat,yaw){scene.add(obj);return poseOn(obj,lon,lat,yaw);
 const colliders=[];
 (function makePlanet(){
   const cv=document.createElement('canvas');cv.width=2048;cv.height=1024;const g=cv.getContext('2d');
-  g.fillStyle=P.grass;g.fillRect(0,0,2048,1024);
+  g.fillStyle='#8ab862';g.fillRect(0,0,2048,1024);
   g.fillStyle='rgba(38,51,58,.10)';for(let i=0;i<260;i++){const x=rnd()*2048,y=rnd()*1024;if(Math.abs(y-512)<60)continue;g.beginPath();g.ellipse(x,y,20+rnd()*60,8+rnd()*22,0,0,Math.PI*2);g.fill();}
-  const hw=18,pw=9;
-  g.fillStyle=P.pave;g.fillRect(0,512-hw-pw,2048,(hw+pw)*2);
-  g.fillStyle=P.road;g.fillRect(0,512-hw,2048,hw*2);
-  g.fillStyle='#26333a';g.fillRect(0,512-hw-pw-2,2048,3);g.fillRect(0,512+hw+pw-1,2048,3);g.fillRect(0,512-hw-1,2048,2);g.fillRect(0,512+hw-1,2048,2);
-  g.fillStyle='#f3efe4';for(let x=0;x<2048;x+=46)g.fillRect(x,510,24,4);
+  g.fillStyle='rgba(38,51,58,.08)';for(let i=0;i<260;i++){const x=rnd()*2048,y=rnd()*1024;if(Math.abs(y-512)<60)continue;g.beginPath();g.ellipse(x,y,20+rnd()*60,8+rnd()*22,0,0,Math.PI*2);g.fill();}
   const tex=new THREE.CanvasTexture(cv);tex.anisotropy=8;
   const geo=new THREE.SphereGeometry(R,160,110);
   scene.add(new THREE.Mesh(geo,toon(0xffffff,{map:tex})));
+  // the street: Josh's drawn road wrapped round the equator as a ribbon sitting just above the ground
+  (function makeRoad(){const N=320,M=8,hl=4.8/R,reps=16;const pos=[],uv=[],idx=[]; // M rows across the width so the ribbon follows the curve of the ground
+    for(let i=0;i<=N;i++){const lon=i/N*Math.PI*2;for(let j=0;j<=M;j++){const lat=hl-2*hl*j/M;const v=sphere(lon,lat).multiplyScalar(R+.06);pos.push(v.x,v.y,v.z);uv.push(i/N*reps,1-j/M);}}
+    for(let i=0;i<N;i++)for(let j=0;j<M;j++){const a=i*(M+1)+j,b=a+1,c=a+(M+1),d=c+1;idx.push(a,b,c,b,d,c);}
+    const geo=new THREE.BufferGeometry();geo.setAttribute('position',new THREE.Float32BufferAttribute(pos,3));geo.setAttribute('uv',new THREE.Float32BufferAttribute(uv,2));geo.setIndex(idx);geo.computeVertexNormals();
+    const tex=new THREE.TextureLoader().load('assets/road.jpg');tex.wrapS=THREE.RepeatWrapping;tex.anisotropy=8;
+    const m=new THREE.Mesh(geo,new THREE.MeshBasicMaterial({map:tex,side:THREE.DoubleSide,polygonOffset:true,polygonOffsetFactor:-2,polygonOffsetUnits:-2}));scene.add(m);})();
 })();
 (function makeSky(){
   for(let i=0;i<26;i++){const lon=rnd()*Math.PI*2,lat=(rnd()-.5)*Math.PI*.9;const n=sphere(lon,lat);const r=6+rnd()*9;
@@ -471,7 +474,7 @@ let kidModel=null,mixer=null;const clips={};let gait={walk:0,idle:1};const mixer
     const toonify=root=>root.traverse(m=>{if(m.isMesh){const old=m.material;m.material=flatMat(old.map,old.color);}});
     const fit=(root,height)=>{const bb=new THREE.Box3().setFromObject(root);const sc=height/(bb.max.y-bb.min.y);root.scale.setScalar(sc);root.position.y=-bb.min.y*sc;root.position.x=-(bb.min.x+bb.max.x)/2*sc;root.position.z=-(bb.min.z+bb.max.z)/2*sc;};
     // Josh's buildings: slots rotate through the list, so each one appears several times around the planet
-    const BUILDINGS=['assets/building1v2.glb','assets/building3.glb','assets/building4.glb','assets/building6.glb']; // building5 (old-settings storefront) dropped: its texture shatters into speckles
+    const BUILDINGS=['assets/building1v2.glb','assets/building3.glb','assets/building4.glb','assets/building6.glb','assets/building5.glb','assets/building7.glb'];
     BUILDINGS.forEach((file,bi)=>loader.load(file,g=>{toonify(g.scene);fit(g.scene,9);
       modelSlots.forEach((sl,i)=>{if(i%BUILDINGS.length!==bi)return;const inst=new THREE.Group();inst.add(g.scene.clone());placeOn(inst,sl.lon,sl.lat,sl.yaw);colliders.push(inst);});sceneDirty=true;},undefined,e=>console.warn('building not loaded',file,e)));
     loader.load('assets/stairs1.glb',g=>{toonify(g.scene);fit(g.scene,2.4);for(const sl of stairSlots){const inst=new THREE.Group();inst.add(g.scene.clone());placeOn(inst,sl.lon,sl.lat,sl.yaw);}sceneDirty=true;},undefined,e=>console.warn('stairs not loaded',e));
