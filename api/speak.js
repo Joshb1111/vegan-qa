@@ -4,7 +4,7 @@ import { VOICES, VOICE_MODEL, OUTPUT_FORMAT } from "./_voices.js";
 // Turns a resident's answer into speech with ElevenLabs. Audio is cached in Redis for 30 days, so
 // any answer is only ever synthesised once; the daily per-IP limit only counts cache misses.
 const MAX_CHARS = 1200;
-const DAILY_LIMIT = 40; // fresh syntheses per IP per day
+const DAILY_LIMIT = 80; // fresh syntheses per IP per day
 const TTL = 60 * 60 * 24 * 30;
 
 export default async function handler(req, res) {
