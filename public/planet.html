@@ -796,7 +796,7 @@ const _m=new THREE.Matrix4(),_v=new THREE.Vector3();
 
 function update(dt){
   let fw=(hold.u?1:0)-(hold.d?1:0), tn=(hold.l?1:0)-(hold.r?1:0);
-  if(sitting&&(fw||tn))standUp();
+  if(sitting){sitOrbit.yaw+=tn*1.8*dt;sitOrbit.pitch=clamp(sitOrbit.pitch+fw*.7*dt,-.25,.9);if(fw||tn)firstMove();fw=0;tn=0;}
   if(fw||tn){autoTarget=null;autoRoute=[];autoFace=null;firstMove();}
   updateNight(dt);
   if(sitting){fw=0;tn=0;v=0;pendingMove=0;}
@@ -862,8 +862,9 @@ function update(dt){
     desired=me.clone().addScaledVector(up,3.2).addScaledVector(to,-3.6).addScaledVector(side,3.4);look=me.clone().lerp(other,.6).addScaledVector(up,1.4);}
   else{idleT=speed>.3||sitting?0:idleT+dt;const wantYaw=idleT>2.5?1.75:0;camYaw+=(wantYaw-camYaw)*Math.min(1,dt*.7);
     const dir=fwd.clone().multiplyScalar(Math.cos(camYaw)).addScaledVector(right,Math.sin(camYaw));const off=camYaw>.1?1-camYaw/1.75:1;
-    desired=up.clone().multiplyScalar(hAt(up)+2.1+.3*camYaw).addScaledVector(dir,-4.4);
-    look=up.clone().multiplyScalar(hAt(up)+1.4).addScaledVector(fwd,3.6*off);} // centred behind him while walking
+    if(sitting){const sd=fwd.clone().multiplyScalar(Math.cos(sitOrbit.yaw)).addScaledVector(right,Math.sin(sitOrbit.yaw));desired=up.clone().multiplyScalar(hAt(up)+1.7+sitOrbit.pitch*2.2).addScaledVector(sd,-3.6);look=up.clone().multiplyScalar(hAt(up)+1.25).addScaledVector(fwd,7*Math.max(0,Math.cos(sitOrbit.yaw)));}
+    else{desired=up.clone().multiplyScalar(hAt(up)+2.1+.3*camYaw).addScaledVector(dir,-4.4);
+    look=up.clone().multiplyScalar(hAt(up)+1.4).addScaledVector(fwd,3.6*off);}} // centred behind him while walking
   const eye=talking?look.clone():up.clone().multiplyScalar(hAt(up)+1.8);const ray=desired.clone().sub(eye);const len=ray.length();
   raycaster.set(eye,ray.normalize());raycaster.far=len;
   const hits=raycaster.intersectObjects(colliders,true);
@@ -897,16 +898,17 @@ window.addEventListener('keydown',e=>{
   if(e.metaKey||e.ctrlKey||e.altKey)return;
   if(talking){if(e.key==='Escape')endTalk();else if((e.key==='Enter'||e.key===' ')&&document.activeElement!==q){nextChunk();e.preventDefault();}return;}
   if(!$('#stops').hidden&&e.key==='Escape'){toggleStops(false);return;}
+  if(sitting&&e.key==='Escape'){standUp();return;}
   if(KEYS[e.key]){hold[KEYS[e.key]]=true;e.preventDefault();return;}
   if(e.key===' '){doJump();e.preventDefault();return;}
   if(e.key==='e'||e.key==='E'||e.key==='Enter'){action();e.preventDefault();}
 });
 window.addEventListener('keyup',e=>{if(KEYS[e.key])hold[KEYS[e.key]]=false;});
 window.addEventListener('blur',()=>{for(const k in hold)hold[k]=false;drag=null;});
-game.addEventListener('wheel',e=>{if(talking)return;e.preventDefault();const k=e.deltaMode===1?16:e.deltaMode===2?200:1;pendingMove=clamp(pendingMove+e.deltaY*k*.02,-30,30);autoTarget=null;firstMove();},{passive:false});
+game.addEventListener('wheel',e=>{if(talking||sitting)return;e.preventDefault();const k=e.deltaMode===1?16:e.deltaMode===2?200:1;pendingMove=clamp(pendingMove+e.deltaY*k*.02,-30,30);autoTarget=null;firstMove();},{passive:false});
 let drag=null;
 canvas.addEventListener('pointerdown',e=>{if(talking)return;drag={id:e.pointerId,x:e.clientX,y:e.clientY};canvas.classList.add('drag');try{canvas.setPointerCapture(e.pointerId)}catch(_){}});
-canvas.addEventListener('pointermove',e=>{if(!drag||e.pointerId!==drag.id)return;const dx=e.clientX-drag.x,dy=e.clientY-drag.y;drag.x=e.clientX;drag.y=e.clientY;if(dx){turn(-dx*.006);autoTarget=null;autoFace=null;}if(dy){pendingMove=clamp(pendingMove-dy*.05,-30,30);}if(dx||dy)firstMove();});
+canvas.addEventListener('pointermove',e=>{if(!drag||e.pointerId!==drag.id)return;const dx=e.clientX-drag.x,dy=e.clientY-drag.y;drag.x=e.clientX;drag.y=e.clientY;if(sitting){sitOrbit.yaw-=dx*.006;sitOrbit.pitch=clamp(sitOrbit.pitch+dy*.004,-.25,.9);return;}if(dx){turn(-dx*.006);autoTarget=null;autoFace=null;}if(dy){pendingMove=clamp(pendingMove-dy*.05,-30,30);}if(dx||dy)firstMove();});
 const endDrag=e=>{if(drag&&e.pointerId===drag.id){drag=null;canvas.classList.remove('drag');}};
 ['pointerup','pointercancel'].forEach(ev=>canvas.addEventListener(ev,endDrag));
 let lastUpTap=0;
@@ -1002,20 +1004,20 @@ function say(html,n,plainForVoice,key){if(typer){clearInterval(typer);typer=null
 function action(){unlockAudio();if(sitting){standUp();return;}if(nearBench&&!talking){sitDown();return;}if(nearN&&!talking)startTalk(nearN);}
 /* sitting on the bench: the kid is set on the seat facing the sea and his legs are bent after the animation
    has run; the sun goes down, the stars come out for half a minute, then it brightens again */
-let sitting=false,nearBench=false,nightT=null,night=0;const _sq=new THREE.Quaternion(),_sx=new THREE.Vector3(1,0,0);
-function sitDown(){if(!BENCH)return;autoTarget=null;autoRoute=[];autoFace=null;v=0;pendingMove=0;up.copy(BENCH.n);fwd.copy(BENCH.face);orthonormalize();sitting=true;nightT=performance.now()/1000;$('#ba').textContent='Stand up';$('#ba').classList.remove('off');}
-function standUp(){if(!sitting)return;sitting=false;sitPose=null;moveForward(.9);$('#ba').classList.add('off');shownN=undefined;}
+let sitting=false,nearBench=false,nightT=null,night=0;const sitOrbit={yaw:0,pitch:0}; /* while seated the controls swing the camera round him instead */const _sq=new THREE.Quaternion(),_sx=new THREE.Vector3(1,0,0);
+function sitDown(){if(!BENCH)return;autoTarget=null;autoRoute=[];autoFace=null;v=0;pendingMove=0;up.copy(BENCH.n);fwd.copy(BENCH.face);if(SUNSET){const toSun=SUNSET.base[2].clone().sub(up.clone().multiplyScalar(hAt(up)));toSun.addScaledVector(up,-toSun.dot(up));if(toSun.lengthSq()>1e-6)fwd.copy(toSun);}orthonormalize();sitting=true;sitOrbit.yaw=0;sitOrbit.pitch=0;nightT=performance.now()/1000;$('#ba').textContent='Stand up';$('#ba').classList.remove('off');}
+function standUp(){if(!sitting)return;sitting=false;sitPose=null;if(nightT!==null&&performance.now()/1000-nightT<10)nightT=null;moveForward(.9);$('#ba').classList.add('off');shownN=undefined;}
 let sitPose=null;
 function applySit(){if(!sitting||!kidModel)return;const bones=kidModel.userData.bones;if(!bones)return;const S={t:1.45,c:-1.45};
   if(!sitPose){sitPose={};for(const k of ['L_Thigh','R_Thigh','L_Calf','R_Calf']){if(bones[k])sitPose[k]=bones[k].quaternion.clone();}} // snapshot once, then hold the legs still
   for(const k of ['L_Thigh','R_Thigh']){const b=bones[k];if(b&&sitPose[k])b.quaternion.copy(sitPose[k]).multiply(_sq.setFromAxisAngle(_sx,S.t));}
   for(const k of ['L_Calf','R_Calf']){const b=bones[k];if(b&&sitPose[k])b.quaternion.copy(sitPose[k]).multiply(_sq.setFromAxisAngle(_sx,S.c));}}
-function updateNight(dt){if(nightT===null){night=Math.max(0,night-dt*.4);}else{const t=performance.now()/1000-nightT;night=t<8?smooth(0,8,t):t<38?1:t<46?1-smooth(38,46,t):0;if(t>=46)nightT=null;}
+function updateNight(dt){if(nightT===null){night=Math.max(0,night-dt*.4);}else{const t=performance.now()/1000-nightT-10;night=t<0?0:t<8?smooth(0,8,t):t<38?1:t<46?1-smooth(38,46,t):0;if(t>=46)nightT=null;}
   inkPass.uniforms.night.value=night;if(SUNSET){const drop=night*26;SUNSET.parts.forEach((m,i)=>{m.position.copy(SUNSET.base[i]).addScaledVector(SUNSET.B,-drop);m.material.opacity=(i===0?.6:i===1?.95:1)*(1-night*.9);});
     SUNSET.stars.visible=night>.02;SUNSET.stars.material.opacity=Math.max(0,(night-.3)/.7);}
   shadowCap.material.opacity=.34*(1-night*.85);if(nightDome){nightDome.visible=night>.01;nightDome.material.opacity=night;}
   window.__state=()=>({sitting,auto:!!autoTarget,route:autoRoute.length,night:+night.toFixed(2)});}
-function doJump(){if(talking||jump.on||!clips.jump)return;jump.on=true;jump.t=0;jump.dur=clips.jump.getClip().duration;clips.jump.reset().play();firstMove();}
+function doJump(){if(talking||sitting||jump.on||!clips.jump)return;jump.on=true;jump.t=0;jump.dur=clips.jump.getClip().duration;clips.jump.reset().play();firstMove();}
 function startTalk(n){
   talking=n;n.paused=true;autoTarget=null;for(const k in hold)hold[k]=false;v=0;pendingMove=0;
   autoFace=npcWorld(n).sub(player.group.position).normalize();
