@@ -18,7 +18,7 @@ for (const q of questions) {
   if (!j.answer) { console.log("EMPTY ", q); continue; }
   out[k] = { answer: j.answer, key: j.key || "" };
   console.log("done  ", q);
-  await new Promise(res => setTimeout(res, 800)); // stay under the burst limit
+  await new Promise(res => setTimeout(res, 8500)); // stay under the burst limit (8 per minute)
 }
 fs.writeFileSync("public/planet-answers.json", JSON.stringify(out, null, 1));
 console.log(`\n${Object.keys(out).length} answers in public/planet-answers.json`);
