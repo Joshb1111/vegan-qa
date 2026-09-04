@@ -268,13 +268,13 @@ function label(text,w,h,bg,fg,size,opts){
 const sphere=(lon,lat)=>new THREE.Vector3(Math.cos(lat)*Math.cos(lon),Math.sin(lat),Math.cos(lat)*Math.sin(lon));
 function frameAt(lon,lat){const n=sphere(lon,lat);const east=new THREE.Vector3(-Math.sin(lon),0,Math.cos(lon));const north=new THREE.Vector3().crossVectors(east,n).normalize();return {n,east,north};}
 /* ---------- terrain: the town sits at radius R; south of it the ground falls away to a sea, and the skate park has a bowl ---------- */
-const SEA_LEVEL=-2.4, PLAZA={lon:3.5,lat:.30,r:12,hx:11.6,hz:10.7}; /* the park model's half-extents east/north */
+const SEA_LEVEL=-2.4, PLAZA={lon:3.5,lat:.52,r:24,hx:23.2,hz:21.3}; /* the park: twice the old size; hx/hz are the model's half-extents east/north; the ring road bows north round it */
 const PLAZA_N=sphere(PLAZA.lon,PLAZA.lat);const PARK=(()=>{const {east,north}=frameAt(PLAZA.lon,PLAZA.lat);return {C:PLAZA_N,east,north};})();
 const parkPt=(dx,dz)=>new THREE.Vector3().copy(PARK.C).addScaledVector(PARK.east,dx/R).addScaledVector(PARK.north,dz/R).normalize();
 /* the skate park model (assets/skatepark.glb) laid out in plaza units, east/north of the centre; measured from the model:
    big quarter pipe at the back (dz 6.2..10.4, wall at the north end, 3.8 tall), fun box in the middle (top 1.5),
    bowl to the south-west (1.8 deep), a floor-level rail along the south edge */
-const RAIL={dz:-9.2,x0:-3.0,x1:5.2};
+const RAIL={dz:-18.4,x0:-6.0,x1:10.4};
 const _pq=new THREE.Vector3();
 function parkXZ(n){const d=_pq.copy(n).sub(PARK.C);return [d.dot(PARK.east)*R,d.dot(PARK.north)*R];}
 /* the park's surface height (relative to its floor) comes from a height map ray-cast off the model in Blender
@@ -282,14 +282,13 @@ function parkXZ(n){const d=_pq.copy(n).sub(PARK.C);return [d.dot(PARK.east)*R,d.
 let HM=null;
 function parkH(n){if(!HM)return 0;const [dx,dz]=parkXZ(n);const x=-dx/HM.S,y=dz/HM.S;if(x<=HM.x0||x>=HM.x1||y<=HM.y0||y>=HM.y1)return 0;
   const gx=(x-HM.x0)/(HM.x1-HM.x0)*(HM.nx-1),gy=(y-HM.y0)/(HM.y1-HM.y0)*(HM.ny-1);const i=Math.floor(gx),j=Math.floor(gy),fx=gx-i,fy=gy-j;const D=HM.data,W=HM.nx;
-  const h00=D[j*W+i],h10=D[j*W+i+1],h01=D[(j+1)*W+i],h11=D[(j+1)*W+i+1];return ((h00*(1-fx)+h10*fx)*(1-fy)+(h01*(1-fx)+h11*fx)*fy)/HM.scale;}
+  const h00=D[j*W+i],h10=D[j*W+i+1],h01=D[(j+1)*W+i],h11=D[(j+1)*W+i+1];return ((h00*(1-fx)+h10*fx)*(1-fy)+(h01*(1-fx)+h11*fx)*fy)/HM.scale*(HM.hk||1);}
 function inPark(n){const [dx,dz]=parkXZ(n);return Math.abs(dx)<PLAZA.hx&&Math.abs(dz)<PLAZA.hz;}
 let groundMesh=null;
-fetch('assets/skatepark-h.json').then(r=>r.json()).then(j=>{HM=j;if(groundMesh){const pa=groundMesh.geometry.attributes.position;for(let i=0;i<pa.count;i++){_q.set(pa.getX(i),pa.getY(i),pa.getZ(i)).normalize();const h=hAt(_q);pa.setXYZ(i,_q.x*h,_q.y*h,_q.z*h);}pa.needsUpdate=true;groundMesh.geometry.computeVertexNormals();}}).catch(e=>console.warn('park height map not loaded',e));
+fetch('assets/skatepark-h.json').then(r=>r.json()).then(j=>{HM=j;HM.S=PLAZA.r*2*.96;HM.hk=1.5; /* the model is scaled to the plaza across, and 1.5x in height */if(groundMesh){const pa=groundMesh.geometry.attributes.position;for(let i=0;i<pa.count;i++){_q.set(pa.getX(i),pa.getY(i),pa.getZ(i)).normalize();const h=hAt(_q);pa.setXYZ(i,_q.x*h,_q.y*h,_q.z*h);}pa.needsUpdate=true;groundMesh.geometry.computeVertexNormals();}}).catch(e=>console.warn('park height map not loaded',e));
 function smooth(a,b,x){const t=clamp((x-a)/(b-a),0,1);return t*t*(3-2*t);}
 function terrainBase(n){const lat=Math.asin(clamp(n.y,-1,1));let h=-3.2*smooth(-.2,-.46,lat);
   /* the skate park is a flat platform: the ground rises to the tangent plane at the plaza centre, with a slope round the rim */
-  const dp=Math.acos(clamp(n.dot(PLAZA_N),-1,1));if(dp*R<PLAZA.r+8){const [px,pz]=parkXZ(n);const d=Math.max(Math.abs(px)-PLAZA.hx,Math.abs(pz)-PLAZA.hz,0);if(d<2.5)h+=(R/Math.cos(dp)-R)*(1-smooth(0,2.5,d));}
   return h;}
 /* the ground mesh: the base terrain, dipped under the park's bowl and tucked just under its floor */
 function terrainH(n){let h=terrainBase(n);if(HM&&inPark(n))h+=Math.min(parkH(n),0)-.08;return h;}
@@ -326,6 +325,7 @@ function offsetFrom(sm,dist){return _q.copy(sm.n).addScaledVector(sm.side,dist/R
 const ROADS=[],ZONES=[];
 /* true if a thing of half-size `margin` at unit vector v would sit on another road or in a reserved zone */
 function blocked(v,margin,road){for(const z of ZONES){if(Math.acos(clamp(v.dot(z.n),-1,1))*R<z.r+margin)return true;}
+  {const [px,pz]=parkXZ(v);if(Math.abs(px)<PLAZA.hx+margin+2.5&&Math.abs(pz)<PLAZA.hz+margin+2.5)return true;} // the skate park's footprint
   for(const r of ROADS){if(r===road)continue;const cl=Math.cos((r.halfW+margin)/R);for(const sm of r.samples)if(v.dot(sm.n)>cl)return true;}return false;}
 /* ---------- solids: walls, houses, trees and street furniture the player cannot walk through ---------- */
 const solids=[];
@@ -344,17 +344,17 @@ const colliders=[];let skyDome=null,nightDome=null,SUNSET=null;const PLACES={};
 (function makePlanet(){
   /* the road network */
   const mainLat=lon=>.07*Math.sin(3*lon+.4)+.03*Math.sin(5*lon+1.7); // the main loop meanders left and right
-  const ringLat=lon=>.62+.045*Math.sin(2*lon+1);
+  const ringLat=lon=>.62+.045*Math.sin(2*lon+1)+.42*smooth(1.2,.7,Math.abs(lon-PLAZA.lon)); // bows north round the skate park
   function addRoad(name,pts,closed,halfW,kind,lift){const r=Object.assign(catmull(pts,closed,.8),{name,halfW,kerb:.575*halfW,kind,lift});ROADS.push(r);return r;}
   const loopPts=(f,n)=>Array.from({length:n},(_,i)=>{const lon=i/n*Math.PI*2;return [lon,f(lon)];});
   const MAIN=addRoad('main',loopPts(mainLat,24),true,4.8,'road',.06);
   const RING=addRoad('ring',loopPts(ringLat,20),true,3.6,'road',.06);
   [[0.85,0.95,.06],[2.55,2.45,-.05],[4.35,4.5,.05]].forEach(([a,b,k],i)=>addRoad('side'+i,[[a,mainLat(a)],[(a+b)/2+k,(mainLat(a)+ringLat(b))/2],[b,ringLat(b)]],false,3.6,'road',.07));
   [[1.75,1.85],[5.2,5.12]].forEach(([a,b],i)=>addRoad('alley'+i,[[a,mainLat(a)],[a+.02,mainLat(a)+.13],[b-.03,mainLat(a)+.3],[b,ringLat(b)]],false,1.5,'alley',.08));
-  addRoad('skate',[[3.5,mainLat(3.5)],[3.49,(mainLat(3.5)+PLAZA.lat-(PLAZA.r+1)/R)/2],[PLAZA.lon,PLAZA.lat-(PLAZA.r+1)/R]],false,3.2,'road',.07);
+  addRoad('skate',[[3.5,mainLat(3.5)],[PLAZA.lon,PLAZA.lat-(PLAZA.hz+.5)/R]],false,3.2,'road',.07);
   addRoad('beach',[[1.3,mainLat(1.3)],[1.36,-.12],[1.26,-.23],[1.32,-.325]],false,2.2,'path',.03);
   window.__roads={MAIN,RING,mainLat,ringLat};
-  ZONES.push({n:sphere(PLAZA.lon,PLAZA.lat),r:18},{n:sphere(1.32,-.36),r:9});
+  ZONES.push({n:sphere(1.32,-.36),r:9});
   /* ground texture: grass, a sandy shore, foam at the waterline, the concrete plaza */
   const cv=document.createElement('canvas');cv.width=2048;cv.height=1024;const g=cv.getContext('2d');
   const cy=lat=>(Math.PI/2-lat)/Math.PI*1024,cx=lon=>(((Math.PI-lon)/(Math.PI*2))%1+1)%1*2048;
@@ -365,7 +365,6 @@ const colliders=[];let skyDome=null,nightDome=null,SUNSET=null;const PLACES={};
   g.fillStyle='#d9c99a';g.fillRect(0,cy(-.35),2048,cy(-.5)-cy(-.35)); // wetter sand near the water
   g.fillStyle='#b9c7a0';g.fillRect(0,cy(-.5),2048,1024-cy(-.5)); // sea bed (under the water)
   g.fillStyle='rgba(255,255,255,.75)';for(let x=0;x<2048;x+=14){g.fillRect(x,cy(-.371),9,3);} // foam
-  g.fillStyle='#bcc0bc';{const w=(PLAZA.hx+2.2)*6.52/Math.cos(PLAZA.lat),hh=(PLAZA.hz+2.2)*6.52;g.fillRect(cx(PLAZA.lon)-w,cy(PLAZA.lat)-hh,2*w,2*hh);} // skate plaza concrete
   const tex=new THREE.CanvasTexture(cv);tex.anisotropy=8;
   const geo=new THREE.SphereGeometry(R,256,160);const pa=geo.attributes.position;
   for(let i=0;i<pa.count;i++){_q.set(pa.getX(i),pa.getY(i),pa.getZ(i)).normalize();const h=hAt(_q);pa.setXYZ(i,_q.x*h,_q.y*h,_q.z*h);}geo.computeVertexNormals();
@@ -407,7 +406,7 @@ const colliders=[];let skyDome=null,nightDome=null,SUNSET=null;const PLACES={};
   const ntex=new THREE.TextureLoader().load('assets/sky-night.jpg');ntex.wrapS=THREE.MirroredRepeatWrapping;ntex.repeat.x=2;
   const nd=new THREE.Mesh(new THREE.SphereGeometry(414,48,32),new THREE.MeshBasicMaterial({map:ntex,side:THREE.BackSide,transparent:true,opacity:0,depthWrite:false}));nd.userData.noInk=true;nd.visible=false;scene.add(nd);nightDome=nd;
   // rolling hills beyond the ring road, up towards the north pole
-  for(let i=0;i<8;i++){const lon=rnd()*Math.PI*2,lat=.9+rnd()*.3;const h=sph(6+rnd()*8,pick([P.green,P.green2,P.green3]),14);h.scale.y=.45;placeOn(h,lon,lat);}
+  for(let i=0;i<8;i++){const lon=rnd()*Math.PI*2,lat=.95+rnd()*.3;if(blocked(sphere(lon,lat),9))continue;const h=sph(6+rnd()*8,pick([P.green,P.green2,P.green3]),14);h.scale.y=.45;placeOn(h,lon,lat);}
 })();
 
 /* =====================================================================
@@ -562,9 +561,9 @@ function townAlong(road,o){o=o||{};const kerb=road.kerb;const end=Math.min(road.
     function rail(len){const g=new THREE.Group();const r=cyl(.05,.05,len,P.grey2,8);r.rotation.z=Math.PI/2;r.position.y=.55;g.add(r);for(const x of [-len/2+.3,len/2-.3])g.add(at(cyl(.04,.04,.55,P.grey2,6),x,.27,0));return g;}
     function skateboard(){const g=new THREE.Group();g.add(at(box(.82,.05,.24,pick([P.red,P.blue,P.yellow])),0,.11,0));for(const x of [-.28,.28])for(const z of [-.1,.1])g.add(at(cyl(.045,.045,.05,P.cream2,8),x,.05,z));g.children.slice(1).forEach(w_=>w_.rotation.x=Math.PI/2);return g;}
     SKATE_SPOT=pt;
-    const [,sl,sa]=pt(-6,-9.5);npcSpots.push({lon:sl,lat:sa,face:north,fixed:'Sam'});PLACES.skate={road:byName('skate'),s:byName('skate').L-1,then:pt(0,-8)[0]};/* skateboards: one always waits at the south-west corner of the park; a new one appears there when it is taken */
-    const [bn]=pt(-10.2,-9.4);BOARD={spawn:bn.clone(),spawnYaw:.4,boards:[],ride:skateboard(),make:skateboard};BOARD.ride.visible=false;scene.add(BOARD.ride);spawnBoard();
-    const [,tl,ta]=pt(4,-10.5);placeOn(bench(),tl,ta,yawFor(tl,ta,north));const [,ol,oa]=pt(9.5,-6);npcSpots.push({lon:ol,lat:oa,face:north.clone().negate()});
+    const [,sl,sa]=pt(-13,-19);npcSpots.push({lon:sl,lat:sa,face:north,fixed:'Sam'});PLACES.skate={road:byName('skate'),s:byName('skate').L-1,then:pt(0,-15)[0]};/* skateboards: one always waits at the south-west corner of the park; a new one appears there when it is taken */
+    const [bn]=pt(-20.4,-18.8);BOARD={spawn:bn.clone(),spawnYaw:.4,boards:[],ride:skateboard(),make:skateboard};BOARD.ride.visible=false;scene.add(BOARD.ride);spawnBoard();
+    const [,tl,ta]=pt(14,-20);placeOn(bench(),tl,ta,yawFor(tl,ta,north));const [,ol,oa]=pt(19,-12);npcSpots.push({lon:ol,lat:oa,face:north.clone().negate()});
   })();
 })();
 // wires between poles (they are the tall wooden ones)
@@ -704,10 +703,17 @@ function groundFix(holder,root){holder.updateMatrixWorld(true);let minY=Infinity
     BUILDINGS.forEach((file,bi)=>loader.load(file,g=>{toonify(g.scene);fit(g.scene,9);
       modelSlots.forEach((sl,i)=>{if(slotType[i]!==bi)return;const inst=new THREE.Group();inst.add(g.scene.clone());placeOnGround(inst,sl.lon,sl.lat,sl.yaw);colliders.push(inst);});sceneDirty=true;},undefined,e=>console.warn('building not loaded',file,e)));
     // the skate park: Josh's model, scaled to the plaza and set flat on its platform
-    loader.load('assets/skatepark.glb',g=>{toonify(g.scene);const bb=new THREE.Box3().setFromObject(g.scene);const sc=(PLAZA.r*2*.96)/Math.max(bb.max.x-bb.min.x,bb.max.z-bb.min.z);
-      g.scene.scale.setScalar(sc);g.scene.position.set(-(bb.min.x+bb.max.x)/2*sc,-bb.min.y*sc,-(bb.min.z+bb.max.z)/2*sc);
-      const inst=new THREE.Group();parkModel=inst;inst.add(g.scene);placeOn(inst,PLAZA.lon,PLAZA.lat,0);inst.position.copy(PLAZA_N).multiplyScalar(R+terrainBase(PLAZA_N));inst.translateY(-.081*sc);inst.updateMatrixWorld(true);colliders.push(inst);sceneDirty=true;
-      const wall=parkPt(.45,10.6);solids.push({c:wall.clone().multiplyScalar(R),X:PARK.east.clone(),Z:PARK.north.clone(),hx:4.3,hz:.25});},undefined,e=>console.warn('skate park not loaded',e));
+    loader.load('assets/skatepark.glb?v=2',g=>{toonify(g.scene);const bb=new THREE.Box3().setFromObject(g.scene);const sc=(PLAZA.r*2*.96)/Math.max(bb.max.x-bb.min.x,bb.max.z-bb.min.z),sy=sc*.75;
+      g.scene.scale.set(sc,sy,sc);g.scene.position.set(-(bb.min.x+bb.max.x)/2*sc,-bb.min.y*sy,-(bb.min.z+bb.max.z)/2*sc);
+      const inst=new THREE.Group();inst.add(g.scene);placeOn(inst,PLAZA.lon,PLAZA.lat,0);inst.position.copy(PLAZA_N).multiplyScalar(R);inst.translateY(-.081*sy);inst.updateMatrixWorld(true);
+      /* bend the park onto the planet: each vertex keeps its east/north offset and its height, but measured along the curved ground */
+      const X=new THREE.Vector3(1,0,0).applyQuaternion(inst.quaternion),Y=new THREE.Vector3(0,1,0).applyQuaternion(inst.quaternion),Z=new THREE.Vector3(0,0,1).applyQuaternion(inst.quaternion);const o=PLAZA_N.clone().multiplyScalar(R);
+      const meshes=[];inst.traverse(m=>{if(m.isMesh)meshes.push(m);});const wp=new THREE.Vector3(),nn=new THREE.Vector3();
+      for(const m of meshes){const pa=m.geometry.attributes.position;for(let i=0;i<pa.count;i++){wp.set(pa.getX(i),pa.getY(i),pa.getZ(i)).applyMatrix4(m.matrixWorld).sub(o);const lx=wp.dot(X),ly=wp.dot(Y),lz=wp.dot(Z);
+          nn.copy(PLAZA_N).addScaledVector(X,lx/R).addScaledVector(Z,lz/R).normalize();const r=R+terrainBase(nn)+ly;pa.setXYZ(i,nn.x*r,nn.y*r,nn.z*r);}
+        pa.needsUpdate=true;m.geometry.computeVertexNormals();m.geometry.computeBoundingSphere();scene.add(m);m.position.set(0,0,0);m.quaternion.identity();m.scale.set(1,1,1);colliders.push(m);}
+      parkModel=meshes[0]||null;sceneDirty=true;
+      const wall=parkPt(.9,21.2);solids.push({c:wall.clone().multiplyScalar(R),X:PARK.east.clone(),Z:PARK.north.clone(),hx:8.6,hz:.25});},undefined,e=>console.warn('skate park not loaded',e));
     const PROPS={mailbox:['assets/mailbox.glb',1.5],crate:['assets/crate.glb',.9],rock:['assets/rock.glb',1.1],treeBig:['assets/tree_a.glb',5.8,true],treeSmall:['assets/tree_b.glb',3.4,true]}; // Josh's trees replace the old ball-and-cone ones; they are thin relief models, so they are placed as two copies crossed at 90° to read from any angle
     for(const kind in PROPS){const [file,hgt,cross]=PROPS[kind];loader.load(file,g=>{toonify(g.scene);fit(g.scene,hgt);for(const sl of propSlots){if(sl.kind!==kind)continue;const inst=new THREE.Group();inst.add(g.scene.clone());if(cross){const w=new THREE.Group();w.add(g.scene.clone());w.rotation.y=Math.PI/2;inst.add(w);}if(sl.k)inst.scale.setScalar(sl.k);placeOn(inst,sl.lon,sl.lat,sl.yaw);if(sl.collide)colliders.push(inst);const SR={treeBig:.5,treeSmall:.4,mailbox:.35,rock:.6*(sl.k||1),crate:.5}[kind];if(SR)solidCircle(inst,SR);}sceneDirty=true;},undefined,e=>console.warn(kind,'not loaded',e));}
     // residents: Josh's four modelled characters, cloned with their skeletons
@@ -824,7 +830,7 @@ function resolveSolids(){const PR=.42;const p=_sc.copy(up).multiplyScalar(R);
     if(ox<oz)slide(_sb.copy(s.X).multiplyScalar(lx<0?-1:1),ox);else slide(_sb.copy(s.Z).multiplyScalar(lz<0?-1:1),oz);p.copy(up).multiplyScalar(R);}}
 function firstMove(){if(!hintGone){hintGone=true;$('#hint').classList.add('gone');}dismissTitle();}
 orthonormalize();
-window.__tp=(lon,lat,h)=>{up.copy(sphere(lon,lat));const {east,north}=frameAt(lon,lat);fwd.copy(h==='n'?north:h==='s'?north.clone().negate():h==='w'?east.clone().negate():east);orthonormalize();camInit=false;};window.__up=()=>up.clone();window.__resnap=()=>{sitPose=null;};window.__bone=n=>kidModel.userData.bones[n].quaternion.toArray().map(v=>+v.toFixed(3)); /* debug: jump somewhere facing n/s/e/w; read the player's position */
+window.__tp=(lon,lat,h)=>{up.copy(sphere(lon,lat));const {east,north}=frameAt(lon,lat);fwd.copy(h==='n'?north:h==='s'?north.clone().negate():h==='w'?east.clone().negate():east);orthonormalize();camInit=false;};window.__up=()=>up.clone();window.__resnap=()=>{sitPose=null;};window.__parkPt=(dx,dz)=>lonLatOf(parkPt(dx,dz));window.__bone=n=>kidModel.userData.bones[n].quaternion.toArray().map(v=>+v.toFixed(3)); /* debug: jump somewhere facing n/s/e/w; read the player's position */
 const camPos=new THREE.Vector3(), camUp=up.clone(), camLook=new THREE.Vector3(), raycaster=new THREE.Raycaster();
 let camInit=false, nearN=null, shownN=null, talking=null, idleT=0, camYaw=0;
 const isTouch=matchMedia('(hover:none)').matches;
@@ -910,7 +916,7 @@ function update(dt){
     let dir=fwd.clone().multiplyScalar(Math.cos(camYaw)).addScaledVector(right,Math.sin(camYaw));const off=camYaw>.1?1-camYaw/1.75:1;
     if(ride.air>0&&ride.spin){const th=Math.PI*smooth(0,1,ride.airT/ride.airDur);dir=ride.fwd0.clone().applyAxisAngle(up,th);}
     const bell=ride.air>0&&ride.spin?Math.sin(Math.PI*clamp(ride.airT/ride.airDur,0,1)):0; /* the trick camera climbs to a near bird's-eye view at the top of the arc and comes back down */
-    const camBack=(ride.on?5.2:4.4)-bell*2.6;const behindN=_ahead.copy(up).addScaledVector(dir,-camBack/R).normalize();const rise=Math.max(0,parkH(behindN)-parkH(up)); /* the ramp behind him lifts the camera over it */
+    const camBack=(ride.on?5.2:4.4)-bell*2.6;let rise=0;const h0=parkH(up);for(let k=1;k<=4;k++){const bn=_ahead.copy(up).addScaledVector(dir,-camBack*k/4/R).normalize();rise=Math.max(rise,parkH(bn)-h0);} /* anything of the park between him and the camera lifts the camera over it */
     const camH=2.1+.3*camYaw+bell*6.5+rise;
     if(sitting){const sd=fwd.clone().multiplyScalar(Math.cos(sitOrbit.yaw)).addScaledVector(right,Math.sin(sitOrbit.yaw));desired=up.clone().multiplyScalar(hAt(up)+1.7+sitOrbit.pitch*2.2).addScaledVector(sd,-3.6);look=up.clone().multiplyScalar(hAt(up)+1.25).addScaledVector(fwd,7*Math.max(0,Math.cos(sitOrbit.yaw)));}
     else{desired=up.clone().multiplyScalar(gAt(up)+camH).addScaledVector(dir,-camBack);
