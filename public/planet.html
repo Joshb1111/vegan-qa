@@ -521,7 +521,7 @@ function townAlong(road,o){o=o||{};const kerb=road.kerb;const end=Math.min(road.
   for(let i=0;i<14;i++){const lon=rnd()*Math.PI*2,lat=-.30-rnd()*.06;propSlots.push({kind:'rock',lon,lat,yaw:rnd()*Math.PI,k:.7+rnd()*.9});}
   /* the beach: the path ends at a bench looking out to sea, with the sunset ahead */
   (function beach(){const end=atS(byName('beach'),byName('beach').L-.5);const {north}=frameAt(end.lon,end.lat);const toSea=north.clone().negate();
-    const bp=_q.copy(end.n).addScaledVector(toSea,-.4/R).addScaledVector(end.side,1.2/R).normalize().clone();const [bl,ba]=lonLatOf(bp);placeOn(bench(),bl,ba,yawFor(bl,ba,toSea));
+    const bp=_q.copy(end.n).addScaledVector(toSea,-.4/R).addScaledVector(end.side,1.2/R).normalize().clone();const [bl,ba]=lonLatOf(bp);const bn=placeOn(bench(),bl,ba,yawFor(bl,ba,toSea));bn.translateY(-.12);bn.updateMatrixWorld(true); /* sunk a touch so a seated kid's feet reach the sand */
     BENCH={n:bp,face:toSea,lon:bl,lat:ba};PLACES.sunset={road:byName('beach'),s:byName('beach').L-1.5,then:_q.copy(bp).addScaledVector(toSea,-1.6/R).normalize().clone()};
     const s1=_q.copy(bp).addScaledVector(end.side,3.4/R).normalize().clone();const [l1,a1]=lonLatOf(s1);npcSpots.push({lon:l1,lat:a1,face:toSea,fixed:'June'});
     const s2=_q.copy(end.n).addScaledVector(toSea,-.6/R).addScaledVector(end.side,6/R).normalize().clone();const [l2,a2]=lonLatOf(s2);npcSpots.push({lon:l2,lat:a2,face:toSea,fixed:'Elin'});
@@ -820,7 +820,7 @@ function update(dt){
   // player pose
   _m.makeBasis(right,up,fwd.clone().negate());player.group.quaternion.setFromRotationMatrix(_m);player.group.position.copy(up).multiplyScalar(hAt(up));updateShadowRig(player.group.position,up,player.group.quaternion);updateSky(up);
   player.pose(speed,dt,speed>3?'run':'walk');
-  if(kidModel){kidModel.quaternion.copy(player.group.quaternion);kidModel.position.copy(player.group.position);if(sitting)kidModel.position.addScaledVector(up,-.36);
+  if(kidModel){kidModel.quaternion.copy(player.group.quaternion);kidModel.position.copy(player.group.position);if(sitting)kidModel.position.addScaledVector(up,-(window.__sitDrop??.26));
     if(kidModel.userData.groundAt&&performance.now()>kidModel.userData.groundAt){kidModel.userData.groundAt=0;groundFix(kidModel,kidModel.userData.root);}
     // gait: run is the default when moving; walk only when easing off; look-around when standing; a scratch now and then
     const moving=speed>.3,running=speed>2.4&&clips.run;
