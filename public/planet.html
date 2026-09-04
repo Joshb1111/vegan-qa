@@ -424,7 +424,7 @@ let kidModel=null,mixer=null;const clips={};let gait={walk:0,idle:1};
     for(const c of g.animations){const n=c.name.toLowerCase();
       // remove horizontal root motion (the model would stride forward, then snap back each loop); remember how far it went
       let travel=0;c.tracks=c.tracks.filter(t=>{if(!t.name.endsWith('.position'))return true;const v=t.values;let mn=[1e9,1e9,1e9],mx=[-1e9,-1e9,-1e9];for(let i=0;i<v.length;i+=3)for(let k=0;k<3;k++){mn[k]=Math.min(mn[k],v[i+k]);mx[k]=Math.max(mx[k],v[i+k]);}
-        const horiz=Math.max(mx[0]-mn[0],mx[2]-mn[2]);if(horiz>.03){travel=Math.max(travel,horiz);return false;}return true;});
+        const range=Math.max(mx[0]-mn[0],mx[1]-mn[1],mx[2]-mn[2]);if(range>.2){travel=Math.max(travel,range);return false;}return true;}); // root motion can sit on any axis of the hip bone
       if(n.includes('walk')&&travel>0)clips.walkSpeed=travel*sc_/c.duration; // world units per second at timeScale 1
       const a=mixer.clipAction(c);a.play();a.setEffectiveWeight(0);if(n.includes('walk'))clips.walk=a;else if(n.includes('run'))clips.run=a;else clips.idle=clips.idle||a;}
     if(!clips.idle&&clips.walk){clips.idle=clips.walk;}
@@ -461,7 +461,7 @@ function npcPos(n){return sphere(n.lon,n.lat);}
    ===================================================================== */
 const START_LON=0.3;
 let up=sphere(START_LON,0), fwd=new THREE.Vector3(-Math.sin(START_LON),0,Math.cos(START_LON)), right=new THREE.Vector3();
-const MAXV=7.2, TURN=2.1;
+const MAXV=3.4, TURN=2.0; // a brisk walk; the world moves at the pace of the character's stride
 let v=0, pendingMove=0, autoTarget=null, autoFace=null, paused=false, hintGone=false;
 const hold={u:false,d:false,l:false,r:false};
 function orthonormalize(){fwd.addScaledVector(up,-fwd.dot(up)).normalize();right.crossVectors(fwd,up).normalize();}
@@ -496,7 +496,7 @@ function update(dt){
   player.pose(speed,dt,speed>3?'run':'walk');
   if(kidModel){kidModel.quaternion.copy(player.group.quaternion);kidModel.position.copy(player.group.position);
     const moving=speed>.3;const target=moving?1:0;gait.walk+=(target-gait.walk)*Math.min(1,dt*6);gait.idle=1-gait.walk;
-    if(clips.walk){clips.walk.setEffectiveWeight(gait.walk);clips.walk.setEffectiveTimeScale(clamp(speed/(clips.walkSpeed||3.2),.5,2.6));}
+    if(clips.walk){clips.walk.setEffectiveWeight(gait.walk);clips.walk.setEffectiveTimeScale(clamp(speed/(clips.walkSpeed||1.5),.5,3.2));}
     if(clips.idle&&clips.idle!==clips.walk)clips.idle.setEffectiveWeight(gait.idle);}
   // people
   for(const n of npcs){
