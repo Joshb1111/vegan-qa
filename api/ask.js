@@ -7,6 +7,12 @@ import { createHash } from "crypto";
 // This means a rules/prompt change self-invalidates the cache — no manual flush is ever needed.
 const PROMPT_VERSION = createHash("sha1").update(SYSTEM_PROMPT).digest("hex").slice(0, 10);
 
+// Models. The website keeps its model. The planet game ("mode: game") uses a cheaper, faster model
+// with the SAME system prompt and rules, and asks for a short spoken-word answer. Set GAME_MODEL to
+// WEB_MODEL to give the game the website's model instead.
+const WEB_MODEL = "claude-sonnet-4-6";
+const GAME_MODEL = "claude-haiku-4-5";
+
 const MAX_HISTORY = 10; // 5 exchanges
 const HISTORY_TTL = 60 * 60; // 1 hour
 const DAILY_IMAGE_LIMIT = 5; // image uploads per user per day
@@ -21,8 +27,11 @@ export default async function handler(req, res) {
   if (!query || typeof query !== "string") return res.status(400).json({ error: "Missing query" });
   if (image && typeof image !== "string") return res.status(400).json({ error: "Invalid image" });
 
+  const isGame = mode === "game";
   const lengthInstruction = mode === "long"
     ? "Give a detailed, thorough answer of 5-8 paragraphs covering the topic fully."
+    : isGame
+    ? "This answer will be spoken aloud by a character in a small game, so keep it to 2-4 plain, natural sentences a person would actually say — no lists, headings or markdown. Keep the same JSON shape as always."
     : "Keep the answer concise — 2-4 short paragraphs.";
 
   // Connect Redis — fail fast so a slow/unreachable Redis on a cold start never
@@ -120,8 +129,8 @@ export default async function handler(req, res) {
         "anthropic-version": "2023-06-01"
       },
       body: JSON.stringify({
-        model: "claude-sonnet-4-6",
-        max_tokens: mode === "long" ? 2600 : 1000,
+        model: isGame ? GAME_MODEL : WEB_MODEL,
+        max_tokens: mode === "long" ? 2600 : isGame ? 450 : 1000,
         // The large, static system prompt is marked for prompt caching so repeat calls read it
         // at a fraction of the input cost. The short length instruction varies (short/long) and
         // stays as a separate, uncached block after the cached prefix.
