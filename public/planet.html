@@ -593,7 +593,7 @@ let voiceOn=true;try{voiceOn=localStorage.getItem('planet-voice')!=='off';}catch
 const canSpeak='speechSynthesis' in window;
 if(!canSpeak){$('#voice').hidden=true;voiceOn=false;}
 $('#voice').setAttribute('aria-pressed',String(voiceOn));$('#voice').textContent=voiceOn?'Voice on':'Voice off';
-$('#voice').addEventListener('click',()=>{voiceOn=!voiceOn;$('#voice').setAttribute('aria-pressed',String(voiceOn));$('#voice').textContent=voiceOn?'Voice on':'Voice off';try{localStorage.setItem('planet-voice',voiceOn?'on':'off');}catch(_){}if(!voiceOn)stopSpeech();});
+$('#voice').addEventListener('click',()=>{unlockAudio();voiceOn=!voiceOn;$('#voice').setAttribute('aria-pressed',String(voiceOn));$('#voice').textContent=voiceOn?'Voice on':'Voice off';try{localStorage.setItem('planet-voice',voiceOn?'on':'off');}catch(_){}if(!voiceOn)stopSpeech();});
 // Each character gets their own voice: a preferred named voice when the device has it, otherwise a
 // different one of whatever English voices exist, plus their own pitch and pace.
 const VOICE_WISH=['Daniel','Kate','Serena','Oliver','Moira','Rishi','Fiona','Alex','Karen','Samantha','Tessa','Google UK English Female','Google UK English Male'];
@@ -602,15 +602,19 @@ function pickVoice(n){if(!canSpeak)return null;const vs=speechSynthesis.getVoice
   const gb=en.filter(v=>/en-GB/i.test(v.lang));const pool=gb.length>=3?gb:en;return pool[(i*5+2)%pool.length];}
 /* Hosted voices: residents with an ElevenLabs voice fetch audio from /api/speak (cached server-side);
    anyone else, or any failure, falls back to the browser's own voice. */
-const hosted={};let audioEl=null,speakSeq=0;
+const hosted={};let speakSeq=0;
+// One audio element, unlocked during the user's tap (Safari/iOS refuse audio that starts later on its own).
+const voiceAudio=new Audio();voiceAudio.preload='auto';let audioUnlocked=false;
+const SILENCE='data:audio/wav;base64,UklGRiQAAABXQVZFZm10IBAAAAABAAEAQB8AAIA+AAACABAAZGF0YQAAAAA=';
+function unlockAudio(){if(audioUnlocked)return;try{voiceAudio.src=SILENCE;const p=voiceAudio.play();if(p&&p.then)p.then(()=>{audioUnlocked=true;}).catch(()=>{});}catch(_){}}
 function browserSpeak(text,n){if(!canSpeak)return;speechSynthesis.cancel();const u=new SpeechSynthesisUtterance(text);const vc=pickVoice(n);if(vc)u.voice=vc;u.rate=n.rate||1;u.pitch=n.pitch||1;speechSynthesis.speak(u);}
-function stopSpeech(){speakSeq++;if(audioEl){audioEl.pause();audioEl.src='';audioEl=null;}if(canSpeak)speechSynthesis.cancel();}
+function stopSpeech(){speakSeq++;try{voiceAudio.pause();}catch(_){}if(canSpeak)speechSynthesis.cancel();}
 async function speak(text,n){if(!voiceOn)return;stopSpeech();const seq=speakSeq;
-  if(hosted[n.name]!==false){try{const ctrl=new AbortController();const to=setTimeout(()=>ctrl.abort(),20000);
+  if(hosted[n.name]!==false){try{const ctrl=new AbortController();const to=setTimeout(()=>ctrl.abort(),25000);
       const r=await fetch('/api/speak',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({who:n.name,text}),signal:ctrl.signal});clearTimeout(to);
       if(r.status===404){hosted[n.name]=false;}
-      else if(r.ok){const blob=await r.blob();if(seq!==speakSeq||!voiceOn)return;const url=URL.createObjectURL(blob);audioEl=new Audio(url);audioEl.onended=()=>URL.revokeObjectURL(url);await audioEl.play();hosted[n.name]=true;return;}
-    }catch(e){}}
+      else if(r.ok){const blob=await r.blob();if(seq!==speakSeq||!voiceOn)return;const url=URL.createObjectURL(blob);voiceAudio.src=url;voiceAudio.onended=()=>URL.revokeObjectURL(url);await voiceAudio.play();hosted[n.name]=true;return;}
+    }catch(e){console.warn('hosted voice fell back:',e&&e.name);}}
   if(seq===speakSeq)browserSpeak(text,n);}
 if(canSpeak)speechSynthesis.onvoiceschanged=()=>{};
 let typer=null;
@@ -621,7 +625,7 @@ function say(html,n,plainForVoice){
   typer=setInterval(()=>{i+=3;span.innerHTML=full.slice(0,i);bubble.scrollTop=bubble.scrollHeight;if(i>=full.length){clearInterval(typer);typer=null;span.innerHTML=full;}},22);
   if(plainForVoice)speak(plainForVoice,n);
 }
-function action(){if(nearN&&!talking)startTalk(nearN);}
+function action(){unlockAudio();if(nearN&&!talking)startTalk(nearN);}
 function startTalk(n){
   talking=n;n.paused=true;autoTarget=null;for(const k in hold)hold[k]=false;v=0;pendingMove=0;
   autoFace=npcPos(n).clone().multiplyScalar(R).sub(player.group.position).normalize();
@@ -634,7 +638,7 @@ function startTalk(n){
 function endTalk(){if(!talking)return;const n=talking;talking=null;n.paused=false;chat.classList.add('off');stopSpeech();if(typer){clearInterval(typer);typer=null;}game.focus();}
 $('#bye').addEventListener('click',endTalk);
 const esc=s=>s.replace(/[&<>]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;'}[c]));
-async function ask(text){
+async function ask(text){unlockAudio();
   const n=talking;if(!n)return;const query=(text||'').trim();if(!query)return;
   q.value='';send.disabled=true;chips.hidden=true;
   bubble.innerHTML='<span class="thinking">'+esc(n.name)+' thinks about it…</span>';stopSpeech();
