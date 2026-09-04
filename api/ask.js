@@ -86,7 +86,9 @@ export default async function handler(req, res) {
   // best-effort by IP: a generous daily cap plus a short burst window that stops scripts.
   const qDayKey = `qday:${clientIp}:${dayStr}`;
   const qBurstKey = `qburst:${clientIp}`;
-  if (redis) {
+  // The warm-up script (scripts/warm-planet.mjs) pre-generates answers with the admin key; it skips the per-IP caps.
+  const isAdmin = !!process.env.ADMIN_KEY && req.headers["x-admin-key"] === process.env.ADMIN_KEY;
+  if (redis && !isAdmin) {
     try {
       // Daily cap: read-only check here; the counter is only bumped after a successful
       // answer (below), so failed calls never burn a user's quota.
