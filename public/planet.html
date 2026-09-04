@@ -24,7 +24,7 @@ button.ink:active{transform:translate(2px,2px);box-shadow:1px 1px 0 var(--ink)}
 #prompt.off{opacity:0;transform:translate(-50%,-8px)}
 #prompt b{display:block;font-family:var(--hand);font-weight:normal;font-size:23px;line-height:1.1}
 #prompt span{color:var(--muted);font-size:13px}
-#pad{position:absolute;left:0;right:0;bottom:calc(16px + env(safe-area-inset-bottom));display:flex;justify-content:space-between;align-items:flex-end;padding:0 16px;gap:12px}
+#pad{position:absolute;left:0;right:0;bottom:calc(16px + env(safe-area-inset-bottom));display:flex;justify-content:flex-end;align-items:flex-end;padding:0 16px;gap:12px}
 .dpad{display:grid;grid-template-columns:repeat(3,58px);grid-template-rows:repeat(2,58px);gap:6px}
 .dpad .dir{appearance:none;width:58px;height:58px;font-size:20px;cursor:pointer;touch-action:none;padding:0}
 .dpad [data-k=u]{grid-column:2;grid-row:1}.dpad [data-k=l]{grid-column:1;grid-row:2}.dpad [data-k=d]{grid-column:2;grid-row:2}.dpad [data-k=r]{grid-column:3;grid-row:2}
@@ -34,6 +34,10 @@ button.ink:active{transform:translate(2px,2px);box-shadow:1px 1px 0 var(--ink)}
 @media (hover:hover) and (pointer:fine){.dpad .dir{opacity:.75}}
 #menubtn{position:absolute;top:max(14px,env(safe-area-inset-top));right:14px;width:52px;height:52px;appearance:none;cursor:pointer;padding:0;display:grid;place-items:center}
 #menubtn svg{width:30px;height:30px}
+#musicbtn{position:absolute;top:calc(max(14px,env(safe-area-inset-top)) + 62px);right:14px;width:52px;height:52px;appearance:none;cursor:pointer;padding:0;font-size:24px;line-height:1}
+#musicbtn[aria-pressed=false]{background:var(--cream2);color:var(--muted);text-decoration:line-through}
+#ba{position:fixed;left:0;top:0;transform:translate(-50%,-50%);z-index:5;margin:0;min-width:0;height:auto;padding:6px 16px 4px;font-size:21px;white-space:nowrap}
+#ba.off{transform:translate(-50%,-50%) scale(.9)}
 #stops{position:absolute;top:calc(max(14px,env(safe-area-inset-top)) + 62px);right:14px;width:min(300px,calc(100vw - 28px));padding:10px;z-index:5;max-height:70vh;overflow:auto}
 #stops[hidden]{display:none}
 #stops h2{margin:2px 6px 8px;font-family:var(--hand);font-weight:normal;font-size:24px}
@@ -109,6 +113,7 @@ button.ink:active{transform:translate(2px,2px);box-shadow:1px 1px 0 var(--ink)}
   <div id="hint">↑ ↓ to walk · ← → to turn · walk up to someone</div>
   <div id="prompt" class="off ink"><b></b><span></span></div>
   <button id="menubtn" class="ink" type="button" aria-label="People" aria-expanded="false"><svg viewBox="0 0 30 30" fill="none" stroke="#26333a" stroke-width="2.6" stroke-linecap="round"><path d="M9 8h15M9 15h15M9 22h15"/><circle cx="4.5" cy="8" r="1.4" fill="#26333a"/><circle cx="4.5" cy="15" r="1.4" fill="#26333a"/><circle cx="4.5" cy="22" r="1.4" fill="#26333a"/></svg></button>
+  <button id="musicbtn" class="ink" type="button" aria-label="Music" aria-pressed="true">♪</button>
   <nav id="stops" class="ink" hidden aria-label="People on the planet"><h2>People</h2></nav>
   <div id="pad">
     <button id="ba" class="off ink" type="button">Talk</button>
@@ -264,10 +269,9 @@ const colliders=[];
     const m=new THREE.Mesh(geo,new THREE.MeshBasicMaterial({map:tex,side:THREE.DoubleSide,polygonOffset:true,polygonOffsetFactor:-2,polygonOffsetUnits:-2}));scene.add(m);})();
 })();
 (function makeSky(){
-  for(let i=0;i<26;i++){const lon=rnd()*Math.PI*2,lat=(rnd()-.5)*Math.PI*.9;const n=sphere(lon,lat);const r=6+rnd()*9;
-    const c=new THREE.Mesh(new THREE.SphereGeometry(r,10,6),new THREE.MeshBasicMaterial({color:rnd()<.6?P.sky2:P.sky3}));
-    c.position.copy(n).multiplyScalar(150+rnd()*40);c.lookAt(0,0,0);c.rotateZ(rnd()*Math.PI);c.scale.set(2.2,.45,.5);scene.add(c);}
-  const sunM=new THREE.Mesh(new THREE.SphereGeometry(9,20,14),new THREE.MeshBasicMaterial({color:P.cream}));sunM.position.set(120,150,-140);scene.add(sunM);
+  // Josh's painted sky on a dome; mirrored repeat hides the seam
+  const tex=new THREE.TextureLoader().load('assets/sky.jpg');tex.wrapS=THREE.MirroredRepeatWrapping;tex.repeat.x=2;
+  const dome=new THREE.Mesh(new THREE.SphereGeometry(420,48,32),new THREE.MeshBasicMaterial({map:tex,side:THREE.BackSide}));dome.userData.noInk=true;dome.rotation.y=.6;scene.add(dome);
   // hills behind the town
   for(let i=0;i<14;i++){const lon=rnd()*Math.PI*2,lat=(rnd()<.5?1:-1)*(.3+rnd()*.25);const h=sph(6+rnd()*8,pick([P.green,P.green2,P.green3]),14);h.scale.y=.45;placeOn(h,lon,lat);}
 })();
@@ -448,7 +452,13 @@ const outfits=()=>{const skin=pick([0xf2cfae,0xe0b48a,0xc68a5a,0x8d5a3b,0x6b4227
 const player=person({skin:0xf2cfae,hair:0x2a2430,top:P.red,bottom:0xb9a66e,legs:0xf2cfae,sock:P.cream,shoe:P.red,shoeCap:P.cream,skinLegs:true,cargo:true,collar:true,bag:true,hairStyle:'bob'});
 scene.add(player.group);
 /* ---------- the modelled character (Tripo GLB), with its own walk animation ---------- */
-let kidModel=null,mixer=null;const clips={};let gait={walk:0,idle:1};const mixers=[];
+let kidModel=null,mixer=null;const clips={};let gait={walk:0,idle:1};const mixers=[];const birdGroups=[];
+const _bv=new THREE.Vector3(),_bu=new THREE.Vector3(),_bf=new THREE.Vector3(),_bs=new THREE.Vector3(),_bm=new THREE.Matrix4();
+function updateBirds(dt,t){for(const g of birdGroups){g.th+=g.w*dt;const v=new THREE.Vector3().crossVectors(g.axis,g.u);
+  for(const bd of g.birds){const th=g.th+bd.along/g.rad;const c=Math.cos(th),s_=Math.sin(th);_bv.copy(g.u).multiplyScalar(c).addScaledVector(v,s_);_bf.copy(g.u).multiplyScalar(-s_).addScaledVector(v,c).multiplyScalar(Math.sign(g.w));
+    _bu.copy(_bv);_bs.crossVectors(_bf,_bu).normalize();_bv.multiplyScalar(g.rad).addScaledVector(_bs,bd.side).addScaledVector(_bu,bd.upo);
+    bd.b.h.position.copy(_bv);_bm.makeBasis(_bs,_bu,_bf.clone().negate());bd.b.h.quaternion.setFromRotationMatrix(_bm);bd.b.h.rotateOnAxis(new THREE.Vector3(0,0,1),-Math.sign(g.w)*.25);
+    const sh=bd.b.mat.userData.sh;if(sh)sh.uniforms.uT.value=t;}}}
 // Put a posed character's lowest skinned vertex exactly on the ground of its holder
 const _gv=new THREE.Vector3();
 function groundFix(holder,root){holder.updateMatrixWorld(true);let minY=Infinity;
@@ -504,7 +514,19 @@ function groundFix(holder,root){holder.updateMatrixWorld(true);let minY=Infinity
           const mixer=new THREE.AnimationMixer(root);const act={};for(const k of ['walk','idle','talk']){if(clips[k]){act[k]=mixer.clipAction(clips[k]);act[k].play();act[k].setEffectiveWeight(k==='idle'?1:0);}}
           n.model={holder,mixer,act,root,walkSpeed:clips.travel?clips.travel*sc_/clips.walk.duration:1,w:{walk:0,talk:0},groundAt:performance.now()+1200};mixers.push(mixer);n.rig.group.visible=false;});
         sceneDirty=true;},undefined,e=>console.warn('resident not loaded',file,e)));};
-    document.head.appendChild(su);};
+    document.head.appendChild(su);
+    // birds: tiny gulls that circle the planet in small flocks and on their own; wings flap in the shader
+    loader.load('assets/bird.glb',g=>{let src=null;g.scene.traverse(m=>{if(m.isMesh&&!src)src=m;});if(!src)return;
+      const geo=src.geometry;const bb=new THREE.Box3().setFromObject(src);const span=bb.max.x-bb.min.x;const sc=0.9/span;
+      const mkBird=(ph)=>{const mat=new THREE.MeshBasicMaterial({map:src.material.map||null,color:src.material.map?0xffffff:0xf3efe4});
+        mat.onBeforeCompile=sh=>{sh.uniforms.uT={value:0};sh.uniforms.uPh={value:ph};mat.userData.sh=sh;
+          sh.vertexShader='uniform float uT;uniform float uPh;\n'+sh.vertexShader.replace('#include <begin_vertex>','#include <begin_vertex>\n transformed.y+=sin(uT*8.0+uPh)*pow(abs(position.x)/'+(span/2).toFixed(3)+',1.5)*'+(span*0.32).toFixed(3)+';');};
+        const m=new THREE.Mesh(geo,mat);m.scale.setScalar(sc);m.userData.noInk=true;m.frustumCulled=false;const h=new THREE.Group();h.add(m);scene.add(h);return {h,mat};};
+      const perp=a=>{const t=Math.abs(a.y)<.9?new THREE.Vector3(0,1,0):new THREE.Vector3(1,0,0);return new THREE.Vector3().crossVectors(a,t).normalize();};
+      const groups=[];for(let f=0;f<4;f++){const axis=new THREE.Vector3(rnd()-.5,rnd()-.5,rnd()-.5).normalize();const n=3+Math.floor(rnd()*3);
+        groups.push({axis,u:perp(axis),rad:R+12+rnd()*8,w:(.05+rnd()*.03)*(rnd()<.5?1:-1),th:rnd()*Math.PI*2,birds:Array.from({length:n},(_,i)=>({b:mkBird(rnd()*6),along:-i*1.1,side:(i%2?1:-1)*Math.ceil(i/2)*1.0,upo:(rnd()-.5)*.6}))});}
+      for(let f=0;f<5;f++){const axis=new THREE.Vector3(rnd()-.5,rnd()-.5,rnd()-.5).normalize();groups.push({axis,u:perp(axis),rad:R+10+rnd()*12,w:(.04+rnd()*.05)*(rnd()<.5?1:-1),th:rnd()*Math.PI*2,birds:[{b:mkBird(rnd()*6),along:0,side:0,upo:0}]});}
+      birdGroups.push(...groups);sceneDirty=true;},undefined,e=>console.warn('bird not loaded',e));};
   document.head.appendChild(sc);})();
 
 /* ---------- the people you can talk to ---------- */
@@ -609,15 +631,16 @@ function update(dt){
   camPos.lerp(desired,k);camUp.lerp(up,k).normalize();camLook.lerp(look,k);
   camera.position.copy(camPos);camera.up.copy(camUp);camera.lookAt(camLook);
   if(talking){if(!sbN.hidden)placeBubble(sbN,headOf(talking.rig.group,2.25),34);if(!sbMe.hidden)placeBubble(sbMe,headOf(player.group,2.25),34);}
+  if(nearN&&!talking){_proj.copy(headOf(nearN.rig.group,1.2)).project(camera);const ba=$('#ba');if(_proj.z<1){ba.style.left=clamp((_proj.x+1)/2*W+70,90,W-90)+'px';ba.style.top=clamp((1-_proj.y)/2*H,40,H-140)+'px';}}
   // who is close enough to talk to?
   nearN=null;if(!talking){let best=2.6;for(const n of npcs){const d=npcPos(n).multiplyScalar(R).distanceTo(player.group.position);if(d<best){best=d;nearN=n;}}}
   if(nearN!==shownN){shownN=nearN;const pr=$('#prompt'),ba=$('#ba');
-    if(nearN){pr.querySelector('b').textContent='Talk to '+nearN.name;pr.querySelector('span').textContent=isTouch?'tap Talk':'press E or Enter';pr.classList.remove('off');ba.classList.remove('off');nearN.paused=true;}
+    if(nearN){ba.textContent='Talk to '+nearN.name;ba.classList.remove('off');nearN.paused=true;}
     else{pr.classList.add('off');ba.classList.add('off');}}
   for(const n of npcs)if(n!==nearN&&n!==talking)n.paused=false;
 }
 let last=performance.now();
-function frame(now){const dt=Math.min(.05,(now-last)/1000);last=now;if(!paused)update(dt);if(mixer)mixer.update(dt);for(const m of mixers)m.update(dt);renderInk();requestAnimationFrame(frame);}
+function frame(now){const dt=Math.min(.05,(now-last)/1000);last=now;if(!paused)update(dt);if(mixer)mixer.update(dt);for(const m of mixers)m.update(dt);updateBirds(dt,now/1000);renderInk();requestAnimationFrame(frame);}
 requestAnimationFrame(frame);
 
 /* =====================================================================
@@ -647,7 +670,14 @@ $$('.dpad .dir').forEach(el=>{const key=el.dataset.k;
 $('#ba').addEventListener('click',()=>action());
 game.addEventListener('pointerdown',()=>game.focus());game.focus();
 let titleGone=false;
-function dismissTitle(){if(titleGone)return;titleGone=true;$('#title').classList.add('gone');game.focus();}
+const music=new Audio('assets/music.m4a');music.loop=true;music.volume=0;let musicOn=true;try{musicOn=localStorage.getItem('planet-music')!=='off';}catch(_){}
+let musicTarget=0;const MUSIC_VOL=.32;
+function musicUI(){const b=$('#musicbtn');b.setAttribute('aria-pressed',String(musicOn));b.title=musicOn?'Music on':'Music off';}
+function startMusic(){if(!musicOn)return;musicTarget=MUSIC_VOL;music.play().catch(()=>{});}
+$('#musicbtn').addEventListener('click',e=>{e.stopPropagation();musicOn=!musicOn;try{localStorage.setItem('planet-music',musicOn?'on':'off');}catch(_){}musicUI();if(musicOn)startMusic();else{musicTarget=0;}});
+musicUI();
+setInterval(()=>{const want=musicOn?(talking?MUSIC_VOL*.35:musicTarget):0;music.volume+=(want-music.volume)*.15;if(music.volume<.005&&!musicOn)music.pause();},100);
+function dismissTitle(){if(titleGone)return;titleGone=true;$('#title').classList.add('gone');game.focus();startMusic();}
 $('#title').addEventListener('click',dismissTitle);
 function toggleStops(show){const s=$('#stops');const vis=show==null?s.hidden:show;s.hidden=!vis;$('#menubtn').setAttribute('aria-expanded',String(vis));}
 $('#menubtn').addEventListener('click',e=>{e.stopPropagation();toggleStops();});
