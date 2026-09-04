@@ -176,6 +176,21 @@ const scene=new THREE.Scene(); scene.background=new THREE.Color(P.sky);
 const camera=new THREE.PerspectiveCamera(64,1,0.3,900); scene.add(camera);
 const sun=new THREE.DirectionalLight(0xffffff,0.62); sun.position.set(4,7,3); camera.add(sun); sun.target.position.set(0,0,-10); camera.add(sun.target);
 scene.add(new THREE.AmbientLight(0xffffff,0.38));
+/* Cast shadow for the main character. An unseen sun (zero intensity, so it changes no colours) follows the
+   player and casts a shadow map onto a small curved patch of shadow-only ground that also follows them.
+   The sun sits high and a little to the east/north of wherever the player stands, so the shadow always
+   falls the same way relative to the street. */
+renderer.shadowMap.enabled=true;renderer.shadowMap.type=THREE.PCFShadowMap;renderer.shadowMap.autoUpdate=false;
+const sunL=new THREE.DirectionalLight(0xffffff,0);sunL.castShadow=true;sunL.shadow.mapSize.set(1024,1024);
+Object.assign(sunL.shadow.camera,{left:-3.5,right:3.5,top:3.5,bottom:-3.5,near:2,far:40});sunL.shadow.bias=-0.0015;sunL.shadow.normalBias=.02;sunL.shadow.camera.updateProjectionMatrix();
+scene.add(sunL);scene.add(sunL.target);
+const shadowCap=new THREE.Mesh(new THREE.SphereGeometry(R+.075,48,10,0,Math.PI*2,0,.16),new THREE.ShadowMaterial({color:0x1b2630,opacity:.34,transparent:true,depthWrite:false}));
+shadowCap.receiveShadow=true;shadowCap.userData.skipInk=true;shadowCap.frustumCulled=false;scene.add(shadowCap);
+const _se=new THREE.Vector3(),_sn=new THREE.Vector3(),_sd=new THREE.Vector3();
+function updateShadowRig(pos,up,q){shadowCap.quaternion.copy(q); /* cap pole = local Y = up, so the patch hugs the ground under the player */
+  _se.set(-up.z,0,up.x).normalize();_sn.crossVectors(_se,up).normalize();
+  _sd.copy(up).multiplyScalar(1.6).addScaledVector(_se,.7).addScaledVector(_sn,.5).normalize();
+  sunL.position.copy(pos).addScaledVector(_sd,18);sunL.target.position.copy(pos);sunL.target.updateMatrixWorld();}
 let W=0,H=0;
 /* Ink pass: the scene is rendered to a colour+depth target and a normals target, then a full-screen
    shader draws hand-drawn lines wherever depth or normals break, with a little wobble and broken
@@ -210,11 +225,11 @@ window.addEventListener('resize',resize);resize();
 const skyCol=scene.background,normalBg=new THREE.Color(0x8080ff); // background 'normal' faces the camera so the sky stays line-free
 let meshList=[],sceneDirty=true;const nmPlain=new THREE.MeshNormalMaterial(),nmSkin=new THREE.MeshNormalMaterial({skinning:true});
 const nmFlat=new THREE.MeshBasicMaterial({color:0x8080ff}),nmFlatSkin=new THREE.MeshBasicMaterial({color:0x8080ff,skinning:true}); // 'facing the camera': no interior lines, silhouette only
-function refreshMeshes(){meshList=[];scene.traverse(o=>{if(o.isMesh)meshList.push(o);});sceneDirty=false;}
-function renderInk(){renderer.setRenderTarget(rt);renderer.render(scene,camera);
+function refreshMeshes(){meshList=[];scene.traverse(o=>{if(o.isMesh&&!o.userData.skipInk)meshList.push(o);});sceneDirty=false;}
+function renderInk(){renderer.shadowMap.needsUpdate=true;renderer.setRenderTarget(rt);renderer.render(scene,camera);shadowCap.visible=false;
   if(sceneDirty)refreshMeshes();for(const m of meshList){m.userData.mat=m.material;m.material=m.userData.noInk?(m.isSkinnedMesh?nmFlatSkin:nmFlat):(m.isSkinnedMesh?nmSkin:nmPlain);}
   scene.background=normalBg;renderer.setRenderTarget(rtN);renderer.render(scene,camera);
-  for(const m of meshList)m.material=m.userData.mat;scene.background=skyCol;renderer.setRenderTarget(null);renderer.render(quadScene,quadCam);}
+  for(const m of meshList)m.material=m.userData.mat;shadowCap.visible=true;scene.background=skyCol;renderer.setRenderTarget(null);renderer.render(quadScene,quadCam);}
 
 
 let seed=5;const rnd=()=>{seed=(seed*16807)%2147483647;return seed/2147483647;};
@@ -251,6 +266,11 @@ function frameAt(lon,lat){const n=sphere(lon,lat);const east=new THREE.Vector3(-
 function poseOn(obj,lon,lat,yaw){const {n,north}=frameAt(lon,lat);const Z=north.clone().negate(),Y=n.clone(),X=new THREE.Vector3().crossVectors(Y,Z);
   obj.quaternion.setFromRotationMatrix(new THREE.Matrix4().makeBasis(X,Y,Z));if(yaw)obj.rotateOnAxis(new THREE.Vector3(0,1,0),yaw);obj.position.copy(n).multiplyScalar(R);obj.updateMatrixWorld(true);return obj;}
 function placeOn(obj,lon,lat,yaw){scene.add(obj);return poseOn(obj,lon,lat,yaw);}
+/* A flat-bottomed object placed on a sphere only touches at its centre: the corners hover by the sagitta of
+   its footprint. placeOnGround measures the footprint (before placing) and sinks the object by that much,
+   so the corners meet the grass and the middle sits a little into it. */
+function sinkFor(obj){const bb=new THREE.Box3().setFromObject(obj);if(bb.isEmpty())return 0;const hx=(bb.max.x-bb.min.x)/2,hz=(bb.max.z-bb.min.z)/2;return R-Math.sqrt(Math.max(0,R*R-(hx*hx+hz*hz)));}
+function placeOnGround(obj,lon,lat,yaw){const s=sinkFor(obj);placeOn(obj,lon,lat,yaw);obj.translateY(-s);obj.updateMatrixWorld(true);return obj;}
 const colliders=[];
 (function makePlanet(){
   const cv=document.createElement('canvas');cv.width=2048;cv.height=1024;const g=cv.getContext('2d');
@@ -342,7 +362,6 @@ function greenHouse(w,d){ // the tall green building with the mailboxes
 const npcSpots=[]; // places people like to stand
 const modelSlots=[]; // plots kept free for Josh's modelled buildings: {lon,lat,yaw}
 const propSlots=[]; // {kind,lon,lat,yaw} filled with Josh's modelled props once they load
-const stairSlots=[]; // spots for the modelled staircase
 (function buildTown(){
   const roadLat=(18/1024)*Math.PI; // road half-width in radians
   for(const side of [1,-1]){
@@ -354,12 +373,11 @@ const stairSlots=[]; // spots for the modelled staircase
       else if(t<.95&&w>=7.5){modelSlots.push({lon:lon+step/2,lat:side*(roadLat+(2.2+2.7+(rnd()<.25?2.5:0))/R),yaw:side<0?Math.PI:0});}
       const setback=(rnd()<.25?2.5:0);
       const lat=side*(roadLat+ (2.2+ d/2 + setback)/R);
-      if(b){placeOn(b,lon+step/2,lat,side<0?Math.PI:0);colliders.push(b);
-        if(setback){const st=stairs(4,1.6);placeOn(st,lon+step/2,side*(roadLat+2.2/R),side<0?Math.PI:0);const wl=lowWall(w-1,.9);placeOn(wl,lon+step/2+(w/2-1.2)/R,side*(roadLat+2.4/R),side<0?Math.PI:0);}
+      if(b){placeOnGround(b,lon+step/2,lat,side<0?Math.PI:0);colliders.push(b);
+        if(setback){const wl=lowWall(w-1,.9);placeOnGround(wl,lon+step/2+(w/2-1.2)/R,side*(roadLat+2.4/R),side<0?Math.PI:0);}
         if(rnd()<.35){const hb=hedge(2+rnd()*2);placeOn(hb,lon+step/2+(w/2+1)/R*(rnd()<.5?1:-1),side*(roadLat+2.2/R));}
       }else{ // an open plot: wall, stairs up the hill, trees
-        const wl=lowWall(w,1.1,pick([P.cream2,P.grey]));placeOn(wl,lon+step/2,side*(roadLat+2.4/R),side<0?Math.PI:0);
-        const st=stairs(6,1.6);placeOn(st,lon+step/2,side*(roadLat+2.6/R),side<0?Math.PI:0);
+        const wl=lowWall(w,1.1,pick([P.cream2,P.grey]));placeOnGround(wl,lon+step/2,side*(roadLat+2.4/R),side<0?Math.PI:0);
         const tr=tree(Math.floor(rnd()*3));placeOn(tr,lon+step/2,side*(roadLat+6/R));colliders.push(tr);
         npcSpots.push({lon:lon+step/2,lat:side*(roadLat+1.2/R)});
       }
@@ -370,7 +388,7 @@ const stairSlots=[]; // spots for the modelled staircase
       else if(pr<.44){const vm=placeOn(vend(),gapLon,side*(roadLat+1.5/R),side<0?Math.PI:0);colliders.push(vm);npcSpots.push({lon:gapLon+1.4/R,lat:pl});}
       else if(pr<.49){placeOn(bin(),gapLon,pl);}
       else if(pr<.52){propSlots.push({kind:'mailbox',lon:gapLon,lat:pl,yaw:side<0?Math.PI:0});}
-      else if(pr<.56){stairSlots.push({lon:gapLon,lat:side*(roadLat+2.4/R),yaw:side<0?Math.PI:0});}
+      else if(pr<.56){/* open gap (the staircases used to go here) */}
       else if(pr<.6){const bs=placeOn(busStop(),gapLon,side*(roadLat+1.6/R),side<0?Math.PI:0);colliders.push(bs);npcSpots.push({lon:gapLon+.8/R,lat:pl});}
       else if(pr<.68){placeOn(bench(),gapLon,side*(roadLat+1.6/R),side<0?Math.PI:0);npcSpots.push({lon:gapLon,lat:pl-side*.6/R});}
       else if(pr<.71){placeOn(coneProp(),gapLon,side*(roadLat-.6/R));}
@@ -481,7 +499,7 @@ function groundFix(holder,root){holder.updateMatrixWorld(true);let minY=Infinity
       const a=mixer.clipAction(c);a.play();a.setEffectiveWeight(0);
       if(n.includes('walk'))clips.walk=a;else if(n.includes('run'))clips.run=a;else if(n.includes('jump')){clips.jump=a;a.setLoop(THREE.LoopOnce,1);a.clampWhenFinished=false;}else if(n.includes('scratch')){clips.fidget=a;a.setLoop(THREE.LoopOnce,1);}else clips.idle=clips.idle||a;}
     if(!clips.idle&&clips.walk){clips.idle=clips.walk;}
-    player.group.visible=false;scene.add(holder);kidModel=holder;kidModel.userData.root=root;kidModel.userData.groundAt=performance.now()+1200;sceneDirty=true;},undefined,e=>console.warn('character not loaded',e));
+    root.traverse(m=>{if(m.isMesh)m.castShadow=true;});player.group.visible=false;scene.add(holder);kidModel=holder;kidModel.userData.root=root;kidModel.userData.groundAt=performance.now()+1200;sceneDirty=true;},undefined,e=>console.warn('character not loaded',e));
     // modelled buildings and props from Josh's asset folder
     const loader=new THREE.GLTFLoader();
     // Modelled assets arrive with light and shadow baked into their textures, so they are drawn unlit,
@@ -496,8 +514,7 @@ function groundFix(holder,root){holder.updateMatrixWorld(true);let minY=Infinity
     // Josh's buildings: slots rotate through the list, so each one appears several times around the planet
     const BUILDINGS=['assets/building1v2.glb','assets/building3.glb','assets/building4.glb','assets/building6.glb','assets/building5.glb','assets/building7.glb'];
     BUILDINGS.forEach((file,bi)=>loader.load(file,g=>{toonify(g.scene);fit(g.scene,9);
-      modelSlots.forEach((sl,i)=>{if(i%BUILDINGS.length!==bi)return;const inst=new THREE.Group();inst.add(g.scene.clone());placeOn(inst,sl.lon,sl.lat,sl.yaw);colliders.push(inst);});sceneDirty=true;},undefined,e=>console.warn('building not loaded',file,e)));
-    loader.load('assets/stairs1.glb',g=>{toonify(g.scene);fit(g.scene,2.4);for(const sl of stairSlots){const inst=new THREE.Group();inst.add(g.scene.clone());placeOn(inst,sl.lon,sl.lat,sl.yaw);}sceneDirty=true;},undefined,e=>console.warn('stairs not loaded',e));
+      modelSlots.forEach((sl,i)=>{if(i%BUILDINGS.length!==bi)return;const inst=new THREE.Group();inst.add(g.scene.clone());placeOnGround(inst,sl.lon,sl.lat,sl.yaw);colliders.push(inst);});sceneDirty=true;},undefined,e=>console.warn('building not loaded',file,e)));
     const PROPS={mailbox:['assets/mailbox.glb',1.5],crate:['assets/crate.glb',.9],rock:['assets/rock.glb',1.1]};
     for(const kind in PROPS){const [file,hgt]=PROPS[kind];loader.load(file,g=>{toonify(g.scene);fit(g.scene,hgt);for(const sl of propSlots){if(sl.kind!==kind)continue;const inst=new THREE.Group();inst.add(g.scene.clone());placeOn(inst,sl.lon,sl.lat,sl.yaw);}sceneDirty=true;},undefined,e=>console.warn(kind,'not loaded',e));}
     // residents: Josh's four modelled characters, cloned with their skeletons
@@ -593,7 +610,7 @@ function update(dt){
   moveForward(step);
   const speed=Math.abs(step/Math.max(dt,1e-4));
   // player pose
-  _m.makeBasis(right,up,fwd.clone().negate());player.group.quaternion.setFromRotationMatrix(_m);player.group.position.copy(up).multiplyScalar(R);
+  _m.makeBasis(right,up,fwd.clone().negate());player.group.quaternion.setFromRotationMatrix(_m);player.group.position.copy(up).multiplyScalar(R);updateShadowRig(player.group.position,up,player.group.quaternion);
   player.pose(speed,dt,speed>3?'run':'walk');
   if(kidModel){kidModel.quaternion.copy(player.group.quaternion);kidModel.position.copy(player.group.position);
     if(kidModel.userData.groundAt&&performance.now()>kidModel.userData.groundAt){kidModel.userData.groundAt=0;groundFix(kidModel,kidModel.userData.root);}
