@@ -276,7 +276,8 @@ const parkPt=(dx,dz)=>new THREE.Vector3().copy(PARK.C).addScaledVector(PARK.east
    bowl to the south-west (1.8 deep), a floor-level rail along the south edge */
 const RAIL={dz:-18.4,x0:-6.0,x1:10.4};
 const _pq=new THREE.Vector3();
-function parkXZ(n){const d=_pq.copy(n).sub(PARK.C);return [d.dot(PARK.east)*R,d.dot(PARK.north)*R];}
+/* park coordinates are the exact inverse of parkPt (a gnomonic map), so the height map, the bent model, the rail and the walls all agree */
+function parkXZ(n){const k=n.dot(PARK.C);if(k<.5)return [1e9,1e9];return [R*n.dot(PARK.east)/k,R*n.dot(PARK.north)/k];}
 /* the park's surface height (relative to its floor) comes from a height map ray-cast off the model in Blender
    (assets/skatepark-h.json). The model's +X points west in the game, so x is mirrored. */
 let HM=null;
@@ -713,7 +714,8 @@ function groundFix(holder,root){holder.updateMatrixWorld(true);let minY=Infinity
           nn.copy(PLAZA_N).addScaledVector(X,lx/R).addScaledVector(Z,lz/R).normalize();const r=R+terrainBase(nn)+ly;pa.setXYZ(i,nn.x*r,nn.y*r,nn.z*r);}
         pa.needsUpdate=true;m.geometry.computeVertexNormals();m.geometry.computeBoundingSphere();scene.add(m);m.position.set(0,0,0);m.quaternion.identity();m.scale.set(1,1,1);colliders.push(m);}
       parkModel=meshes[0]||null;sceneDirty=true;
-      const wall=parkPt(.9,21.2);solids.push({c:wall.clone().multiplyScalar(R),X:PARK.east.clone(),Z:PARK.north.clone(),hx:8.6,hz:.25});},undefined,e=>console.warn('skate park not loaded',e));
+      const wall=parkPt(.9,21.2);solids.push({c:wall.clone().multiplyScalar(R),X:PARK.east.clone(),Z:PARK.north.clone(),hx:8.6,hz:.25});
+      for(const [dx,dz,hz] of [[21.6,-.7,6.9],[-21.6,7,6.3]]){const wv=parkPt(dx,dz);solids.push({c:wv.clone().multiplyScalar(R),X:PARK.east.clone(),Z:PARK.north.clone(),hx:.25,hz});} /* the backs of the side ramps */},undefined,e=>console.warn('skate park not loaded',e));
     const PROPS={mailbox:['assets/mailbox.glb',1.5],crate:['assets/crate.glb',.9],rock:['assets/rock.glb',1.1],treeBig:['assets/tree_a.glb',5.8,true],treeSmall:['assets/tree_b.glb',3.4,true]}; // Josh's trees replace the old ball-and-cone ones; they are thin relief models, so they are placed as two copies crossed at 90° to read from any angle
     for(const kind in PROPS){const [file,hgt,cross]=PROPS[kind];loader.load(file,g=>{toonify(g.scene);fit(g.scene,hgt);for(const sl of propSlots){if(sl.kind!==kind)continue;const inst=new THREE.Group();inst.add(g.scene.clone());if(cross){const w=new THREE.Group();w.add(g.scene.clone());w.rotation.y=Math.PI/2;inst.add(w);}if(sl.k)inst.scale.setScalar(sl.k);placeOn(inst,sl.lon,sl.lat,sl.yaw);if(sl.collide)colliders.push(inst);const SR={treeBig:.5,treeSmall:.4,mailbox:.35,rock:.6*(sl.k||1),crate:.5}[kind];if(SR)solidCircle(inst,SR);}sceneDirty=true;},undefined,e=>console.warn(kind,'not loaded',e));}
     // residents: Josh's four modelled characters, cloned with their skeletons
@@ -852,14 +854,15 @@ function update(dt){
   if(ride.on){if(ride.grind){v=Math.max(Math.abs(v),3.5);}else{const target=fw>0?MAXV*1.8:0;if(fw>0)v+=(target-v)*(1-Math.exp(-1.6*dt));else if(fw<0)v*=Math.exp(-2.5*dt);else v*=Math.exp(-.3*dt);if(v<.03)v=0;}}
   else{const target=fw>0?MAXV:fw<0?-MAXV*.5:0;v+=(target-v)*(1-Math.exp(-8*dt));if(!fw&&Math.abs(v)<.05)v=0;}
   turn(ride.grind?0:tn*TURN*(ride.on?.8:1)*dt);
-  let step=v*(ride.air>0&&ride.spin?dt*.4:dt);const drain=pendingMove*(1-Math.exp(-7*dt));pendingMove-=drain;if(Math.abs(pendingMove)<.02)pendingMove=0;
+  let step=v*(ride.air>0&&ride.spin?dt*.38*Math.abs(Math.cos(Math.PI*clamp(ride.airT/ride.airDur,0,1))):dt); /* in a launch he slows to a stop at the top, then comes back down the same line */
+  const drain=pendingMove*(1-Math.exp(-7*dt));pendingMove-=drain;if(Math.abs(pendingMove)<.02)pendingMove=0;
   step+=clamp(drain,-MAXV*1.2*dt,MAXV*1.2*dt);
   if(ride.grind){const g=ride.grind;g.dx+=g.dir*v*dt;up.copy(parkPt(g.dx,RAIL.dz));fwd.copy(PARK.east).multiplyScalar(g.dir);orthonormalize();step=0;
     if(g.dx<=RAIL.x0||g.dx>=RAIL.x1){ride.grind=null;ride.air=.6;ride.airT=0;ride.airDur=.45;ride.spin=0;}}
   moveForward(step);resolveSolids();
-  if(ride.air>0){ride.airT+=ride.spin?dt*.4:dt;if(ride.flip&&ride.airT>=ride.airDur/2){ride.flip=false;ride.flipped=true;turn(Math.PI);}if(ride.airT>=ride.airDur){ride.air=0;ride.spin=0;ride.flipped=false;}}
+  if(ride.air>0){ride.airT+=ride.spin?dt*.38:dt;if(ride.flip&&ride.airT>=ride.airDur/2){ride.flip=false;ride.flipped=true;turn(Math.PI);}if(ride.airT>=ride.airDur){ride.air=0;ride.spin=0;ride.flipped=false;}}
   else if(ride.on&&!ride.grind){ // riding up a steep ramp launches him: up, a spin, and back down the way he came
-    const h=parkH(up),slope=(surfaceAhead(.7)-h)/.7;if(slope>.85&&h>1&&v>2.2){ride.air=1.3+v*.12;ride.airT=0;ride.airDur=1.05;ride.spin=1;ride.flip=true;ride.flipped=false;ride.fwd0.copy(fwd);}}
+    const h=parkH(up),slope=(surfaceAhead(.7)-h)/.7;if(slope>.7&&h>.6&&v>2.2){ride.air=1.6+v*.14;ride.airT=0;ride.airDur=1.4;ride.spin=1;ride.flip=true;ride.flipped=false;ride.fwd0.copy(fwd);}}
   if(ride.on){const flat=!ride.grind&&ride.air===0&&Math.abs(surfaceAhead(.8)-parkH(up))<.12&&Math.abs(parkH(up)-surfaceAhead(-.8))<.12;const pushing=flat&&fw>0&&v<MAXV*1.6;
     ride.push+=((pushing?1:0)-ride.push)*Math.min(1,dt*6);ride.pushT+=dt*(pushing?5.5:0);}
   const speed=Math.abs(step/Math.max(dt,1e-4));
@@ -915,12 +918,12 @@ function update(dt){
   else{idleT=speed>.3||sitting?0:idleT+dt;const wantYaw=idleT>2.5?1.75:0;camYaw+=(wantYaw-camYaw)*Math.min(1,dt*.7);
     let dir=fwd.clone().multiplyScalar(Math.cos(camYaw)).addScaledVector(right,Math.sin(camYaw));const off=camYaw>.1?1-camYaw/1.75:1;
     if(ride.air>0&&ride.spin){const th=Math.PI*smooth(0,1,ride.airT/ride.airDur);dir=ride.fwd0.clone().applyAxisAngle(up,th);}
-    const bell=ride.air>0&&ride.spin?Math.sin(Math.PI*clamp(ride.airT/ride.airDur,0,1)):0; /* the trick camera climbs to a near bird's-eye view at the top of the arc and comes back down */
+    const tA=clamp(ride.airT/ride.airDur,0,1);const want=ride.air>0&&ride.spin?smooth(0,.2,tA)*(1-smooth(.9,1,tA)):0;ride.camAir+=(want-ride.camAir)*(1-Math.exp(-dt*(want>ride.camAir?7:1.1)));const bell=ride.camAir; /* the trick camera climbs to a bird's-eye view, holds it, and eases back down after landing */
     const camBack=(ride.on?5.2:4.4)-bell*2.6;let rise=0;const h0=parkH(up);for(let k=1;k<=4;k++){const bn=_ahead.copy(up).addScaledVector(dir,-camBack*k/4/R).normalize();rise=Math.max(rise,parkH(bn)-h0);} /* anything of the park between him and the camera lifts the camera over it */
     const camH=2.1+.3*camYaw+bell*6.5+rise;
     if(sitting){const sd=fwd.clone().multiplyScalar(Math.cos(sitOrbit.yaw)).addScaledVector(right,Math.sin(sitOrbit.yaw));desired=up.clone().multiplyScalar(hAt(up)+1.7+sitOrbit.pitch*2.2).addScaledVector(sd,-3.6);look=up.clone().multiplyScalar(hAt(up)+1.25).addScaledVector(fwd,7*Math.max(0,Math.cos(sitOrbit.yaw)));}
     else{desired=up.clone().multiplyScalar(gAt(up)+camH).addScaledVector(dir,-camBack);
-    look=up.clone().multiplyScalar(gAt(up)+1.4).addScaledVector(fwd,3.6*off*(1-bell));if(bell>0)look.addScaledVector(up,ride.air*Math.sin(Math.PI*clamp(ride.airT/ride.airDur,0,1))*.6);}} // centred behind him while walking
+    look=up.clone().multiplyScalar(gAt(up)+1.4).addScaledVector(fwd,3.6*off*(1-bell));if(ride.air>0&&ride.spin)look.addScaledVector(up,ride.air*Math.sin(Math.PI*tA)*.6);}} // centred behind him while walking
   const eye=talking?look.clone():up.clone().multiplyScalar(gAt(up)+1.8);const ray=desired.clone().sub(eye);const len=ray.length();
   raycaster.set(eye,ray.normalize());raycaster.far=len;
   const hits=raycaster.intersectObjects(colliders,true);
@@ -1088,7 +1091,7 @@ function updateNight(dt){if(nightT===null){night=Math.max(0,night-dt*.4);}else{c
   window.__state=()=>({sitting,hm:!!HM,h:+parkH(up).toFixed(2),push:+ride.push.toFixed(2),boards:BOARD?BOARD.boards.length:0,riding:ride.on,air:+ride.air.toFixed(2),grind:!!ride.grind,spin:ride.spin,v:+v.toFixed(2),auto:!!autoTarget,route:autoRoute.length,night:+night.toFixed(2)});}
 /* skateboarding: hop on the board by the park entrance; push with the arrows, coast with momentum, Space to ollie.
    An ollie next to the rail snaps onto it and grinds to the end; an ollie on the big ramp launches higher and spins a 360. */
-const ride={on:false,air:0,airT:0,airDur:0,spin:0,grind:null,pose:null,flip:false,flipped:false,push:0,pushT:0,fwd0:new THREE.Vector3()};let nearBoard=null;const _ahead=new THREE.Vector3();
+const ride={on:false,air:0,airT:0,airDur:0,spin:0,grind:null,pose:null,flip:false,flipped:false,push:0,pushT:0,fwd0:new THREE.Vector3(),camAir:0};let nearBoard=null;const _ahead=new THREE.Vector3();
 function surfaceAhead(dist){_ahead.copy(up).addScaledVector(fwd,dist/R).normalize();return parkH(_ahead);}
 function startRide(){if(!BOARD||ride.on||!nearBoard)return;if(window.__dbgRide)console.log('STARTRIDE '+new Error().stack.split('\n').slice(1,5).join(' | '));autoTarget=null;autoRoute=[];autoFace=null;ride.on=true;ride.pose=null;ride.air=0;ride.grind=null;scene.remove(nearBoard.prop);BOARD.boards.splice(BOARD.boards.indexOf(nearBoard),1);sceneDirty=true;spawnBoard();BOARD.ride.visible=true;$('#ba').textContent='Hop off';$('#ba').classList.remove('off');firstMove();}
 function stopRide(){if(!ride.on)return;ride.on=false;ride.grind=null;ride.air=0;ride.pose=null;BOARD.ride.visible=false;const [lon,lat]=lonLatOf(up);dropBoard(up,yawFor(lon,lat,fwd)+Math.PI/2);v=Math.min(v,MAXV);$('#ba').classList.add('off');shownN=undefined;}
