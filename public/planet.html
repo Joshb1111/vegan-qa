@@ -320,7 +320,7 @@ const stairSlots=[]; // spots for the modelled staircase
       const w=6+rnd()*5,d=4.5+rnd()*2.5;const step=(w+1.5+rnd()*2.5)/R;
       const t=rnd();let b=null;
       if(t<.22)b=house(w,d);else if(t<.46)b=block(w,d);else if(t<.68)b=shop(w,d);else if(t<.74)b=greenHouse(w,d);
-      else if(t<.9&&w>=7.5){modelSlots.push({lon:lon+step/2,lat:side*(roadLat+(2.2+2.7+(rnd()<.25?2.5:0))/R),yaw:side<0?Math.PI:0});}
+      else if(t<.95&&w>=7.5){modelSlots.push({lon:lon+step/2,lat:side*(roadLat+(2.2+2.7+(rnd()<.25?2.5:0))/R),yaw:side<0?Math.PI:0});}
       const setback=(rnd()<.25?2.5:0);
       const lat=side*(roadLat+ (2.2+ d/2 + setback)/R);
       if(b){placeOn(b,lon+step/2,lat,side<0?Math.PI:0);colliders.push(b);
@@ -444,7 +444,10 @@ let kidModel=null,mixer=null;const clips={};let gait={walk:0,idle:1};
         gl_FragColor.rgb=clamp(c,0.0,1.0);`);};return m;};
     const toonify=root=>root.traverse(m=>{if(m.isMesh){const old=m.material;m.material=flatMat(old.map,old.color);}});
     const fit=(root,height)=>{const bb=new THREE.Box3().setFromObject(root);const sc=height/(bb.max.y-bb.min.y);root.scale.setScalar(sc);root.position.y=-bb.min.y*sc;root.position.x=-(bb.min.x+bb.max.x)/2*sc;root.position.z=-(bb.min.z+bb.max.z)/2*sc;};
-    loader.load('assets/building1.glb',g=>{toonify(g.scene);fit(g.scene,9);for(const sl of modelSlots){const inst=new THREE.Group();inst.add(g.scene.clone());placeOn(inst,sl.lon,sl.lat,sl.yaw);colliders.push(inst);}sceneDirty=true;},undefined,e=>console.warn('building not loaded',e));
+    // Josh's buildings: slots rotate through the list, so each one appears several times around the planet
+    const BUILDINGS=['assets/building1v2.glb','assets/building2.glb'];
+    BUILDINGS.forEach((file,bi)=>loader.load(file,g=>{toonify(g.scene);fit(g.scene,9);
+      modelSlots.forEach((sl,i)=>{if(i%BUILDINGS.length!==bi)return;const inst=new THREE.Group();inst.add(g.scene.clone());placeOn(inst,sl.lon,sl.lat,sl.yaw);colliders.push(inst);});sceneDirty=true;},undefined,e=>console.warn('building not loaded',file,e)));
     loader.load('assets/stairs1.glb',g=>{toonify(g.scene);fit(g.scene,2.4);for(const sl of stairSlots){const inst=new THREE.Group();inst.add(g.scene.clone());placeOn(inst,sl.lon,sl.lat,sl.yaw);}sceneDirty=true;},undefined,e=>console.warn('stairs not loaded',e));};
   document.head.appendChild(sc);})();
 
