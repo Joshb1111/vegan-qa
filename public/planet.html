@@ -373,13 +373,11 @@ const colliders=[];let skyDome=null,nightDome=null,SUNSET=null;const PLACES={};
     const haze=mk('rgba(255,172,96,.9)','rgba(255,172,96,0)',720,150,.6,384); // warm haze along the horizon
     const glow=mk('rgba(255,232,180,1)','rgba(255,160,80,0)',170,170,.95,382);
     const sun=mk('rgba(255,250,232,1)','rgba(255,225,160,0)',38,38,1,380);
-    const streak=new THREE.Group();const pl=new THREE.Mesh(new THREE.PlaneGeometry(3.2,30),new THREE.MeshBasicMaterial({color:0xffb070,transparent:true,opacity:.32,depthWrite:false}));pl.rotation.x=-Math.PI/2;pl.userData.noInk=true;streak.add(pl);
-    placeOn(streak,1.3,-.52,0);pl.position.y=SEA_LEVEL-terrainH(sphere(1.3,-.52))+.06;
     // stars for the night, hidden from the ink pass
     const sp=[];for(let i=0;i<1400;i++){const v=new THREE.Vector3(rnd()-.5,rnd()-.5,rnd()-.5).normalize().multiplyScalar(400);sp.push(v.x,v.y,v.z);}
     const sg=new THREE.BufferGeometry();sg.setAttribute('position',new THREE.Float32BufferAttribute(sp,3));
     const stars=new THREE.Points(sg,new THREE.PointsMaterial({color:0xfff6e0,size:2.2,sizeAttenuation:false,transparent:true,opacity:0,depthWrite:false}));stars.visible=false;scene.add(stars);hideInNormals.push(stars);
-    SUNSET={B,parts:[haze,glow,sun],base:[haze,glow,sun].map(m=>m.position.clone()),streak:pl,stars};})();
+    SUNSET={B,parts:[haze,glow,sun],base:[haze,glow,sun].map(m=>m.position.clone()),stars};})();
 })();
 (function makeSky(){
   // Josh's painted sky on a dome; mirrored repeat hides the seam. The dome is re-oriented every frame so its
@@ -617,7 +615,7 @@ const outfits=()=>{const skin=pick([0xf2cfae,0xe0b48a,0xc68a5a,0x8d5a3b,0x6b4227
 const player=person({skin:0xf2cfae,hair:0x2a2430,top:P.red,bottom:0xb9a66e,legs:0xf2cfae,sock:P.cream,shoe:P.red,shoeCap:P.cream,skinLegs:true,cargo:true,collar:true,bag:true,hairStyle:'bob'});
 scene.add(player.group);
 /* ---------- the modelled character (Tripo GLB), with its own walk animation ---------- */
-let kidModel=null,mixer=null;const clips={};let gait={walk:0,run:0,fidget:0};const mixers=[];let jump={on:false,t:0,dur:0},idleFor=0,fidgetUntil=0;const birdGroups=[];
+let kidModel=null,mixer=null;const clips={};let gait={walk:0,run:0,fidget:0};const mixers=[];let jump={on:false,t:0,dur:0},idleFor=0,fidgetUntil=0,wasMoving=false,fidgetOK=false;const birdGroups=[];
 const _bv=new THREE.Vector3(),_bu=new THREE.Vector3(),_bf=new THREE.Vector3(),_bs=new THREE.Vector3(),_bm=new THREE.Matrix4();
 function updateBirds(dt,t){for(const g of birdGroups){g.th+=g.w*dt;const v=new THREE.Vector3().crossVectors(g.axis,g.u);
   /* the whole group weaves: a slow sideways S-curve and a gentle rise and fall, with a matching bank */
@@ -827,8 +825,10 @@ function update(dt){
     stepsTarget=(moving&&!jump.on)?(running?STEP_VOL:STEP_VOL*.6):0;steps.playbackRate=running?1:.78;
     gait.run+=((running?1:0)-gait.run)*Math.min(1,dt*6);gait.walk+=((moving&&!running?1:0)-gait.walk)*Math.min(1,dt*6);
     idleFor=moving?0:idleFor+dt;const now_=performance.now()/1000;
-    if(clips.fidget&&!moving&&idleFor>7&&now_>fidgetUntil){clips.fidget.reset().play();fidgetUntil=now_+clips.fidget.getClip().duration+9+Math.random()*8;idleFor=0;}
-    const fidgeting=clips.fidget&&clips.fidget.isRunning()&&!moving;gait.fidget+=((fidgeting?1:0)-gait.fidget)*Math.min(1,dt*5);
+    if(moving)wasMoving=true;else if(wasMoving){wasMoving=false;fidgetOK=Math.random()<.2;fidgetUntil=now_+4+Math.random()*4;} // about one stop in five earns a stretch, a few seconds in
+    if(clips.fidget&&!moving&&!sitting&&fidgetOK&&now_>fidgetUntil){clips.fidget.reset().play();fidgetOK=false;}
+    if(sitting&&clips.fidget&&clips.fidget.isRunning())clips.fidget.stop();
+    const fidgeting=clips.fidget&&clips.fidget.isRunning()&&!moving&&!sitting;gait.fidget+=((fidgeting?1:0)-gait.fidget)*Math.min(1,dt*5);
     if(jump.on){jump.t+=dt;if(jump.t>=jump.dur)jump.on=false;kidModel.position.addScaledVector(up,Math.sin(Math.PI*clamp(jump.t/jump.dur,0,1))*.75);}
     const jw=jump.on?1:0;
     if(clips.run){clips.run.setEffectiveWeight(gait.run*(1-jw));clips.run.setEffectiveTimeScale(clamp(speed/(clips.runSpeed||3)*.9,.6,2.2));}
@@ -1012,7 +1012,7 @@ function applySit(){if(!sitting||!kidModel)return;const bones=kidModel.userData.
   for(const k of ['L_Calf','R_Calf']){const b=bones[k];if(b&&sitPose[k])b.quaternion.copy(sitPose[k]).multiply(_sq.setFromAxisAngle(_sx,S.c));}}
 function updateNight(dt){if(nightT===null){night=Math.max(0,night-dt*.4);}else{const t=performance.now()/1000-nightT;night=t<8?smooth(0,8,t):t<38?1:t<46?1-smooth(38,46,t):0;if(t>=46)nightT=null;}
   inkPass.uniforms.night.value=night;if(SUNSET){const drop=night*26;SUNSET.parts.forEach((m,i)=>{m.position.copy(SUNSET.base[i]).addScaledVector(SUNSET.B,-drop);m.material.opacity=(i===0?.6:i===1?.95:1)*(1-night*.9);});
-    SUNSET.streak.material.opacity=.32*(1-night);SUNSET.stars.visible=night>.02;SUNSET.stars.material.opacity=Math.max(0,(night-.3)/.7);}
+    SUNSET.stars.visible=night>.02;SUNSET.stars.material.opacity=Math.max(0,(night-.3)/.7);}
   shadowCap.material.opacity=.34*(1-night*.85);if(nightDome){nightDome.visible=night>.01;nightDome.material.opacity=night;}
   window.__state=()=>({sitting,auto:!!autoTarget,route:autoRoute.length,night:+night.toFixed(2)});}
 function doJump(){if(talking||jump.on||!clips.jump)return;jump.on=true;jump.t=0;jump.dur=clips.jump.getClip().duration;clips.jump.reset().play();firstMove();}
