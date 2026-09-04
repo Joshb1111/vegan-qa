@@ -42,7 +42,8 @@ button.ink:active{transform:translate(2px,2px);box-shadow:1px 1px 0 var(--ink)}
 #stops[hidden]{display:none}
 #stops h2{margin:2px 6px 8px;font-family:var(--hand);font-weight:normal;font-size:24px}
 #stops button{appearance:none;display:flex;align-items:center;gap:12px;width:100%;text-align:left;background:none;border:0;border-top:2px dashed var(--grey2);padding:8px 6px;font-family:var(--hand);font-size:21px;cursor:pointer;line-height:1.1}
-#stops button:first-of-type{border-top:0}
+#stops button:first-of-type,#stops h2+button{border-top:0}
+#stops h2+h2,#stops button+h2{margin-top:14px}
 #stops button:hover{background:var(--cream2)}
 #stops button i{width:22px;height:22px;border:2px solid var(--ink);border-radius:50%;flex:none}
 #stops button small{margin-left:auto;font-family:var(--body);font-size:12px;color:var(--muted)}
@@ -187,7 +188,7 @@ scene.add(sunL);scene.add(sunL.target);
 const shadowCap=new THREE.Mesh(new THREE.SphereGeometry(R+.075,48,8,0,Math.PI*2,0,.1),new THREE.ShadowMaterial({color:0x1b2630,opacity:.34,transparent:true,depthWrite:false}));
 shadowCap.receiveShadow=true;shadowCap.userData.skipInk=true;shadowCap.frustumCulled=false;scene.add(shadowCap);
 const _se=new THREE.Vector3(),_sn=new THREE.Vector3(),_sd=new THREE.Vector3(),_sm=new THREE.Matrix4();
-function updateSky(up){if(!skyDome)return;_se.set(0,1,0);if(Math.abs(up.y)>.98)_se.set(1,0,0);_se.addScaledVector(up,-_se.dot(up)).normalize();_sn.crossVectors(_se,up);_sm.makeBasis(_se,up,_sn);skyDome.quaternion.setFromRotationMatrix(_sm);}
+function updateSky(up){if(!skyDome)return;_se.set(0,1,0);if(Math.abs(up.y)>.98)_se.set(1,0,0);_se.addScaledVector(up,-_se.dot(up)).normalize();_sn.crossVectors(_se,up);_sm.makeBasis(_se,up,_sn);skyDome.quaternion.setFromRotationMatrix(_sm);if(nightDome)nightDome.quaternion.copy(skyDome.quaternion);}
 function updateShadowRig(pos,up,q){shadowCap.quaternion.copy(q);shadowCap.position.copy(up).multiplyScalar(terrainH(up)); /* cap pole = local Y = up, so the patch hugs the ground under the player */
   _se.set(-up.z,0,up.x).normalize();_sn.crossVectors(_se,up).normalize();
   _sd.copy(up).multiplyScalar(1.6).addScaledVector(_se,.7).addScaledVector(_sn,.5).normalize();
@@ -199,9 +200,9 @@ let W=0,H=0;
 const rt=new THREE.WebGLRenderTarget(2,2,{minFilter:THREE.LinearFilter,magFilter:THREE.LinearFilter});rt.depthTexture=new THREE.DepthTexture();rt.depthTexture.type=THREE.UnsignedIntType;
 const rtN=new THREE.WebGLRenderTarget(2,2,{minFilter:THREE.NearestFilter,magFilter:THREE.NearestFilter});
 const normalMat=new THREE.MeshNormalMaterial();
-const inkPass=new THREE.ShaderMaterial({uniforms:{tColor:{value:rt.texture},tDepth:{value:rt.depthTexture},tNormal:{value:rtN.texture},res:{value:new THREE.Vector2(2,2)},near:{value:camera.near},far:{value:camera.far}},
+const inkPass=new THREE.ShaderMaterial({uniforms:{tColor:{value:rt.texture},tDepth:{value:rt.depthTexture},tNormal:{value:rtN.texture},res:{value:new THREE.Vector2(2,2)},near:{value:camera.near},far:{value:camera.far},night:{value:0}},
   vertexShader:'varying vec2 vUv;void main(){vUv=uv;gl_Position=vec4(position.xy,0.,1.);}',
-  fragmentShader:`precision highp float;varying vec2 vUv;uniform sampler2D tColor,tDepth,tNormal;uniform vec2 res;uniform float near,far;
+  fragmentShader:`precision highp float;varying vec2 vUv;uniform sampler2D tColor,tDepth,tNormal;uniform vec2 res;uniform float near,far,night;
   float lin(float d){float z=d*2.-1.;return (2.*near*far)/(far+near-z*(far-near));}
   float hash(vec2 p){return fract(sin(dot(p,vec2(127.1,311.7)))*43758.5453);}
   float noise(vec2 p){vec2 i=floor(p),f=fract(p);f=f*f*(3.-2.*f);return mix(mix(hash(i),hash(i+vec2(1,0)),f.x),mix(hash(i+vec2(0,1)),hash(i+vec2(1,1)),f.x),f.y);}
@@ -219,6 +220,7 @@ const inkPass=new THREE.ShaderMaterial({uniforms:{tColor:{value:rt.texture},tDep
     vec3 col=texture2D(tColor,vUv).rgb;
     col+=(noise(sp/1.7)-.5)*.035;
     col=mix(col,vec3(.14,.19,.22),line*.92);
+    float nf=night*(d0<300.?1.:.3);col=mix(col,col*vec3(.20,.26,.46)+vec3(.01,.02,.07),nf); // dusk to night; the sky keeps more of its own picture
     gl_FragColor=vec4(col,1.);}`});
 const quadScene=new THREE.Scene();quadScene.add(new THREE.Mesh(new THREE.PlaneGeometry(2,2),inkPass));const quadCam=new THREE.OrthographicCamera(-1,1,1,-1,0,1);
 function resize(){W=game.clientWidth;H=game.clientHeight;renderer.setSize(W,H,false);camera.aspect=W/H;camera.updateProjectionMatrix();const rw=Math.round(W*DPR),rh=Math.round(H*DPR);rt.setSize(rw,rh);rtN.setSize(rw,rh);inkPass.uniforms.res.value.set(rw,rh);}
@@ -227,10 +229,11 @@ const skyCol=scene.background,normalBg=new THREE.Color(0x8080ff); // background 
 let meshList=[],sceneDirty=true;const nmPlain=new THREE.MeshNormalMaterial(),nmSkin=new THREE.MeshNormalMaterial({skinning:true});
 const nmFlat=new THREE.MeshBasicMaterial({color:0x8080ff}),nmFlatSkin=new THREE.MeshBasicMaterial({color:0x8080ff,skinning:true}); // 'facing the camera': no interior lines, silhouette only
 function refreshMeshes(){meshList=[];scene.traverse(o=>{if(o.isMesh&&!o.userData.skipInk)meshList.push(o);});sceneDirty=false;}
-function renderInk(){renderer.shadowMap.needsUpdate=true;renderer.setRenderTarget(rt);renderer.render(scene,camera);shadowCap.visible=false;
+const hideInNormals=[];
+function renderInk(){renderer.shadowMap.needsUpdate=true;renderer.setRenderTarget(rt);renderer.render(scene,camera);shadowCap.visible=false;for(const o of hideInNormals)o.visible=false;
   if(sceneDirty)refreshMeshes();for(const m of meshList){m.userData.mat=m.material;m.material=m.userData.noInk?(m.isSkinnedMesh?nmFlatSkin:nmFlat):(m.isSkinnedMesh?nmSkin:nmPlain);}
   scene.background=normalBg;renderer.setRenderTarget(rtN);renderer.render(scene,camera);
-  for(const m of meshList)m.material=m.userData.mat;shadowCap.visible=true;scene.background=skyCol;renderer.setRenderTarget(null);renderer.render(quadScene,quadCam);}
+  for(const m of meshList)m.material=m.userData.mat;shadowCap.visible=true;for(const o of hideInNormals)o.visible=true;scene.background=skyCol;renderer.setRenderTarget(null);renderer.render(quadScene,quadCam);}
 
 
 let seed=5;const rnd=()=>{seed=(seed*16807)%2147483647;return seed/2147483647;};
@@ -316,7 +319,7 @@ function placeOn(obj,lon,lat,yaw){scene.add(obj);return poseOn(obj,lon,lat,yaw);
    so the corners meet the grass and the middle sits a little into it. */
 function sinkFor(obj){const bb=new THREE.Box3().setFromObject(obj);if(bb.isEmpty())return 0;const hx=(bb.max.x-bb.min.x)/2,hz=(bb.max.z-bb.min.z)/2;return R-Math.sqrt(Math.max(0,R*R-(hx*hx+hz*hz)));}
 function placeOnGround(obj,lon,lat,yaw){const bb=new THREE.Box3().setFromObject(obj);const s=sinkFor(obj);placeOn(obj,lon,lat,yaw);obj.translateY(-s);obj.updateMatrixWorld(true);if(!bb.isEmpty())solidBox(obj,bb);return obj;}
-const colliders=[];let skyDome=null;
+const colliders=[];let skyDome=null,nightDome=null,SUNSET=null;const PLACES={};
 (function makePlanet(){
   /* the road network */
   const mainLat=lon=>.07*Math.sin(3*lon+.4)+.03*Math.sin(5*lon+1.7); // the main loop meanders left and right
@@ -328,7 +331,7 @@ const colliders=[];let skyDome=null;
   [[0.85,0.95,.06],[2.55,2.45,-.05],[4.35,4.5,.05]].forEach(([a,b,k],i)=>addRoad('side'+i,[[a,mainLat(a)],[(a+b)/2+k,(mainLat(a)+ringLat(b))/2],[b,ringLat(b)]],false,3.6,'road',.07));
   [[1.75,1.85],[5.2,5.12]].forEach(([a,b],i)=>addRoad('alley'+i,[[a,mainLat(a)],[a+.02,mainLat(a)+.13],[b-.03,mainLat(a)+.3],[b,ringLat(b)]],false,1.5,'alley',.08));
   addRoad('skate',[[3.5,mainLat(3.5)],[3.47,.16],[PLAZA.lon,PLAZA.lat-.1]],false,3.2,'road',.07);
-  addRoad('beach',[[1.3,mainLat(1.3)],[1.36,-.12],[1.26,-.23],[1.32,-.34]],false,2.2,'path',.08);
+  addRoad('beach',[[1.3,mainLat(1.3)],[1.36,-.12],[1.26,-.23],[1.32,-.325]],false,2.2,'path',.03);
   window.__roads={MAIN,RING,mainLat,ringLat};
   ZONES.push({n:sphere(PLAZA.lon,PLAZA.lat),r:PLAZA.r+3},{n:sphere(1.32,-.36),r:9});
   /* ground texture: grass, a sandy shore, foam at the waterline, the concrete plaza */
@@ -362,22 +365,30 @@ const colliders=[];let skyDome=null;
       for(let j=0;j<=M;j++){const o=hw*(1-2*j/M);const pt=_q.copy(sm.n).addScaledVector(sm.side,o/R).normalize();const h=hAt(pt)+road.lift;pos.push(pt.x*h,pt.y*h,pt.z*h);uv.push(s_/texLen,1-j/M);}}
     for(let i=0;i<rows-1;i++)for(let j=0;j<M;j++){const a=i*(M+1)+j,b=a+1,c=a+(M+1),d=c+1;idx.push(a,b,c,b,d,c);}
     const rg=new THREE.BufferGeometry();rg.setAttribute('position',new THREE.Float32BufferAttribute(pos,3));rg.setAttribute('uv',new THREE.Float32BufferAttribute(uv,2));rg.setIndex(idx);rg.computeVertexNormals();
-    scene.add(new THREE.Mesh(rg,road.kind==='road'?roadMat:road.kind==='alley'?alleyMat:pathMat));}
+    const rm=new THREE.Mesh(rg,road.kind==='road'?roadMat:road.kind==='alley'?alleyMat:pathMat);if(road.kind==='path')rm.userData.noInk=true;scene.add(rm);}
   /* the sunset: a low sun over the sea, seen from the beach looking out across the water */
   (function sunset(){const B=sphere(1.3,-.40);const {north}=frameAt(1.3,-.40);const D=north.clone().negate().addScaledVector(B,.11).normalize();
     const mk=(inner,outer,w,h,alpha,dist)=>{const c2=document.createElement('canvas');c2.width=c2.height=256;const g2=c2.getContext('2d');const gr=g2.createRadialGradient(128,128,0,128,128,128);gr.addColorStop(0,inner);gr.addColorStop(.3,inner);gr.addColorStop(1,outer);g2.fillStyle=gr;g2.fillRect(0,0,256,256);
       const m=new THREE.Mesh(new THREE.PlaneGeometry(w,h),new THREE.MeshBasicMaterial({map:new THREE.CanvasTexture(c2),transparent:true,opacity:alpha,depthWrite:false}));m.position.copy(D).multiplyScalar(dist);m.lookAt(0,0,0);m.userData.noInk=true;scene.add(m);return m;};
-    mk('rgba(255,172,96,.9)','rgba(255,172,96,0)',720,150,.6,384); // warm haze along the horizon
-    mk('rgba(255,232,180,1)','rgba(255,160,80,0)',170,170,.95,382); // glow
-    mk('rgba(255,250,232,1)','rgba(255,225,160,0)',38,38,1,380); // the sun
+    const haze=mk('rgba(255,172,96,.9)','rgba(255,172,96,0)',720,150,.6,384); // warm haze along the horizon
+    const glow=mk('rgba(255,232,180,1)','rgba(255,160,80,0)',170,170,.95,382);
+    const sun=mk('rgba(255,250,232,1)','rgba(255,225,160,0)',38,38,1,380);
     const streak=new THREE.Group();const pl=new THREE.Mesh(new THREE.PlaneGeometry(3.2,30),new THREE.MeshBasicMaterial({color:0xffb070,transparent:true,opacity:.32,depthWrite:false}));pl.rotation.x=-Math.PI/2;pl.userData.noInk=true;streak.add(pl);
-    placeOn(streak,1.3,-.52,0);pl.position.y=SEA_LEVEL-terrainH(sphere(1.3,-.52))+.06;})();
+    placeOn(streak,1.3,-.52,0);pl.position.y=SEA_LEVEL-terrainH(sphere(1.3,-.52))+.06;
+    // stars for the night, hidden from the ink pass
+    const sp=[];for(let i=0;i<1400;i++){const v=new THREE.Vector3(rnd()-.5,rnd()-.5,rnd()-.5).normalize().multiplyScalar(400);sp.push(v.x,v.y,v.z);}
+    const sg=new THREE.BufferGeometry();sg.setAttribute('position',new THREE.Float32BufferAttribute(sp,3));
+    const stars=new THREE.Points(sg,new THREE.PointsMaterial({color:0xfff6e0,size:2.2,sizeAttenuation:false,transparent:true,opacity:0,depthWrite:false}));stars.visible=false;scene.add(stars);hideInNormals.push(stars);
+    SUNSET={B,parts:[haze,glow,sun],base:[haze,glow,sun].map(m=>m.position.clone()),streak:pl,stars};})();
 })();
 (function makeSky(){
   // Josh's painted sky on a dome; mirrored repeat hides the seam. The dome is re-oriented every frame so its
   // equator (the pale horizon band in the picture) lies on the player's own horizon wherever they are on the planet.
   const tex=new THREE.TextureLoader().load('assets/sky.jpg?v=2');tex.wrapS=THREE.MirroredRepeatWrapping;tex.repeat.x=2;
   const dome=new THREE.Mesh(new THREE.SphereGeometry(420,48,32),new THREE.MeshBasicMaterial({map:tex,side:THREE.BackSide}));dome.userData.noInk=true;scene.add(dome);skyDome=dome;
+  // Josh's night sky on a second dome just inside the first; it fades in when the sun goes down
+  const ntex=new THREE.TextureLoader().load('assets/sky-night.jpg');ntex.wrapS=THREE.MirroredRepeatWrapping;ntex.repeat.x=2;
+  const nd=new THREE.Mesh(new THREE.SphereGeometry(414,48,32),new THREE.MeshBasicMaterial({map:ntex,side:THREE.BackSide,transparent:true,opacity:0,depthWrite:false}));nd.userData.noInk=true;nd.visible=false;scene.add(nd);nightDome=nd;
   // rolling hills beyond the ring road, up towards the north pole
   for(let i=0;i<8;i++){const lon=rnd()*Math.PI*2,lat=.9+rnd()*.3;const h=sph(6+rnd()*8,pick([P.green,P.green2,P.green3]),14);h.scale.y=.45;placeOn(h,lon,lat);}
 })();
@@ -448,6 +459,14 @@ function greenHouse(w,d){ // the tall green building with the mailboxes
 const npcSpots=[]; // places people like to stand
 const modelSlots=[]; // plots kept free for Josh's modelled buildings: {lon,lat,yaw}
 const propSlots=[]; // {kind,lon,lat,yaw} filled with Josh's modelled props once they load
+let BENCH=null;
+/* a fingerpost: arms of text, each pointing along a world direction */
+function yawX(lon,lat,d){const {n,north}=frameAt(lon,lat);const Z=north.clone().negate(),X=new THREE.Vector3().crossVectors(n,Z);return Math.atan2(-d.dot(Z),d.dot(X));}
+function fingerpost(lon,lat,arms){const g=new THREE.Group();g.add(at(cyl(.07,.08,2.9,P.wood,8),0,1.45,0));
+  arms.forEach(([text,dir],i)=>{const a=new THREE.Group();const b=box(1.9,.4,.1,P.cream);a.add(at(b,.75,0,0));const tip=box(.3,.4,.1,P.cream);tip.rotation.y=Math.PI/4;a.add(at(tip,1.72,0,0));
+    const l=label(text+' →',1.8,.36,'#f3efe4','#26333a',.2,{border:false});l.position.set(.75,0,.06);a.add(l);const l2=label('← '+text,1.8,.36,'#f3efe4','#26333a',.2,{border:false});l2.rotation.y=Math.PI;l2.position.set(.75,0,-.06);a.add(l2);
+    a.position.y=2.55-i*.5;a.rotation.y=yawX(lon,lat,dir)-yawX(lon,lat,frameAt(lon,lat).east);g.add(a);});
+  placeOn(g,lon,lat,yawX(lon,lat,frameAt(lon,lat).east));solidCircle(g,.25);return g;}
 function townAlong(road,o){o=o||{};const kerb=road.kerb;const end=Math.min(road.L-(road.closed?0:2),o.endS||1e9);
   for(const side of (o.sides||[1,-1])){let s=(o.startS||0)+rnd()*3;
     while(s<end-3){const w=(o.wMin||6)+rnd()*(o.wVar||5),d=(o.dMin||4.5)+rnd()*2.5;const step=w+1.5+rnd()*2.5;if(s+step>end)break;
@@ -492,14 +511,21 @@ function townAlong(road,o){o=o||{};const kerb=road.kerb;const end=Math.min(road.
   for(let i=0;i<2;i++)townAlong(byName('alley'+i),{alley:true,wMin:4,wVar:3,dMin:3.5,startS:5});
   townAlong(byName('skate'),{wMin:5,wVar:3,startS:5,endS:13,modelP:0});
   townAlong(byName('beach'),{wMin:5,wVar:3,startS:5,endS:9,modelP:0});
+  /* signs: a fingerpost just ahead of where you start, one on the far side of the loop, and one at each turning */
+  (function signs(){const main=byName('main');const post=(s_,side,arms)=>{const sm=atS(main,s_);const p=offsetFrom(sm,side*(main.kerb+1.3));const [lon,lat]=lonLatOf(p);fingerpost(lon,lat,arms.map(([t,dirS])=>[t,sm.t.clone().multiplyScalar(dirS)]));};
+    const sAt=lon=>{let best=0,bd=-2;for(const sm of main.samples){const d=sm.n.dot(sphere(lon,mainLat_(lon)));if(d>bd){bd=d;best=sm.s;}}return best;};const mainLat_=window.__roads.mainLat;
+    post(sAt(.42),-1,[['Skate park',1],['Sunset beach',1]]);post(sAt(3.9),1,[['Skate park',-1],['Sunset beach',-1]]);
+    for(const [name,text] of [['beach','Sunset beach'],['skate','Skate park']]){const r=byName(name);const s0=r.samples[0],s1=atS(r,3);const p=offsetFrom(s1,-(r.kerb+1.2));const [lon,lat]=lonLatOf(p);fingerpost(lon,lat,[[text,s0.t]]);}
+  })();
   // trees on the hillsides: beyond the ring road and down the slope towards the beach
   for(let i=0;i<10;i++){propSlots.push({kind:rnd()<.5?'treeBig':'treeSmall',lon:rnd()*Math.PI*2,lat:.8+rnd()*.2,yaw:rnd()*Math.PI*2,k:.9+rnd()*.5});}
   for(let i=0;i<40;i++){const lon=rnd()*Math.PI*2,lat=-.22-rnd()*.09;const v=sphere(lon,lat);if(blocked(v,2.5))continue;propSlots.push({kind:rnd()<.4?'treeBig':'treeSmall',lon,lat,yaw:rnd()*Math.PI*2,k:.8+rnd()*.5,collide:true});if(propSlots.length>400)break;}
   for(let i=0;i<14;i++){const lon=rnd()*Math.PI*2,lat=-.30-rnd()*.06;propSlots.push({kind:'rock',lon,lat,yaw:rnd()*Math.PI,k:.7+rnd()*.9});}
   /* the beach: the path ends at a bench looking out to sea, with the sunset ahead */
   (function beach(){const end=atS(byName('beach'),byName('beach').L-.5);const {north}=frameAt(end.lon,end.lat);const toSea=north.clone().negate();
-    const bp=_q.copy(end.n).addScaledVector(toSea,2.2/R).normalize().clone();const [bl,ba]=lonLatOf(bp);placeOn(bench(),bl,ba,yawFor(bl,ba,toSea));
-    const s1=_q.copy(bp).addScaledVector(toSea,.9/R).normalize().clone();const [l1,a1]=lonLatOf(s1);npcSpots.push({lon:l1,lat:a1,face:toSea,fixed:'June'});
+    const bp=_q.copy(end.n).addScaledVector(toSea,-.4/R).addScaledVector(end.side,1.2/R).normalize().clone();const [bl,ba]=lonLatOf(bp);placeOn(bench(),bl,ba,yawFor(bl,ba,toSea));
+    BENCH={n:bp,face:toSea,lon:bl,lat:ba};PLACES.sunset={road:byName('beach'),s:byName('beach').L-1.5,then:_q.copy(bp).addScaledVector(toSea,-1.6/R).normalize().clone()};
+    const s1=_q.copy(bp).addScaledVector(end.side,3.4/R).normalize().clone();const [l1,a1]=lonLatOf(s1);npcSpots.push({lon:l1,lat:a1,face:toSea,fixed:'June'});
     const s2=_q.copy(end.n).addScaledVector(toSea,-.6/R).addScaledVector(end.side,6/R).normalize().clone();const [l2,a2]=lonLatOf(s2);npcSpots.push({lon:l2,lat:a2,face:toSea,fixed:'Elin'});
     const sg=_q.copy(end.n).addScaledVector(end.side,-3/R).normalize().clone();const [gl,ga]=lonLatOf(sg);placeOn(roundSign(P.blue,'☼'),gl,ga);
   })();
@@ -518,7 +544,7 @@ function townAlong(road,o){o=o||{};const kerb=road.kerb;const end=Math.min(road.
     function skateboard(){const g=new THREE.Group();g.add(at(box(.82,.05,.24,pick([P.red,P.blue,P.yellow])),0,.11,0));for(const x of [-.28,.28])for(const z of [-.1,.1])g.add(at(cyl(.045,.045,.05,P.cream2,8),x,.05,z));g.children.slice(1).forEach(w_=>w_.rotation.x=Math.PI/2);return g;}
     const items=[[halfPipe(5,2.1,3.2),2.6,1.4,.35],[funBox(2.4,4.2,.7),-3.2,-2.4,-.5],[rail(3.4),1.2,-4,1.1],[rail(2.6),-1,4.6,-.4]];
     for(const [obj,dx,dz,rot] of items){const [,lon,lat]=pt(dx,dz);placeOnGround(obj,lon,lat,rot);colliders.push(obj);}
-    const [,sl,sa]=pt(-3.6,1.6);npcSpots.push({lon:sl,lat:sa,face:east.clone().negate(),fixed:'Sam'});const [,kl,ka]=pt(-4.4,1.2);placeOn(skateboard(),kl,ka,.4);
+    const [,sl,sa]=pt(-3.6,1.6);npcSpots.push({lon:sl,lat:sa,face:east.clone().negate(),fixed:'Sam'});PLACES.skate={road:byName('skate'),s:byName('skate').L-1,then:pt(0,-3)[0]};const [,kl,ka]=pt(-4.4,1.2);placeOn(skateboard(),kl,ka,.4);
     const [,tl,ta]=pt(0,-6.6);placeOn(bench(),tl,ta,yawFor(tl,ta,north));const [,ol,oa]=pt(6.5,-4);npcSpots.push({lon:ol,lat:oa,face:north.clone().negate()});
   })();
 })();
@@ -623,7 +649,7 @@ function groundFix(holder,root){holder.updateMatrixWorld(true);let minY=Infinity
       const a=mixer.clipAction(c);a.play();a.setEffectiveWeight(0);
       if(n.includes('walk'))clips.walk=a;else if(n.includes('run'))clips.run=a;else if(n.includes('jump')){clips.jump=a;a.setLoop(THREE.LoopOnce,1);a.clampWhenFinished=false;}else if(n.includes('scratch')){clips.fidget=a;a.setLoop(THREE.LoopOnce,1);}else clips.idle=clips.idle||a;}
     if(!clips.idle&&clips.walk){clips.idle=clips.walk;}
-    root.traverse(m=>{if(m.isMesh)m.castShadow=true;});player.group.visible=false;scene.add(holder);kidModel=holder;kidModel.userData.root=root;kidModel.userData.groundAt=performance.now()+1200;sceneDirty=true;},undefined,e=>console.warn('character not loaded',e));
+    root.traverse(m=>{if(m.isMesh)m.castShadow=true;});player.group.visible=false;scene.add(holder);kidModel=holder;kidModel.userData.root=root;kidModel.userData.bones={};root.traverse(o=>{if(o.isBone)kidModel.userData.bones[o.name]=o;});kidModel.userData.groundAt=performance.now()+1200;sceneDirty=true;},undefined,e=>console.warn('character not loaded',e));
     // modelled buildings and props from Josh's asset folder
     const loader=new THREE.GLTFLoader();
     // Modelled assets arrive with light and shadow baked into their textures, so they are drawn unlit,
@@ -719,6 +745,26 @@ const npcs=[];
 })();
 function npcPos(n){return sphere(n.lon,n.lat);}
 function npcWorld(n){const v=sphere(n.lon,n.lat);return v.multiplyScalar(hAt(v));}
+/* auto-walk follows the streets: nearest road → the main loop → the target's road → the target */
+function nearestOnRoads(v){let best=null;for(const r of ROADS)for(const sm of r.samples){const d=v.dot(sm.n);if(!best||d>best.d)best={d,r,s:sm.s};}return best;}
+function alongRoad(road,s0,s1){const pts=[];let ds=s1-s0;if(road.closed){ds=((ds%road.L)+road.L)%road.L;if(ds>road.L/2)ds-=road.L;}const n=Math.max(1,Math.ceil(Math.abs(ds)/3));for(let i=1;i<=n;i++)pts.push(atS(road,s0+ds*i/n).n);return pts;}
+function junctionS(pointN,other){let best=0,bd=-2;for(const sm of other.samples){const d=pointN.dot(sm.n);if(d>bd){bd=d;best=sm.s;}}return best;}
+function routeTo(target){const MAIN=ROADS[0],RING=ROADS[1];const links=ROADS.filter(x=>/^(side|alley)/.test(x.name));const endN=r=>r.samples[r.samples.length-1].n;
+  const here=nearestOnRoads(up);let cur=here.r,curS=here.s;const pts=[];
+  const tgt=target.road?target:(()=>{const nb=nearestOnRoads(target.n);return {road:nb.r,s:nb.s,then:target.n};})();
+  const loopDist=(L,a,b)=>{let d=Math.abs(a-b);return Math.min(d,L-d);};
+  const bestLink=(fromRing,ringS,mainS)=>{let best=null;for(const l of links){const dd=fromRing?loopDist(RING.L,junctionS(endN(l),RING),ringS):loopDist(MAIN.L,junctionS(l.samples[0].n,MAIN),mainS);if(!best||dd<best.dd)best={dd,l};}return best.l;};
+  if(tgt.road===cur){pts.push(...alongRoad(cur,curS,tgt.s));}
+  else{let mainS;
+    if(cur===MAIN)mainS=curS;
+    else if(cur===RING){const l=bestLink(true,curS,0);const rs=junctionS(endN(l),RING);pts.push(...alongRoad(RING,curS,rs),...alongRoad(l,l.L,0));mainS=junctionS(l.samples[0].n,MAIN);}
+    else{pts.push(...alongRoad(cur,curS,0));mainS=junctionS(cur.samples[0].n,MAIN);}
+    if(tgt.road===MAIN)pts.push(...alongRoad(MAIN,mainS,tgt.s));
+    else if(tgt.road===RING){const l=bestLink(false,0,mainS);pts.push(...alongRoad(MAIN,mainS,junctionS(l.samples[0].n,MAIN)),...alongRoad(l,0,l.L),...alongRoad(RING,junctionS(endN(l),RING),tgt.s));}
+    else{pts.push(...alongRoad(MAIN,mainS,junctionS(tgt.road.samples[0].n,MAIN)),...alongRoad(tgt.road,0,tgt.s));}}
+  if(tgt.then)pts.push(tgt.then);return pts;}
+let autoRoute=[];
+function goTo(target,npc){autoRoute=routeTo(target).map(n=>({n}));if(npc){autoRoute.pop();autoRoute.push({npc});}autoTarget=autoRoute.shift()||null;autoFace=null;autoStuck=0;}
 
 /* =====================================================================
    WALKING ON THE SPHERE
@@ -752,11 +798,14 @@ const _m=new THREE.Matrix4(),_v=new THREE.Vector3();
 
 function update(dt){
   let fw=(hold.u?1:0)-(hold.d?1:0), tn=(hold.l?1:0)-(hold.r?1:0);
-  if(fw||tn){autoTarget=null;autoFace=null;firstMove();}
+  if(sitting&&(fw||tn))standUp();
+  if(fw||tn){autoTarget=null;autoRoute=[];autoFace=null;firstMove();}
+  updateNight(dt);
+  if(sitting){fw=0;tn=0;v=0;pendingMove=0;}
   if(autoTarget){
     const tn_=autoTarget.npc?npcPos(autoTarget.npc):autoTarget.n;
     const T=tn_.clone().multiplyScalar(hAt(tn_)),Pp=up.clone().multiplyScalar(hAt(up));const d=T.sub(Pp);const dist=d.length();
-    if(dist<(autoTarget.npc?2.3:1.5)){if(autoTarget.npc)autoFace=npcWorld(autoTarget.npc).sub(up.clone().multiplyScalar(hAt(up))).normalize();autoTarget=null;}
+    if(dist<(autoTarget.npc?2.3:1.5)){if(autoTarget.npc)autoFace=npcWorld(autoTarget.npc).sub(up.clone().multiplyScalar(hAt(up))).normalize();autoTarget=autoRoute.shift()||null;}
     else{const tang=d.addScaledVector(up,-d.dot(up)).normalize();const ang=Math.atan2(tang.dot(right),tang.dot(fwd));tn=clamp(-ang*3,-1,1);fw=Math.abs(ang)<.6?1:0;}
   }
   if(autoFace){const f=autoFace.clone().addScaledVector(up,-autoFace.dot(up)).normalize();const ang=Math.atan2(f.dot(right),f.dot(fwd));if(Math.abs(ang)<.04)autoFace=null;else tn=clamp(-ang*4,-1,1);}
@@ -767,11 +816,11 @@ function update(dt){
   step+=clamp(drain,-MAXV*1.2*dt,MAXV*1.2*dt);
   moveForward(step);resolveSolids();
   const speed=Math.abs(step/Math.max(dt,1e-4));
-  if(autoTarget){autoStuck=speed<.5?autoStuck+dt:0;if(autoStuck>2.5){autoTarget=null;autoStuck=0;}}
+  if(autoTarget){autoStuck=speed<.5?autoStuck+dt:0;if(autoStuck>2.5){autoTarget=null;autoRoute=[];autoStuck=0;}}
   // player pose
   _m.makeBasis(right,up,fwd.clone().negate());player.group.quaternion.setFromRotationMatrix(_m);player.group.position.copy(up).multiplyScalar(hAt(up));updateShadowRig(player.group.position,up,player.group.quaternion);updateSky(up);
   player.pose(speed,dt,speed>3?'run':'walk');
-  if(kidModel){kidModel.quaternion.copy(player.group.quaternion);kidModel.position.copy(player.group.position);
+  if(kidModel){kidModel.quaternion.copy(player.group.quaternion);kidModel.position.copy(player.group.position);if(sitting)kidModel.position.addScaledVector(up,-.36);
     if(kidModel.userData.groundAt&&performance.now()>kidModel.userData.groundAt){kidModel.userData.groundAt=0;groundFix(kidModel,kidModel.userData.root);}
     // gait: run is the default when moving; walk only when easing off; look-around when standing; a scratch now and then
     const moving=speed>.3,running=speed>2.4&&clips.run;
@@ -811,7 +860,7 @@ function update(dt){
   let desired,look;
   if(talking){const other=npcWorld(talking);const me=up.clone().multiplyScalar(hAt(up));const to=other.clone().sub(me);to.addScaledVector(up,-to.dot(up)).normalize();const side=new THREE.Vector3().crossVectors(to,up).normalize();
     desired=me.clone().addScaledVector(up,3.2).addScaledVector(to,-3.6).addScaledVector(side,3.4);look=me.clone().lerp(other,.6).addScaledVector(up,1.4);}
-  else{idleT=speed>.3?0:idleT+dt;const wantYaw=idleT>2.5?1.75:0;camYaw+=(wantYaw-camYaw)*Math.min(1,dt*.7);
+  else{idleT=speed>.3||sitting?0:idleT+dt;const wantYaw=idleT>2.5?1.75:0;camYaw+=(wantYaw-camYaw)*Math.min(1,dt*.7);
     const dir=fwd.clone().multiplyScalar(Math.cos(camYaw)).addScaledVector(right,Math.sin(camYaw));const off=camYaw>.1?1-camYaw/1.75:1;
     desired=up.clone().multiplyScalar(hAt(up)+2.1+.3*camYaw).addScaledVector(dir,-4.4);
     look=up.clone().multiplyScalar(hAt(up)+1.4).addScaledVector(fwd,3.6*off);} // centred behind him while walking
@@ -825,14 +874,18 @@ function update(dt){
   if(talking){if(!sbN.hidden)placeBubble(sbN,headOf(talking.rig.group,2.25),34);if(!sbMe.hidden)placeBubble(sbMe,headOf(player.group,2.25),34);}
   if(nearN&&!talking){_proj.copy(headOf(nearN.rig.group,1.2)).project(camera);const ba=$('#ba');if(_proj.z<1){ba.style.left=clamp((_proj.x+1)/2*W+70,90,W-90)+'px';ba.style.top=clamp((1-_proj.y)/2*H,40,H-140)+'px';}}
   // who is close enough to talk to?
-  nearN=null;if(!talking){let best=2.6;for(const n of npcs){const d=npcWorld(n).distanceTo(player.group.position);if(d<best){best=d;nearN=n;}}}
-  if(nearN!==shownN){shownN=nearN;const pr=$('#prompt'),ba=$('#ba');
+  nearN=null;let bestD=2.6;if(!talking&&!sitting){for(const n of npcs){const d=npcWorld(n).distanceTo(player.group.position);if(d<bestD){bestD=d;nearN=n;}}}
+  nearBench=false;if(BENCH&&!talking){const bw=BENCH.n.clone().multiplyScalar(hAt(BENCH.n));const d=bw.distanceTo(player.group.position);if(sitting||(d<2.4&&d<bestD)){if(!sitting){nearBench=true;nearN=null;}
+    _proj.copy(bw).addScaledVector(up,1.3).project(camera);const ba=$('#ba');if(_proj.z<1){ba.style.left=clamp((_proj.x+1)/2*W+70,90,W-90)+'px';ba.style.top=clamp((1-_proj.y)/2*H,40,H-140)+'px';}}}
+  const shown=sitting?'sit':nearBench?'bench':nearN;
+  if(shown!==shownN){shownN=shown;const pr=$('#prompt'),ba=$('#ba');
     if(nearN){ba.textContent='Talk to '+nearN.name;ba.classList.remove('off');nearN.paused=true;}
-    else{pr.classList.add('off');ba.classList.add('off');}}
+    else if(nearBench){ba.textContent='Sit and watch the sunset';ba.classList.remove('off');}
+    else if(!sitting){pr.classList.add('off');ba.classList.add('off');}}
   for(const n of npcs)if(n!==nearN&&n!==talking)n.paused=false;
 }
 let last=performance.now();
-function frame(now){const dt=Math.min(.05,(now-last)/1000);last=now;if(!paused)update(dt);if(mixer)mixer.update(dt);for(const m of mixers)m.update(dt);updateBirds(dt,now/1000);if(window.__water&&window.__water.userData.sh)window.__water.userData.sh.uniforms.uT.value=now/1000;renderInk();requestAnimationFrame(frame);}
+function frame(now){const dt=Math.min(.05,(now-last)/1000);last=now;if(!paused)update(dt);if(mixer)mixer.update(dt);applySit();for(const m of mixers)m.update(dt);updateBirds(dt,now/1000);if(window.__water&&window.__water.userData.sh)window.__water.userData.sh.uniforms.uT.value=now/1000;renderInk();requestAnimationFrame(frame);}
 requestAnimationFrame(frame);
 
 /* =====================================================================
@@ -879,7 +932,10 @@ function dismissTitle(){if(titleGone)return;titleGone=true;$('#title').classList
 $('#title').addEventListener('click',dismissTitle);
 function toggleStops(show){const s=$('#stops');const vis=show==null?s.hidden:show;s.hidden=!vis;$('#menubtn').setAttribute('aria-expanded',String(vis));}
 $('#menubtn').addEventListener('click',e=>{e.stopPropagation();toggleStops();});
-$('#stops').addEventListener('click',e=>{const b=e.target.closest('[data-go]');if(!b)return;const n=npcs.find(x=>x.id===b.dataset.go);autoTarget={npc:n};autoFace=null;firstMove();toggleStops(false);});
+$('#stops').addEventListener('click',e=>{const pb=e.target.closest('[data-place]');if(pb){const pl=PLACES[pb.dataset.place];if(pl){if(sitting)standUp();goTo(pl);firstMove();toggleStops(false);}return;}
+  const b=e.target.closest('[data-go]');if(!b)return;const n=npcs.find(x=>x.id===b.dataset.go);if(sitting)standUp();goTo({n:npcPos(n)},n);firstMove();toggleStops(false);});
+(function placesMenu(){const h=document.createElement('h2');h.textContent='Places';$('#stops').appendChild(h);
+  for(const [k,t,sub] of [['sunset','The sunset bench','down the hill, by the sea'],['skate','Skate park','off the main street']]){const b=document.createElement('button');b.type='button';b.dataset.place=k;b.innerHTML='<i></i>'+t+'<small>'+sub+'</small>';$('#stops').appendChild(b);}})();
 document.addEventListener('pointerdown',e=>{if(!e.target.closest('#stops,#menubtn'))toggleStops(false);});
 
 /* =====================================================================
@@ -943,7 +999,22 @@ function thinkingBubble(n){clearTimeout(bubble.timer);bubble.who=n;bubble.chunks
 function meBubble(text){sbMe.innerHTML=esc(text);sbMe.hidden=false;clearTimeout(sbMe._t);sbMe._t=setTimeout(()=>{sbMe.hidden=true;},Math.max(2000,text.length*60));}
 function hideBubbles(){clearTimeout(bubble.timer);bubble.who=null;sbN.hidden=true;sbMe.hidden=true;}
 function say(html,n,plainForVoice,key){if(typer){clearInterval(typer);typer=null;}const plain=plainForVoice||html.replace(/<[^>]+>/g,'');sayBubble(n,plain,key||'');if(plainForVoice)speak(plainForVoice,n);}
-function action(){unlockAudio();if(nearN&&!talking)startTalk(nearN);}
+function action(){unlockAudio();if(sitting){standUp();return;}if(nearBench&&!talking){sitDown();return;}if(nearN&&!talking)startTalk(nearN);}
+/* sitting on the bench: the kid is set on the seat facing the sea and his legs are bent after the animation
+   has run; the sun goes down, the stars come out for half a minute, then it brightens again */
+let sitting=false,nearBench=false,nightT=null,night=0;const _sq=new THREE.Quaternion(),_sx=new THREE.Vector3(1,0,0);
+function sitDown(){if(!BENCH)return;autoTarget=null;autoRoute=[];autoFace=null;v=0;pendingMove=0;up.copy(BENCH.n);fwd.copy(BENCH.face);orthonormalize();sitting=true;nightT=performance.now()/1000;$('#ba').textContent='Stand up';$('#ba').classList.remove('off');}
+function standUp(){if(!sitting)return;sitting=false;sitPose=null;moveForward(.9);$('#ba').classList.add('off');shownN=undefined;}
+let sitPose=null;
+function applySit(){if(!sitting||!kidModel)return;const bones=kidModel.userData.bones;if(!bones)return;const S={t:1.45,c:-1.45};
+  if(!sitPose){sitPose={};for(const k of ['L_Thigh','R_Thigh','L_Calf','R_Calf']){if(bones[k])sitPose[k]=bones[k].quaternion.clone();}} // snapshot once, then hold the legs still
+  for(const k of ['L_Thigh','R_Thigh']){const b=bones[k];if(b&&sitPose[k])b.quaternion.copy(sitPose[k]).multiply(_sq.setFromAxisAngle(_sx,S.t));}
+  for(const k of ['L_Calf','R_Calf']){const b=bones[k];if(b&&sitPose[k])b.quaternion.copy(sitPose[k]).multiply(_sq.setFromAxisAngle(_sx,S.c));}}
+function updateNight(dt){if(nightT===null){night=Math.max(0,night-dt*.4);}else{const t=performance.now()/1000-nightT;night=t<8?smooth(0,8,t):t<38?1:t<46?1-smooth(38,46,t):0;if(t>=46)nightT=null;}
+  inkPass.uniforms.night.value=night;if(SUNSET){const drop=night*26;SUNSET.parts.forEach((m,i)=>{m.position.copy(SUNSET.base[i]).addScaledVector(SUNSET.B,-drop);m.material.opacity=(i===0?.6:i===1?.95:1)*(1-night*.9);});
+    SUNSET.streak.material.opacity=.32*(1-night);SUNSET.stars.visible=night>.02;SUNSET.stars.material.opacity=Math.max(0,(night-.3)/.7);}
+  shadowCap.material.opacity=.34*(1-night*.85);if(nightDome){nightDome.visible=night>.01;nightDome.material.opacity=night;}
+  window.__state=()=>({sitting,auto:!!autoTarget,route:autoRoute.length,night:+night.toFixed(2)});}
 function doJump(){if(talking||jump.on||!clips.jump)return;jump.on=true;jump.t=0;jump.dur=clips.jump.getClip().duration;clips.jump.reset().play();firstMove();}
 function startTalk(n){
   talking=n;n.paused=true;autoTarget=null;for(const k in hold)hold[k]=false;v=0;pendingMove=0;
