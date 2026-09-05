@@ -608,7 +608,8 @@ function townAlong(road,o){o=o||{};const kerb=road.kerb;const end=Math.min(road.
     function funBox(w,l,h){const g=new THREE.Group();g.add(at(box(w,h,l,conc),0,h/2,0));const wedge=z=>{const sh=new THREE.Shape();sh.moveTo(0,0);sh.lineTo(1.6,0);sh.lineTo(0,h);sh.closePath();const m=new THREE.Mesh(new THREE.ExtrudeGeometry(sh,{depth:w,bevelEnabled:false}),toon(dark));m.rotation.y=-Math.PI/2;m.position.set(w/2,0,z);return m;};
       const w1=wedge(l/2);g.add(w1);const w2=wedge(-l/2);w2.rotation.y=Math.PI/2;w2.position.set(-w/2,0,-l/2);g.add(w2);return g;}
     function rail(len){const g=new THREE.Group();const r=cyl(.05,.05,len,P.grey2,8);r.rotation.z=Math.PI/2;r.position.y=.55;g.add(r);for(const x of [-len/2+.3,len/2-.3])g.add(at(cyl(.04,.04,.55,P.grey2,6),x,.27,0));return g;}
-    function skateboard(){const g=new THREE.Group();g.add(at(box(.82,.05,.24,pick([P.red,P.blue,P.yellow])),0,.11,0));for(const x of [-.28,.28])for(const z of [-.1,.1])g.add(at(cyl(.045,.045,.05,P.cream2,8),x,.05,z));g.children.slice(1).forEach(w_=>w_.rotation.x=Math.PI/2);return g;}
+    function skateboard(){const g=new THREE.Group();const deck=box(1.18,.055,.34,pick([P.red,P.blue,P.yellow]));deck.position.set(0,.125,0);g.add(deck);const grip=plain(1.1,.02,.3,0x2b2e31);grip.position.set(0,.162,0);g.add(grip); /* grip tape on top */
+  for(const x of [-.4,.4])for(const z of [-.15,.15]){const w_=cyl(.06,.06,.06,P.cream2,8);w_.rotation.x=Math.PI/2;g.add(at(w_,x,.06,z));}return g;}
     SKATE_SPOT=pt;
     /* west wing */
     {const qp=quarterPipe(WQP.z1-WQP.z0,WQP.r);const [,ql,qa]=pt(WQP.x+.6,(WQP.z0+WQP.z1)/2);placeOn(qp,ql,qa,yawFor(ql,qa,east));colliders.push(qp);{const wv=parkPt(WQP.x-.35,(WQP.z0+WQP.z1)/2);solids.push({c:wv.clone().multiplyScalar(R),X:PARK.east.clone(),Z:PARK.north.clone(),hx:.25,hz:(WQP.z1-WQP.z0)/2+.2});} /* rideable: only its back wall is solid */
@@ -938,9 +939,10 @@ function update(dt){
   $('#balance').hidden=!(ride.grind||ride.manualOn);if(!$('#balance').hidden)$('#balance i').style.left=(50+clamp(ride.bal,-1,1)*46)+'%';
   rollVol=ride.on&&ride.air===0&&!ride.grind&&ride.bail===0?clamp(Math.abs(v)/8,0,1)*.5:0;grindVol=ride.grind?.6:0;
   if(ride.air===0&&ride.on&&!ride.grind){ // riding up a steep ramp launches him: up, a spin, and back down the way he came
-    const h=parkH(up),slope=(surfaceAhead(.7)-h)/.7;if(slope>.7&&h>.6&&v>2.2&&ride.bail===0){ride.air=1.6+v*.14;ride.airT=0;ride.airDur=1.4;ride.spin=1;ride.flip=true;ride.flipped=false;ride.fwd0.copy(fwd);ride.spinHold=0;sfx('pop',.7);}}
+    const h=parkH(up),slope=(surfaceAhead(.7)-h)/.7;if(slope>.7&&h>.6&&v>2.2&&ride.bail===0){ride.air=1.6+v*.14;ride.airT=0;ride.airDur=1.4;ride.spin=1;ride.flip=true;ride.flipped=false;ride.fwd0.copy(fwd);ride.spinHold=0;ride.tilt0=Math.max(ride.tilt,1.1);sfx('pop',.7);}}
+  if(ride.on){const want=ride.air>0&&ride.spin?ride.tilt0*Math.cos(Math.PI*clamp(ride.airT/ride.airDur,0,1)):(ride.grind||ride.air>0?0:Math.atan2(surfaceAhead(.5)-surfaceAhead(-.5),1));ride.tilt+=(want-ride.tilt)*Math.min(1,dt*(ride.air>0?12:9));}
   if(ride.on){const flat=!ride.grind&&ride.air===0&&Math.abs(surfaceAhead(.8)-parkH(up))<.12&&Math.abs(parkH(up)-surfaceAhead(-.8))<.12;const pushing=flat&&fw>0&&v<MAXV*1.6;
-    ride.push+=((pushing?1:0)-ride.push)*Math.min(1,dt*6);ride.pushT+=dt*(pushing?5.5:0);}
+    ride.push+=((pushing?1:0)-ride.push)*Math.min(1,dt*6);const k0=Math.floor(ride.pushT/(Math.PI*2));ride.pushT+=dt*(pushing?5.5:0);if(pushing&&Math.floor(ride.pushT/(Math.PI*2))>k0)sfx('push',.35);}
   const speed=Math.abs(step/Math.max(dt,1e-4));
   if(autoTarget){autoStuck=speed<.5?autoStuck+dt:0;if(autoStuck>2.5){autoTarget=null;autoRoute=[];autoStuck=0;}}
   // player pose
@@ -949,12 +951,14 @@ function update(dt){
   if(kidModel){kidModel.quaternion.copy(player.group.quaternion);kidModel.position.copy(player.group.position);if(sitting)kidModel.position.addScaledVector(up,-(window.__sitDrop??.26));
     if(ride.on){const a=ride.air>0?Math.sin(Math.PI*clamp(ride.airT/ride.airDur,0,1))*ride.air:0;const lean=-tn*.22*(ride.grind||ride.manualOn?0:1);
       const spinV=(ride.spin?Math.PI*3*clamp(ride.airT/ride.airDur,0,1)-(ride.flipped?Math.PI:0):0)+(ride.air>0?ride.spinHold:0);
-      kidModel.position.addScaledVector(up,.12+a);kidModel.quaternion.multiply(_sq.setFromAxisAngle(_sy,1.15+spinV)).multiply(_sq2.setFromAxisAngle(new THREE.Vector3(0,0,1),lean));
+      kidModel.position.addScaledVector(up,.17+a);kidModel.quaternion.multiply(_sq.setFromAxisAngle(_sy,1.15+spinV)).multiply(_sq2.setFromAxisAngle(new THREE.Vector3(0,0,1),lean));
       if(ride.manual>0.01)kidModel.quaternion.premultiply(_sq.setFromAxisAngle(right,-.28*ride.manual)); /* leaning back on the tail */
+      if(Math.abs(ride.tilt)>.01)kidModel.quaternion.premultiply(_sq.setFromAxisAngle(right,-ride.tilt)); /* stands perpendicular to the ramp */
       if(ride.bail>0){const bt=1-ride.bail/1.3;kidModel.quaternion.premultiply(_sq.setFromAxisAngle(right,Math.min(1.45,bt*4)));kidModel.position.addScaledVector(up,-.2*Math.min(1,bt*3));}
       const bd=BOARD.ride;bd.position.copy(player.group.position).addScaledVector(up,a);bd.quaternion.copy(player.group.quaternion).multiply(_sq.setFromAxisAngle(_sy,Math.PI/2+(ride.grind?Math.PI/2:0)+spinV)).multiply(_sq2.setFromAxisAngle(new THREE.Vector3(0,0,1),lean));
       if(ride.trick){const tt=clamp(ride.trick.t/ride.trick.dur,0,1);if(ride.trick.kind==='kickflip')bd.quaternion.multiply(_sq.setFromAxisAngle(_sx,Math.PI*2*tt));else if(ride.trick.kind==='heelflip')bd.quaternion.multiply(_sq.setFromAxisAngle(_sx,-Math.PI*2*tt));else if(ride.trick.kind==='shoveit')bd.quaternion.multiply(_sq.setFromAxisAngle(_sy,Math.PI*tt));}
       if(ride.manual>0.01)bd.quaternion.premultiply(_sq.setFromAxisAngle(right,-.32*ride.manual));
+      if(Math.abs(ride.tilt)>.01)bd.quaternion.premultiply(_sq.setFromAxisAngle(right,-ride.tilt));
       if(ride.bail>0){bd.position.addScaledVector(fwd,1.2).addScaledVector(up,-.05);}}
     if(kidModel.userData.groundAt&&performance.now()>kidModel.userData.groundAt){kidModel.userData.groundAt=0;groundFix(kidModel,kidModel.userData.root);}
     // gait: run is the default when moving; walk only when easing off; look-around when standing; a scratch now and then
@@ -1089,10 +1093,10 @@ function dismissTitle(){if(titleGone)return;titleGone=true;$('#title').classList
 $('#title').addEventListener('click',dismissTitle);
 function toggleStops(show){const s=$('#stops');const vis=show==null?s.hidden:show;s.hidden=!vis;$('#menubtn').setAttribute('aria-expanded',String(vis));}
 $('#menubtn').addEventListener('click',e=>{e.stopPropagation();toggleStops();});
-$('#stops').addEventListener('click',e=>{const pb=e.target.closest('[data-place]');if(pb){const pl=PLACES[pb.dataset.place];if(pl){if(sitting)standUp();goTo(pl);firstMove();toggleStops(false);}return;}
+$('#stops').addEventListener('click',e=>{const pb=e.target.closest('[data-place]');if(pb){if(pb.dataset.place==='skateSpawn'){if(sitting)standUp();if(ride.on)stopRide();autoTarget=null;autoRoute=[];up.copy(parkPt(-16,-19.5));fwd.copy(PARK.north);orthonormalize();v=0;camInit=false;firstMove();toggleStops(false);return;}const pl=PLACES[pb.dataset.place];if(pl){if(sitting)standUp();goTo(pl);firstMove();toggleStops(false);}return;}
   const b=e.target.closest('[data-go]');if(!b)return;const n=npcs.find(x=>x.id===b.dataset.go);if(sitting)standUp();goTo({n:npcPos(n)},n);firstMove();toggleStops(false);});
 (function placesMenu(){const h=document.createElement('h2');h.textContent='Places';$('#stops').appendChild(h);
-  for(const [k,t,sub] of [['sunset','The sunset bench','down the hill, by the sea'],['skate','Skate park','off the main street']]){const b=document.createElement('button');b.type='button';b.dataset.place=k;b.innerHTML='<i></i>'+t+'<small>'+sub+'</small>';$('#stops').appendChild(b);}})();
+  for(const [k,t,sub] of [['sunset','The sunset bench','down the hill, by the sea'],['skate','Skate park','off the main street'],['skateSpawn','Spawn at the skate park','jump straight there']]){const b=document.createElement('button');b.type='button';b.dataset.place=k;b.innerHTML='<i></i>'+t+'<small>'+sub+'</small>';$('#stops').appendChild(b);}})();
 document.addEventListener('pointerdown',e=>{if(!e.target.closest('#stops,#menubtn'))toggleStops(false);});
 
 /* =====================================================================
@@ -1182,7 +1186,7 @@ function updateNight(dt){if(nightT===null){night=Math.max(0,night-dt*.4);}else{c
   window.__state=()=>({sitting,score:ride.score,combo:ride.combo.length,bal:+ride.bal.toFixed(2),bail:+ride.bail.toFixed(2),manual:ride.manualOn,trick:ride.trick?ride.trick.kind:null,hm:!!HM,h:+parkH(up).toFixed(2),push:+ride.push.toFixed(2),boards:BOARD?BOARD.boards.length:0,riding:ride.on,air:+ride.air.toFixed(2),grind:!!ride.grind,spin:ride.spin,v:+v.toFixed(2),auto:!!autoTarget,route:autoRoute.length,night:+night.toFixed(2)});}
 /* skateboarding: hop on the board by the park entrance; push with the arrows, coast with momentum, Space to ollie.
    An ollie next to the rail snaps onto it and grinds to the end; an ollie on the big ramp launches higher and spins a 360. */
-const ride={on:false,air:0,airT:0,airDur:0,spin:0,grind:null,pose:null,flip:false,flipped:false,push:0,pushT:0,fwd0:new THREE.Vector3(),camAir:0,
+const ride={on:false,air:0,airT:0,airDur:0,spin:0,grind:null,pose:null,flip:false,flipped:false,push:0,pushT:0,fwd0:new THREE.Vector3(),camAir:0,tilt:0,tilt0:0,
   trick:null,spinAng:0,spinHold:0,manual:0,manualOn:false,bal:0,bail:0,combo:[],comboT:0,score:0,landed:0};
 /* grind lines in park coordinates: the red rail, and the four top edges of the fun box */
 const GRINDS=[{x0:RAIL.x0,z0:RAIL.dz,x1:RAIL.x1,z1:RAIL.dz,name:'Rail grind'},
