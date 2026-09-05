@@ -26,6 +26,14 @@ button.ink:active{transform:translate(2px,2px);box-shadow:1px 1px 0 var(--ink)}
 #prompt span{color:var(--muted);font-size:13px}
 #pad{position:absolute;left:0;right:0;bottom:calc(16px + env(safe-area-inset-bottom));display:flex;justify-content:space-between;align-items:flex-end;padding:0 16px;gap:12px}
 #pad .dpad{margin-left:auto}
+#stick{width:150px;height:150px;border-radius:50%;background:rgba(243,239,228,.55);position:relative;touch-action:none;flex:none;align-self:flex-end}
+#stick[hidden]{display:none}
+#knob{position:absolute;left:47px;top:47px;width:56px;height:56px;border-radius:50%;background:var(--cream);border:2.5px solid var(--ink);box-shadow:0 3px 0 var(--ink);pointer-events:none}
+body.touch .dpad{display:none}
+body.touch #stick{display:block}
+body.touch .tpad{margin-left:auto}
+#jumpbtn{width:74px;height:74px;border-radius:50%;margin-left:auto;font-size:15px;align-self:flex-end}
+#jumpbtn[hidden]{display:none}
 .tpad[hidden]{display:none}
 .tpad{display:grid;grid-template-columns:repeat(3,58px);gap:8px;align-self:flex-end}
 .tpad button{width:58px;height:58px;font-size:13px;line-height:1.05;padding:0}
@@ -133,6 +141,7 @@ button.ink:active{transform:translate(2px,2px);box-shadow:1px 1px 0 var(--ink)}
   <nav id="stops" class="ink" hidden aria-label="People on the planet"><h2>People</h2></nav>
   <div id="pad">
     <button id="ba" class="off ink" type="button">Talk</button>
+    <div id="stick" class="ink" hidden aria-label="Move"><div id="knob"></div></div>
     <div id="tricks" class="tpad" hidden aria-label="Tricks">
       <button class="dir ink" type="button" data-t="ollie" aria-label="Ollie (Space)">Ollie</button>
       <button class="dir ink" type="button" data-t="kickflip" aria-label="Kickflip (F)">Kick<br>flip</button>
@@ -140,6 +149,7 @@ button.ink:active{transform:translate(2px,2px);box-shadow:1px 1px 0 var(--ink)}
       <button class="dir ink" type="button" data-t="shoveit" aria-label="Shove-it (V)">Shove</button>
       <button class="dir ink" type="button" data-t="manual" aria-label="Manual (hold M)">Manual</button>
     </div>
+    <button id="jumpbtn" class="dir ink" type="button" hidden aria-label="Jump">Jump</button>
     <div class="dpad" aria-label="Walk">
       <button class="dir ink" type="button" data-k="u" aria-label="Walk forward">▲</button>
       <button class="dir ink" type="button" data-k="l" aria-label="Turn left">◀</button>
@@ -879,7 +889,7 @@ const START_LON=0.3;
 let up=sphere(START_LON,window.__roads.mainLat(START_LON)), fwd=new THREE.Vector3(-Math.sin(START_LON),0,Math.cos(START_LON)), right=new THREE.Vector3();
 const MAXV=4.6, TURN=2.0; // a light jog by default
 let v=0, pendingMove=0, autoTarget=null, autoFace=null, paused=false, hintGone=false;
-const hold={u:false,d:false,l:false,r:false,m:false};
+const hold={u:false,d:false,l:false,r:false,m:false};const joy={x:0,y:0,on:false,id:null};
 function orthonormalize(){fwd.addScaledVector(up,-fwd.dot(up)).normalize();right.crossVectors(fwd,up).normalize();}
 function moveForward(dist){if(!dist)return;orthonormalize();const q=new THREE.Quaternion().setFromAxisAngle(right,-dist/R);up.applyQuaternion(q).normalize();fwd.applyQuaternion(q);orthonormalize();}
 function turn(a){if(!a)return;const q=new THREE.Quaternion().setFromAxisAngle(up,a);fwd.applyQuaternion(q);orthonormalize();}
@@ -899,11 +909,17 @@ orthonormalize();
 window.__tp=(lon,lat,h)=>{up.copy(sphere(lon,lat));const {east,north}=frameAt(lon,lat);fwd.copy(h==='n'?north:h==='s'?north.clone().negate():h==='w'?east.clone().negate():east);orthonormalize();camInit=false;};window.__up=()=>up.clone();window.__resnap=()=>{sitPose=null;};window.__parkPt=(dx,dz)=>lonLatOf(parkPt(dx,dz));window.__xz=()=>parkXZ(up).map(v=>+v.toFixed(2));window.__npc=name=>{const n=npcs.find(x=>x.name===name);return n?[n.lon,n.lat]:null;};window.__bone=n=>kidModel.userData.bones[n].quaternion.toArray().map(v=>+v.toFixed(3)); /* debug: jump somewhere facing n/s/e/w; read the player's position */
 const camPos=new THREE.Vector3(), camUp=up.clone(), camLook=new THREE.Vector3(), raycaster=new THREE.Raycaster();
 let camInit=false, nearN=null, shownN=null, talking=null, idleT=0, camYaw=0;
-const isTouch=matchMedia('(hover:none)').matches;
+const isTouch=matchMedia('(hover:none)').matches||location.search.includes('touch'); /* ?touch forces the touch controls for testing */
 const _m=new THREE.Matrix4(),_v=new THREE.Vector3();
 
+const _jd=new THREE.Vector3(),_jr=new THREE.Vector3();
 function update(dt){
   let fw=(hold.u?1:0)-(hold.d?1:0), tn=(hold.l?1:0)-(hold.r?1:0);
+  /* thumbstick: push in a direction and he goes that way relative to the camera, turning to face it (Roblox-style) */
+  if(joy.on){const mag=Math.hypot(joy.x,joy.y);if(mag>.12){if(sitting){tn=-joy.x;fw=-joy.y;}
+    else{_jd.copy(camLook).sub(camPos);_jd.addScaledVector(up,-_jd.dot(up)).normalize();_jr.crossVectors(_jd,up).normalize();
+      _jd.multiplyScalar(-joy.y).addScaledVector(_jr,joy.x).normalize();const ang=Math.atan2(_jd.dot(right),_jd.dot(fwd));
+      tn=clamp(-ang*3.5,-1,1);fw=Math.abs(ang)<1.3?Math.min(1,mag):0;window.__dbgJoy={ang:+ang.toFixed(2),fw,tn,mag:+mag.toFixed(2)};}}}window.__joy=joy;
   if(sitting){sitOrbit.yaw+=tn*1.8*dt;sitOrbit.pitch=clamp(sitOrbit.pitch+fw*.7*dt,-.25,.9);if(fw||tn)firstMove();fw=0;tn=0;}
   if(fw||tn){autoTarget=null;autoRoute=[];autoFace=null;firstMove();}
   updateNight(dt);
@@ -1042,7 +1058,7 @@ requestAnimationFrame(frame);
 /* =====================================================================
    INPUT
    ===================================================================== */
-if(isTouch)$('#hint').textContent='▲ ▼ to move · ◀ ▶ to turn · tap ▲ twice to jump';else $('#hint').textContent='↑ ↓ to move · ← → to turn · space to jump';
+if(isTouch)$('#hint').textContent='drag the stick to move · drag the view to look around';else $('#hint').textContent='↑ ↓ to move · ← → to turn · space to jump';
 const KEYS={ArrowUp:'u',w:'u',W:'u',ArrowDown:'d',s:'d',S:'d',ArrowLeft:'l',a:'l',A:'l',ArrowRight:'r',d:'r',D:'r'};
 window.addEventListener('keydown',e=>{
   if(e.metaKey||e.ctrlKey||e.altKey)return;
@@ -1068,6 +1084,14 @@ $$('.dpad .dir').forEach(el=>{const key=el.dataset.k;
   const on=e=>{e.preventDefault();if(key==='u'){const t=performance.now();if(t-lastUpTap<320)doJump();lastUpTap=t;}hold[key]=true;el.classList.add('down');try{el.setPointerCapture(e.pointerId)}catch(_){}};
   const off=()=>{hold[key]=false;el.classList.remove('down');};
   el.addEventListener('pointerdown',on);['pointerup','pointercancel','lostpointercapture'].forEach(ev=>el.addEventListener(ev,off));el.addEventListener('contextmenu',e=>e.preventDefault());});
+(function stick(){const el=$('#stick'),kn=$('#knob');if(!el)return;const RAD=47;
+  const set=(e)=>{const r=el.getBoundingClientRect();let x=e.clientX-(r.left+r.width/2),y=e.clientY-(r.top+r.height/2);const m=Math.hypot(x,y);if(m>RAD){x*=RAD/m;y*=RAD/m;}joy.x=x/RAD;joy.y=y/RAD;kn.style.transform='translate('+x+'px,'+y+'px)';};
+  el.addEventListener('pointerdown',e=>{e.preventDefault();joy.on=true;joy.id=e.pointerId;try{el.setPointerCapture(e.pointerId)}catch(_){}set(e);unlockAudio();firstMove();autoTarget=null;autoRoute=[];autoFace=null;});
+  el.addEventListener('pointermove',e=>{if(!joy.on||e.pointerId!==joy.id)return;set(e);});
+  const off=e=>{if(e.pointerId!==joy.id)return;joy.on=false;joy.x=0;joy.y=0;kn.style.transform='';};
+  ['pointerup','pointercancel','lostpointercapture'].forEach(ev=>el.addEventListener(ev,off));el.addEventListener('contextmenu',e=>e.preventDefault());
+  if(isTouch){document.body.classList.add('touch');el.hidden=false;$('#jumpbtn').hidden=false;}
+  $('#jumpbtn').addEventListener('pointerdown',e=>{e.preventDefault();unlockAudio();doJump();});$('#jumpbtn').addEventListener('contextmenu',e=>e.preventDefault());})();
 document.querySelectorAll('#tricks [data-t]').forEach(el=>{const t=el.dataset.t;const on=e=>{e.preventDefault();unlockAudio();firstMove();if(t==='manual'){hold.m=true;doTrick('manual');}else if(t==='ollie')doJump();else doTrick(t);};
   const off=()=>{if(t==='manual')hold.m=false;};el.addEventListener('pointerdown',on);['pointerup','pointercancel','lostpointercapture'].forEach(ev=>el.addEventListener(ev,off));el.addEventListener('contextmenu',e=>e.preventDefault());});
 $('#ba').addEventListener('click',()=>action());
@@ -1203,8 +1227,8 @@ function doTrick(kind){if(!ride.on||ride.bail>0)return;if(kind==='manual'){if(ri
   if(ride.grind)return;if(ride.air===0){ollie();}if(ride.air===0)return;
   if(kind!=='ollie'&&!ride.trick){ride.trick={kind,t:0,dur:Math.min(.6,ride.airDur*.8)};sfx('flip',.6);}}let nearBoard=null;const _ahead=new THREE.Vector3();
 function surfaceAhead(dist){_ahead.copy(up).addScaledVector(fwd,dist/R).normalize();return parkH(_ahead);}
-function startRide(){if(!BOARD||ride.on||!nearBoard)return;$('#tricks').hidden=false;$('#score').hidden=false;$('#score').textContent=ride.score.toLocaleString();if(window.__dbgRide)console.log('STARTRIDE '+new Error().stack.split('\n').slice(1,5).join(' | '));autoTarget=null;autoRoute=[];autoFace=null;ride.on=true;ride.pose=null;ride.air=0;ride.grind=null;scene.remove(nearBoard.prop);BOARD.boards.splice(BOARD.boards.indexOf(nearBoard),1);sceneDirty=true;spawnBoard();BOARD.ride.visible=true;$('#ba').textContent='Hop off';$('#ba').classList.remove('off');firstMove();}
-function stopRide(){if(!ride.on)return;endCombo(false);ride.on=false;ride.trick=null;ride.manualOn=false;ride.bail=0;$('#tricks').hidden=true;$('#balance').hidden=true;rollVol=0;grindVol=0;ride.grind=null;ride.air=0;ride.pose=null;BOARD.ride.visible=false;const [lon,lat]=lonLatOf(up);dropBoard(up,yawFor(lon,lat,fwd)+Math.PI/2);v=Math.min(v,MAXV);$('#ba').classList.add('off');shownN=undefined;}
+function startRide(){if(!BOARD||ride.on||!nearBoard)return;$('#tricks').hidden=false;$('#jumpbtn').hidden=true;$('#score').hidden=false;$('#score').textContent=ride.score.toLocaleString();if(window.__dbgRide)console.log('STARTRIDE '+new Error().stack.split('\n').slice(1,5).join(' | '));autoTarget=null;autoRoute=[];autoFace=null;ride.on=true;ride.pose=null;ride.air=0;ride.grind=null;scene.remove(nearBoard.prop);BOARD.boards.splice(BOARD.boards.indexOf(nearBoard),1);sceneDirty=true;spawnBoard();BOARD.ride.visible=true;$('#ba').textContent='Hop off';$('#ba').classList.remove('off');firstMove();}
+function stopRide(){if(!ride.on)return;endCombo(false);ride.on=false;ride.trick=null;ride.manualOn=false;ride.bail=0;$('#tricks').hidden=true;if(isTouch)$('#jumpbtn').hidden=false;$('#balance').hidden=true;rollVol=0;grindVol=0;ride.grind=null;ride.air=0;ride.pose=null;BOARD.ride.visible=false;const [lon,lat]=lonLatOf(up);dropBoard(up,yawFor(lon,lat,fwd)+Math.PI/2);v=Math.min(v,MAXV);$('#ba').classList.add('off');shownN=undefined;}
 function ollie(){if(ride.air>0||ride.grind||ride.bail>0)return;const [dx,dz]=parkXZ(up);sfx('pop',.7);ride.manualOn=false;
   /* an ollie next to a grind line, heading roughly along it, snaps on and grinds */
   const fe=fwd.dot(PARK.east),fn=fwd.dot(PARK.north);let best=null;
