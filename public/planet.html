@@ -338,7 +338,7 @@ function terrainBase(n){const lat=Math.asin(clamp(n.y,-1,1));let h=-3.2*smooth(-
   {const o=parkOut(n);if(o<PARK_SINK.w)h-=PARK_SINK.d*(1-smooth(0,PARK_SINK.w,o));} /* the skate park's pit, flat across the whole park, banked at the rim */
   return h;}
 /* the ground mesh: the base terrain, dipped under the park's bowl and tucked just under its floor */
-function terrainH(n){let h=terrainBase(n);if(HM&&inPark(n))h+=Math.min(parkH(n),0)-.08;return h;}
+function terrainH(n){let h=terrainBase(n);if(HM&&inPark(n))h+=Math.min(parkH(n),0)-.02;return h;}
 const gAt=n=>R+terrainBase(n)+parkH(n); /* where the player's feet go: base terrain plus the park's surface */
 const hAt=n=>R+terrainH(n);
 function lonLatOf(v){return [Math.atan2(v.z,v.x),Math.asin(clamp(v.y,-1,1))];}
@@ -431,11 +431,12 @@ const colliders=[];let skyDome=null,nightDome=null,SUNSET=null;const PLACES={};
   /* road ribbons: Josh's drawn road for streets, plain dark asphalt for alleys, sand for the beach path */
   const roadTex=new THREE.TextureLoader().load('assets/road.jpg');roadTex.wrapS=THREE.RepeatWrapping;roadTex.anisotropy=8;
   const roadMat=new THREE.MeshBasicMaterial({map:roadTex,side:THREE.DoubleSide,polygonOffset:true,polygonOffsetFactor:-2,polygonOffsetUnits:-2});
+  const mouthMat=new THREE.MeshBasicMaterial({map:roadTex,side:THREE.DoubleSide,polygonOffset:true,polygonOffsetFactor:-6,polygonOffsetUnits:-6});
   const alleyMat=toon(0x7d8b8d,{side:THREE.DoubleSide,polygonOffset:true,polygonOffsetFactor:-2,polygonOffsetUnits:-2});
   const pathMat=toon(0xdcc99b,{side:THREE.DoubleSide,polygonOffset:true,polygonOffsetFactor:-2,polygonOffsetUnits:-2});
   /* open roads stop at the kerb line of the road they join, so their painted verges never cross its asphalt; the
      mouth of each junction is then covered by a plain asphalt patch (below) */
-  const MAINR=ROADS[0],RINGR=ROADS[1];for(const road of ROADS){if(road.closed)continue;road.trim0=road.kind==='path'?MAINR.halfW+.1:MAINR.kerb+.1;road.trim1=/^(side|alley)/.test(road.name)?RINGR.kerb+.1:0;}
+  const MAINR=ROADS[0],RINGR=ROADS[1];for(const road of ROADS){if(road.closed)continue;road.trim0=road.kind==='path'?MAINR.halfW+.1:MAINR.kerb+.1;road.trim1=/^(side|alley)/.test(road.name)?RINGR.kerb+.1:(road.kind==='path'?2.6:0);}
   for(const road of ROADS){const S=road.samples,M=6,hw=road.halfW,N=S.length;const texLen=road.closed?road.L/Math.round(road.L/19.6):19.6;const pos=[],uv=[],idx=[];
     const rowList=road.closed?[...S,null]:S.filter(sm=>sm.s>=road.trim0&&sm.s<=road.L-road.trim1);const rows=rowList.length;
     for(let i=0;i<rows;i++){const sm=rowList[i]||S[0];const s_=road.closed&&i===rows-1?road.L:sm.s;
@@ -445,11 +446,11 @@ const colliders=[];let skyDome=null,nightDome=null,SUNSET=null;const PLACES={};
     const rm=new THREE.Mesh(rg,road.kind==='road'?roadMat:road.kind==='alley'?alleyMat:pathMat);if(road.kind==='path')rm.userData.noInk=true;scene.add(rm);}
   /* junction mouths: a strip of plain asphalt from the host road's kerb line out past its verge, as wide as the side road's asphalt */
   const matFor=r=>r.kind==='road'?roadMat:r.kind==='alley'?alleyMat:pathMat;
-  function mouth(r,atEnd){const host=atEnd?RINGR:MAINR;const sm=atS(r,atEnd?r.L:0);const dir=sm.t.clone().multiplyScalar(atEnd?-1:1);const a0=host.kerb-.7,a1=host.kerb+1.5,w=r.kerb+.12,rows=6;const pos=[],uv=[],idx=[];
-    for(let i=0;i<=rows;i++){const a=a0+(a1-a0)*i/rows;for(let j=0;j<=1;j++){const o=w*(1-2*j);const pt=_q.copy(sm.n).addScaledVector(dir,a/R).addScaledVector(sm.side,o/R).normalize();const h=hAt(pt)+.095;pos.push(pt.x*h,pt.y*h,pt.z*h);uv.push(a/19.6,.30+.14*(1-j));}} /* a plain lane of asphalt from the road picture, no dashes */
+  function mouth(r,atEnd){const host=atEnd?RINGR:MAINR;const sm=atS(r,atEnd?r.L:0);const dir=sm.t.clone().multiplyScalar(atEnd?-1:1);const a0=host.halfW*.56,a1=r.trim0+.3,w=r.halfW*.64,rows=6;const pos=[],uv=[],idx=[];
+    for(let i=0;i<=rows;i++){const a=a0+(a1-a0)*i/rows;for(let j=0;j<=1;j++){const o=w*(1-2*j);const pt=_q.copy(sm.n).addScaledVector(dir,a/R).addScaledVector(sm.side,o/R).normalize();const h=hAt(pt)+host.lift;pos.push(pt.x*h,pt.y*h,pt.z*h);uv.push(a/19.6,.30+.14*(1-j));}} /* a plain lane of asphalt from the road picture, no dashes */
     for(let i=0;i<rows;i++){const a=i*2,b=a+1,c=a+2,d=a+3;idx.push(a,b,c,b,d,c);}
     const g2=new THREE.BufferGeometry();g2.setAttribute('position',new THREE.Float32BufferAttribute(pos,3));g2.setAttribute('uv',new THREE.Float32BufferAttribute(uv,2));g2.setIndex(idx);g2.computeVertexNormals();
-    const m2=new THREE.Mesh(g2,roadMat);m2.userData.noInk=true;scene.add(m2);}
+    const m2=new THREE.Mesh(g2,mouthMat);m2.userData.noInk=true;scene.add(m2);}
   for(const r of ROADS){if(r.closed||r.kind==='path')continue;mouth(r,false);if(r.trim1>0)mouth(r,true);}
   /* the sunset: a low sun over the sea, seen from the beach looking out across the water */
   (function sunset(){const B=sphere(1.3,-.40);const {north}=frameAt(1.3,-.40);const D=north.clone().negate().addScaledVector(B,.11).normalize();
@@ -646,11 +647,10 @@ function townAlong(road,o){o=o||{};const kerb=road.kerb;const end=Math.min(road.
     function skateboard(){const g=new THREE.Group();if(BOARD_MODEL){g.add(BOARD_MODEL.clone());return g;}const deck=box(1.22,.055,.42,pick([P.red,P.blue,P.yellow]));deck.position.set(0,.125,0);g.add(deck);const grip=plain(1.14,.02,.38,0x2b2e31);grip.position.set(0,.162,0);g.add(grip); /* grip tape on top */
   for(const x of [-.4,.4])for(const z of [-.15,.15]){const w_=cyl(.06,.06,.06,P.cream2,8);w_.rotation.x=Math.PI/2;g.add(at(w_,x,.06,z));}return g;}
     SKATE_SPOT=pt;
-    {const rl=new THREE.Group();const len=RAIL.x1-RAIL.x0;const bar=cyl(.045,.045,len,P.red,8);bar.rotation.z=Math.PI/2;bar.position.y=RAIL.h;rl.add(bar);for(const x of [-len/2+.5,-len/6,len/6,len/2-.5])rl.add(at(cyl(.04,.04,RAIL.h,P.grey2,6),x,RAIL.h/2,0));const [,rl_,ra_]=pt((RAIL.x0+RAIL.x1)/2,RAIL.dz);placeOn(rl,rl_,ra_,yawFor(rl_,ra_,north));colliders.push(rl);}
+    {const len=RAIL.x1-RAIL.x0,NSEG=8,sl=len/NSEG;for(let k=0;k<NSEG;k++){const seg=new THREE.Group();const bar=cyl(.045,.045,sl+.08,P.red,8);bar.rotation.z=Math.PI/2;bar.position.y=RAIL.h;seg.add(bar);if(k%2===0)seg.add(at(cyl(.04,.04,RAIL.h,P.grey2,6),0,RAIL.h/2,0));const [,sl_,sa_]=pt(RAIL.x0+sl*(k+.5),RAIL.dz);placeOn(seg,sl_,sa_,yawFor(sl_,sa_,north));colliders.push(seg);}}
     /* west wing */
     {const qp=quarterPipe(WQP.z1-WQP.z0,WQP.r);const [,ql,qa]=pt(WQP.x+.6,(WQP.z0+WQP.z1)/2);placeOn(qp,ql,qa,yawFor(ql,qa,east));colliders.push(qp);{const wv=parkPt(WQP.x-.35,(WQP.z0+WQP.z1)/2);solids.push({c:wv.clone().multiplyScalar(R),X:PARK.east.clone(),Z:PARK.north.clone(),hx:.25,hz:(WQP.z1-WQP.z0)/2+.2});} /* rideable: only its back wall is solid */
-     const rl=new THREE.Group();const len=WRAIL.x1-WRAIL.x0;const bar=cyl(.06,.06,len,P.grey2,8);bar.rotation.z=Math.PI/2;bar.position.y=WRAIL.h;rl.add(bar);for(const x of [-len/2+.4,0,len/2-.4])rl.add(at(cyl(.05,.05,WRAIL.h,P.grey2,6),x,WRAIL.h/2,0));
-     const [,rl_,ra_]=pt((WRAIL.x0+WRAIL.x1)/2,WRAIL.z);placeOn(rl,rl_,ra_,yawFor(rl_,ra_,north));colliders.push(rl);}
+     const len=WRAIL.x1-WRAIL.x0,NSEG=3,sl=len/NSEG;for(let k=0;k<NSEG;k++){const seg=new THREE.Group();const bar=cyl(.06,.06,sl+.08,P.grey2,8);bar.rotation.z=Math.PI/2;bar.position.y=WRAIL.h;seg.add(bar);seg.add(at(cyl(.05,.05,WRAIL.h,P.grey2,6),0,WRAIL.h/2,0));const [,sl_,sa_]=pt(WRAIL.x0+sl*(k+.5),WRAIL.z);placeOn(seg,sl_,sa_,yawFor(sl_,sa_,north));colliders.push(seg);}}
     /* east wing: stair set with a handrail, a ledge, a pyramid */
     {const st=new THREE.Group();const cxp=(STAIR.x0+STAIR.x1)/2,W=STAIR.z1-STAIR.z0,Lp=STAIR.x1-STAIR.x0; /* pieces are laid out in park axes: east = local +Z, north = local −X */
      const put=(m,px,y,pz)=>{m.position.set(-pz,y,px);st.add(m);return m;};
@@ -785,7 +785,7 @@ function groundFix(holder,root){holder.updateMatrixWorld(true);let minY=Infinity
     // lifted a little, and posterised so the colours flatten back toward cel shading.
     /* Tripo textures carry baked, blotchy shading that reads as a 3D scan. The material smooths the texture, flattens it to a few
        tones and draws ink where the texture's colours change sharply (window frames, awnings, doors), like a coloured line drawing. */
-    const CARTOON={levels:6,poster:.45,edge0:.45,edge1:.95,ink:.5,sat:1.25,gain:1.06,lift:.1};window.__cartoon=CARTOON;
+    const CARTOON={levels:6,poster:.4,edge0:.45,edge1:.95,ink:.5,sat:1.25,gain:.98,lift:.05};window.__cartoon=CARTOON;
     const flatMat=(map,color)=>{const m=new THREE.MeshBasicMaterial({map:map||null,color:map?0xffffff:color});
       m.onBeforeCompile=sh=>{const im=map&&map.image;const w=(im&&(im.width||im.naturalWidth))||1024,h=(im&&(im.height||im.naturalHeight))||1024;
         sh.uniforms.uTexel={value:new THREE.Vector2(1/w,1/h)};sh.uniforms.uLevels={value:CARTOON.levels};sh.uniforms.uPoster={value:CARTOON.poster};sh.uniforms.uEdge={value:new THREE.Vector2(CARTOON.edge0,CARTOON.edge1)};sh.uniforms.uInk={value:CARTOON.ink};sh.uniforms.uSat={value:CARTOON.sat};sh.uniforms.uGain={value:CARTOON.gain};sh.uniforms.uLift={value:CARTOON.lift};m.userData.sh=sh;
@@ -803,7 +803,7 @@ function groundFix(holder,root){holder.updateMatrixWorld(true);let minY=Infinity
     const toonify=root=>root.traverse(m=>{if(m.isMesh){const old=m.material;m.material=flatMat(old.map,old.color);m.userData.noInk=true;}});
     const fit=(root,height)=>{const bb=new THREE.Box3().setFromObject(root);const sc=height/(bb.max.y-bb.min.y);root.scale.setScalar(sc);root.position.y=-bb.min.y*sc;root.position.x=-(bb.min.x+bb.max.x)/2*sc;root.position.z=-(bb.min.z+bb.max.z)/2*sc;};
     // Josh's buildings: slots rotate through the list, so each one appears several times around the planet
-    const BUILDINGS=['assets/building1v2.glb','assets/building3.glb','assets/building4.glb','assets/building6.glb','assets/building5.glb','assets/building7.glb','assets/building8.glb','assets/building9.glb','assets/building10.glb','assets/building11.glb','assets/building12.glb','assets/building13.glb','assets/building14.glb']; // 8–14 are Josh's Tripo builds of the town pack (corner house, townhouse, convenience shop, garage house, cafe, storefront, two-storey)
+    const BUILDINGS=['assets/building1v2.glb','assets/building3.glb','assets/building4.glb','assets/building6.glb','assets/building5.glb','assets/building7.glb','assets/building8.glb','assets/building9.glb','assets/building10.glb','assets/building11.glb','assets/building12.glb','assets/building13.glb','assets/building14.glb','assets/building15.glb','assets/building16.glb','assets/building17.glb']; // 8–14 are Josh's Tripo builds of the town pack (corner house, townhouse, convenience shop, garage house, cafe, storefront, two-storey)
     /* Spread the types out: walk the slots and give each one the building whose nearest copy so far is
        furthest away round the planet (ties go to the least-used type), so the same building is never
        next to, or across the road from, itself. */
@@ -1029,8 +1029,8 @@ function update(dt){
     if(clips.fidget&&!moving&&!sitting&&!ride.on&&!talking&&fidgetOK&&now_>fidgetUntil){clips.fidget.reset().play();fidgetOK=false;}
     if(sitting&&clips.fidget&&clips.fidget.isRunning())clips.fidget.stop();
     const fidgeting=clips.fidget&&clips.fidget.isRunning()&&!moving&&!sitting;gait.fidget+=((fidgeting?1:0)-gait.fidget)*Math.min(1,dt*5);
-    if(jump.on){jump.t+=dt;if(jump.t>=jump.dur)jump.on=false;kidModel.position.addScaledVector(up,Math.sin(Math.PI*clamp(jump.t/jump.dur,0,1))*.75);}
-    const jw=jump.on?1:0;
+    if(jump.on){jump.t+=dt;if(jump.t>=jump.dur)jump.on=false;kidModel.position.addScaledVector(up,Math.sin(Math.PI*clamp(jump.t/jump.dur,0,1))*.9);}
+    const jw=0; /* the baked jump clip is no longer used: the hop is code-driven (applyJump) */
     if(clips.run){clips.run.setEffectiveWeight(gait.run*(1-jw));clips.run.setEffectiveTimeScale(clamp(speed/(clips.runSpeed||3)*.9,.6,2.2));}
     if(clips.walk){clips.walk.setEffectiveWeight(gait.walk*(1-jw));clips.walk.setEffectiveTimeScale(clamp(speed/(clips.walkSpeed||1.5)*.75,.5,3.2));}
     if(clips.jump)clips.jump.setEffectiveWeight(jw);
@@ -1096,7 +1096,7 @@ function update(dt){
   for(const n of npcs)if(n!==nearN&&n!==talking)n.paused=false;
 }
 let last=performance.now();
-function frame(now){const dt=Math.min(.05,(now-last)/1000);last=now;if(!paused)update(dt);if(mixer)mixer.update(dt);applySit();applyRide();for(const m of mixers)m.update(dt);updateBirds(dt,now/1000);if(window.__water&&window.__water.userData.sh)window.__water.userData.sh.uniforms.uT.value=now/1000;renderInk();requestAnimationFrame(frame);}
+function frame(now){const dt=Math.min(.05,(now-last)/1000);last=now;if(!paused)update(dt);if(mixer)mixer.update(dt);applySit();applyRide();applyJump();for(const m of mixers)m.update(dt);updateBirds(dt,now/1000);if(window.__water&&window.__water.userData.sh)window.__water.userData.sh.uniforms.uT.value=now/1000;renderInk();requestAnimationFrame(frame);}
 requestAnimationFrame(frame);
 
 /* =====================================================================
@@ -1154,7 +1154,7 @@ const SFX={};function sfxGet(name){if(SFX[name]!==undefined)return SFX[name];con
 const sfxBufs={};
 function sfx(name,vol){if(!musicOn)return;const c=ensureCtx();const v=vol??.7;
   if(c){if(sfxBufs[name]===undefined){sfxBufs[name]=null;fetch('assets/sfx/'+name+'.mp3').then(r=>r.ok?r.arrayBuffer():Promise.reject()).then(b=>c.decodeAudioData(b)).then(buf=>{sfxBufs[name]=buf;}).catch(()=>{sfxBufs[name]=false;});}
-    const buf=sfxBufs[name];if(!buf)return;try{const src=c.createBufferSource();src.buffer=buf;const g=c.createGain();g.gain.value=v;src.connect(g);g.connect(c.destination);src.start();}catch(_){}return;}
+    const buf=sfxBufs[name];if(!buf)return;try{const src=c.createBufferSource();src.buffer=buf;const g=c.createGain();g.gain.value=v;src.connect(g);g.connect(c.destination);src.start();if(name==='land'||name==='bail'){g.gain.setValueAtTime(v,c.currentTime+.4);g.gain.linearRampToValueAtTime(0,c.currentTime+.5);src.stop(c.currentTime+.5);}}catch(_){}return;}
   const a=sfxGet(name);if(!a)return;try{const cl=a.cloneNode();cl.volume=v;cl.play().catch(()=>{});}catch(_){}}
 function sfxLoop(name){const a=sfxGet(name);if(!a)return null;a.loop=true;a.volume=0;return a;}
 const rollLoop=sfxLoop('roll'),grindLoop=sfxLoop('grind');let rollVol=0,grindVol=0;const loopCur={roll:0,grind:0};
@@ -1203,7 +1203,7 @@ const voiceAudio=new Audio();voiceAudio.preload='auto';let audioUnlocked=false;
 const SILENCE='data:audio/wav;base64,UklGRiQAAABXQVZFZm10IBAAAAABAAEAQB8AAIA+AAACABAAZGF0YQAAAAA=';
 function unlockAudio(){const c=ensureCtx();if(c&&c.state==='suspended')c.resume().catch(()=>{});if(audioUnlocked)return;try{voiceAudio.src=SILENCE;const p=voiceAudio.play();if(p&&p.then)p.then(()=>{audioUnlocked=true;}).catch(()=>{});}catch(_){}}
 function browserSpeak(text,n){if(!canSpeak)return;speechSynthesis.cancel();const u=new SpeechSynthesisUtterance(text);const vc=pickVoice(n);if(vc)u.voice=vc;u.rate=n.rate||1;u.pitch=n.pitch||1;speechSynthesis.speak(u);}
-function stopSpeech(){speakSeq++;bubble.pending=false;try{voiceAudio.pause();}catch(_){}if(canSpeak)speechSynthesis.cancel();}
+function stopSpeech(){speakSeq++;try{voiceAudio.pause();}catch(_){}if(canSpeak)speechSynthesis.cancel();}
 async function speak(text,n){if(!voiceOn)return;stopSpeech();const seq=speakSeq;
   if(hosted[n.name]!==false){try{const ctrl=new AbortController();const to=setTimeout(()=>ctrl.abort(),25000);
       const r=await fetch('/api/speak',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({who:n.name,text}),signal:ctrl.signal});clearTimeout(to);
@@ -1245,8 +1245,8 @@ function nextChunk(){if(!bubble.who)return;if(bubble.i<bubble.chunks.length){bub
 sbN.addEventListener('click',nextChunk);
 function thinkingBubble(n){clearTimeout(bubble.timer);bubble.who=n;bubble.chunks=[];bubble.key='';sbN.className='sb';sbN.innerHTML='<span class="dots"><span>•</span><span>•</span><span>•</span></span>';sbN.hidden=false;}
 function meBubble(text){sbMe.innerHTML=esc(text);sbMe.hidden=false;clearTimeout(sbMe._t);sbMe._t=setTimeout(()=>{sbMe.hidden=true;},Math.max(2000,text.length*60));}
-function hideBubbles(){clearTimeout(bubble.timer);bubble.who=null;sbN.hidden=true;sbMe.hidden=true;}
-function say(html,n,plainForVoice,key){if(typer){clearInterval(typer);typer=null;}const plain=plainForVoice||html.replace(/<[^>]+>/g,'');const wait=!!plainForVoice&&voiceOn&&hosted[n.name]!==false;sayBubble(n,plain,key||'',wait);if(plainForVoice)speak(plainForVoice,n);}
+function hideBubbles(){clearTimeout(bubble.timer);bubble.who=null;bubble.pending=false;sbN.hidden=true;sbMe.hidden=true;}
+function say(html,n,plainForVoice,key){if(typer){clearInterval(typer);typer=null;}const plain=plainForVoice||html.replace(/<[^>]+>/g,'');const wait=!!plainForVoice&&voiceOn&&hosted[n.name]!==false;if(plainForVoice)speak(plainForVoice,n);sayBubble(n,plain,key||'',wait);}
 function action(){unlockAudio();if(ride.on){stopRide();return;}if(sitting){standUp();return;}if(nearBench&&!talking){sitDown();return;}if(nearBoard&&!talking){startRide();return;}if(nearN&&!talking)startTalk(nearN);}
 /* sitting on the bench: the kid is set on the seat facing the sea and his legs are bent after the animation
    has run; the sun goes down, the stars come out for half a minute, then it brightens again */
@@ -1307,7 +1307,12 @@ function applyRide(){if(!ride.on||!kidModel)return;const bones=kidModel.userData
   if(bones.R_Thigh)bones.R_Thigh.quaternion.multiply(_sq.setFromAxisAngle(_sx,.5*(1-ride.push)+(-.55+.9*kick)*ride.push+.75*tuck));if(bones.R_Calf)bones.R_Calf.quaternion.multiply(_sq.setFromAxisAngle(_sx,-.78*(1-ride.push)+(-.15-.35*kick)*ride.push-1.1*tuck));
   if(bones.Spine01&&ride.air===0&&!ride.grind){const t=performance.now()/1000;bones.Spine01.quaternion.multiply(_sq.setFromAxisAngle(_sx,.06*Math.sin(t*2.1))).multiply(_sq2.setFromAxisAngle(_sy,.05*Math.sin(t*1.7)));} /* a little sway so he is not stiff */
   if(bones.NeckTwist01)bones.NeckTwist01.quaternion.multiply(_sq.setFromAxisAngle(_sy,-.45));if(bones.Head)bones.Head.quaternion.multiply(_sq.setFromAxisAngle(_sy,-.5));}
-function doJump(){if(ride.on){ollie();return;}if(talking||sitting||jump.on||!clips.jump)return;jump.on=true;jump.t=0;jump.dur=clips.jump.getClip().duration;clips.jump.reset().play();firstMove();}
+function doJump(){if(ride.on){ollie();return;}if(talking||sitting||jump.on)return;jump.on=true;jump.t=0;jump.dur=.62;jumpSfx();firstMove();}
+function jumpSfx(){if(!musicOn)return;const c=ensureCtx();if(!c)return;try{const o=c.createOscillator(),g=c.createGain();o.type='sine';const t=c.currentTime;o.frequency.setValueAtTime(300,t);o.frequency.exponentialRampToValueAtTime(720,t+.14);g.gain.setValueAtTime(.0001,t);g.gain.exponentialRampToValueAtTime(.3,t+.02);g.gain.exponentialRampToValueAtTime(.0001,t+.22);o.connect(g);g.connect(c.destination);o.start(t);o.stop(t+.24);}catch(_){}}
+/* the hop: legs tuck up under him at the top of the arc and straighten for the landing */
+function applyJump(){if(!jump.on||!kidModel||ride.on)return;const bones=kidModel.userData.bones;if(!bones)return;const bell=Math.sin(Math.PI*clamp(jump.t/jump.dur,0,1));
+  for(const k of ['L_Thigh','R_Thigh']){const b=bones[k];if(b)b.quaternion.multiply(_sq.setFromAxisAngle(_sx,.7*bell));}
+  for(const k of ['L_Calf','R_Calf']){const b=bones[k];if(b)b.quaternion.multiply(_sq.setFromAxisAngle(_sx,-1.1*bell));}}
 function startTalk(n){
   talking=n;n.paused=true;autoTarget=null;for(const k in hold)hold[k]=false;v=0;pendingMove=0;
   autoFace=npcWorld(n).sub(player.group.position).normalize();
