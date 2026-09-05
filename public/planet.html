@@ -729,7 +729,7 @@ function groundFix(holder,root){holder.updateMatrixWorld(true);let minY=Infinity
         if(!clips.idle)clips.idle=clips.fidget||clips.talk||clips.walk;
         const bb=new THREE.Box3().setFromObject(g.scene);const hgt=bb.max.y-bb.min.y;const sc_=1.78/hgt;
         npcs.forEach((n,i)=>{if((NPC_FOR[n.name]??(i%NPC_MODELS.length))!==mi)return;
-          const root=THREE.SkeletonUtils.clone(g.scene);root.scale.setScalar(sc_);root.position.y=-bb.min.y*sc_;root.rotation.y=Math.PI;
+          const root=THREE.SkeletonUtils.clone(g.scene);root.scale.setScalar(sc_);root.position.y=-bb.min.y*sc_;root.rotation.y=(mi>=4)?0:Math.PI; /* Josh's newer exports (npc5, npc6) face the other way */
           root.traverse(m=>{if(m.isMesh){const old=m.material;const mat=new THREE.MeshBasicMaterial({map:old.map||null,color:old.map?0xffffff:old.color,skinning:!!m.isSkinnedMesh});mat.onBeforeCompile=sh=>{sh.fragmentShader=sh.fragmentShader.replace('#include <dithering_fragment>','#include <dithering_fragment>\n gl_FragColor.rgb=clamp(pow(gl_FragColor.rgb,vec3(0.85))*1.08,0.0,1.0);');};m.material=mat;m.frustumCulled=false;m.userData.noInk=true;}});
           const holder=new THREE.Group();holder.add(root);scene.add(holder);
           const mixer=new THREE.AnimationMixer(root);const act={};for(const k of ['walk','idle','talk','fidget']){if(clips[k]){act[k]=mixer.clipAction(clips[k]);act[k].play();act[k].setEffectiveWeight(k==='idle'?1:0);if(k==='fidget')act[k].setLoop(THREE.LoopOnce,1);}}
