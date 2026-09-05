@@ -542,7 +542,7 @@ function greenHouse(w,d){ // the tall green building with the mailboxes
 const npcSpots=[]; // places people like to stand
 const modelSlots=[]; // plots kept free for Josh's modelled buildings: {lon,lat,yaw}
 const propSlots=[]; // {kind,lon,lat,yaw} filled with Josh's modelled props once they load
-let BENCH=null,SKATE_SPOT=null,BOARD=null,parkModel=null;
+let BENCH=null,SKATE_SPOT=null,BOARD=null,BOARD_MODEL=null,parkModel=null;
 function spawnBoard(){if(!BOARD)return;if(BOARD.boards.some(b=>Math.acos(clamp(b.n.dot(BOARD.spawn),-1,1))*R<1.5))return;const [lon,lat]=lonLatOf(BOARD.spawn);BOARD.boards.push({prop:placeOn(BOARD.make(),lon,lat,BOARD.spawnYaw),n:BOARD.spawn.clone()});}
 function dropBoard(n,yaw){const [lon,lat]=lonLatOf(n);BOARD.boards.push({prop:placeOn(BOARD.make(),lon,lat,yaw),n:n.clone()});while(BOARD.boards.length>6){const old=BOARD.boards.shift();scene.remove(old.prop);sceneDirty=true;}}
 /* a fingerpost: arms of text, each pointing along a world direction */
@@ -556,7 +556,7 @@ function fingerpost(lon,lat,arms){const g=new THREE.Group();g.add(at(cyl(.07,.08
 const treeKind=big=>rnd()<.5?(big?'treeBig':'treeSmall'):(rnd()<.5?'tree1':'tree2');
 const rockKind=()=>pick(['rock','rock2','rock3','rock4','rock5']);
 const grassKind=()=>pick(['grass1','grass2','grass2','grass3','clover','sprout']);
-const planterKind=()=>pick(['planter1','planter2','planter3','planter4']);
+const planterKind=()=>pick(['planter1','planter2','planter3','planter4','planter5','planter6','planter7','planter8']);const signKind=()=>pick(['sign1','sign2','sign3']);
 function townAlong(road,o){o=o||{};const kerb=road.kerb;const end=Math.min(road.L-(road.closed?0:2),o.endS||1e9);
   for(const side of (o.sides||[1,-1])){let s=(o.startS||0)+rnd()*3;
     while(s<end-3){const w=(o.wMin||6)+rnd()*(o.wVar||5),d=(o.dMin||4.5)+rnd()*2.5;const step=w+1.5+rnd()*2.5;if(s+step>end)break;
@@ -570,10 +570,13 @@ function townAlong(road,o){o=o||{};const kerb=road.kerb;const end=Math.min(road.
       const at_=(dist,along)=>{const p=offsetFrom(along===undefined?sm:atS(road,along),side*dist);return [p,...lonLatOf(p)];};
       if(isModel){modelSlots.push({lon,lat,yaw});}
       else if(b){placeOnGround(b,lon,lat,yaw);colliders.push(b);
+        if(!o.alley&&rnd()<.3){const [ap,al,aa]=at_(kerb+2.2+setback-.35,s+step/2+(w/2-1.1)*(rnd()<.5?1:-1));if(!blocked(ap,.5,road))propSlots.push({kind:'acunit',lon:al,lat:aa,yaw});}
         if(setback>1){const [,wl,wa]=at_(kerb+2.4);placeOnGround(lowWall(w-1,.9),wl,wa,yaw);}
         if(!o.alley&&rnd()<.35){const [,hl,ha]=at_(kerb+2.2,s+step/2+(w/2+1)*(rnd()<.5?1:-1));propSlots.push({kind:'hedge',lon:hl,lat:ha,yaw,k:.9+rnd()*.4,collide:true});}}
       else{ // an open plot: a low wall, a tree behind, somewhere to stand
-        const [,wl,wa]=at_(kerb+2.4);placeOnGround(lowWall(w,1.1,pick([P.cream2,P.grey])),wl,wa,yaw);
+        if(rnd()<.6){const [,wl,wa]=at_(kerb+2.4);propSlots.push({kind:pick(['gate1','gate2','gate3']),lon:wl,lat:wa,yaw,collide:true});const wc=pick([P.cream2,P.grey]);
+          for(const sd of [1,-1]){const [,wl2,wa2]=at_(kerb+2.4,s+step/2+sd*(w+2.6)/4);placeOnGround(lowWall((w-2.6)/2,1.1,wc),wl2,wa2,yaw);}}
+        else{const [,wl,wa]=at_(kerb+2.4);placeOnGround(lowWall(w,1.1,pick([P.cream2,P.grey])),wl,wa,yaw);}
         const [tp,tl,ta]=at_(kerb+6);if(!blocked(tp,2,road))propSlots.push({kind:treeKind(rnd()<.6),lon:tl,lat:ta,yaw:rnd()*Math.PI*2,k:.85+rnd()*.3,collide:true});
         {const [bp2,bl2,ba2]=at_(kerb+4.2,s+step/2+(w/2-1)*(rnd()<.5?1:-1));if(!blocked(bp2,1,road))propSlots.push({kind:rnd()<.5?'bush':grassKind(),lon:bl2,lat:ba2,yaw:rnd()*Math.PI*2,k:.9+rnd()*.3});}
         const [,sl,sa]=at_(kerb+1.2);npcSpots.push({lon:sl,lat:sa,face:face.clone().negate()});}
@@ -582,19 +585,22 @@ function townAlong(road,o){o=o||{};const kerb=road.kerb;const end=Math.min(road.
       const g_=dist=>{const p=offsetFrom(gs,side*dist);return lonLatOf(p);};
       if(!blocked(gp,1.3,road)){
         if(o.alley){if(pr<.3)placeOn(bin(),gl,ga);else if(pr<.5)propSlots.push({kind:'crate',lon:gl,lat:ga,yaw:rnd()*Math.PI});else if(pr<.6)propSlots.push({kind:'mailbox',lon:gl,lat:ga,yaw:gyaw});}
-        else if(pr<.22){const p=pole();placeOn(p,gl,ga);colliders.push(p);solidCircle(p,.22);}
-        else if(pr<.34){placeOn(roundSign(pick([P.red,P.blue]),pick(['↑','30','P','!'])),gl,ga);}
-        else if(pr<.44){const [vl,va]=g_(kerb+1.5);const vm=placeOnGround(vend(),vl,va,gyaw);colliders.push(vm);npcSpots.push({lon:gl,lat:ga,face:face.clone().negate()});}
+        else if(pr<.22){propSlots.push({kind:'upole',lon:gl,lat:ga,yaw:gyaw,collide:true});}
+        else if(pr<.34){propSlots.push({kind:signKind(),lon:gl,lat:ga,yaw:gyaw});}
+        else if(pr<.44){const [vl,va]=g_(kerb+1.5);propSlots.push({kind:'vend2',lon:vl,lat:va,yaw:gyaw,collide:true});npcSpots.push({lon:gl,lat:ga,face:face.clone().negate()});}
         else if(pr<.49){placeOn(bin(),gl,ga);}
         else if(pr<.52){propSlots.push({kind:'mailbox',lon:gl,lat:ga,yaw:gyaw});}
-        else if(pr<.6){const [bl,ba]=g_(kerb+1.6);const bs=placeOnGround(busStop(),bl,ba,gyaw);colliders.push(bs);npcSpots.push({lon:gl,lat:ga,face:face.clone().negate()});}
-        else if(pr<.68){const [bl,ba]=g_(kerb+1.6);placeOn(bench(),bl,ba,gyaw);npcSpots.push({lon:gl,lat:ga,face:face.clone().negate()});}
-        else if(pr<.71){const [cl,ca]=g_(kerb-.6);placeOn(coneProp(),cl,ca);}
+        else if(pr<.6){const [bl,ba]=g_(kerb+1.6);propSlots.push({kind:'busstop2',lon:bl,lat:ba,yaw:gyaw,collide:true});npcSpots.push({lon:gl,lat:ga,face:face.clone().negate()});}
+        else if(pr<.68){const [bl,ba]=g_(kerb+1.6);propSlots.push({kind:'bench2',lon:bl,lat:ba,yaw:gyaw,collide:true});npcSpots.push({lon:gl,lat:ga,face:face.clone().negate()});}
+        else if(pr<.71){const [cl,ca]=g_(kerb-.6);propSlots.push({kind:rnd()<.5?'cone1':'cone2',lon:cl,lat:ca,yaw:rnd()*Math.PI});}
         else if(pr<.74){const [cl,ca]=g_(kerb+1.8);propSlots.push({kind:'crate',lon:cl,lat:ca,yaw:rnd()*Math.PI});}
         else if(pr<.8){const [tl,ta]=g_(kerb+1.9);propSlots.push({kind:treeKind(rnd()<.3),lon:tl,lat:ta,yaw:rnd()*Math.PI*2,k:.8+rnd()*.3,collide:true});}
         else if(pr<.84){const [rl,ra]=g_(kerb+2);propSlots.push({kind:rockKind(),lon:rl,lat:ra,yaw:rnd()*Math.PI});}
         else if(pr<.9){const [pl,pa]=g_(kerb+1.4);propSlots.push({kind:planterKind(),lon:pl,lat:pa,yaw:gyaw,collide:true});}
-        else if(pr<.95){const [tl,ta]=g_(kerb+1.6);propSlots.push({kind:grassKind(),lon:tl,lat:ta,yaw:rnd()*Math.PI*2,k:.8+rnd()*.5});}}
+        else if(pr<.95){const [tl,ta]=g_(kerb+1.6);propSlots.push({kind:grassKind(),lon:tl,lat:ta,yaw:rnd()*Math.PI*2,k:.8+rnd()*.5});}
+        else if(pr<.97){const [pl,pa]=g_(kerb+1.3);propSlots.push({kind:'postbox',lon:pl,lat:pa,yaw:gyaw,collide:true});}
+        else if(pr<.985){const [pl,pa]=g_(kerb+1.2);propSlots.push({kind:'mirror',lon:pl,lat:pa,yaw:gyaw+Math.PI,collide:true});}
+        else{const [pl,pa]=g_(kerb+1.5);propSlots.push({kind:'bikerack',lon:pl,lat:pa,yaw:gyaw,collide:true});}}
       s+=step;}}}
 (function buildTown(){
   const byName=n=>ROADS.find(r=>r.name===n);
@@ -637,7 +643,7 @@ function townAlong(road,o){o=o||{};const kerb=road.kerb;const end=Math.min(road.
     function funBox(w,l,h){const g=new THREE.Group();g.add(at(box(w,h,l,conc),0,h/2,0));const wedge=z=>{const sh=new THREE.Shape();sh.moveTo(0,0);sh.lineTo(1.6,0);sh.lineTo(0,h);sh.closePath();const m=new THREE.Mesh(new THREE.ExtrudeGeometry(sh,{depth:w,bevelEnabled:false}),toon(dark));m.rotation.y=-Math.PI/2;m.position.set(w/2,0,z);return m;};
       const w1=wedge(l/2);g.add(w1);const w2=wedge(-l/2);w2.rotation.y=Math.PI/2;w2.position.set(-w/2,0,-l/2);g.add(w2);return g;}
     function rail(len){const g=new THREE.Group();const r=cyl(.05,.05,len,P.grey2,8);r.rotation.z=Math.PI/2;r.position.y=.55;g.add(r);for(const x of [-len/2+.3,len/2-.3])g.add(at(cyl(.04,.04,.55,P.grey2,6),x,.27,0));return g;}
-    function skateboard(){const g=new THREE.Group();const deck=box(1.22,.055,.42,pick([P.red,P.blue,P.yellow]));deck.position.set(0,.125,0);g.add(deck);const grip=plain(1.14,.02,.38,0x2b2e31);grip.position.set(0,.162,0);g.add(grip); /* grip tape on top */
+    function skateboard(){const g=new THREE.Group();if(BOARD_MODEL){g.add(BOARD_MODEL.clone());return g;}const deck=box(1.22,.055,.42,pick([P.red,P.blue,P.yellow]));deck.position.set(0,.125,0);g.add(deck);const grip=plain(1.14,.02,.38,0x2b2e31);grip.position.set(0,.162,0);g.add(grip); /* grip tape on top */
   for(const x of [-.4,.4])for(const z of [-.15,.15]){const w_=cyl(.06,.06,.06,P.cream2,8);w_.rotation.x=Math.PI/2;g.add(at(w_,x,.06,z));}return g;}
     SKATE_SPOT=pt;
     {const rl=new THREE.Group();const len=RAIL.x1-RAIL.x0;const bar=cyl(.045,.045,len,P.red,8);bar.rotation.z=Math.PI/2;bar.position.y=RAIL.h;rl.add(bar);for(const x of [-len/2+.5,-len/6,len/6,len/2-.5])rl.add(at(cyl(.04,.04,RAIL.h,P.grey2,6),x,RAIL.h/2,0));const [,rl_,ra_]=pt((RAIL.x0+RAIL.x1)/2,RAIL.dz);placeOn(rl,rl_,ra_,yawFor(rl_,ra_,north));colliders.push(rl);}
@@ -657,7 +663,7 @@ function townAlong(road,o){o=o||{};const kerb=road.kerb;const end=Math.min(road.
      const lg=box(ELEDGE.x1-ELEDGE.x0,ELEDGE.h,ELEDGE.w,0xbfc3c0);const [,ll,la]=pt((ELEDGE.x0+ELEDGE.x1)/2,ELEDGE.z);placeOn(lg,ll,la,yawFor(ll,la,north));colliders.push(lg);
      const py=funBox(PYR.top*2,PYR.half*2,PYR.h);const [,pl_,pa_]=pt(PYR.x,PYR.z);placeOn(py,pl_,pa_,yawFor(pl_,pa_,north));colliders.push(py);}
     const [,sl,sa]=pt(-13,-19);npcSpots.push({lon:sl,lat:sa,face:north,fixed:'Sam'});PLACES.skate={road:byName('skate'),s:byName('skate').L-1,then:pt(0,-15)[0]};/* skateboards: one always waits at the south-west corner of the park; a new one appears there when it is taken */
-    const [bn]=pt(-20.4,-18.8);BOARD={spawn:bn.clone(),spawnYaw:.4,boards:[],ride:skateboard(),make:skateboard};BOARD.ride.visible=false;scene.add(BOARD.ride);spawnBoard();
+    const [bn]=pt(-20.4,-18.8);BOARD={spawn:bn.clone(),spawnYaw:.4,boards:[],ride:skateboard(),make:skateboard,lift:.17};BOARD.ride.visible=false;scene.add(BOARD.ride);spawnBoard();
     const [,tl,ta]=pt(14,-20);placeOn(bench(),tl,ta,yawFor(tl,ta,north));const [,ol,oa]=pt(19,-12);npcSpots.push({lon:ol,lat:oa,face:north.clone().negate()});
   })();
 })();
@@ -779,11 +785,11 @@ function groundFix(holder,root){holder.updateMatrixWorld(true);let minY=Infinity
     // lifted a little, and posterised so the colours flatten back toward cel shading.
     /* Tripo textures carry baked, blotchy shading that reads as a 3D scan. The material smooths the texture, flattens it to a few
        tones and draws ink where the texture's colours change sharply (window frames, awnings, doors), like a coloured line drawing. */
-    const CARTOON={levels:5,poster:.85,edge0:.22,edge1:.55,ink:.8,sat:1.15};window.__cartoon=CARTOON;
+    const CARTOON={levels:6,poster:.45,edge0:.45,edge1:.95,ink:.5,sat:1.25,gain:1.06,lift:.1};window.__cartoon=CARTOON;
     const flatMat=(map,color)=>{const m=new THREE.MeshBasicMaterial({map:map||null,color:map?0xffffff:color});
       m.onBeforeCompile=sh=>{const im=map&&map.image;const w=(im&&(im.width||im.naturalWidth))||1024,h=(im&&(im.height||im.naturalHeight))||1024;
-        sh.uniforms.uTexel={value:new THREE.Vector2(1/w,1/h)};sh.uniforms.uLevels={value:CARTOON.levels};sh.uniforms.uPoster={value:CARTOON.poster};sh.uniforms.uEdge={value:new THREE.Vector2(CARTOON.edge0,CARTOON.edge1)};sh.uniforms.uInk={value:CARTOON.ink};sh.uniforms.uSat={value:CARTOON.sat};m.userData.sh=sh;
-        sh.fragmentShader=sh.fragmentShader.replace('#include <common>','#include <common>\nuniform vec2 uTexel;uniform float uLevels,uPoster,uInk,uSat;uniform vec2 uEdge;')
+        sh.uniforms.uTexel={value:new THREE.Vector2(1/w,1/h)};sh.uniforms.uLevels={value:CARTOON.levels};sh.uniforms.uPoster={value:CARTOON.poster};sh.uniforms.uEdge={value:new THREE.Vector2(CARTOON.edge0,CARTOON.edge1)};sh.uniforms.uInk={value:CARTOON.ink};sh.uniforms.uSat={value:CARTOON.sat};sh.uniforms.uGain={value:CARTOON.gain};sh.uniforms.uLift={value:CARTOON.lift};m.userData.sh=sh;
+        sh.fragmentShader=sh.fragmentShader.replace('#include <common>','#include <common>\nuniform vec2 uTexel;uniform float uLevels,uPoster,uInk,uSat,uGain,uLift;uniform vec2 uEdge;')
           .replace('#include <map_fragment>',`#ifdef USE_MAP
           vec2 tx=uTexel*2.0;vec3 t0=texture2D(map,vUv).rgb;vec3 tl=texture2D(map,vUv-vec2(tx.x,0.)).rgb,tr=texture2D(map,vUv+vec2(tx.x,0.)).rgb,tu=texture2D(map,vUv+vec2(0.,tx.y)).rgb,td=texture2D(map,vUv-vec2(0.,tx.y)).rgb;
           vec3 tsm=(t0*2.0+tl+tr+tu+td)/6.0;float tEdge=length(tr-tl)+length(tu-td);float tInk=smoothstep(uEdge.x,uEdge.y,tEdge)*uInk;
@@ -791,9 +797,9 @@ function groundFix(holder,root){holder.updateMatrixWorld(true);let minY=Infinity
           #endif`)
           .replace('#include <dithering_fragment>',`#include <dithering_fragment>
         vec3 c=gl_FragColor.rgb;c=pow(c,vec3(0.72));c=c*1.18+0.04;
-        float l=dot(c,vec3(.299,.587,.114));float lq=floor(l*uLevels+0.5)/uLevels;c=mix(c,c*(lq+0.02)/max(l,0.02),uPoster);c=mix(vec3(l),c,uSat);
+        float l=dot(c,vec3(.299,.587,.114));float lq=floor(l*uLevels+0.5)/uLevels;c=mix(c,c*(lq+0.02)/max(l,0.02),uPoster);c=mix(vec3(l),c,uSat);c=c*uGain+uLift;
         gl_FragColor.rgb=clamp(c,0.0,1.0);`);};m.userData.cartoon=true;return m;};
-    window.__setCartoon=o=>{Object.assign(CARTOON,o);scene.traverse(m=>{if(m.isMesh&&m.material&&m.material.userData.cartoon&&m.material.userData.sh){const u=m.material.userData.sh.uniforms;u.uLevels.value=CARTOON.levels;u.uPoster.value=CARTOON.poster;u.uEdge.value.set(CARTOON.edge0,CARTOON.edge1);u.uInk.value=CARTOON.ink;u.uSat.value=CARTOON.sat;}});sceneDirty=true;};
+    window.__setCartoon=o=>{Object.assign(CARTOON,o);scene.traverse(m=>{if(m.isMesh&&m.material&&m.material.userData.cartoon&&m.material.userData.sh){const u=m.material.userData.sh.uniforms;u.uLevels.value=CARTOON.levels;u.uPoster.value=CARTOON.poster;u.uEdge.value.set(CARTOON.edge0,CARTOON.edge1);u.uInk.value=CARTOON.ink;u.uSat.value=CARTOON.sat;u.uGain.value=CARTOON.gain;u.uLift.value=CARTOON.lift;}});sceneDirty=true;};
     const toonify=root=>root.traverse(m=>{if(m.isMesh){const old=m.material;m.material=flatMat(old.map,old.color);m.userData.noInk=true;}});
     const fit=(root,height)=>{const bb=new THREE.Box3().setFromObject(root);const sc=height/(bb.max.y-bb.min.y);root.scale.setScalar(sc);root.position.y=-bb.min.y*sc;root.position.x=-(bb.min.x+bb.max.x)/2*sc;root.position.z=-(bb.min.z+bb.max.z)/2*sc;};
     // Josh's buildings: slots rotate through the list, so each one appears several times around the planet
@@ -822,8 +828,10 @@ function groundFix(holder,root){holder.updateMatrixWorld(true);let minY=Infinity
       parkModel=meshes[0]||null;sceneDirty=true;
       const wall=parkPt(.9,21.2);solids.push({c:wall.clone().multiplyScalar(R),X:PARK.east.clone(),Z:PARK.north.clone(),hx:8.6,hz:.25});
       for(const [dx,dz,hz] of [[21.6,-.7,6.9],[-21.6,7,6.3]]){const wv=parkPt(dx,dz);solids.push({c:wv.clone().multiplyScalar(R),X:PARK.east.clone(),Z:PARK.north.clone(),hx:.25,hz});} /* the backs of the side ramps */},undefined,e=>console.warn('skate park not loaded',e));
-    const PROPS={mailbox:['assets/mailbox.glb',1.5],crate:['assets/crate.glb',.9],rock:['assets/rock.glb',1.1],treeBig:['assets/tree_a.glb',5.8,true],treeSmall:['assets/tree_b.glb',3.4,true],tree1:['assets/green01.glb',6.2],tree2:['assets/green02.glb',5.0],bush:['assets/green03.glb',1.4],hedge:['assets/green04.glb',1.15],grass1:['assets/green05.glb',.6],grass2:['assets/green06.glb',.65],grass3:['assets/green07.glb',.32],sprout:['assets/green08.glb',.45],clover:['assets/green09.glb',.3],planter1:['assets/green10.glb',.85],planter2:['assets/green11.glb',1.05],planter3:['assets/green12.glb',.8],planter4:['assets/green13.glb',.85],rock2:['assets/green14.glb',1.4],rock3:['assets/green15.glb',1.0],rock4:['assets/green16.glb',.9],rock5:['assets/green17.glb',.6]}; // Josh's trees replace the old ball-and-cone ones; they are thin relief models, so they are placed as two copies crossed at 90° to read from any angle
-    for(const kind in PROPS){const [file,hgt,cross]=PROPS[kind];loader.load(file,g=>{toonify(g.scene);fit(g.scene,hgt);for(const sl of propSlots){if(sl.kind!==kind)continue;const inst=new THREE.Group();inst.add(g.scene.clone());if(cross){const w=new THREE.Group();w.add(g.scene.clone());w.rotation.y=Math.PI/2;inst.add(w);}if(sl.k)inst.scale.setScalar(sl.k);placeOn(inst,sl.lon,sl.lat,sl.yaw);if(kind.startsWith('rock')){inst.translateY(-(kind==='rock'?.3:.14)*hgt*(sl.k||1));inst.updateMatrixWorld(true);}else if(kind==='tree1'||kind==='tree2'||kind==='bush'||kind==='hedge'||kind.startsWith('grass')||kind==='clover'||kind==='sprout'){inst.translateY(-.06*(sl.k||1));inst.updateMatrixWorld(true);} /* rocks sit into the ground, so they never float on a slope */ if(sl.collide)colliders.push(inst);const SR={treeBig:.5,treeSmall:.4,tree1:.5,tree2:.5,bush:.6,hedge:.9*(sl.k||1),mailbox:.35,rock:.6*(sl.k||1),rock2:.9*(sl.k||1),rock3:.5*(sl.k||1),rock4:.55*(sl.k||1),rock5:.35*(sl.k||1),crate:.5,planter1:.5,planter2:.4,planter3:.5,planter4:.35}[kind];if(SR)solidCircle(inst,SR);}sceneDirty=true;},undefined,e=>console.warn(kind,'not loaded',e));}
+    loader.load('assets/board.glb',g=>{const root=g.scene;toonify(root);const bb=new THREE.Box3().setFromObject(root);const sc=1.22/(bb.max.x-bb.min.x);root.scale.setScalar(sc);root.position.set(-(bb.min.x+bb.max.x)/2*sc,-bb.min.y*sc,-(bb.min.z+bb.max.z)/2*sc);
+      BOARD_MODEL=root;BOARD.lift=(bb.max.y-bb.min.y)*sc+.02;for(const o of [BOARD.ride,...BOARD.boards.map(b=>b.prop)]){o.clear();o.add(root.clone());}sceneDirty=true;},undefined,e=>console.warn('board not loaded',e));
+    const PROPS={mailbox:['assets/mailbox.glb',1.5],crate:['assets/crate.glb',.9],rock:['assets/rock.glb',1.1],treeBig:['assets/tree_a.glb',5.8,true],treeSmall:['assets/tree_b.glb',3.4,true],tree1:['assets/green01.glb',6.2],tree2:['assets/green02.glb',5.0],bush:['assets/green03.glb',1.4],hedge:['assets/green04.glb',1.15],grass1:['assets/green05.glb',.6],grass2:['assets/green06.glb',.65],grass3:['assets/green07.glb',.32],sprout:['assets/green08.glb',.45],clover:['assets/green09.glb',.3],planter1:['assets/green10.glb',.85],planter2:['assets/green11.glb',1.05],planter3:['assets/green12.glb',.8],planter4:['assets/green13.glb',.85],rock2:['assets/green14.glb',1.4],rock3:['assets/green15.glb',1.0],rock4:['assets/green16.glb',.9],rock5:['assets/green17.glb',.6],bench2:['assets/prop01.glb',.95],upole:['assets/prop02.glb',5.4],postbox:['assets/prop03.glb',1.4],vend2:['assets/prop04.glb',2.1],busstop2:['assets/prop05.glb',2.8],cone1:['assets/prop06.glb',.7],cone2:['assets/prop07.glb',.7],mirror:['assets/prop08.glb',2.7],sign1:['assets/prop09.glb',2.6],sign2:['assets/prop10.glb',2.6],sign3:['assets/prop11.glb',2.6],planter5:['assets/prop13.glb',1.0],bikerack:['assets/prop14.glb',.95],planter6:['assets/prop15.glb',.75],planter7:['assets/prop17.glb',.95],planter8:['assets/prop18.glb',.8],acunit:['assets/prop19.glb',.85],gate1:['assets/infra16.glb',1.5],gate2:['assets/infra17.glb',1.6],gate3:['assets/infra18.glb',1.6]}; // Josh's trees replace the old ball-and-cone ones; they are thin relief models, so they are placed as two copies crossed at 90° to read from any angle
+    for(const kind in PROPS){const [file,hgt,cross]=PROPS[kind];loader.load(file,g=>{toonify(g.scene);fit(g.scene,hgt);for(const sl of propSlots){if(sl.kind!==kind)continue;const inst=new THREE.Group();inst.add(g.scene.clone());if(cross){const w=new THREE.Group();w.add(g.scene.clone());w.rotation.y=Math.PI/2;inst.add(w);}if(sl.k)inst.scale.setScalar(sl.k);placeOn(inst,sl.lon,sl.lat,sl.yaw);if(kind.startsWith('rock')){inst.translateY(-(kind==='rock'?.3:.14)*hgt*(sl.k||1));inst.updateMatrixWorld(true);}else if(kind==='tree1'||kind==='tree2'||kind==='bush'||kind==='hedge'||kind.startsWith('grass')||kind==='clover'||kind==='sprout'){inst.translateY(-.06*(sl.k||1));inst.updateMatrixWorld(true);} /* rocks sit into the ground, so they never float on a slope */ if(sl.collide)colliders.push(inst);const SR={treeBig:.5,treeSmall:.4,tree1:.5,tree2:.5,bush:.6,hedge:.9*(sl.k||1),mailbox:.35,rock:.6*(sl.k||1),rock2:.9*(sl.k||1),rock3:.5*(sl.k||1),rock4:.55*(sl.k||1),rock5:.35*(sl.k||1),crate:.5,planter1:.5,planter2:.4,planter3:.5,planter4:.35,planter5:.35,planter6:.5,planter7:.4,planter8:.3,bench2:.6,upole:.22,postbox:.3,vend2:.7,busstop2:.2,cone1:.2,cone2:.2,mirror:.15,sign1:.12,sign2:.12,sign3:.12,bikerack:.6,acunit:.5,gate1:.9,gate2:.9,gate3:.9}[kind];if(SR)solidCircle(inst,SR);}sceneDirty=true;},undefined,e=>console.warn(kind,'not loaded',e));}
     // residents: Josh's four modelled characters, cloned with their skeletons
     const su=document.createElement('script');su.src='https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/utils/SkeletonUtils.js';
     su.onload=()=>{const NPC_MODELS=['assets/npc1.glb','assets/npc2.glb','assets/npc3.glb','assets/npc4.glb','assets/npc5.glb','assets/npc6.glb?v=2'];
@@ -1002,7 +1010,7 @@ function update(dt){
   if(kidModel){kidModel.quaternion.copy(player.group.quaternion);kidModel.position.copy(player.group.position);if(sitting)kidModel.position.addScaledVector(up,-(window.__sitDrop??.26));
     if(ride.on){const a=ride.air>0?Math.sin(Math.PI*clamp(ride.airT/ride.airDur,0,1))*ride.air:0;const lean=-tn*.22*(ride.grind||ride.manualOn?0:1);
       const spinV=(ride.spin?Math.PI*clamp(ride.airT/ride.airDur,0,1)-(ride.flipped?Math.PI:0):0)+(ride.air>0?ride.spinHold:0);
-      const bob=(ride.air===0&&!ride.grind&&Math.abs(v)>1)?.015*Math.sin(performance.now()/1000*7):0;kidModel.position.addScaledVector(up,.17+a+bob).addScaledVector(fwd,-.16);kidModel.quaternion.multiply(_sq.setFromAxisAngle(_sy,1.15*(1-ride.push*.85)+spinV)).multiply(_sq2.setFromAxisAngle(new THREE.Vector3(0,0,1),lean));
+      const bob=(ride.air===0&&!ride.grind&&Math.abs(v)>1)?.015*Math.sin(performance.now()/1000*7):0;kidModel.position.addScaledVector(up,BOARD.lift+a+bob).addScaledVector(fwd,-.16);kidModel.quaternion.multiply(_sq.setFromAxisAngle(_sy,1.15*(1-ride.push*.85)+spinV)).multiply(_sq2.setFromAxisAngle(new THREE.Vector3(0,0,1),lean));
       if(ride.manual>0.01)kidModel.quaternion.premultiply(_sq.setFromAxisAngle(right,.28*ride.manual)); /* leaning back on the tail */
       if(Math.abs(ride.tilt)>.01)kidModel.quaternion.premultiply(_sq.setFromAxisAngle(right,ride.tilt)); /* leans back, perpendicular to the ramp */
       if(ride.bail>0){const bt=1-ride.bail/1.3;kidModel.quaternion.premultiply(_sq.setFromAxisAngle(right,Math.min(1.45,bt*4)));kidModel.position.addScaledVector(up,-.2*Math.min(1,bt*3));}
@@ -1071,7 +1079,7 @@ function update(dt){
   camPos.lerp(desired,k);camUp.lerp(up,k).normalize();camLook.lerp(look,k);
   camera.position.copy(camPos);camera.up.copy(camUp);camera.lookAt(camLook);
   if(talking){if(!sbN.hidden)placeBubble(sbN,headOf(talking.rig.group,2.25),34);if(!sbMe.hidden)placeBubble(sbMe,headOf(player.group,2.25),34);}
-  if(nearN&&!talking){_proj.copy(headOf(nearN.rig.group,1.2)).project(camera);const ba=$('#ba');if(_proj.z<1){ba.style.left=clamp((_proj.x+1)/2*W+70,90,W-90)+'px';ba.style.top=clamp((1-_proj.y)/2*H,40,H-140)+'px';}}
+  if(nearN&&!talking){_proj.copy(headOf(nearN.rig.group,2.75)).project(camera);const ba=$('#ba');if(_proj.z<1){ba.style.left=clamp((_proj.x+1)/2*W,90,W-90)+'px';ba.style.top=clamp((1-_proj.y)/2*H,40,H-140)+'px';}}
   // who is close enough to talk to?
   nearN=null;let bestD=2.6;if(!talking&&!sitting&&!ride.on){for(const n of npcs){const d=npcWorld(n).distanceTo(player.group.position);if(d<bestD){bestD=d;nearN=n;}}}
   nearBench=false;if(BENCH&&!talking){const bw=BENCH.n.clone().multiplyScalar(hAt(BENCH.n));const d=bw.distanceTo(player.group.position);if(sitting||(d<2.4&&d<bestD)){if(!sitting){nearBench=true;nearN=null;}
@@ -1155,7 +1163,7 @@ setInterval(()=>{for(const [a,want,k] of [[rollLoop,rollVol,'roll'],[grindLoop,g
 /* footsteps: Josh's jogging loop, kept running silently and faded up only while the kid is on the move (quieter when walking); the ♪ button mutes it with the music */
 const steps=new Audio('assets/steps.m4a');steps.loop=true;steps.volume=0;let stepsTarget=0,stepsVol=0;const STEP_VOL=.3;
 function startSteps(){setVol(steps,0);} /* the loop is started by the mixer only when it should be heard */
-window.__audio={music,steps};window.__scene=scene;window.__renderer=renderer;window.__gAt=(lon,lat)=>{const n=sphere(lon,lat);return {g:+(gAt(n)-R).toFixed(2),base:+terrainBase(n).toFixed(2),park:+parkH(n).toFixed(2),out:+parkOut(n).toFixed(2)};};window.__solidsNear=r=>{const me=player.group.position;return solids.filter(sd=>sd.c.distanceTo(me)<(r||6)).map(sd=>({r:sd.r,hx:sd.hx,hz:sd.hz,d:+sd.c.distanceTo(me).toFixed(1)}));};window.__gain=el=>gainMap.get(el);window.__actx=()=>actx;
+window.__audio={music,steps};window.__voice=()=>voiceAudio;window.__bubble=bubble;window.__scene=scene;window.__renderer=renderer;window.__gAt=(lon,lat)=>{const n=sphere(lon,lat);return {g:+(gAt(n)-R).toFixed(2),base:+terrainBase(n).toFixed(2),park:+parkH(n).toFixed(2),out:+parkOut(n).toFixed(2)};};window.__solidsNear=r=>{const me=player.group.position;return solids.filter(sd=>sd.c.distanceTo(me)<(r||6)).map(sd=>({r:sd.r,hx:sd.hx,hz:sd.hz,d:+sd.c.distanceTo(me).toFixed(1)}));};window.__gain=el=>gainMap.get(el);window.__actx=()=>actx;
 function musicUI(){const b=$('#musicbtn');b.setAttribute('aria-pressed',String(musicOn));b.title=musicOn?'Music on':'Music off';}
 function startMusic(){if(!musicOn)return;musicTarget=MUSIC_VOL;setVol(music,musicVol);music.play().catch(()=>{});}
 $('#musicbtn').addEventListener('click',e=>{e.stopPropagation();musicOn=!musicOn;try{localStorage.setItem('planet-music',musicOn?'on':'off');}catch(_){}musicUI();if(musicOn)startMusic();else{musicTarget=0;}});
@@ -1195,14 +1203,14 @@ const voiceAudio=new Audio();voiceAudio.preload='auto';let audioUnlocked=false;
 const SILENCE='data:audio/wav;base64,UklGRiQAAABXQVZFZm10IBAAAAABAAEAQB8AAIA+AAACABAAZGF0YQAAAAA=';
 function unlockAudio(){const c=ensureCtx();if(c&&c.state==='suspended')c.resume().catch(()=>{});if(audioUnlocked)return;try{voiceAudio.src=SILENCE;const p=voiceAudio.play();if(p&&p.then)p.then(()=>{audioUnlocked=true;}).catch(()=>{});}catch(_){}}
 function browserSpeak(text,n){if(!canSpeak)return;speechSynthesis.cancel();const u=new SpeechSynthesisUtterance(text);const vc=pickVoice(n);if(vc)u.voice=vc;u.rate=n.rate||1;u.pitch=n.pitch||1;speechSynthesis.speak(u);}
-function stopSpeech(){speakSeq++;try{voiceAudio.pause();}catch(_){}if(canSpeak)speechSynthesis.cancel();}
+function stopSpeech(){speakSeq++;bubble.pending=false;try{voiceAudio.pause();}catch(_){}if(canSpeak)speechSynthesis.cancel();}
 async function speak(text,n){if(!voiceOn)return;stopSpeech();const seq=speakSeq;
   if(hosted[n.name]!==false){try{const ctrl=new AbortController();const to=setTimeout(()=>ctrl.abort(),25000);
       const r=await fetch('/api/speak',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({who:n.name,text}),signal:ctrl.signal});clearTimeout(to);
-      if(r.status===404){hosted[n.name]=false;}
+      if(r.status===404){hosted[n.name]=false;bubbleStart();}
       else if(r.ok){const blob=await r.blob();if(seq!==speakSeq||!voiceOn)return;const url=URL.createObjectURL(blob);voiceAudio.src=url;voiceAudio.onended=()=>URL.revokeObjectURL(url);await voiceAudio.play();hosted[n.name]=true;return;}
     }catch(e){console.warn('hosted voice fell back:',e&&e.name);}}
-  if(seq===speakSeq)browserSpeak(text,n);}
+  bubbleStart();if(seq===speakSeq)browserSpeak(text,n);}
 if(canSpeak)speechSynthesis.onvoiceschanged=()=>{};
 let typer=null;
 
@@ -1210,7 +1218,7 @@ let typer=null;
    SPEECH BUBBLES — text appears above the speaker's head in short comic-style chunks
    ===================================================================== */
 const sbN=$('#sbN'),sbMe=$('#sbMe');
-const bubble={chunks:[],i:0,timer:null,who:null,key:''};
+const bubble={chunks:[],i:0,timer:null,who:null,key:'',pending:false};
 const _proj=new THREE.Vector3();
 function placeBubble(el,worldPos,lift){_proj.copy(worldPos).project(camera);if(_proj.z>1){el.style.opacity=0;return;}el.style.opacity=1;
   const x=clamp((_proj.x+1)/2*W,190,W-190),y=(1-_proj.y)/2*H-(lift||14);el.style.left=x+'px';el.style.top=y+'px';}
@@ -1224,15 +1232,21 @@ function showChunk(){clearTimeout(bubble.timer);const n=bubble.who;if(!n)return;
   const last=i===bubble.chunks.length-1&&!bubble.key;sbN.className='sb';sbN.innerHTML=esc(bubble.chunks[i])+(last?'':'<span class="more">▼</span>');sbN.hidden=false;
   const chars=bubble.chunks[i].length,total=bubble.chunks.reduce((a,c)=>a+c.length,0);
   let dur=Math.max(2.4,chars/13);
-  if(voiceAudio&&!voiceAudio.paused&&isFinite(voiceAudio.duration)&&voiceAudio.duration>0)dur=Math.max(1.2,voiceAudio.duration*chars/total);
+  const a=voiceAudio;if(a&&!a.paused&&a.src!==SILENCE&&isFinite(a.duration)&&a.duration>0){ /* paced to the voice: this chunk stays up until the audio reaches the end of its share of the text */
+    const cum=bubble.chunks.slice(0,i+1).reduce((s_,c)=>s_+c.length,0);const endAt=a.duration*cum/total;dur=Math.max(.8,endAt-a.currentTime+(last?.8:.2));}
   bubble.timer=setTimeout(()=>{bubble.i++;showChunk();},dur*1000);}
-function sayBubble(n,text,key){clearTimeout(bubble.timer);bubble.who=n;bubble.chunks=splitChunks(text,150);bubble.i=0;bubble.key=key||'';showChunk();}
+/* the bubble waits (with dots) until the hosted voice actually starts, so the words never run ahead of the speech */
+function bubbleStart(){if(!bubble.pending)return;bubble.pending=false;clearTimeout(bubble.timer);showChunk();}
+voiceAudio.addEventListener('playing',()=>{if(voiceAudio.src!==SILENCE)bubbleStart();});
+function sayBubble(n,text,key,waitVoice){clearTimeout(bubble.timer);bubble.who=n;bubble.chunks=splitChunks(text,150);bubble.i=0;bubble.key=key||'';
+  if(waitVoice){bubble.pending=true;sbN.className='sb';sbN.innerHTML='<span class="dots"><span>•</span><span>•</span><span>•</span></span>';sbN.hidden=false;bubble.timer=setTimeout(bubbleStart,8000);}
+  else{bubble.pending=false;showChunk();}}
 function nextChunk(){if(!bubble.who)return;if(bubble.i<bubble.chunks.length){bubble.i++;showChunk();}else if(bubble.key){showChunk();}else sbN.hidden=true;}
 sbN.addEventListener('click',nextChunk);
 function thinkingBubble(n){clearTimeout(bubble.timer);bubble.who=n;bubble.chunks=[];bubble.key='';sbN.className='sb';sbN.innerHTML='<span class="dots"><span>•</span><span>•</span><span>•</span></span>';sbN.hidden=false;}
 function meBubble(text){sbMe.innerHTML=esc(text);sbMe.hidden=false;clearTimeout(sbMe._t);sbMe._t=setTimeout(()=>{sbMe.hidden=true;},Math.max(2000,text.length*60));}
 function hideBubbles(){clearTimeout(bubble.timer);bubble.who=null;sbN.hidden=true;sbMe.hidden=true;}
-function say(html,n,plainForVoice,key){if(typer){clearInterval(typer);typer=null;}const plain=plainForVoice||html.replace(/<[^>]+>/g,'');sayBubble(n,plain,key||'');if(plainForVoice)speak(plainForVoice,n);}
+function say(html,n,plainForVoice,key){if(typer){clearInterval(typer);typer=null;}const plain=plainForVoice||html.replace(/<[^>]+>/g,'');const wait=!!plainForVoice&&voiceOn&&hosted[n.name]!==false;sayBubble(n,plain,key||'',wait);if(plainForVoice)speak(plainForVoice,n);}
 function action(){unlockAudio();if(ride.on){stopRide();return;}if(sitting){standUp();return;}if(nearBench&&!talking){sitDown();return;}if(nearBoard&&!talking){startRide();return;}if(nearN&&!talking)startTalk(nearN);}
 /* sitting on the bench: the kid is set on the seat facing the sea and his legs are bent after the animation
    has run; the sun goes down, the stars come out for half a minute, then it brightens again */
