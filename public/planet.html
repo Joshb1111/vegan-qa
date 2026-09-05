@@ -881,7 +881,7 @@ function update(dt){
     gait.run+=((running?1:0)-gait.run)*Math.min(1,dt*6);gait.walk+=((moving&&!running?1:0)-gait.walk)*Math.min(1,dt*6);
     idleFor=moving?0:idleFor+dt;const now_=performance.now()/1000;
     if(moving)wasMoving=true;else if(wasMoving){wasMoving=false;fidgetOK=Math.random()<.2;fidgetUntil=now_+4+Math.random()*4;} // about one stop in five earns a stretch, a few seconds in
-    if(clips.fidget&&!moving&&!sitting&&!ride.on&&fidgetOK&&now_>fidgetUntil){clips.fidget.reset().play();fidgetOK=false;}
+    if(clips.fidget&&!moving&&!sitting&&!ride.on&&!talking&&fidgetOK&&now_>fidgetUntil){clips.fidget.reset().play();fidgetOK=false;}
     if(sitting&&clips.fidget&&clips.fidget.isRunning())clips.fidget.stop();
     const fidgeting=clips.fidget&&clips.fidget.isRunning()&&!moving&&!sitting;gait.fidget+=((fidgeting?1:0)-gait.fidget)*Math.min(1,dt*5);
     if(jump.on){jump.t+=dt;if(jump.t>=jump.dur)jump.on=false;kidModel.position.addScaledVector(up,Math.sin(Math.PI*clamp(jump.t/jump.dur,0,1))*.75);}
@@ -904,7 +904,7 @@ function update(dt){
     if(n.model){const md=n.model;md.holder.quaternion.copy(n.rig.group.quaternion);md.holder.position.copy(n.rig.group.position);
       if(md.groundAt&&performance.now()>md.groundAt){md.groundAt=0;groundFix(md.holder,md.root);}
       const speaking=n===talking&&((voiceAudio&&!voiceAudio.paused)||(canSpeak&&speechSynthesis.speaking)||!sbN.hidden);
-      md.w.walk+=((sp>.1?1:0)-md.w.walk)*Math.min(1,dt*6);md.w.talk+=((speaking&&sp<=.1?1:0)-md.w.talk)*Math.min(1,dt*4);
+      md.w.walk+=((sp>.1?1:0)-md.w.walk)*Math.min(1,dt*6);md.w.talk+=((speaking&&sp<=.1&&md.act.talk&&md.act.talk!==md.act.idle?1:0)-md.w.talk)*Math.min(1,dt*4); /* only if this resident has a talking clip; otherwise the idle keeps driving the bones */
       const tnow=performance.now()/1000;if(md.act.fidget&&md.act.fidget!==md.act.idle&&sp<=.1&&n!==talking&&tnow>md.fidgetAt){md.act.fidget.reset().play();md.fidgetAt=tnow+md.act.fidget.getClip().duration+8+Math.random()*12;}
       const fid=md.act.fidget&&md.act.fidget!==md.act.idle&&md.act.fidget.isRunning()&&sp<=.1&&n!==talking;md.w.fidget+=((fid?1:0)-md.w.fidget)*Math.min(1,dt*5);if(md.act.fidget&&md.act.fidget!==md.act.idle)md.act.fidget.setEffectiveWeight(md.w.fidget);
       if(md.act.walk){md.act.walk.setEffectiveWeight(md.w.walk);md.act.walk.setEffectiveTimeScale(clamp(sp/(md.walkSpeed||1)*.75,.5,2.5));}
