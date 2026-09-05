@@ -334,7 +334,7 @@ function solidBox(obj,bb){obj.updateMatrixWorld(true);const c=obj.localToWorld(n
   const X=new THREE.Vector3(1,0,0).applyQuaternion(obj.quaternion),Z=new THREE.Vector3(0,0,1).applyQuaternion(obj.quaternion);solids.push({c,X,Z,hx:(bb.max.x-bb.min.x)/2*obj.scale.x,hz:(bb.max.z-bb.min.z)/2*obj.scale.z});}
 function solidCircle(obj,r){obj.updateMatrixWorld(true);solids.push({c:obj.position.clone(),r});}
 function poseOn(obj,lon,lat,yaw){const {n,north}=frameAt(lon,lat);const Z=north.clone().negate(),Y=n.clone(),X=new THREE.Vector3().crossVectors(Y,Z);
-  obj.quaternion.setFromRotationMatrix(new THREE.Matrix4().makeBasis(X,Y,Z));if(yaw)obj.rotateOnAxis(new THREE.Vector3(0,1,0),yaw);obj.position.copy(n).multiplyScalar(hAt(n));obj.updateMatrixWorld(true);return obj;}
+  obj.quaternion.setFromRotationMatrix(new THREE.Matrix4().makeBasis(X,Y,Z));if(yaw)obj.rotateOnAxis(new THREE.Vector3(0,1,0),yaw);obj.position.copy(n).multiplyScalar(typeof gAt==='function'&&HM?gAt(n):hAt(n));obj.updateMatrixWorld(true);return obj;} /* inside the skate park things stand on its surface, not on the ground hidden beneath it */
 function placeOn(obj,lon,lat,yaw){scene.add(obj);return poseOn(obj,lon,lat,yaw);}
 /* A flat-bottomed object placed on a sphere only touches at its centre: the corners hover by the sagitta of
    its footprint. placeOnGround measures the footprint (before placing) and sinks the object by that much,
@@ -786,7 +786,7 @@ const npcs=[];
   });
 })();
 function npcPos(n){return sphere(n.lon,n.lat);}
-function npcWorld(n){const v=sphere(n.lon,n.lat);return v.multiplyScalar(hAt(v));}
+function npcWorld(n){const v=sphere(n.lon,n.lat);return v.multiplyScalar(gAt(v));}
 /* auto-walk follows the streets: nearest road → the main loop → the target's road → the target */
 function nearestOnRoads(v){let best=null;for(const r of ROADS)for(const sm of r.samples){const d=v.dot(sm.n);if(!best||d>best.d)best={d,r,s:sm.s};}return best;}
 function alongRoad(road,s0,s1){const pts=[];let ds=s1-s0;if(road.closed){ds=((ds%road.L)+road.L)%road.L;if(ds>road.L/2)ds-=road.L;}const n=Math.max(1,Math.ceil(Math.abs(ds)/3));for(let i=1;i<=n;i++)pts.push(atS(road,s0+ds*i/n).n);return pts;}
