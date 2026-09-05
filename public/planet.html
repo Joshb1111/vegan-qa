@@ -308,6 +308,8 @@ const parkPt=(dx,dz)=>new THREE.Vector3().copy(PARK.C).addScaledVector(PARK.east
    bowl to the south-west (1.8 deep), a floor-level rail along the south edge */
 const RAIL={dz:-18.4,x0:-9,x1:11,h:.5};
 const PARK_EXT={hx:44,hz:22.5}; /* the whole park including the wings either side of the model */
+const PARK_SINK={d:3.2,w:3.4}; /* the park is sunk into the ground: this deep, with grass banks this wide round the rim, so you look down over it as you arrive */
+function parkOut(n){const [dx,dz]=parkXZ(n);return Math.hypot(Math.max(0,Math.abs(dx)-PARK_EXT.hx),Math.max(0,Math.abs(dz)-PARK_EXT.hz));}
 /* the wings: west = a quarter-pipe wall, a bowl and a flat rail; east = a stair set with a handrail, a long ledge and a pyramid */
 const WQP={x:-42,r:4.6,z0:-8,z1:8},WBOWL={x:-30,z:7,r:5,d:2.4},WRAIL={x0:-33,x1:-24,z:-15,h:1.0},
       STAIR={x0:26,x1:34,z0:-4,z1:4,h:1.6,steps:5,run:.85},ELEDGE={x0:26,x1:36,z:-13,h:.6,w:.7},PYR={x:29,z:12,half:3,top:1.4,h:1.2};
@@ -333,7 +335,7 @@ let groundMesh=null;
 fetch('assets/skatepark-h.json?v=4').then(r=>r.json()).then(j=>{HM=j;HM.S=PLAZA.r*2*.96;HM.hk=1.5; /* the model is scaled to the plaza across, and 1.5x in height */if(groundMesh){const pa=groundMesh.geometry.attributes.position;for(let i=0;i<pa.count;i++){_q.set(pa.getX(i),pa.getY(i),pa.getZ(i)).normalize();const h=hAt(_q);pa.setXYZ(i,_q.x*h,_q.y*h,_q.z*h);}pa.needsUpdate=true;groundMesh.geometry.computeVertexNormals();}}).catch(e=>console.warn('park height map not loaded',e));
 function smooth(a,b,x){const t=clamp((x-a)/(b-a),0,1);return t*t*(3-2*t);}
 function terrainBase(n){const lat=Math.asin(clamp(n.y,-1,1));let h=-3.2*smooth(-.2,-.46,lat);
-  /* the skate park is a flat platform: the ground rises to the tangent plane at the plaza centre, with a slope round the rim */
+  {const o=parkOut(n);if(o<PARK_SINK.w)h-=PARK_SINK.d*(1-smooth(0,PARK_SINK.w,o));} /* the skate park's pit, flat across the whole park, banked at the rim */
   return h;}
 /* the ground mesh: the base terrain, dipped under the park's bowl and tucked just under its floor */
 function terrainH(n){let h=terrainBase(n);if(HM&&inPark(n))h+=Math.min(parkH(n),0)-.08;return h;}
@@ -384,7 +386,10 @@ function placeOn(obj,lon,lat,yaw){scene.add(obj);return poseOn(obj,lon,lat,yaw);
    its footprint. placeOnGround measures the footprint (before placing) and sinks the object by that much,
    so the corners meet the grass and the middle sits a little into it. */
 function sinkFor(obj){const bb=new THREE.Box3().setFromObject(obj);if(bb.isEmpty())return 0;const hx=(bb.max.x-bb.min.x)/2,hz=(bb.max.z-bb.min.z)/2;return R-Math.sqrt(Math.max(0,R*R-(hx*hx+hz*hz)));}
-function placeOnGround(obj,lon,lat,yaw){const bb=new THREE.Box3().setFromObject(obj);const s=sinkFor(obj);placeOn(obj,lon,lat,yaw);obj.translateY(-s);obj.updateMatrixWorld(true);if(!bb.isEmpty())solidBox(obj,bb);return obj;}
+function placeOnGround(obj,lon,lat,yaw){const bb=new THREE.Box3().setFromObject(obj);const s=sinkFor(obj);placeOn(obj,lon,lat,yaw);obj.translateY(-s);obj.updateMatrixWorld(true);
+  if(!bb.isEmpty()){let drop=0;const gc=gAt(obj.position.clone().normalize());for(const [x,z] of [[bb.min.x,bb.min.z],[bb.max.x,bb.min.z],[bb.min.x,bb.max.z],[bb.max.x,bb.max.z]]){const wn=obj.localToWorld(new THREE.Vector3(x,0,z)).normalize();drop=Math.max(drop,gc-gAt(wn));}
+    if(drop>0){obj.translateY(-Math.min(drop,2));obj.updateMatrixWorld(true);} /* on a slope the footprint sinks until its lowest corner meets the ground, so nothing floats */
+    solidBox(obj,bb);}return obj;}
 const colliders=[];let skyDome=null,nightDome=null,SUNSET=null;const PLACES={};
 (function makePlanet(){
   /* the road network */
@@ -418,7 +423,10 @@ const colliders=[];let skyDome=null,nightDome=null,SUNSET=null;const PLACES={};
   groundMesh=new THREE.Mesh(geo,toon(0xffffff,{map:tex}));scene.add(groundMesh);
   /* the sea: a sphere at sea level with a gentle wave in the shader */
   const waterMat=new THREE.MeshToonMaterial({color:0x62b3d2,gradientMap:grad});waterMat.onBeforeCompile=sh=>{sh.uniforms.uT={value:0};waterMat.userData.sh=sh;
-    sh.vertexShader='uniform float uT;\n'+sh.vertexShader.replace('#include <begin_vertex>','#include <begin_vertex>\n transformed+=normal*(sin(position.x*1.7+uT*1.1)+sin(position.z*1.3-uT*.9)+sin(position.y*2.1+uT*.7))*0.05;');};
+    sh.uniforms.uPC={value:PARK.C};sh.uniforms.uPE={value:PARK.east};sh.uniforms.uPN={value:PARK.north};sh.uniforms.uPH={value:new THREE.Vector2(PARK_EXT.hx+PARK_SINK.w,PARK_EXT.hz+PARK_SINK.w)};
+    sh.vertexShader='uniform float uT;varying vec3 vWn;\n'+sh.vertexShader.replace('#include <begin_vertex>','#include <begin_vertex>\n transformed+=normal*(sin(position.x*1.7+uT*1.1)+sin(position.z*1.3-uT*.9)+sin(position.y*2.1+uT*.7))*0.05;vWn=normalize(position);');
+    /* the skate park's pit goes below sea level, so the water sphere is cut away under the park */
+    sh.fragmentShader='varying vec3 vWn;uniform vec3 uPC,uPE,uPN;uniform vec2 uPH;\n'+sh.fragmentShader.replace('#include <clipping_planes_fragment>','#include <clipping_planes_fragment>\n {float k=dot(vWn,uPC);if(k>0.5){float dx=50.0*dot(vWn,uPE)/k,dz=50.0*dot(vWn,uPN)/k;if(abs(dx)<uPH.x&&abs(dz)<uPH.y)discard;}}');};
   const water=new THREE.Mesh(new THREE.SphereGeometry(R+SEA_LEVEL,160,100),waterMat);scene.add(water);window.__water=waterMat;
   /* road ribbons: Josh's drawn road for streets, plain dark asphalt for alleys, sand for the beach path */
   const roadTex=new THREE.TextureLoader().load('assets/road.jpg');roadTex.wrapS=THREE.RepeatWrapping;roadTex.anisotropy=8;
@@ -594,7 +602,7 @@ function townAlong(road,o){o=o||{};const kerb=road.kerb;const end=Math.min(road.
   townAlong(byName('ring'),{wMin:6,wVar:5,dMin:4,modelP:.8,modelT:.4});
   for(let i=0;i<3;i++)townAlong(byName('side'+i),{wMin:5,wVar:4,startS:5,modelP:.6,modelT:.5});
   for(let i=0;i<2;i++)townAlong(byName('alley'+i),{alley:true,wMin:4,wVar:3,dMin:3.5,startS:5});
-  townAlong(byName('skate'),{wMin:5,wVar:3,startS:5,endS:13,modelP:0});
+  townAlong(byName('skate'),{wMin:5,wVar:3,startS:5,endS:0,modelP:0}); /* the park street runs down the bank: no plots on it */
   townAlong(byName('beach'),{wMin:5,wVar:3,startS:5,endS:9,modelP:0});
   /* signs: a fingerpost just ahead of where you start, one on the far side of the loop, and one at each turning */
   (function signs(){const main=byName('main');const post=(s_,side,arms)=>{const sm=atS(main,s_);const p=offsetFrom(sm,side*(main.kerb+1.3));const [lon,lat]=lonLatOf(p);fingerpost(lon,lat,arms.map(([t,dirS])=>[t,sm.t.clone().multiplyScalar(dirS)]));};
@@ -769,11 +777,23 @@ function groundFix(holder,root){holder.updateMatrixWorld(true);let minY=Infinity
     const loader=new THREE.GLTFLoader();
     // Modelled assets arrive with light and shadow baked into their textures, so they are drawn unlit,
     // lifted a little, and posterised so the colours flatten back toward cel shading.
+    /* Tripo textures carry baked, blotchy shading that reads as a 3D scan. The material smooths the texture, flattens it to a few
+       tones and draws ink where the texture's colours change sharply (window frames, awnings, doors), like a coloured line drawing. */
+    const CARTOON={levels:5,poster:.85,edge0:.22,edge1:.55,ink:.8,sat:1.15};window.__cartoon=CARTOON;
     const flatMat=(map,color)=>{const m=new THREE.MeshBasicMaterial({map:map||null,color:map?0xffffff:color});
-      m.onBeforeCompile=sh=>{sh.fragmentShader=sh.fragmentShader.replace('#include <dithering_fragment>',`#include <dithering_fragment>
+      m.onBeforeCompile=sh=>{const im=map&&map.image;const w=(im&&(im.width||im.naturalWidth))||1024,h=(im&&(im.height||im.naturalHeight))||1024;
+        sh.uniforms.uTexel={value:new THREE.Vector2(1/w,1/h)};sh.uniforms.uLevels={value:CARTOON.levels};sh.uniforms.uPoster={value:CARTOON.poster};sh.uniforms.uEdge={value:new THREE.Vector2(CARTOON.edge0,CARTOON.edge1)};sh.uniforms.uInk={value:CARTOON.ink};sh.uniforms.uSat={value:CARTOON.sat};m.userData.sh=sh;
+        sh.fragmentShader=sh.fragmentShader.replace('#include <common>','#include <common>\nuniform vec2 uTexel;uniform float uLevels,uPoster,uInk,uSat;uniform vec2 uEdge;')
+          .replace('#include <map_fragment>',`#ifdef USE_MAP
+          vec2 tx=uTexel*2.0;vec3 t0=texture2D(map,vUv).rgb;vec3 tl=texture2D(map,vUv-vec2(tx.x,0.)).rgb,tr=texture2D(map,vUv+vec2(tx.x,0.)).rgb,tu=texture2D(map,vUv+vec2(0.,tx.y)).rgb,td=texture2D(map,vUv-vec2(0.,tx.y)).rgb;
+          vec3 tsm=(t0*2.0+tl+tr+tu+td)/6.0;float tEdge=length(tr-tl)+length(tu-td);float tInk=smoothstep(uEdge.x,uEdge.y,tEdge)*uInk;
+          vec4 texelColor=mapTexelToLinear(vec4(tsm,1.0));diffuseColor*=texelColor;diffuseColor.rgb=mix(diffuseColor.rgb,vec3(0.13,0.17,0.2),tInk);
+          #endif`)
+          .replace('#include <dithering_fragment>',`#include <dithering_fragment>
         vec3 c=gl_FragColor.rgb;c=pow(c,vec3(0.72));c=c*1.18+0.04;
-        float l=dot(c,vec3(.299,.587,.114));float lq=floor(l*8.0+0.5)/8.0;c=mix(c,c*(lq+0.02)/max(l,0.02),0.6);
-        gl_FragColor.rgb=clamp(c,0.0,1.0);`);};return m;};
+        float l=dot(c,vec3(.299,.587,.114));float lq=floor(l*uLevels+0.5)/uLevels;c=mix(c,c*(lq+0.02)/max(l,0.02),uPoster);c=mix(vec3(l),c,uSat);
+        gl_FragColor.rgb=clamp(c,0.0,1.0);`);};m.userData.cartoon=true;return m;};
+    window.__setCartoon=o=>{Object.assign(CARTOON,o);scene.traverse(m=>{if(m.isMesh&&m.material&&m.material.userData.cartoon&&m.material.userData.sh){const u=m.material.userData.sh.uniforms;u.uLevels.value=CARTOON.levels;u.uPoster.value=CARTOON.poster;u.uEdge.value.set(CARTOON.edge0,CARTOON.edge1);u.uInk.value=CARTOON.ink;u.uSat.value=CARTOON.sat;}});sceneDirty=true;};
     const toonify=root=>root.traverse(m=>{if(m.isMesh){const old=m.material;m.material=flatMat(old.map,old.color);m.userData.noInk=true;}});
     const fit=(root,height)=>{const bb=new THREE.Box3().setFromObject(root);const sc=height/(bb.max.y-bb.min.y);root.scale.setScalar(sc);root.position.y=-bb.min.y*sc;root.position.x=-(bb.min.x+bb.max.x)/2*sc;root.position.z=-(bb.min.z+bb.max.z)/2*sc;};
     // Josh's buildings: slots rotate through the list, so each one appears several times around the planet
@@ -1036,12 +1056,13 @@ function update(dt){
     let dir=fwd.clone().multiplyScalar(Math.cos(camYaw)).addScaledVector(right,Math.sin(camYaw));const off=camYaw>.1?1-camYaw/1.75:1;
     if(ride.air>0&&ride.spin){const th=Math.PI*smooth(0,1,ride.airT/ride.airDur);dir=ride.fwd0.clone().applyAxisAngle(up,th);}
     const tA=clamp(ride.airT/ride.airDur,0,1);const want=ride.air>0&&ride.spin?smooth(0,.2,tA)*(1-smooth(.9,1,tA)):0;ride.camAir+=(want-ride.camAir)*(1-Math.exp(-dt*(want>ride.camAir?7:1.1)));const bell=ride.camAir; /* the trick camera climbs to a bird's-eye view, holds it, and eases back down after landing */
-    const camBack=(ride.on?5.2:4.4)-bell*2.6+((!ride.on&&HM&&inPark(up))?1.2:0);let rise=0;const h0=parkH(up);for(let k=1;k<=4;k++){const bn=_ahead.copy(up).addScaledVector(dir,-camBack*k/4/R).normalize();rise=Math.max(rise,parkH(bn)-h0);} /* anything of the park between him and the camera lifts the camera over it */
+    const camBack=(ride.on?5.2:4.4)-bell*2.6+((!ride.on&&HM&&inPark(up))?1.2:0)+(0);let rise=0;const g0=terrainBase(up)+parkH(up);for(let k=1;k<=4;k++){const bn=_ahead.copy(up).addScaledVector(dir,-camBack*k/4/R).normalize();rise=Math.max(rise,terrainBase(bn)+parkH(bn)-g0);} /* anything of the park between him and the camera lifts the camera over it */
     const parkView=(!ride.on&&HM&&inPark(up))?1:0;
-    const camH=2.1+.3*camYaw+bell*6.5+rise+parkView*1.9;
+    let rim=0;if(!ride.on&&HM&&!parkView){const o=parkOut(up);if(o<14){const tp=new THREE.Vector3().copy(PARK.C).addScaledVector(up,-PARK.C.dot(up)).normalize();rim=(1-smooth(0,14,o))*clamp(dir.dot(tp)*1.4+.3,0,1);}} /* walking up to the rim, facing the park: the camera climbs for a view over the whole park */
+    const camH=2.1+.3*camYaw+bell*6.5+rise+parkView*1.9+rim*5.5;
     if(sitting){const sd=fwd.clone().multiplyScalar(Math.cos(sitOrbit.yaw)).addScaledVector(right,Math.sin(sitOrbit.yaw));desired=up.clone().multiplyScalar(hAt(up)+1.7+sitOrbit.pitch*2.2).addScaledVector(sd,-3.6);look=up.clone().multiplyScalar(hAt(up)+1.25).addScaledVector(fwd,7*Math.max(0,Math.cos(sitOrbit.yaw)));}
     else{desired=up.clone().multiplyScalar(gAt(up)+camH).addScaledVector(dir,-camBack);
-    look=up.clone().multiplyScalar(gAt(up)+1.4).addScaledVector(fwd,3.6*off*(1-bell));if(ride.air>0&&ride.spin)look.addScaledVector(up,ride.air*Math.sin(Math.PI*tA)*.6);}} // centred behind him while walking
+    look=up.clone().multiplyScalar(gAt(up)+1.4-rim*1.6).addScaledVector(fwd,3.6*off*(1-bell)+rim*5);if(ride.air>0&&ride.spin)look.addScaledVector(up,ride.air*Math.sin(Math.PI*tA)*.6);}} // centred behind him while walking
   const eye=talking?look.clone():up.clone().multiplyScalar(gAt(up)+1.8);const ray=desired.clone().sub(eye);const len=ray.length();
   raycaster.set(eye,ray.normalize());raycaster.far=len;
   const hits=raycaster.intersectObjects(colliders,true);
@@ -1134,7 +1155,7 @@ setInterval(()=>{for(const [a,want,k] of [[rollLoop,rollVol,'roll'],[grindLoop,g
 /* footsteps: Josh's jogging loop, kept running silently and faded up only while the kid is on the move (quieter when walking); the ♪ button mutes it with the music */
 const steps=new Audio('assets/steps.m4a');steps.loop=true;steps.volume=0;let stepsTarget=0,stepsVol=0;const STEP_VOL=.3;
 function startSteps(){setVol(steps,0);} /* the loop is started by the mixer only when it should be heard */
-window.__audio={music,steps};window.__gain=el=>gainMap.get(el);window.__actx=()=>actx;
+window.__audio={music,steps};window.__scene=scene;window.__renderer=renderer;window.__gAt=(lon,lat)=>{const n=sphere(lon,lat);return {g:+(gAt(n)-R).toFixed(2),base:+terrainBase(n).toFixed(2),park:+parkH(n).toFixed(2),out:+parkOut(n).toFixed(2)};};window.__solidsNear=r=>{const me=player.group.position;return solids.filter(sd=>sd.c.distanceTo(me)<(r||6)).map(sd=>({r:sd.r,hx:sd.hx,hz:sd.hz,d:+sd.c.distanceTo(me).toFixed(1)}));};window.__gain=el=>gainMap.get(el);window.__actx=()=>actx;
 function musicUI(){const b=$('#musicbtn');b.setAttribute('aria-pressed',String(musicOn));b.title=musicOn?'Music on':'Music off';}
 function startMusic(){if(!musicOn)return;musicTarget=MUSIC_VOL;setVol(music,musicVol);music.play().catch(()=>{});}
 $('#musicbtn').addEventListener('click',e=>{e.stopPropagation();musicOn=!musicOn;try{localStorage.setItem('planet-music',musicOn?'on':'off');}catch(_){}musicUI();if(musicOn)startMusic();else{musicTarget=0;}});
