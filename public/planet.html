@@ -544,6 +544,11 @@ function fingerpost(lon,lat,arms){const g=new THREE.Group();g.add(at(cyl(.07,.08
     const l=label(text+' →',1.8,.36,'#f3efe4','#26333a',.2,{border:false});l.position.set(.75,0,.06);a.add(l);const l2=label('← '+text,1.8,.36,'#f3efe4','#26333a',.2,{border:false});l2.rotation.y=Math.PI;l2.position.set(.75,0,-.06);a.add(l2);
     a.position.y=2.55-i*.5;a.rotation.y=yawX(lon,lat,dir)-yawX(lon,lat,frameAt(lon,lat).east);g.add(a);});
   placeOn(g,lon,lat,yawX(lon,lat,frameAt(lon,lat).east));solidCircle(g,.25);return g;}
+/* Josh's greenery pack (Tripo, 2026-09-05): two full-round trees, a bush cluster, a hedge on a stone base, grass tufts, planters and rocks */
+const treeKind=big=>rnd()<.5?(big?'treeBig':'treeSmall'):(rnd()<.5?'tree1':'tree2');
+const rockKind=()=>pick(['rock','rock2','rock3','rock4','rock5']);
+const grassKind=()=>pick(['grass1','grass2','grass2','grass3','clover','sprout']);
+const planterKind=()=>pick(['planter1','planter2','planter3','planter4']);
 function townAlong(road,o){o=o||{};const kerb=road.kerb;const end=Math.min(road.L-(road.closed?0:2),o.endS||1e9);
   for(const side of (o.sides||[1,-1])){let s=(o.startS||0)+rnd()*3;
     while(s<end-3){const w=(o.wMin||6)+rnd()*(o.wVar||5),d=(o.dMin||4.5)+rnd()*2.5;const step=w+1.5+rnd()*2.5;if(s+step>end)break;
@@ -558,10 +563,11 @@ function townAlong(road,o){o=o||{};const kerb=road.kerb;const end=Math.min(road.
       if(isModel){modelSlots.push({lon,lat,yaw});}
       else if(b){placeOnGround(b,lon,lat,yaw);colliders.push(b);
         if(setback>1){const [,wl,wa]=at_(kerb+2.4);placeOnGround(lowWall(w-1,.9),wl,wa,yaw);}
-        if(!o.alley&&rnd()<.35){const [,hl,ha]=at_(kerb+2.2,s+step/2+(w/2+1)*(rnd()<.5?1:-1));placeOnGround(hedge(2+rnd()*2),hl,ha,yaw);}}
+        if(!o.alley&&rnd()<.35){const [,hl,ha]=at_(kerb+2.2,s+step/2+(w/2+1)*(rnd()<.5?1:-1));propSlots.push({kind:'hedge',lon:hl,lat:ha,yaw,k:.9+rnd()*.4,collide:true});}}
       else{ // an open plot: a low wall, a tree behind, somewhere to stand
         const [,wl,wa]=at_(kerb+2.4);placeOnGround(lowWall(w,1.1,pick([P.cream2,P.grey])),wl,wa,yaw);
-        const [tp,tl,ta]=at_(kerb+6);if(!blocked(tp,2,road))propSlots.push({kind:rnd()<.6?'treeBig':'treeSmall',lon:tl,lat:ta,yaw:rnd()*Math.PI*2,k:.85+rnd()*.3,collide:true});
+        const [tp,tl,ta]=at_(kerb+6);if(!blocked(tp,2,road))propSlots.push({kind:treeKind(rnd()<.6),lon:tl,lat:ta,yaw:rnd()*Math.PI*2,k:.85+rnd()*.3,collide:true});
+        {const [bp2,bl2,ba2]=at_(kerb+4.2,s+step/2+(w/2-1)*(rnd()<.5?1:-1));if(!blocked(bp2,1,road))propSlots.push({kind:rnd()<.5?'bush':grassKind(),lon:bl2,lat:ba2,yaw:rnd()*Math.PI*2,k:.9+rnd()*.3});}
         const [,sl,sa]=at_(kerb+1.2);npcSpots.push({lon:sl,lat:sa,face:face.clone().negate()});}
       // pavement furniture in the gap after the plot
       const gs=atS(road,s+step-.9);const gp=offsetFrom(gs,side*(kerb+1.1));const [gl,ga]=lonLatOf(gp);const gyaw=yawFor(gl,ga,face);const pr=rnd();
@@ -577,8 +583,10 @@ function townAlong(road,o){o=o||{};const kerb=road.kerb;const end=Math.min(road.
         else if(pr<.68){const [bl,ba]=g_(kerb+1.6);placeOn(bench(),bl,ba,gyaw);npcSpots.push({lon:gl,lat:ga,face:face.clone().negate()});}
         else if(pr<.71){const [cl,ca]=g_(kerb-.6);placeOn(coneProp(),cl,ca);}
         else if(pr<.74){const [cl,ca]=g_(kerb+1.8);propSlots.push({kind:'crate',lon:cl,lat:ca,yaw:rnd()*Math.PI});}
-        else if(pr<.8){const [tl,ta]=g_(kerb+1.9);propSlots.push({kind:rnd()<.3?'treeBig':'treeSmall',lon:tl,lat:ta,yaw:rnd()*Math.PI*2,k:.8+rnd()*.3,collide:true});}
-        else if(pr<.84){const [rl,ra]=g_(kerb+2);propSlots.push({kind:'rock',lon:rl,lat:ra,yaw:rnd()*Math.PI});}}
+        else if(pr<.8){const [tl,ta]=g_(kerb+1.9);propSlots.push({kind:treeKind(rnd()<.3),lon:tl,lat:ta,yaw:rnd()*Math.PI*2,k:.8+rnd()*.3,collide:true});}
+        else if(pr<.84){const [rl,ra]=g_(kerb+2);propSlots.push({kind:rockKind(),lon:rl,lat:ra,yaw:rnd()*Math.PI});}
+        else if(pr<.9){const [pl,pa]=g_(kerb+1.4);propSlots.push({kind:planterKind(),lon:pl,lat:pa,yaw:gyaw,collide:true});}
+        else if(pr<.95){const [tl,ta]=g_(kerb+1.6);propSlots.push({kind:grassKind(),lon:tl,lat:ta,yaw:rnd()*Math.PI*2,k:.8+rnd()*.5});}}
       s+=step;}}}
 (function buildTown(){
   const byName=n=>ROADS.find(r=>r.name===n);
@@ -595,9 +603,12 @@ function townAlong(road,o){o=o||{};const kerb=road.kerb;const end=Math.min(road.
     for(const [name,text] of [['beach','Sunset beach'],['skate','Skate park']]){const r=byName(name);const s0=r.samples[0],s1=atS(r,Math.min(6.5,r.L*.6));const p=offsetFrom(s1,-(r.kerb+1.3));if(blocked(p,.8,r))continue;const [lon,lat]=lonLatOf(p);fingerpost(lon,lat,[[text,s0.t]]);}
   })();
   // trees on the hillsides: beyond the ring road and down the slope towards the beach
-  for(let i=0;i<10;i++){const lon=rnd()*Math.PI*2,lat=.8+rnd()*.2;if(blocked(sphere(lon,lat),3))continue;propSlots.push({kind:rnd()<.5?'treeBig':'treeSmall',lon,lat,yaw:rnd()*Math.PI*2,k:.9+rnd()*.5});}
-  for(let i=0;i<40;i++){const lon=rnd()*Math.PI*2,lat=-.22-rnd()*.09;const v=sphere(lon,lat);if(blocked(v,2.5))continue;propSlots.push({kind:rnd()<.4?'treeBig':'treeSmall',lon,lat,yaw:rnd()*Math.PI*2,k:.8+rnd()*.5,collide:true});if(propSlots.length>400)break;}
-  for(let i=0;i<14;i++){const lon=rnd()*Math.PI*2,lat=-.30-rnd()*.06;if(blocked(sphere(lon,lat),1.5))continue;propSlots.push({kind:'rock',lon,lat,yaw:rnd()*Math.PI,k:.7+rnd()*.9});}
+  for(let i=0;i<10;i++){const lon=rnd()*Math.PI*2,lat=.8+rnd()*.2;if(blocked(sphere(lon,lat),3))continue;propSlots.push({kind:treeKind(rnd()<.5),lon,lat,yaw:rnd()*Math.PI*2,k:.9+rnd()*.5});}
+  for(let i=0;i<40;i++){const lon=rnd()*Math.PI*2,lat=-.22-rnd()*.09;const v=sphere(lon,lat);if(blocked(v,2.5))continue;propSlots.push({kind:treeKind(rnd()<.4),lon,lat,yaw:rnd()*Math.PI*2,k:.8+rnd()*.5,collide:true});if(propSlots.length>400)break;}
+  for(let i=0;i<14;i++){const lon=rnd()*Math.PI*2,lat=-.30-rnd()*.06;if(blocked(sphere(lon,lat),1.5))continue;propSlots.push({kind:rockKind(),lon,lat,yaw:rnd()*Math.PI,k:.7+rnd()*.9});}
+  // grass tufts along the street verges, and bushes/grass among the hillside trees
+  for(const r of ROADS){if(r.kind!=='road')continue;for(let s_=1.5;s_<r.L-1.5;s_+=3.5+rnd()*4){if(rnd()<.45)continue;const side=rnd()<.5?1:-1;const p=offsetFrom(atS(r,s_),side*(r.kerb+.5+rnd()*1.3));if(blocked(p,.6,r))continue;const [gl,ga]=lonLatOf(p);propSlots.push({kind:grassKind(),lon:gl,lat:ga,yaw:rnd()*Math.PI*2,k:.7+rnd()*.5});}}
+  for(let i=0;i<30;i++){const lon=rnd()*Math.PI*2,lat=rnd()<.5?.8+rnd()*.25:-.2-rnd()*.1;const v=sphere(lon,lat);if(blocked(v,1.5))continue;propSlots.push({kind:rnd()<.35?'bush':grassKind(),lon,lat,yaw:rnd()*Math.PI*2,k:.8+rnd()*.6});}
   /* the beach: the path ends at a bench looking out to sea, with the sunset ahead */
   (function beach(){const end=atS(byName('beach'),byName('beach').L-.5);const {north}=frameAt(end.lon,end.lat);const toSea=north.clone().negate();
     const bp=_q.copy(end.n).addScaledVector(toSea,-.4/R).addScaledVector(end.side,1.2/R).normalize().clone();const [bl,ba]=lonLatOf(bp);const bn=placeOn(bench(),bl,ba,yawFor(bl,ba,toSea));bn.translateY(-.12);bn.updateMatrixWorld(true); /* sunk a touch so a seated kid's feet reach the sand */
@@ -791,8 +802,8 @@ function groundFix(holder,root){holder.updateMatrixWorld(true);let minY=Infinity
       parkModel=meshes[0]||null;sceneDirty=true;
       const wall=parkPt(.9,21.2);solids.push({c:wall.clone().multiplyScalar(R),X:PARK.east.clone(),Z:PARK.north.clone(),hx:8.6,hz:.25});
       for(const [dx,dz,hz] of [[21.6,-.7,6.9],[-21.6,7,6.3]]){const wv=parkPt(dx,dz);solids.push({c:wv.clone().multiplyScalar(R),X:PARK.east.clone(),Z:PARK.north.clone(),hx:.25,hz});} /* the backs of the side ramps */},undefined,e=>console.warn('skate park not loaded',e));
-    const PROPS={mailbox:['assets/mailbox.glb',1.5],crate:['assets/crate.glb',.9],rock:['assets/rock.glb',1.1],treeBig:['assets/tree_a.glb',5.8,true],treeSmall:['assets/tree_b.glb',3.4,true]}; // Josh's trees replace the old ball-and-cone ones; they are thin relief models, so they are placed as two copies crossed at 90° to read from any angle
-    for(const kind in PROPS){const [file,hgt,cross]=PROPS[kind];loader.load(file,g=>{toonify(g.scene);fit(g.scene,hgt);for(const sl of propSlots){if(sl.kind!==kind)continue;const inst=new THREE.Group();inst.add(g.scene.clone());if(cross){const w=new THREE.Group();w.add(g.scene.clone());w.rotation.y=Math.PI/2;inst.add(w);}if(sl.k)inst.scale.setScalar(sl.k);placeOn(inst,sl.lon,sl.lat,sl.yaw);if(kind==='rock'){inst.translateY(-.3*hgt*(sl.k||1));inst.updateMatrixWorld(true);} /* rocks sit into the ground, so they never float on a slope */ if(sl.collide)colliders.push(inst);const SR={treeBig:.5,treeSmall:.4,mailbox:.35,rock:.6*(sl.k||1),crate:.5}[kind];if(SR)solidCircle(inst,SR);}sceneDirty=true;},undefined,e=>console.warn(kind,'not loaded',e));}
+    const PROPS={mailbox:['assets/mailbox.glb',1.5],crate:['assets/crate.glb',.9],rock:['assets/rock.glb',1.1],treeBig:['assets/tree_a.glb',5.8,true],treeSmall:['assets/tree_b.glb',3.4,true],tree1:['assets/green01.glb',6.2],tree2:['assets/green02.glb',5.0],bush:['assets/green03.glb',1.4],hedge:['assets/green04.glb',1.15],grass1:['assets/green05.glb',.6],grass2:['assets/green06.glb',.65],grass3:['assets/green07.glb',.32],sprout:['assets/green08.glb',.45],clover:['assets/green09.glb',.3],planter1:['assets/green10.glb',.85],planter2:['assets/green11.glb',1.05],planter3:['assets/green12.glb',.8],planter4:['assets/green13.glb',.85],rock2:['assets/green14.glb',1.4],rock3:['assets/green15.glb',1.0],rock4:['assets/green16.glb',.9],rock5:['assets/green17.glb',.6]}; // Josh's trees replace the old ball-and-cone ones; they are thin relief models, so they are placed as two copies crossed at 90° to read from any angle
+    for(const kind in PROPS){const [file,hgt,cross]=PROPS[kind];loader.load(file,g=>{toonify(g.scene);fit(g.scene,hgt);for(const sl of propSlots){if(sl.kind!==kind)continue;const inst=new THREE.Group();inst.add(g.scene.clone());if(cross){const w=new THREE.Group();w.add(g.scene.clone());w.rotation.y=Math.PI/2;inst.add(w);}if(sl.k)inst.scale.setScalar(sl.k);placeOn(inst,sl.lon,sl.lat,sl.yaw);if(kind.startsWith('rock')){inst.translateY(-(kind==='rock'?.3:.14)*hgt*(sl.k||1));inst.updateMatrixWorld(true);}else if(kind==='tree1'||kind==='tree2'||kind==='bush'||kind==='hedge'||kind.startsWith('grass')||kind==='clover'||kind==='sprout'){inst.translateY(-.06*(sl.k||1));inst.updateMatrixWorld(true);} /* rocks sit into the ground, so they never float on a slope */ if(sl.collide)colliders.push(inst);const SR={treeBig:.5,treeSmall:.4,tree1:.5,tree2:.5,bush:.6,hedge:.9*(sl.k||1),mailbox:.35,rock:.6*(sl.k||1),rock2:.9*(sl.k||1),rock3:.5*(sl.k||1),rock4:.55*(sl.k||1),rock5:.35*(sl.k||1),crate:.5,planter1:.5,planter2:.4,planter3:.5,planter4:.35}[kind];if(SR)solidCircle(inst,SR);}sceneDirty=true;},undefined,e=>console.warn(kind,'not loaded',e));}
     // residents: Josh's four modelled characters, cloned with their skeletons
     const su=document.createElement('script');su.src='https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/utils/SkeletonUtils.js';
     su.onload=()=>{const NPC_MODELS=['assets/npc1.glb','assets/npc2.glb','assets/npc3.glb','assets/npc4.glb','assets/npc5.glb','assets/npc6.glb?v=2'];
@@ -1105,7 +1116,7 @@ let titleGone=false;
    'silenced' with volume 0 would play at full blast. Gains work everywhere; elements are the fallback. */
 let actx=null;const gainMap=new Map();
 function ensureCtx(){if(actx)return actx;const AC=window.AudioContext||window.webkitAudioContext;if(!AC)return null;try{actx=new AC();}catch(_){return null;}return actx;}
-function gainFor(el){const c=ensureCtx();if(!c)return null;if(gainMap.has(el))return gainMap.get(el);try{const src=c.createMediaElementSource(el);const g=c.createGain();g.gain.value=0;src.connect(g);g.connect(c.destination);gainMap.set(el,g);return g;}catch(_){gainMap.set(el,null);return null;}}
+function gainFor(el){const c=ensureCtx();if(!c)return null;if(gainMap.has(el))return gainMap.get(el);try{const src=c.createMediaElementSource(el);const g=c.createGain();g.gain.value=0;src.connect(g);g.connect(c.destination);gainMap.set(el,g);try{el.volume=1;}catch(_){} /* the element's own volume still multiplies the graph on desktop, so it must be 1 once the gain takes over */ return g;}catch(_){gainMap.set(el,null);return null;}}
 function setVol(el,v){const g=gainFor(el);if(g)g.gain.value=v;else{try{el.volume=v;}catch(_){}}}
 const music=new Audio('assets/music.m4a');music.loop=true;music.volume=0;let musicVol=0;let musicOn=true;try{musicOn=localStorage.getItem('planet-music')!=='off';}catch(_){}
 let musicTarget=0;const MUSIC_VOL=.32;
@@ -1123,14 +1134,14 @@ setInterval(()=>{for(const [a,want,k] of [[rollLoop,rollVol,'roll'],[grindLoop,g
 /* footsteps: Josh's jogging loop, kept running silently and faded up only while the kid is on the move (quieter when walking); the ♪ button mutes it with the music */
 const steps=new Audio('assets/steps.m4a');steps.loop=true;steps.volume=0;let stepsTarget=0,stepsVol=0;const STEP_VOL=.3;
 function startSteps(){setVol(steps,0);} /* the loop is started by the mixer only when it should be heard */
-window.__audio={music,steps};
+window.__audio={music,steps};window.__gain=el=>gainMap.get(el);window.__actx=()=>actx;
 function musicUI(){const b=$('#musicbtn');b.setAttribute('aria-pressed',String(musicOn));b.title=musicOn?'Music on':'Music off';}
 function startMusic(){if(!musicOn)return;musicTarget=MUSIC_VOL;setVol(music,musicVol);music.play().catch(()=>{});}
 $('#musicbtn').addEventListener('click',e=>{e.stopPropagation();musicOn=!musicOn;try{localStorage.setItem('planet-music',musicOn?'on':'off');}catch(_){}musicUI();if(musicOn)startMusic();else{musicTarget=0;}});
 musicUI();
-setInterval(()=>{const want=musicOn?(talking?MUSIC_VOL*.35:musicTarget):0;musicVol+=(want-musicVol)*.15;setVol(music,musicVol);if(musicVol<.005&&!musicOn)music.pause();
+setInterval(()=>{if(actx&&actx.state==='suspended'&&titleGone)actx.resume().catch(()=>{});const want=musicOn?(talking?MUSIC_VOL*.35:musicTarget):0;musicVol+=(want-musicVol)*.15;setVol(music,musicVol);if(musicVol<.005&&!musicOn)music.pause();
   const sw=musicOn?stepsTarget:0;stepsVol+=(sw-stepsVol)*.4;setVol(steps,stepsVol);if(sw>.01&&steps.paused)steps.play().catch(()=>{});if(sw<=.01&&stepsVol<.01&&!steps.paused)steps.pause();},100);
-function dismissTitle(){if(titleGone)return;titleGone=true;$('#title').classList.add('gone');game.focus();startMusic();startSteps();}
+function dismissTitle(){if(titleGone)return;titleGone=true;$('#title').classList.add('gone');game.focus();unlockAudio();startMusic();startSteps();}
 $('#title').addEventListener('click',dismissTitle);
 function toggleStops(show){const s=$('#stops');const vis=show==null?s.hidden:show;s.hidden=!vis;$('#menubtn').setAttribute('aria-expanded',String(vis));}
 $('#menubtn').addEventListener('click',e=>{e.stopPropagation();toggleStops();});
