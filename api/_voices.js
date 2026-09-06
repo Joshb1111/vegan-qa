@@ -10,6 +10,7 @@ export const VOICES = {
   Ravi: "RBUtdrDRjER5aScqHwAS",
   Elin: "l006hw6wZaEYAv80cbzj",
   Sam: "hU1ratPhBTZNviWitzAh",
+  Leslie: "goT3UYdM9bhm0n2lmKQx",
 };
 export const VOICE_MODEL = "eleven_flash_v2_5"; // cheapest model that still sounds natural
 export const OUTPUT_FORMAT = "mp3_22050_32";    // small files: ~4 KB per second of speech
