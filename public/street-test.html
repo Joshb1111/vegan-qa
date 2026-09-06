@@ -5,9 +5,9 @@
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <title>Street test — graphic 3D drawing</title>
 <style>
-html,body{margin:0;height:100%;background:#a7ddd0;overflow:hidden;font-family:system-ui,sans-serif}
+html,body{margin:0;height:100%;background:#b6e2d6;overflow:hidden;font-family:system-ui,sans-serif}
 #c{display:block;width:100%;height:100%}
-#hint{position:fixed;left:14px;top:12px;color:#22333a;font-size:13px;opacity:.75;pointer-events:none}
+#hint{position:fixed;left:14px;top:12px;color:#22333a;font-size:13px;opacity:.7;pointer-events:none}
 </style>
 </head>
 <body>
@@ -16,154 +16,186 @@ html,body{margin:0;height:100%;background:#a7ddd0;overflow:hidden;font-family:sy
 <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
 <script>
 /* =====================================================================================
-   STREET TEST — a graphic 3D drawing in the manner of "Messenger" (abeto).
+   STREET TEST v2 — a dense graphic alley in the manner of "Messenger" (abeto).
    Rules: simple geometry, one flat colour per object plus one shadow tone, hard graphic
-   shadows, thin dark lines on silhouettes and major edges only. No textures, no grain.
+   shadows, thin dark lines on silhouettes and corners only. No textures, no grain.
    ===================================================================================== */
-const PAL={ // restrained palette read off the reference
-  sky:0xa7ddd0, cloud:0xc6ece3,
-  road:0x6d8797, roadLine:0xe9ece6, kerb:0xb9bdb0, pavement:0xc3c8bb,
-  wall:0xc9cfc1, wallWarm:0xb7ad9f, offwhite:0xeeece3, darkHouse:0x5c524c, slate:0x6f8290,
-  seafoam:0x8fc9b8, teal:0x5fa79a, orange:0xe0973a, rail:0xd8dad2, pole:0x8d9490,
-  ink:0x243239, glass:0x2f3d44, plant:0x6f9b6a, planter:0x9d7f78, concrete:0xcfd2c8, skin:0xf1d2b6, shirt:0x3d9bd4, shorts:0xb7a26f, hair:0x2a2d33, shoe:0xf3f1ea
+const PAL={
+  sky:0xb6e2d6, cloud:0xd2ede5,
+  road:0x6a8494, roadLine:0xe9ece6, kerb:0xb5b3a4, pavement:0xc4c1b1,
+  concrete:0xb9b4a6, concreteLt:0xd0cbbd, beige:0xd6ccb7, beigeLt:0xe6dfcf, offwhite:0xefece2,
+  darkHouse:0x5a5049, slate:0x6f8290, seafoam:0x8fcabb, teal:0x5fa79a, orange:0xe39a3c,
+  rail:0xd9d8cf, metal:0x8f958f, ink:0x2a3a44, glass:0x33414a, plant:0x7a9c6e, pot:0x9c7f75,
+  skin:0xf1d2b6, shirt:0x3f9bd2, shorts:0xb3a06d, hair:0x2b2e34, shoe:0xf1efe6
 };
 const canvas=document.getElementById('c');
 const renderer=new THREE.WebGLRenderer({canvas,antialias:false});
 const DPR=Math.min(devicePixelRatio||1,2);renderer.setPixelRatio(DPR);
-renderer.shadowMap.enabled=true;renderer.shadowMap.type=THREE.BasicShadowMap; // hard-edged: shadows as shapes
+renderer.shadowMap.enabled=true;renderer.shadowMap.type=THREE.BasicShadowMap;
 const scene=new THREE.Scene();scene.background=new THREE.Color(PAL.sky);
-const camera=new THREE.PerspectiveCamera(72,1,.1,400);
-/* light: one sun, mostly ambient so the shadow side is a single flatter tone */
-scene.add(new THREE.AmbientLight(0xffffff,.74));
-const sun=new THREE.DirectionalLight(0xfff8ee,.34);sun.position.set(-18,30,-10);sun.castShadow=true;
-sun.shadow.mapSize.set(4096,4096);Object.assign(sun.shadow.camera,{left:-20,right:20,top:20,bottom:-20,near:1,far:120});sun.shadow.bias=-.0015;scene.add(sun);scene.add(sun.target);
-/* two-step toon ramp: lit, or not — no gradient across a wall */
+const camera=new THREE.PerspectiveCamera(74,1,.1,400);
+scene.add(new THREE.AmbientLight(0xffffff,.76));
+const sun=new THREE.DirectionalLight(0xfff8ee,.32);sun.position.set(-16,30,-8);sun.castShadow=true;
+sun.shadow.mapSize.set(4096,4096);Object.assign(sun.shadow.camera,{left:-22,right:22,top:22,bottom:-22,near:1,far:120});sun.shadow.bias=-.0015;scene.add(sun);scene.add(sun.target);
 const ramp=(()=>{const d=new Uint8Array([0,0,0,255,255,255,255,255]);const t=new THREE.DataTexture(d,2,1,THREE.RGBAFormat);t.minFilter=t.magFilter=THREE.NearestFilter;t.needsUpdate=true;return t;})();
 const matCache=new Map();
-function flat(c){if(!matCache.has(c)){const m=new THREE.MeshToonMaterial({color:c,gradientMap:ramp});matCache.set(c,m);}return matCache.get(c);}
+function flat(c,ds){const k=c+(ds?'d':'');if(!matCache.has(k)){matCache.set(k,new THREE.MeshToonMaterial({color:c,gradientMap:ramp,side:ds?THREE.DoubleSide:THREE.FrontSide}));}return matCache.get(k);}
 const unlit=c=>new THREE.MeshBasicMaterial({color:c});
-/* ---------- helpers ---------- */
 const V=(x,y,z)=>new THREE.Vector3(x,y,z);
 function mesh(geo,mat,x=0,y=0,z=0,shadow=true){const m=new THREE.Mesh(geo,mat);m.position.set(x,y,z);m.castShadow=shadow;m.receiveShadow=true;return m;}
 function box(w,h,d,c,x=0,y=0,z=0,ry=0){const m=mesh(new THREE.BoxGeometry(w,h,d),flat(c),x,y,z);m.rotation.y=ry;return m;}
 function plane(w,h,c,x,y,z,ry=0,rx=0){const m=new THREE.Mesh(new THREE.PlaneGeometry(w,h),unlit(c));m.position.set(x,y,z);m.rotation.set(rx,ry,0);m.userData.noInk=true;return m;}
 function cyl(r,h,c,x,y,z,seg=8){return mesh(new THREE.CylinderGeometry(r,r,h,seg),flat(c),x,y,z);}
-/* ---------- the road: narrow, curving, climbing ---------- */
-const path=new THREE.CatmullRomCurve3([V(0,0,20),V(0.6,0.4,8),V(-1.2,1.3,-6),V(-4.5,2.6,-22),V(-9,4.2,-38)]);
-const ROAD_W=5.2,PAV=1.4,KERB=.16;
-function roadRibbon(){const N=120;const pos=[],idx=[],col=[];
-  const strips=[[-ROAD_W/2-PAV-KERB,-ROAD_W/2-PAV,0,PAL.kerb],[-ROAD_W/2-PAV,-ROAD_W/2,KERB,PAL.pavement],[-ROAD_W/2,ROAD_W/2,0,PAL.road],[ROAD_W/2,ROAD_W/2+PAV,KERB,PAL.pavement],[ROAD_W/2+PAV,ROAD_W/2+PAV+KERB,0,PAL.kerb]];
-  const group=new THREE.Group();
-  for(const [a,b,lift,c] of strips){const g=new THREE.BufferGeometry();const p=[],ind=[];
-    for(let i=0;i<=N;i++){const t=i/N;const P=path.getPointAt(t),T=path.getTangentAt(t);const side=V(-T.z,0,T.x).normalize();
-      for(const o of [a,b]){p.push(P.x+side.x*o,P.y+lift,P.z+side.z*o);}}
-    for(let i=0;i<N;i++){const k=i*2;ind.push(k,k+1,k+2,k+1,k+3,k+2);}
-    g.setAttribute('position',new THREE.Float32BufferAttribute(p,3));g.setIndex(ind);g.computeVertexNormals();
-    const m=new THREE.Mesh(g,flat(c));m.receiveShadow=true;m.castShadow=false;group.add(m);}
-  // kerb faces (the little step)
-  for(const o of [-ROAD_W/2,ROAD_W/2]){const g=new THREE.BufferGeometry();const p=[],ind=[];
-    for(let i=0;i<=N;i++){const t=i/N;const P=path.getPointAt(t),T=path.getTangentAt(t);const side=V(-T.z,0,T.x).normalize();p.push(P.x+side.x*o,P.y,P.z+side.z*o,P.x+side.x*o,P.y+KERB,P.z+side.z*o);}
-    for(let i=0;i<N;i++){const k=i*2;ind.push(k,k+1,k+2,k+1,k+3,k+2);}
-    g.setAttribute('position',new THREE.Float32BufferAttribute(p,3));g.setIndex(ind);g.computeVertexNormals();const m=new THREE.Mesh(g,new THREE.MeshToonMaterial({color:PAL.kerb,gradientMap:ramp,side:THREE.DoubleSide}));group.add(m);}
-  // centre dashes
-  for(let i=0;i<9;i++){const t=.05+i*.105;const P=path.getPointAt(t),T=path.getTangentAt(t);const m=new THREE.Mesh(new THREE.PlaneGeometry(.3,2.6),unlit(PAL.roadLine));m.position.copy(P).add(V(0,.012,0));m.rotation.set(-Math.PI/2,0,-Math.atan2(T.x,T.z));m.userData.noInk=true;group.add(m);}
-  return group;}
-scene.add(roadRibbon());
-/* ground either side: warm grey, not grass */
-{const g=new THREE.Mesh(new THREE.PlaneGeometry(140,140),flat(0xa9a89a));g.rotation.x=-Math.PI/2;g.position.y=-.02;g.receiveShadow=true;scene.add(g);}
-/* place something beside the road at distance t, sideways offset o (negative = left), facing the road */
-function atRoad(t,o,obj,extraYaw=0){const P=path.getPointAt(t),T=path.getTangentAt(t);const side=V(-T.z,0,T.x).normalize();obj.position.set(P.x+side.x*o,P.y,P.z+side.z*o);obj.rotation.y=Math.atan2(T.x,T.z)+extraYaw;scene.add(obj);return obj;}
-/* ---------- retaining walls along the road ---------- */
-function wallRun(t0,t1,o,h,c,railing){const N=Math.max(2,Math.round((t1-t0)*70));const g=new THREE.Group();const thick=.5;
-  const ring=[];for(let i=0;i<=N;i++){const t=t0+(t1-t0)*i/N;const P=path.getPointAt(t),T=path.getTangentAt(t);const side=V(-T.z,0,T.x).normalize();const s=Math.sign(o)||1;
-    const inner=P.clone().add(side.clone().multiplyScalar(o-s*thick/2)),outer=P.clone().add(side.clone().multiplyScalar(o+s*thick/2));ring.push([inner,outer]);}
-  const pos=[],ind=[];let k=0;
-  const quad=(a,b,c2,d)=>{pos.push(a.x,a.y,a.z,b.x,b.y,b.z,c2.x,c2.y,c2.z,d.x,d.y,d.z);ind.push(k,k+1,k+2,k,k+2,k+3);k+=4;};
-  for(let i=0;i<N;i++){const [i0,o0]=ring[i],[i1,o1]=ring[i+1];const up=y=>v=>v.clone().add(V(0,y,0));
-    quad(i0,i1,up(h)(i1),up(h)(i0));quad(o1,o0,up(h)(o0),up(h)(o1));quad(up(h)(i0),up(h)(i1),up(h)(o1),up(h)(o0));}
+/* ---------- road: narrow, curving, climbing ---------- */
+const path=new THREE.CatmullRomCurve3([V(0,0,22),V(0.5,0.35,9),V(-1.0,1.2,-5),V(-4.0,2.5,-20),V(-8.5,4.1,-36)]);
+const ROAD_W=4.4,PAV=1.1,KERB=.15;
+const frame=t=>{const P=path.getPointAt(t),T=path.getTangentAt(t);return {P,T,S:V(-T.z,0,T.x).normalize()};};
+function ribbon(a,b,lift,c,N=120,t0=0,t1=1){const g=new THREE.BufferGeometry();const p=[],ind=[];
+  for(let i=0;i<=N;i++){const {P,S}=frame(t0+(t1-t0)*i/N);for(const o of [a,b])p.push(P.x+S.x*o,P.y+lift,P.z+S.z*o);}
+  for(let i=0;i<N;i++){const k=i*2;ind.push(k,k+1,k+2,k+1,k+3,k+2);}
+  g.setAttribute('position',new THREE.Float32BufferAttribute(p,3));g.setIndex(ind);g.computeVertexNormals();const m=new THREE.Mesh(g,flat(c,true));m.receiveShadow=true;return m;}
+scene.add(ribbon(-ROAD_W/2,ROAD_W/2,0,PAL.road));
+scene.add(ribbon(-ROAD_W/2-PAV,-ROAD_W/2,KERB,PAL.pavement));scene.add(ribbon(ROAD_W/2,ROAD_W/2+PAV,KERB,PAL.pavement));
+for(const o of [-ROAD_W/2,ROAD_W/2]){const g=new THREE.BufferGeometry();const p=[],ind=[];const N=120;
+  for(let i=0;i<=N;i++){const {P,S}=frame(i/N);p.push(P.x+S.x*o,P.y,P.z+S.z*o,P.x+S.x*o,P.y+KERB,P.z+S.z*o);}
+  for(let i=0;i<N;i++){const k=i*2;ind.push(k,k+1,k+2,k+1,k+3,k+2);}
+  g.setAttribute('position',new THREE.Float32BufferAttribute(p,3));g.setIndex(ind);g.computeVertexNormals();scene.add(new THREE.Mesh(g,flat(PAL.kerb,true)));}
+for(let i=0;i<9;i++){const {P,T}=frame(.05+i*.105);const m=new THREE.Mesh(new THREE.PlaneGeometry(.28,2.4),unlit(PAL.roadLine));m.position.copy(P).add(V(0,.012,0));m.rotation.set(-Math.PI/2,0,-Math.atan2(T.x,T.z));m.userData.noInk=true;scene.add(m);}
+{const g=new THREE.Mesh(new THREE.PlaneGeometry(160,160),flat(0xa9a89a));g.rotation.x=-Math.PI/2;g.position.y=-.02;g.receiveShadow=true;scene.add(g);}
+function atRoad(t,o,obj,extraYaw=0){const {P,T,S}=frame(t);obj.position.set(P.x+S.x*o,P.y+(Math.abs(o)>ROAD_W/2?KERB:0),P.z+S.z*o);obj.rotation.y=Math.atan2(T.x,T.z)+extraYaw;scene.add(obj);return obj;}
+const faceRoad=o=>o<0?-Math.PI/2:Math.PI/2; // a group's local +z is its front; turn it to face the road
+/* ---------- continuous walls, with steps in height and an optional railing ---------- */
+function wallRun(t0,t1,o,h,c,opt={}){const N=Math.max(2,Math.round((t1-t0)*80));const thick=opt.thick||.45;const g=new THREE.Group();
+  const H=typeof h==='function'?h:()=>h;const ring=[];
+  for(let i=0;i<=N;i++){const t=t0+(t1-t0)*i/N;const {P,S}=frame(t);const s=Math.sign(o);ring.push([P.clone().add(S.clone().multiplyScalar(o-s*thick/2)),P.clone().add(S.clone().multiplyScalar(o+s*thick/2)),H(t)]);}
+  const pos=[],ind=[];let k=0;const quad=(a,b,c2,d)=>{pos.push(a.x,a.y,a.z,b.x,b.y,b.z,c2.x,c2.y,c2.z,d.x,d.y,d.z);ind.push(k,k+1,k+2,k,k+2,k+3);k+=4;};
+  const up=(v,y)=>v.clone().add(V(0,y,0));
+  for(let i=0;i<N;i++){const [i0,o0,h0]=ring[i],[i1,o1,h1]=ring[i+1];quad(i0,i1,up(i1,h1),up(i0,h0));quad(o1,o0,up(o0,h0),up(o1,h1));quad(up(i0,h0),up(i1,h1),up(o1,h1),up(o0,h0));
+    if(Math.abs(h1-h0)>.01){quad(up(i1,Math.min(h0,h1)),up(o1,Math.min(h0,h1)),up(o1,Math.max(h0,h1)),up(i1,Math.max(h0,h1)));}}
   const geo=new THREE.BufferGeometry();geo.setAttribute('position',new THREE.Float32BufferAttribute(pos,3));geo.setIndex(ind);geo.computeVertexNormals();
-  const m=new THREE.Mesh(geo,new THREE.MeshToonMaterial({color:c,gradientMap:ramp,side:THREE.DoubleSide}));m.castShadow=true;m.receiveShadow=true;g.add(m);
-  if(railing){for(let i=0;i<=N;i+=3){const [a,b]=ring[i];const c3=a.clone().add(b).multiplyScalar(.5);g.add(cyl(.03,.95,PAL.rail,c3.x,c3.y+h+.47,c3.z,6));}
-    const rp=[];for(let i=0;i<=N;i++){const [a,b]=ring[i];rp.push(a.clone().add(b).multiplyScalar(.5).add(V(0,h+.95,0)));}
-    const tube=new THREE.Mesh(new THREE.TubeGeometry(new THREE.CatmullRomCurve3(rp),N*2,.035,6,false),flat(PAL.rail));tube.castShadow=true;g.add(tube);}
+  const m=new THREE.Mesh(geo,flat(c,true));m.castShadow=true;m.receiveShadow=true;g.add(m);
+  if(opt.railing){for(let i=0;i<=N;i+=3){const [a,b,hh]=ring[i];const c3=a.clone().add(b).multiplyScalar(.5);g.add(cyl(.03,.95,PAL.rail,c3.x,c3.y+hh+.47,c3.z,6));}
+    for(const ry of [.5,.95]){const rp=[];for(let i=0;i<=N;i++){const [a,b,hh]=ring[i];rp.push(a.clone().add(b).multiplyScalar(.5).add(V(0,hh+ry,0)));}
+      const tube=new THREE.Mesh(new THREE.TubeGeometry(new THREE.CatmullRomCurve3(rp),N*2,.03,6,false),flat(PAL.rail));tube.castShadow=true;g.add(tube);}}
   scene.add(g);return g;}
-wallRun(.0,.5,-ROAD_W/2-PAV-.45,1.0,PAL.wall,true);      // left: low wall with a railing, the stairs and dark house behind it
-wallRun(.5,1,-ROAD_W/2-PAV-.45,2.6,PAL.wall);            // left, beyond: tall retaining wall
-wallRun(.30,1,ROAD_W/2+PAV+.45,1.9,PAL.wallWarm);        // right, beyond the warm building
-/* ---------- building A (left): dark house with the concrete stair up its side ---------- */
-{const g=new THREE.Group();
-  g.add(box(7,8.5,7,PAL.darkHouse,0,4.25,-3.5));
-  g.add(box(7.6,.35,7.6,PAL.slate,0,8.6,-3.5));                        // roof slab
-  for(const [x,y] of [[-1.6,6.4],[1.6,6.4],[-1.6,3.6]])g.add(plane(1.3,1.1,PAL.glass,x,y,.02,0));  // dark window rectangles
-  g.add(plane(1.3,1.1,PAL.seafoam,1.6,3.6,.02,0));                    // one shutter in seafoam
-  // concrete stair block climbing along the house's right flank, with a landing
-  const steps=12,run=.58,rise=.3;for(let i=0;i<steps;i++){const h=rise*(i+1);g.add(box(run,h,1.4,PAL.concrete,-3.5+run*(i+.5),h/2,1.3));}
-  g.add(box(2.6,.35,1.4,PAL.concrete,-3.5+run*steps+1.3,rise*steps-.17,1.3));          // landing at the top
-  g.add(box(run*steps+2.6,rise*steps+.4,.25,PAL.wall,-3.5+(run*steps+2.6)/2,(rise*steps+.4)/2,.5)); // wall between flight and house
-  // railing on the open side of the flight
-  const rail=new THREE.Group();for(let i=0;i<=steps;i+=2){const y=rise*i;rail.add(cyl(.035,1.0,PAL.rail,-3.5+run*i+.1,y+.5,2.05,6));}
-  const L=Math.hypot(run*steps,rise*steps);const r=cyl(.03,L,PAL.rail,-3.5+run*steps/2,rise*steps/2+1.0,2.05,6);r.rotation.z=Math.PI/2-Math.atan2(rise,run);rail.add(r);
-  g.add(rail);
-  // AC unit and a small utility cabinet on the pavement side
-  g.add(box(1.1,.8,.55,PAL.offwhite,-1.4,.42,.6));g.add(plane(.5,.5,PAL.glass,-1.4,.42,.89,0));
-  const cab=box(1.6,2.2,1.1,PAL.offwhite,2.2,1.1,1.2);g.add(cab);g.add(plane(.5,.7,PAL.slate,2.75,1.35,1.76,0));
-  atRoad(.30,-ROAD_W/2-PAV-3.9,g,-Math.PI/2);
-}
-/* ---------- building B (right): warm grey shop front with the orange sliding door ---------- */
-{const g=new THREE.Group();
-  g.add(box(9,7.2,7,PAL.wallWarm,0,3.6,-3.5));
-  g.add(box(9.6,.3,7.6,PAL.slate,0,7.35,-3.5));
-  g.add(plane(2.6,2.9,PAL.orange,-2.3,1.55,.02,0));                    // sliding door
-  g.add(plane(.08,2.9,PAL.ink,-2.3,1.55,.03,0));                       // the door's centre line
-  g.add(plane(2.2,.9,PAL.glass,1.4,5.4,.02,0));                        // long high window
-  for(let i=0;i<4;i++)g.add(plane(.06,.9,PAL.rail,.6+i*.5,5.4,.03,0)); // its bars
-  const ring=new THREE.Mesh(new THREE.TorusGeometry(.55,.14,8,24),flat(PAL.orange));ring.position.set(2.2,3.2,.16);ring.castShadow=true;g.add(ring); // lifebuoy
-  g.add(plane(.6,.8,PAL.offwhite,3.4,2.9,.02,0));g.add(plane(.6,.8,PAL.offwhite,3.4,1.9,.02,0)); // small signs
-  g.add(box(.9,.7,.5,PAL.offwhite,3.9,.36,.6));                        // small box on the step
-  g.add(box(9.6,.25,2.2,PAL.concrete,0,.12,1.1));                     // front step slab
-  atRoad(.22,ROAD_W/2+PAV+3.9,g,Math.PI/2);
-}
-/* ---------- footbridge across the road (the big seafoam shape overhead) ---------- */
-{const g=new THREE.Group();const span=ROAD_W+2*PAV+7;
-  g.add(box(span,.7,3.2,PAL.seafoam,0,7.4,0));                                   // deck
-  g.add(box(span,1.1,.2,PAL.seafoam,0,8.3,1.5));g.add(box(span,1.1,.2,PAL.seafoam,0,8.3,-1.5)); // parapets
-  for(const x of [-span/2+.6,span/2-.6]){g.add(box(1.2,7.2,1.2,PAL.teal,x,3.6,0));}      // piers
-  for(let i=-3;i<=3;i++)g.add(box(.18,.6,3.2,PAL.teal,i*1.9,6.85,0));                    // ribs under the deck
+const LW=-(ROAD_W/2+PAV+.28),RW=ROAD_W/2+PAV+.28;  // walls sit right behind the pavements
+/* left: low wall with railing past the stairs, then a retaining wall that steps up twice */
+wallRun(0,.24,LW,1.0,PAL.concrete,{railing:true});
+wallRun(.42,1,LW,t=>t<.62?1.6:t<.8?2.3:3.0,PAL.concrete);
+/* right: the shop's front wall is the building itself; beyond it a stepped beige wall, then concrete */
+wallRun(.34,.7,RW,t=>t<.5?1.9:2.5,PAL.beige);
+wallRun(.7,1,RW,2.8,PAL.concrete);
+/* ---------- fixtures that attach to a wall face at (t, side): a small vocabulary of graphic shapes ---------- */
+function onWall(t,o,y,fn){const g=new THREE.Group();fn(g);atRoad(t,o-Math.sign(o)*.23,g,faceRoad(o));g.position.y+=y;return g;}
+const F={
+  ac:g=>{g.add(box(1.0,.72,.5,PAL.offwhite,0,0,.25));g.add(plane(.42,.42,PAL.glass,.16,0,.51));g.add(plane(.5,.08,PAL.metal,-.18,.12,.51));g.add(plane(.5,.08,PAL.metal,-.18,-.12,.51));},
+  pipe:g=>{g.add(cyl(.05,4.4,PAL.metal,0,1.4,.12,8));g.add(box(.45,.1,.1,PAL.metal,.2,3.55,.12));g.add(cyl(.05,.9,PAL.metal,.42,3.1,.12,8));},
+  meter:g=>{g.add(box(.5,.65,.2,PAL.concreteLt,0,0,.1));g.add(plane(.28,.22,PAL.glass,0,.1,.21));},
+  vent:g=>{g.add(plane(1.0,.42,PAL.glass,0,0,.02));for(let i=0;i<4;i++)g.add(plane(1.0,.04,PAL.rail,0,-.15+i*.1,.03));},
+  signW:g=>{g.add(plane(.62,.9,PAL.offwhite,0,0,.03));g.add(plane(.36,.06,PAL.ink,0,.22,.04));g.add(plane(.36,.06,PAL.ink,0,.06,.04));g.add(plane(.2,.06,PAL.orange,-.08,-.14,.04));},
+  signV:g=>{g.add(box(.5,1.9,.12,PAL.offwhite,0,0,.3));g.add(box(.06,.06,.36,PAL.metal,0,.7,.1));g.add(box(.06,.06,.36,PAL.metal,0,-.7,.1));g.add(plane(.22,.22,PAL.orange,0,.5,.37));g.add(plane(.22,.5,PAL.ink,0,-.15,.37));},
+  lamp:g=>{g.add(box(.08,.08,.6,PAL.metal,0,0,.3));g.add(cyl(.18,.22,PAL.slate,0,-.16,.55,10));},
+  cutout:g=>{g.add(plane(1.4,.9,PAL.glass,0,0,.02));},
+  door:g=>{g.add(box(1.5,2.5,.18,PAL.beigeLt,0,.05,.04));g.add(plane(1.2,2.2,PAL.glass,0,-.05,.14));g.add(plane(.06,2.2,PAL.rail,0,-.05,.15));g.add(box(1.7,.12,.5,PAL.concreteLt,0,-1.26,.25));},
+  shutter:g=>{g.add(plane(1.1,1.0,PAL.seafoam,0,0,.02));for(let i=0;i<5;i++)g.add(plane(1.1,.03,PAL.teal,0,-.4+i*.2,.03));},
+  window:g=>{g.add(plane(1.2,1.0,PAL.glass,0,0,.02));g.add(plane(.05,1.0,PAL.rail,0,0,.03));},
+};
+/* ---------- things that stand on the pavement or road edge ---------- */
+const G={
+  cabinet:(w=1.4,h=1.9)=>{const g=new THREE.Group();g.add(box(w,h,.9,PAL.offwhite,0,h/2,0));g.add(plane(.36,.5,PAL.slate,w*.25,h*.6,.46));g.add(plane(.05,h*.7,PAL.rail,-w*.15,h*.5,.46));return g;},
+  bollard:()=>{const g=new THREE.Group();g.add(cyl(.09,.85,PAL.metal,0,.42,0,10));g.add(cyl(.11,.08,PAL.slate,0,.86,0,10));return g;},
+  drain:()=>{const g=new THREE.Group();const p=plane(.55,.9,PAL.glass,0,.005,0,0,-Math.PI/2);g.add(p);for(let i=0;i<4;i++){const b=plane(.55,.05,PAL.metal,0,.01,-.32+i*.21,0,-Math.PI/2);g.add(b);}return g;},
+  pot:(n=5)=>{const g=new THREE.Group();g.add(mesh(new THREE.CylinderGeometry(.24,.19,.42,10),flat(PAL.pot),0,.21,0));for(let i=0;i<n;i++){const leaf=new THREE.Mesh(new THREE.PlaneGeometry(.14,.8),flat(PAL.plant,true));leaf.position.set((i-n/2)*.07,.75,0);leaf.rotation.set(0,i*.8,(i-n/2)*.22);g.add(leaf);}return g;},
+  planter:()=>{const g=new THREE.Group();g.add(box(1.0,.5,.5,PAL.pot,0,.25,0));for(let i=0;i<7;i++){const leaf=new THREE.Mesh(new THREE.PlaneGeometry(.12,.7),flat(PAL.plant,true));leaf.position.set((i-3)*.13,.78,0);leaf.rotation.set(0,i*.7,(i-3)*.2);g.add(leaf);}return g;},
+  pole:(h=8.5)=>{const g=new THREE.Group();g.add(cyl(.13,h,PAL.metal,0,h/2,0,10));g.add(box(1.5,.12,.12,PAL.metal,0,h-.6,0));g.add(box(1.1,.12,.12,PAL.metal,0,h-1.3,0));g.add(cyl(.2,.7,PAL.slate,-.55,h-.95,0,8));g.add(box(.34,.42,.34,PAL.slate,.42,h-2.2,0));return g;},
+  sign:(c=PAL.slate)=>{const g=new THREE.Group();g.add(cyl(.045,2.9,PAL.rail,0,1.45,0,6));const d=mesh(new THREE.CylinderGeometry(.42,.42,.06,20),flat(c),0,3.1,0);d.rotation.x=Math.PI/2;g.add(d);g.add(plane(.6,.42,PAL.orange,0,2.3,.05));return g;},
+  post:()=>{const g=new THREE.Group();g.add(cyl(.04,1.1,PAL.rail,0,.55,0,6));return g;},
+  bin:()=>{const g=new THREE.Group();g.add(box(.55,.8,.55,PAL.slate,0,.4,0));g.add(box(.6,.08,.6,PAL.metal,0,.84,0));return g;},
+  crate:()=>{const g=new THREE.Group();g.add(box(.7,.5,.5,PAL.teal,0,.25,0));g.add(box(.7,.5,.5,PAL.teal,0,.75,.05,.12));return g;},
+};
+/* ---------- LEFT SIDE: stairs beside a dark house, then a stepped retaining wall with fixtures ---------- */
+{const g=new THREE.Group();const W=6.4,D=6.5,H=8.2;
+  g.add(box(W,H,D,PAL.darkHouse,0,H/2,-D/2));g.add(box(W+.5,.32,D+.5,PAL.slate,0,H+.1,-D/2));
+  for(const [x,y] of [[-1.7,6.3],[.6,6.3]])g.add(plane(1.2,1.0,PAL.glass,x,y,.02));
+  g.add(plane(1.2,1.0,PAL.seafoam,-1.7,3.9,.02));for(let i=0;i<5;i++)g.add(plane(1.2,.03,PAL.teal,-1.7,3.5+i*.2,.03));
+  g.add(box(2.2,.1,.6,PAL.concreteLt,.4,5.6,.32));g.add(cyl(.03,.9,PAL.rail,-.6,6.1,.6,6));g.add(cyl(.03,.9,PAL.rail,1.4,6.1,.6,6));g.add(box(2.1,.04,.04,PAL.rail,.4,6.55,.6)); // small balcony ledge + rail
+  // stair flight along the front, from the pavement (right end) up to a landing (left end)
+  const steps=11,run=.56,rise=.31;for(let i=0;i<steps;i++){const h=rise*(i+1);g.add(box(run,h,1.3,PAL.concreteLt,W/2-run*(i+.5),h/2,1.25));}
+  g.add(box(2.2,.34,1.3,PAL.concreteLt,W/2-run*steps-1.1,rise*steps-.17,1.25));
+  g.add(box(run*steps+2.2,rise*steps+.5,.22,PAL.concrete,W/2-(run*steps+2.2)/2,(rise*steps+.5)/2,.5));
+  const railg=new THREE.Group();for(let i=0;i<=steps;i+=2){railg.add(cyl(.03,1.0,PAL.rail,W/2-run*i-.05,rise*i+.5,1.95,6));}
+  const L=Math.hypot(run*steps,rise*steps);const r=cyl(.028,L,PAL.rail,W/2-run*steps/2,rise*steps/2+1.0,1.95,6);r.rotation.z=-(Math.PI/2-Math.atan2(rise,run));railg.add(r);g.add(railg);
+  g.add(box(.9,.7,.45,PAL.offwhite,-2.4,.36,.9));g.add(plane(.36,.36,PAL.glass,-2.4,.36,1.13));   // AC by the base
+  atRoad(.27,LW-3.4,g,faceRoad(-1));}
+atRoad(.06,LW+.95,G.bollard());atRoad(.10,LW+.95,G.bollard());
+atRoad(.08,-ROAD_W/2+.32,G.drain());atRoad(.44,-ROAD_W/2+.32,G.drain());atRoad(.8,-ROAD_W/2+.32,G.drain());
+atRoad(.15,LW+.75,G.cabinet(1.3,1.7));
+atRoad(.19,LW+.6,G.pot(5));
+atRoad(.36,LW+.62,G.cabinet(1.6,2.0));atRoad(.39,LW+.55,G.crate());
+onWall(.46,LW,1.0,F.meter);onWall(.49,LW,0,F.pipe);
+onWall(.55,LW,1.1,F.signW);
+atRoad(.58,LW+.55,G.pot(4));atRoad(.6,LW+.55,G.pot(6));
+onWall(.66,LW,1.3,F.lamp);onWall(.7,LW,1.5,F.vent);
+onWall(.76,LW,0,F.pipe);onWall(.8,LW,1.9,F.ac);
+atRoad(.86,LW+.75,G.cabinet(1.2,1.5));atRoad(.9,LW+.9,G.bollard());
+onWall(.92,LW,2.2,F.signW);
+/* a second house rises behind the left retaining wall */
+{const g=new THREE.Group();g.add(box(8,6.8,7,PAL.beigeLt,0,3.4,-3.5));g.add(box(8.5,.3,7.5,PAL.slate,0,6.95,-3.5));
+  for(const x of [-2.4,0,2.4])g.add(plane(1.2,1.0,PAL.glass,x,5.4,.02));g.add(box(.9,.7,.45,PAL.offwhite,2.6,4.2,.25));
+  atRoad(.62,LW-3.8,g,faceRoad(-1));g.position.y+=1.6;}
+/* ---------- RIGHT SIDE: shop front hard on the pavement, then fixtures along a stepped wall ---------- */
+{const g=new THREE.Group();const W=8,D=6,H=7;
+  g.add(box(W,H,D,PAL.beige,0,H/2,-D/2));g.add(box(W+.5,.3,D+.5,PAL.slate,0,H+.1,-D/2));
+  g.add(plane(2.4,2.8,PAL.orange,-1.9,1.5,.02));g.add(plane(.07,2.8,PAL.ink,-1.9,1.5,.03));g.add(plane(.5,.5,PAL.offwhite,-2.5,2.3,.04));  // sliding door
+  g.add(box(3.2,.18,1.1,PAL.seafoam,-1.9,3.2,.5));                                            // small canopy
+  g.add(plane(2.6,.8,PAL.glass,1.6,5.2,.02));for(let i=0;i<5;i++)g.add(plane(.05,.8,PAL.rail,.6+i*.5,5.2,.03));
+  const ring=mesh(new THREE.TorusGeometry(.5,.13,8,24),flat(PAL.orange),2.0,3.1,.15);g.add(ring);
+  g.add(plane(.55,.75,PAL.offwhite,3.3,2.8,.02));g.add(plane(.55,.75,PAL.offwhite,3.3,1.85,.02));g.add(plane(.3,.08,PAL.ink,3.3,2.95,.03));g.add(plane(.3,.08,PAL.ink,3.3,2.0,.03));
+  g.add(box(W+.4,.22,1.4,PAL.concreteLt,0,.11,.7));                                            // front step
+  g.add(box(.9,.7,.45,PAL.offwhite,3.2,4.1,.25));g.add(cyl(.05,3.6,PAL.metal,3.8,2.0,.12,8));   // AC up high, a downpipe
+  g.add(cyl(.045,.5,PAL.metal,-3.6,5.9,.3,6));g.add(cyl(.16,.2,PAL.slate,-3.6,5.75,.55,10));    // lamp
+  atRoad(.20,RW+3.1,g,faceRoad(1));}
+atRoad(.12,RW-.55,G.pot(5));atRoad(.14,RW-.45,G.bin());
+atRoad(.30,RW-.5,G.sign());
+atRoad(.33,RW-.6,G.pole(8.6));
+onWall(.4,RW,1.1,F.cutout);onWall(.45,RW,.0,F.door);onWall(.5,RW,1.4,F.window);
+atRoad(.47,RW-.6,G.pot(4));
+onWall(.54,RW,0,F.pipe);onWall(.57,RW,1.6,F.ac);
+atRoad(.6,RW-.7,G.cabinet(1.1,1.6));
+onWall(.64,RW,1.2,F.signV);onWall(.68,RW,.9,F.vent);
+atRoad(.72,RW-.6,G.pole(8.2));
+onWall(.78,RW,1.8,F.ac);onWall(.82,RW,0,F.pipe);onWall(.86,RW,1.2,F.shutter);
+atRoad(.9,RW-.55,G.planter());atRoad(.94,RW-.9,G.bollard());
+/* ---------- footbridge: it lands on the left stair landing, so it belongs to the street ---------- */
+{const g=new THREE.Group();const span=ROAD_W+2*PAV+7.5;const y=6.6;
+  g.add(box(span,.6,2.8,PAL.seafoam,0,y,0));
+  g.add(box(span,1.0,.16,PAL.seafoam,0,y+.8,1.32));g.add(box(span,1.0,.16,PAL.seafoam,0,y+.8,-1.32));
+  for(let i=-3;i<=3;i++)g.add(box(.16,.5,2.8,PAL.teal,i*1.7,y-.55,0));
+  g.add(box(1.1,y,1.1,PAL.teal,span/2-.6,y/2,0));g.add(box(1.1,y,1.1,PAL.teal,-span/2+.6,y/2,0));
+  // a straight flight down on the right, with a railing
+  const st=12,run=.5,rise=.5;for(let i=0;i<st;i++){const h=y-rise*i;g.add(box(1.3,h,run,PAL.concreteLt,span/2-.6,h/2,1.4+run*(i+.5)));}
+  for(let i=0;i<=st;i+=2)g.add(cyl(.03,1.0,PAL.rail,span/2-1.3,y-rise*i+.5,1.4+run*i,6));
   atRoad(.62,0,g);}
-/* ---------- a second building on the left, beyond the stairs: off-white, plain, a few dark windows ---------- */
-{const g=new THREE.Group();g.add(box(8,6.5,7,PAL.offwhite,0,3.25,-3.5));g.add(box(8.6,.3,7.6,PAL.slate,0,6.6,-3.5));
-  for(const [x,y] of [[-2.2,4.6],[0,4.6],[2.2,4.6],[-2.2,2.4]])g.add(plane(1.2,1.0,PAL.glass,x,y,.02,0));
-  g.add(box(1.0,.7,.5,PAL.offwhite,2.4,2.6,.28));g.add(plane(.45,.45,PAL.glass,2.4,2.6,.54,0));   // wall-mounted AC
-  atRoad(.72,-ROAD_W/2-PAV-3.9,g,-Math.PI/2);}
-/* ---------- utility cabinet on the left pavement ---------- */
-{const g=new THREE.Group();g.add(box(1.5,2.0,1.0,PAL.offwhite,0,1.0,0));g.add(plane(.4,.6,PAL.slate,.4,1.25,.51,0));g.add(plane(.06,1.4,PAL.rail,-.2,1.0,.51,0));
-  atRoad(.40,-ROAD_W/2-PAV+.62,g);}
-/* ---------- utility pole with wires, a road sign, planters ---------- */
-{const g=new THREE.Group();g.add(cyl(.14,9,PAL.pole,0,4.5,0,8));g.add(box(1.4,.12,.12,PAL.pole,0,7.8,0));g.add(box(1.1,.12,.12,PAL.pole,0,7.1,0));g.add(cyl(.22,.7,PAL.slate,-.55,7.4,0,8));
-  atRoad(.45,ROAD_W/2+PAV+.9,g);}
-{const g=new THREE.Group();g.add(cyl(.05,3.2,PAL.rail,0,1.6,0,6));const d=new THREE.Mesh(new THREE.CylinderGeometry(.5,.5,.06,20),flat(PAL.slate));d.rotation.x=Math.PI/2;d.position.set(0,3.4,0);d.castShadow=true;g.add(d);g.add(plane(.7,.5,PAL.orange,0,2.5,.05,0));
-  atRoad(.26,-ROAD_W/2-.4,g);}
-for(const [t,o] of [[.12,-ROAD_W/2-PAV+.5],[.18,ROAD_W/2+PAV-.5]]){const g=new THREE.Group();g.add(box(.9,.6,.6,PAL.planter,0,.3,0));
-  for(let i=0;i<5;i++){const leaf=new THREE.Mesh(new THREE.PlaneGeometry(.16,.9),new THREE.MeshToonMaterial({color:PAL.plant,gradientMap:ramp,side:THREE.DoubleSide}));leaf.position.set((i-2)*.12,.95,0);leaf.rotation.set(0,i*.7,(i-2)*.25);g.add(leaf);}
-  atRoad(t,o,g);}
-/* wires: thin lines between the pole and off-scene */
-{const pts=[];const P=path.getPointAt(.45),T=path.getTangentAt(.45);const side=V(-T.z,0,T.x).normalize();const base=P.clone().add(side.clone().multiplyScalar(ROAD_W/2+PAV+.9));
-  for(const [dx,dy] of [[-.6,7.8],[.6,7.8]]){const a=base.clone().add(V(dx,dy,0));pts.push(a,a.clone().add(V(-14,1.2,-26)),a,a.clone().add(V(9,0.6,24)));}
+/* ---------- cables between the poles and off to the buildings ---------- */
+{const pts=[];const A=frame(.33),B=frame(.72);const a=A.P.clone().add(A.S.clone().multiplyScalar(RW-.6)).add(V(0,8.0,0)),b=B.P.clone().add(B.S.clone().multiplyScalar(RW-.6)).add(V(0,7.6,0));
+  for(const dy of [0,-.35,-.7]){const m=a.clone().lerp(b,.5).add(V(0,dy-.6,0));pts.push(a.clone().add(V(0,dy,0)),m,m,b.clone().add(V(0,dy,0)));}
+  const L=frame(.27).P.clone().add(frame(.27).S.clone().multiplyScalar(LW-1)).add(V(0,7.9,0));pts.push(a,L,a.clone().add(V(0,-.35,0)),L.clone().add(V(0,-.3,0)));
+  pts.push(b,b.clone().add(V(-9,.8,-22)),b.clone().add(V(0,-.35,0)),b.clone().add(V(-9,.4,-22)));
   const g=new THREE.BufferGeometry().setFromPoints(pts);const l=new THREE.LineSegments(g,new THREE.LineBasicMaterial({color:PAL.ink}));l.userData.noInk=true;scene.add(l);}
-/* clouds: a few flat shapes, unlit */
-for(const [x,y,z,s] of [[-30,26,-70,14],[10,30,-80,18],[40,24,-60,10]]){const c=new THREE.Mesh(new THREE.CircleGeometry(s,24),unlit(PAL.cloud));c.position.set(x,y,z);c.scale.y=.45;c.userData.noInk=true;scene.add(c);}
-/* ---------- the kid: primitives, flat colours ---------- */
+for(const [x,y,z,s] of [[-26,24,-70,12],[8,29,-84,17],[38,22,-58,9]]){const c=new THREE.Mesh(new THREE.CircleGeometry(s,24),unlit(PAL.cloud));c.position.set(x,y,z);c.scale.y=.4;c.userData.noInk=true;scene.add(c);}
+/* ---------- the kid: still primitives, but proportioned like a child ---------- */
 const kid=new THREE.Group();
-{const body=mesh(new THREE.CylinderGeometry(.24,.27,.62,14),flat(PAL.shirt),0,1.02,0);kid.add(body);
-  kid.add(mesh(new THREE.CylinderGeometry(.27,.26,.4,14),flat(PAL.shorts),0,.55,0));
-  kid.add(box(.36,.44,.16,PAL.orange,0,1.05,-.3));                                       // bag
-  const head=mesh(new THREE.SphereGeometry(.27,16,12),flat(PAL.skin),0,1.62,0);kid.add(head);
-  const hair=mesh(new THREE.SphereGeometry(.30,16,12),flat(PAL.hair),0,1.7,-.03);hair.scale.set(1,.8,1);kid.add(hair);
-  kid.add(cyl(.07,.5,PAL.skin,-.3,.95,0,8));kid.add(cyl(.07,.5,PAL.skin,.3,.95,0,8));
-  const strap=box(.1,.9,.06,PAL.orange,0,1.05,.2);strap.rotation.z=.75;kid.add(strap);
-  kid.userData.legs=[];for(const x of [-.15,.15]){const leg=new THREE.Group();leg.position.set(x,.36,0);leg.add(cyl(.08,.4,PAL.skin,0,-.18,0,8));leg.add(box(.2,.1,.3,PAL.shoe,0,-.4,.04));kid.add(leg);kid.userData.legs.push(leg);}}
-kid.scale.setScalar(.88);scene.add(kid);
-/* ---------- ink pass: silhouettes and major creases only ---------- */
+{kid.add(mesh(new THREE.CylinderGeometry(.21,.24,.5,14),flat(PAL.shirt),0,.98,0));
+  kid.add(mesh(new THREE.CylinderGeometry(.25,.23,.3,14),flat(PAL.shorts),0,.6,0));
+  kid.add(box(.34,.4,.15,PAL.orange,0,1.0,-.27));
+  kid.add(cyl(.07,.16,PAL.skin,0,1.3,0,8));
+  kid.add(mesh(new THREE.SphereGeometry(.3,18,14),flat(PAL.skin),0,1.6,0));
+  const hair=mesh(new THREE.SphereGeometry(.33,18,14),flat(PAL.hair),0,1.68,-.04);hair.scale.set(1,.85,1);kid.add(hair);
+  kid.add(box(.5,.14,.2,PAL.hair,0,1.5,.2));
+  kid.add(cyl(.06,.42,PAL.skin,-.29,.95,0,8));kid.add(cyl(.06,.42,PAL.skin,.29,.95,0,8));
+  kid.userData.legs=[];for(const x of [-.12,.12]){const leg=new THREE.Group();leg.position.set(x,.46,0);leg.add(cyl(.075,.36,PAL.skin,0,-.18,0,8));leg.add(box(.17,.1,.28,PAL.shoe,0,-.4,.04));kid.add(leg);kid.userData.legs.push(leg);}}
+kid.scale.setScalar(.9);scene.add(kid);
+/* ---------- ink pass ---------- */
 const rt=new THREE.WebGLRenderTarget(2,2,{minFilter:THREE.LinearFilter,magFilter:THREE.LinearFilter});rt.depthTexture=new THREE.DepthTexture();rt.depthTexture.type=THREE.UnsignedIntType;
 const rtN=new THREE.WebGLRenderTarget(2,2,{minFilter:THREE.NearestFilter,magFilter:THREE.NearestFilter});
 const ink=new THREE.ShaderMaterial({uniforms:{tColor:{value:rt.texture},tDepth:{value:rt.depthTexture},tNormal:{value:rtN.texture},res:{value:new THREE.Vector2(2,2)},near:{value:camera.near},far:{value:camera.far},inkCol:{value:new THREE.Color(PAL.ink)}},
@@ -174,12 +206,12 @@ const ink=new THREE.ShaderMaterial({uniforms:{tColor:{value:rt.texture},tDepth:{
     float e=0.;vec2 ox=vec2(1.,0.)*px,oy=vec2(0.,1.)*px;
     float dl=lin(texture2D(tDepth,vUv-ox).x),dr=lin(texture2D(tDepth,vUv+ox).x),du=lin(texture2D(tDepth,vUv-oy).x),dd=lin(texture2D(tDepth,vUv+oy).x);
     if(d0<far*.9){e=max(e,abs(dl+dr-2.*d0)/max(d0,1.)*30.);e=max(e,abs(du+dd-2.*d0)/max(d0,1.)*30.);}
-    for(int i=0;i<4;i++){vec2 o=(i==0?ox:i==1?-ox:i==2?oy:-oy);vec3 n=texture2D(tNormal,vUv+o).xyz*2.-1.;float dn=1.-dot(n0,n);e=max(e,smoothstep(.45,.9,dn)*1.2);} /* only real corners, not shading */
+    for(int i=0;i<4;i++){vec2 o=(i==0?ox:i==1?-ox:i==2?oy:-oy);vec3 n=texture2D(tNormal,vUv+o).xyz*2.-1.;float dn=1.-dot(n0,n);e=max(e,smoothstep(.45,.9,dn)*1.2);}
     float line=smoothstep(.35,.8,e);
     vec3 col=texture2D(tColor,vUv).rgb;col=mix(col,inkCol,line*.9);
     gl_FragColor=vec4(col,1.);}`});
 const quad=new THREE.Scene();quad.add(new THREE.Mesh(new THREE.PlaneGeometry(2,2),ink));const qcam=new THREE.OrthographicCamera(-1,1,1,-1,0,1);
-const nm=new THREE.MeshNormalMaterial(),nmFlat=new THREE.MeshBasicMaterial({color:0x8080ff});const skyN=new THREE.Color(0x8080ff);let meshes=[];
+const nm=new THREE.MeshNormalMaterial({side:THREE.DoubleSide}),nmFlat=new THREE.MeshBasicMaterial({color:0x8080ff,side:THREE.DoubleSide});const skyN=new THREE.Color(0x8080ff);let meshes=[];
 function resize(){const W=innerWidth,H=innerHeight;renderer.setSize(W,H,false);camera.aspect=W/H;camera.updateProjectionMatrix();rt.setSize(W*DPR,H*DPR);rtN.setSize(W*DPR,H*DPR);ink.uniforms.res.value.set(W*DPR,H*DPR);}
 addEventListener('resize',resize);resize();
 scene.traverse(o=>{if(o.isMesh)meshes.push(o);});
@@ -187,24 +219,24 @@ function render(){renderer.setRenderTarget(rt);renderer.render(scene,camera);
   const bg=scene.background;scene.background=skyN;for(const m of meshes){m.userData.mat=m.material;m.material=m.userData.noInk?nmFlat:nm;}
   renderer.setRenderTarget(rtN);renderer.render(scene,camera);for(const m of meshes)m.material=m.userData.mat;scene.background=bg;
   renderer.setRenderTarget(null);renderer.render(quad,qcam);}
-/* ---------- walking along the road, camera low and close behind ---------- */
-let t=.06,side=0,yaw=0,camYaw=0;const keys={};
+/* ---------- walking, camera low and close behind ---------- */
+let t=.05,side=0,camYaw=0;const keys={};
 addEventListener('keydown',e=>{keys[e.key]=true;if(e.key.startsWith('Arrow'))e.preventDefault();});addEventListener('keyup',e=>{keys[e.key]=false;});
 let drag=null;canvas.addEventListener('pointerdown',e=>{drag={x:e.clientX,yaw:camYaw};});addEventListener('pointermove',e=>{if(drag)camYaw=drag.yaw+(e.clientX-drag.x)*.006;});addEventListener('pointerup',()=>{drag=null;});
 let last=performance.now(),walkT=0;
-function frame(now){const dt=Math.min(.05,(now-last)/1000);last=now;
+function frameLoop(now){const dt=Math.min(.05,(now-last)/1000);last=now;
   const fw=(keys.ArrowUp||keys.w?1:0)-(keys.ArrowDown||keys.s?1:0);const st=(keys.ArrowRight||keys.d?1:0)-(keys.ArrowLeft||keys.a?1:0);
-  const L=path.getLength();t=Math.max(.02,Math.min(.97,t+fw*2.4*dt/L*1.0));side=Math.max(-ROAD_W/2+.5,Math.min(ROAD_W/2-.5,side+st*2*dt));
-  const P=path.getPointAt(t),T=path.getTangentAt(t);const S=V(-T.z,0,T.x).normalize();
+  const L=path.getLength();t=Math.max(.02,Math.min(.96,t+fw*2.4*dt/L));side=Math.max(-ROAD_W/2+.5,Math.min(ROAD_W/2-.5,side+st*2*dt));
+  const {P,T,S}=frame(t);
   kid.position.copy(P).add(S.clone().multiplyScalar(side));const targetYaw=Math.atan2(T.x,T.z)+(fw<0?Math.PI:0);kid.rotation.y+=Math.atan2(Math.sin(targetYaw-kid.rotation.y),Math.cos(targetYaw-kid.rotation.y))*Math.min(1,dt*8);
   const moving=fw!==0||st!==0;walkT+=dt*(moving?9:0);kid.userData.legs.forEach((l,i)=>{l.rotation.x+=((moving?Math.sin(walkT+i*Math.PI)*.6:0)-l.rotation.x)*Math.min(1,dt*10);});
   if(!moving)camYaw+=(0-camYaw)*Math.min(1,dt*.6);
   const back=V(Math.sin(kid.rotation.y+Math.PI+camYaw),0,Math.cos(kid.rotation.y+Math.PI+camYaw));
-  const camPos=kid.position.clone().add(back.multiplyScalar(3.9)).add(V(0,1.9,0));camera.position.lerp(camPos,Math.min(1,dt*6));
-  camera.lookAt(kid.position.clone().add(V(0,1.05,0)).add(T.clone().multiplyScalar(3.2)));
-  sun.target.position.copy(kid.position);sun.position.copy(kid.position).add(V(-18,30,-10));
-  render();requestAnimationFrame(frame);}
-requestAnimationFrame(frame);
+  const camPos=kid.position.clone().add(back.multiplyScalar(3.4)).add(V(0,1.7,0));camera.position.lerp(camPos,Math.min(1,dt*6));
+  camera.lookAt(kid.position.clone().add(V(0,1.0,0)).add(T.clone().multiplyScalar(3.0)));
+  sun.target.position.copy(kid.position);sun.position.copy(kid.position).add(V(-16,30,-8));
+  render();requestAnimationFrame(frameLoop);}
+requestAnimationFrame(frameLoop);
 </script>
 </body>
 </html>
