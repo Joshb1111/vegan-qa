@@ -961,7 +961,13 @@ window.__tp=(lon,lat,h)=>{up.copy(sphere(lon,lat));const {east,north}=frameAt(lo
 const camPos=new THREE.Vector3(), camUp=up.clone(), camLook=new THREE.Vector3(), raycaster=new THREE.Raycaster();
 let camInit=false, nearN=null, shownN=null, talking=null, idleT=0, camYaw=0;
 /* touch controls only when there is NO hover-capable pointer at all (a PC with a touchscreen still has a mouse) and the primary pointer is coarse; ?touch / ?pc force either way */
-const isTouch=location.search.includes('pc')?false:(location.search.includes('touch')||(!matchMedia('(any-hover:hover)').matches&&matchMedia('(pointer:coarse)').matches));
+let isTouch=location.search.includes('pc')?false:(location.search.includes('touch')||(!matchMedia('(any-hover:hover)').matches&&matchMedia('(pointer:coarse)').matches));
+try{const pref=localStorage.getItem('planet-controls');if(pref==='pc')isTouch=false;else if(pref==='touch')isTouch=true;}catch(_){} /* a remembered choice beats the guess */
+/* the guess can be wrong (handhelds, touch monitors, tablet mode): the first real keyboard press or screen touch switches the layout, and the menu has a toggle */
+function setTouch(on,remember){if(on===isTouch)return;isTouch=on;document.body.classList.toggle('touch',on);const st=$('#stick');if(st)st.hidden=!on;const jb=$('#jumpbtn');if(jb)jb.hidden=!on||(typeof ride!=='undefined'&&ride.on);
+  const h=$('#hint');if(h)h.textContent=on?'drag the stick to move · drag the view to look around':'↑ ↓ to move · ← → to turn · space to jump';
+  if(remember)try{localStorage.setItem('planet-controls',on?'touch':'pc');}catch(_){}
+  const cb=$('[data-ctl]');if(cb)cb.innerHTML='<i></i>'+(on?'Switch to keyboard controls':'Switch to touch controls')+'<small>if the wrong ones came up</small>';}
 const _m=new THREE.Matrix4(),_v=new THREE.Vector3();
 
 const _jd=new THREE.Vector3(),_jr=new THREE.Vector3();
@@ -1119,7 +1125,7 @@ requestAnimationFrame(frame);
    ===================================================================== */
 if(isTouch)$('#hint').textContent='drag the stick to move · drag the view to look around';else $('#hint').textContent='↑ ↓ to move · ← → to turn · space to jump';
 const KEYS={ArrowUp:'u',w:'u',W:'u',ArrowDown:'d',s:'d',S:'d',ArrowLeft:'l',a:'l',A:'l',ArrowRight:'r',d:'r',D:'r'};
-window.addEventListener('keydown',e=>{
+window.addEventListener('keydown',e=>{if(isTouch&&!(e.target&&/^(INPUT|TEXTAREA)$/.test(e.target.tagName||''))&&/^(ArrowUp|ArrowDown|ArrowLeft|ArrowRight|w|a|s|d)$/i.test(e.key))setTouch(false,true);
   if(e.metaKey||e.ctrlKey||e.altKey)return;
   if(talking){if(e.key==='Escape')endTalk();else if((e.key==='Enter'||e.key===' ')&&document.activeElement!==q){nextChunk();e.preventDefault();}return;}
   if(!$('#stops').hidden&&e.key==='Escape'){toggleStops(false);return;}
@@ -1134,6 +1140,7 @@ window.addEventListener('keyup',e=>{if(KEYS[e.key])hold[KEYS[e.key]]=false;if(e.
 window.addEventListener('blur',()=>{for(const k in hold)hold[k]=false;drag=null;});
 game.addEventListener('wheel',e=>{if(talking||sitting)return;e.preventDefault();const k=e.deltaMode===1?16:e.deltaMode===2?200:1;pendingMove=clamp(pendingMove+e.deltaY*k*.02,-30,30);autoTarget=null;firstMove();},{passive:false});
 let drag=null;
+canvas.addEventListener('touchstart',()=>{if(!isTouch)setTouch(true,true);},{passive:true});
 canvas.addEventListener('pointerdown',e=>{if(talking)return;drag={id:e.pointerId,x:e.clientX,y:e.clientY};canvas.classList.add('drag');try{canvas.setPointerCapture(e.pointerId)}catch(_){}});
 canvas.addEventListener('pointermove',e=>{if(!drag||e.pointerId!==drag.id)return;const dx=e.clientX-drag.x,dy=e.clientY-drag.y;drag.x=e.clientX;drag.y=e.clientY;if(sitting){sitOrbit.yaw-=dx*.006;sitOrbit.pitch=clamp(sitOrbit.pitch+dy*.004,-.25,.9);return;}if(dx){turn(-dx*.006);autoTarget=null;autoFace=null;}if(dy){pendingMove=clamp(pendingMove-dy*.05,-30,30);}if(dx||dy)firstMove();});
 const endDrag=e=>{if(drag&&e.pointerId===drag.id){drag=null;canvas.classList.remove('drag');}};
@@ -1189,11 +1196,12 @@ function dismissTitle(){if(titleGone)return;titleGone=true;$('#title').classList
 $('#title').addEventListener('click',dismissTitle);
 function toggleStops(show){const s=$('#stops');const vis=show==null?s.hidden:show;s.hidden=!vis;$('#menubtn').setAttribute('aria-expanded',String(vis));}
 $('#menubtn').addEventListener('click',e=>{e.stopPropagation();toggleStops();});
-$('#stops').addEventListener('click',e=>{const pb=e.target.closest('[data-place]');if(pb){if(pb.dataset.place==='skateSpawn'){if(sitting)standUp();if(ride.on)stopRide();autoTarget=null;autoRoute=[];up.copy(parkPt(-16,-19.5));fwd.copy(PARK.north);orthonormalize();v=0;camInit=false;firstMove();toggleStops(false);return;}
+$('#stops').addEventListener('click',e=>{const cbtn=e.target.closest('[data-ctl]');if(cbtn){setTouch(!isTouch,true);toggleStops(false);return;}const pb=e.target.closest('[data-place]');if(pb){if(pb.dataset.place==='skateSpawn'){if(sitting)standUp();if(ride.on)stopRide();autoTarget=null;autoRoute=[];up.copy(parkPt(-16,-19.5));fwd.copy(PARK.north);orthonormalize();v=0;camInit=false;firstMove();toggleStops(false);return;}
     if(pb.dataset.place==='sunsetSpawn'&&BENCH){if(sitting)standUp();if(ride.on)stopRide();autoTarget=null;autoRoute=[];up.copy(BENCH.n).addScaledVector(BENCH.face,-2.2/R).normalize();fwd.copy(BENCH.face);orthonormalize();v=0;camInit=false;firstMove();toggleStops(false);return;} /* straight to the sand behind the bench, facing the sea */const pl=PLACES[pb.dataset.place];if(pl){if(sitting)standUp();goTo(pl);firstMove();toggleStops(false);}return;}
   const b=e.target.closest('[data-go]');if(!b)return;const n=npcs.find(x=>x.id===b.dataset.go);if(sitting)standUp();goTo({n:npcPos(n)},n);firstMove();toggleStops(false);});
 (function placesMenu(){const h=document.createElement('h2');h.textContent='Places';$('#stops').appendChild(h);
-  for(const [k,t,sub] of [['sunset','The sunset bench','down the hill, by the sea'],['skate','Skate park','off the main street'],['skateSpawn','Spawn at the skate park','jump straight there'],['sunsetSpawn','Spawn at the sunset bench','jump straight there']]){const b=document.createElement('button');b.type='button';b.dataset.place=k;b.innerHTML='<i></i>'+t+'<small>'+sub+'</small>';$('#stops').appendChild(b);}})();
+  for(const [k,t,sub] of [['sunset','The sunset bench','down the hill, by the sea'],['skate','Skate park','off the main street'],['skateSpawn','Spawn at the skate park','jump straight there'],['sunsetSpawn','Spawn at the sunset bench','jump straight there']]){const b=document.createElement('button');b.type='button';b.dataset.place=k;b.innerHTML='<i></i>'+t+'<small>'+sub+'</small>';$('#stops').appendChild(b);}
+  const cb=document.createElement('button');cb.type='button';cb.dataset.ctl='1';cb.innerHTML='<i></i>'+(isTouch?'Switch to keyboard controls':'Switch to touch controls')+'<small>if the wrong ones came up</small>';$('#stops').appendChild(cb);})();
 document.addEventListener('pointerdown',e=>{if(!e.target.closest('#stops,#menubtn'))toggleStops(false);});
 
 /* =====================================================================
