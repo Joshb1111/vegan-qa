@@ -207,8 +207,8 @@ const renderer=new THREE.WebGLRenderer({canvas,antialias:false});
 const DPR=Math.min(devicePixelRatio||1,2);renderer.setPixelRatio(DPR);
 const scene=new THREE.Scene(); scene.background=new THREE.Color(P.sky);
 const camera=new THREE.PerspectiveCamera(64,1,0.3,900); scene.add(camera);
-const sun=new THREE.DirectionalLight(0xffffff,0.62); sun.position.set(4,7,3); camera.add(sun); sun.target.position.set(0,0,-10); camera.add(sun.target);
-scene.add(new THREE.AmbientLight(0xffffff,0.38));
+const sun=new THREE.DirectionalLight(0xfff6e8,0.30); sun.position.set(4,7,3); camera.add(sun); sun.target.position.set(0,0,-10); camera.add(sun.target);
+scene.add(new THREE.AmbientLight(0xffffff,0.78));
 /* Cast shadow for the main character. An unseen sun (zero intensity, so it changes no colours) follows the
    player and casts a shadow map onto a small curved patch of shadow-only ground that also follows them.
    The sun sits high and a little to the east/north of wherever the player stands, so the shadow always
@@ -247,11 +247,13 @@ const inkPass=new THREE.ShaderMaterial({uniforms:{tColor:{value:rt.texture},tDep
     float dl=lin(texture2D(tDepth,u-ox).x),dr=lin(texture2D(tDepth,u+ox).x),du=lin(texture2D(tDepth,u-oy).x),dd=lin(texture2D(tDepth,u+oy).x);
     if(d0<far*.9){e=max(e,abs(dl+dr-2.*d0)/max(d0,1.)*22.);e=max(e,abs(du+dd-2.*d0)/max(d0,1.)*22.);}
     for(int i=0;i<4;i++){vec2 o=(i==0?ox:i==1?-ox:i==2?oy:-oy);vec3 n=texture2D(tNormal,u+o).xyz*2.-1.;e=max(e,(1.-dot(n0,n))*2.2);}
-    float line=smoothstep(.3,.85,e);
-    float gap=noise(sp/2.6);line*=mix(.55,1.,step(.18,gap));
+    float line=smoothstep(.28,.8,e);
+    line*=mix(.62,1.,noise(sp/13.)); /* the pen presses harder and lighter along a stroke */
+    float gap=noise(sp/2.6);line*=mix(.75,1.,step(.14,gap));
     vec3 col=texture2D(tColor,vUv).rgb;
-    col+=(noise(sp/1.7)-.5)*.035;
-    col=mix(col,vec3(.14,.19,.22),line*.92);
+    col+=(noise(sp/1.7)-.5)*.022+(noise(sp/57.)-.5)*.03; /* paper tooth and a soft wash of paint */
+    col*=vec3(1.0,.99,.965); /* a whisper of warmth, like paper */
+    col=mix(col,vec3(.17,.14,.13),line*.9);
     float nf=night*(d0<300.?1.:.3);col=mix(col,col*vec3(.20,.26,.46)+vec3(.01,.02,.07),nf); // dusk to night; the sky keeps more of its own picture
     gl_FragColor=vec4(col,1.);}`});
 const quadScene=new THREE.Scene();quadScene.add(new THREE.Mesh(new THREE.PlaneGeometry(2,2),inkPass));const quadCam=new THREE.OrthographicCamera(-1,1,1,-1,0,1);
@@ -272,7 +274,7 @@ let seed=5;const rnd=()=>{seed=(seed*16807)%2147483647;return seed/2147483647;};
 const pick=a=>a[Math.floor(rnd()*a.length)];
 
 /* ---------- toon + ink helpers ---------- */
-const grad=(()=>{const d=new Uint8Array([150,150,150,255,205,205,205,255,255,255,255,255]);const t=new THREE.DataTexture(d,3,1,THREE.RGBAFormat);t.minFilter=t.magFilter=THREE.NearestFilter;t.needsUpdate=true;return t;})();
+const grad=(()=>{const d=new Uint8Array([190,190,190,255,232,232,232,255,255,255,255,255]);const t=new THREE.DataTexture(d,3,1,THREE.RGBAFormat);t.minFilter=t.magFilter=THREE.NearestFilter;t.needsUpdate=true;return t;})();
 const matCache=new Map();
 const toon=(c,extra)=>{if(extra)return new THREE.MeshToonMaterial(Object.assign({color:c,gradientMap:grad},extra));if(!matCache.has(c))matCache.set(c,new THREE.MeshToonMaterial({color:c,gradientMap:grad}));return matCache.get(c);};
 const inkMat=new THREE.MeshBasicMaterial({color:P.ink,side:THREE.BackSide});
@@ -764,7 +766,7 @@ function groundFix(holder,root){holder.updateMatrixWorld(true);let minY=Infinity
 (function loadKid(){const sc=document.createElement('script');sc.src='https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/GLTFLoader.js';
   sc.onload=()=>{new THREE.GLTFLoader().load('assets/kid.glb',g=>{
     const root=g.scene;const bb=new THREE.Box3().setFromObject(root);const hgt=bb.max.y-bb.min.y;const sc_=1.8/hgt;root.scale.setScalar(sc_);root.position.y=-bb.min.y*sc_;
-    root.traverse(m=>{if(m.isMesh){const old=m.material;m.material=new THREE.MeshToonMaterial({map:old.map||null,color:old.map?0xffffff:old.color,gradientMap:grad,skinning:!!m.isSkinnedMesh});m.frustumCulled=false;}});
+    root.traverse(m=>{if(m.isMesh){const old=m.material;if(old.map){old.map.encoding=THREE.LinearEncoding;old.map.needsUpdate=true;}m.material=new THREE.MeshToonMaterial({map:old.map||null,color:old.map?0xffffff:old.color,gradientMap:grad,skinning:!!m.isSkinnedMesh});m.frustumCulled=false;}});
     const holder=new THREE.Group();holder.add(root);root.rotation.y=Math.PI; // model faces +Z; the rig faces -Z
     mixer=new THREE.AnimationMixer(root);
     for(const c of g.animations){const n=c.name.toLowerCase();
@@ -785,7 +787,7 @@ function groundFix(holder,root){holder.updateMatrixWorld(true);let minY=Infinity
     // lifted a little, and posterised so the colours flatten back toward cel shading.
     /* Tripo textures carry baked, blotchy shading that reads as a 3D scan. The material smooths the texture, flattens it to a few
        tones and draws ink where the texture's colours change sharply (window frames, awnings, doors), like a coloured line drawing. */
-    const CARTOON={levels:6,poster:.4,edge0:.45,edge1:.95,ink:.5,sat:1.25,gain:.98,lift:.05};window.__cartoon=CARTOON;
+    const CARTOON={levels:6,poster:.3,edge0:.45,edge1:.95,ink:.45,sat:1.08,gain:1,lift:0};window.__cartoon=CARTOON;
     const flatMat=(map,color,sharp)=>{const m=new THREE.MeshBasicMaterial({map:map||null,color:map?0xffffff:color});
       m.onBeforeCompile=sh=>{const im=map&&map.image;const w=(im&&(im.width||im.naturalWidth))||1024,h=(im&&(im.height||im.naturalHeight))||1024;
         sh.uniforms.uTexel={value:sharp?new THREE.Vector2(0,0):new THREE.Vector2(1/w,1/h)};sh.uniforms.uLevels={value:CARTOON.levels};sh.uniforms.uPoster={value:CARTOON.poster};sh.uniforms.uEdge={value:new THREE.Vector2(CARTOON.edge0,CARTOON.edge1)};sh.uniforms.uInk={value:CARTOON.ink};sh.uniforms.uSat={value:CARTOON.sat};sh.uniforms.uGain={value:CARTOON.gain};sh.uniforms.uLift={value:CARTOON.lift};m.userData.sh=sh;
@@ -796,11 +798,12 @@ function groundFix(holder,root){holder.updateMatrixWorld(true);let minY=Infinity
           vec4 texelColor=mapTexelToLinear(vec4(tsm,1.0));diffuseColor*=texelColor;diffuseColor.rgb=mix(diffuseColor.rgb,vec3(0.13,0.17,0.2),tInk);
           #endif`)
           .replace('#include <dithering_fragment>',`#include <dithering_fragment>
-        vec3 c=gl_FragColor.rgb;c=pow(c,vec3(0.72));c=c*1.18+0.04;
+        vec3 c=gl_FragColor.rgb;
         float l=dot(c,vec3(.299,.587,.114));float lq=floor(l*uLevels+0.5)/uLevels;c=mix(c,c*(lq+0.02)/max(l,0.02),uPoster);c=mix(vec3(l),c,uSat);c=c*uGain+uLift;
         gl_FragColor.rgb=clamp(c,0.0,1.0);`);};m.userData.cartoon=true;return m;};
     window.__setCartoon=o=>{Object.assign(CARTOON,o);scene.traverse(m=>{if(m.isMesh&&m.material&&m.material.userData.cartoon&&m.material.userData.sh){const u=m.material.userData.sh.uniforms;u.uLevels.value=CARTOON.levels;u.uPoster.value=CARTOON.poster;u.uEdge.value.set(CARTOON.edge0,CARTOON.edge1);u.uInk.value=CARTOON.ink;u.uSat.value=CARTOON.sat;u.uGain.value=CARTOON.gain;u.uLift.value=CARTOON.lift;}});sceneDirty=true;};
-    const toonify=(root,sharp)=>root.traverse(m=>{if(m.isMesh){const old=m.material;if(old.map){old.map.anisotropy=8;old.map.minFilter=THREE.LinearMipmapLinearFilter;}m.material=flatMat(old.map,old.color,sharp);m.userData.noInk=true;}});
+    const asDrawn=t=>{if(t){t.encoding=THREE.LinearEncoding;t.anisotropy=8;t.minFilter=THREE.LinearMipmapLinearFilter;t.needsUpdate=true;}return t;}; /* the texture's colours are the drawing: no gamma decode */
+    const toonify=(root,sharp)=>root.traverse(m=>{if(m.isMesh){const old=m.material;asDrawn(old.map);m.material=flatMat(old.map,old.color,sharp);m.userData.noInk=true;}});
     const fit=(root,height)=>{const bb=new THREE.Box3().setFromObject(root);const sc=height/(bb.max.y-bb.min.y);root.scale.setScalar(sc);root.position.y=-bb.min.y*sc;root.position.x=-(bb.min.x+bb.max.x)/2*sc;root.position.z=-(bb.min.z+bb.max.z)/2*sc;};
     // Josh's buildings: slots rotate through the list, so each one appears several times around the planet
     const BUILDINGS=['assets/building1v2.glb?v=2','assets/building3.glb?v=2','assets/building4.glb?v=2','assets/building6.glb?v=2','assets/building5.glb?v=2','assets/building7.glb?v=2','assets/building8.glb?v=2','assets/building9.glb?v=2','assets/building10.glb?v=2','assets/building11.glb?v=2','assets/building12.glb?v=2','assets/building13.glb?v=2','assets/building14.glb?v=2','assets/building15.glb?v=2','assets/building16.glb?v=2','assets/building17.glb?v=3']; // 8–14 are Josh's Tripo builds of the town pack (corner house, townhouse, convenience shop, garage house, cafe, storefront, two-storey)
@@ -849,7 +852,7 @@ function groundFix(holder,root){holder.updateMatrixWorld(true);let minY=Infinity
         const bb=new THREE.Box3().setFromObject(g.scene);const hgt=bb.max.y-bb.min.y;const sc_=1.78/hgt;
         npcs.forEach((n,i)=>{if((NPC_FOR[n.name]??(i%NPC_MODELS.length))!==mi)return;
           const root=THREE.SkeletonUtils.clone(g.scene);root.scale.setScalar(sc_);root.position.y=-bb.min.y*sc_;root.rotation.y=Math.PI;
-          root.traverse(m=>{if(m.isMesh){const old=m.material;const mat=new THREE.MeshBasicMaterial({map:old.map||null,color:old.map?0xffffff:old.color,skinning:!!m.isSkinnedMesh});mat.onBeforeCompile=sh=>{sh.fragmentShader=sh.fragmentShader.replace('#include <dithering_fragment>','#include <dithering_fragment>\n gl_FragColor.rgb=clamp(pow(gl_FragColor.rgb,vec3(0.85))*1.08,0.0,1.0);');};m.material=mat;m.frustumCulled=false;m.userData.noInk=true;}});
+          root.traverse(m=>{if(m.isMesh){const old=m.material;if(old.map){old.map.encoding=THREE.LinearEncoding;old.map.needsUpdate=true;}const mat=new THREE.MeshBasicMaterial({map:old.map||null,color:old.map?0xffffff:old.color,skinning:!!m.isSkinnedMesh});m.material=mat;m.frustumCulled=false;m.userData.noInk=true;}});
           const holder=new THREE.Group();holder.add(root);scene.add(holder);
           const mixer=new THREE.AnimationMixer(root);const act={};for(const k of ['walk','idle','talk','fidget']){if(clips[k]){act[k]=mixer.clipAction(clips[k]);act[k].play();act[k].setEffectiveWeight(k==='idle'?1:0);if(k==='fidget')act[k].setLoop(THREE.LoopOnce,1);}}
           n.model={holder,mixer,act,root,walkSpeed:clips.travel?clips.travel*sc_/clips.walk.duration:1,w:{walk:0,talk:0,fidget:0},fidgetAt:performance.now()/1000+5+Math.random()*10,groundAt:performance.now()+1200};mixers.push(mixer);n.rig.group.visible=false;});
