@@ -960,7 +960,8 @@ orthonormalize();
 window.__tp=(lon,lat,h)=>{up.copy(sphere(lon,lat));const {east,north}=frameAt(lon,lat);fwd.copy(h==='n'?north:h==='s'?north.clone().negate():h==='w'?east.clone().negate():east);orthonormalize();camInit=false;};window.__up=()=>up.clone();window.__resnap=()=>{sitPose=null;};window.__parkPt=(dx,dz)=>lonLatOf(parkPt(dx,dz));window.__xz=()=>parkXZ(up).map(v=>+v.toFixed(2));window.__boards=()=>BOARD?BOARD.boards.map(b=>parkXZ(b.n).map(v=>+v.toFixed(1))):null;window.__npcxz=name=>{const n=npcs.find(x=>x.name===name);return n?parkXZ(sphere(n.lon,n.lat)).map(v=>+v.toFixed(1)):null;};window.__npc=name=>{const n=npcs.find(x=>x.name===name);return n?[n.lon,n.lat]:null;};window.__bone=n=>kidModel.userData.bones[n].quaternion.toArray().map(v=>+v.toFixed(3)); /* debug: jump somewhere facing n/s/e/w; read the player's position */
 const camPos=new THREE.Vector3(), camUp=up.clone(), camLook=new THREE.Vector3(), raycaster=new THREE.Raycaster();
 let camInit=false, nearN=null, shownN=null, talking=null, idleT=0, camYaw=0;
-const isTouch=matchMedia('(hover:none)').matches||location.search.includes('touch'); /* ?touch forces the touch controls for testing */
+/* touch controls only when there is NO hover-capable pointer at all (a PC with a touchscreen still has a mouse) and the primary pointer is coarse; ?touch / ?pc force either way */
+const isTouch=location.search.includes('pc')?false:(location.search.includes('touch')||(!matchMedia('(any-hover:hover)').matches&&matchMedia('(pointer:coarse)').matches));
 const _m=new THREE.Matrix4(),_v=new THREE.Vector3();
 
 const _jd=new THREE.Vector3(),_jr=new THREE.Vector3();
