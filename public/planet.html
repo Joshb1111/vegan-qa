@@ -631,6 +631,7 @@ function townAlong(road,o){o=o||{};const kerb=road.kerb;const end=Math.min(road.
     const bp=_q.copy(end.n).addScaledVector(toSea,-.4/R).addScaledVector(end.side,1.2/R).normalize().clone();const [bl,ba]=lonLatOf(bp);const bn=placeOn(bench(),bl,ba,yawFor(bl,ba,toSea));bn.translateY(-.12);bn.updateMatrixWorld(true); /* sunk a touch so a seated kid's feet reach the sand */
     BENCH={n:bp,face:toSea,lon:bl,lat:ba};PLACES.sunset={road:byName('beach'),s:byName('beach').L-1.5,then:_q.copy(bp).addScaledVector(toSea,-1.6/R).normalize().clone()};
     const s1=_q.copy(bp).addScaledVector(end.side,3.4/R).normalize().clone();const [l1,a1]=lonLatOf(s1);npcSpots.push({lon:l1,lat:a1,face:toSea,fixed:'June'});
+    const sL=_q.copy(bp).addScaledVector(end.side,-3.2/R).normalize().clone();const [lL,aL]=lonLatOf(sL);npcSpots.push({lon:lL,lat:aL,face:toSea,fixed:'Leslie'});
     const s2=_q.copy(end.n).addScaledVector(toSea,-.6/R).addScaledVector(end.side,6/R).normalize().clone();const [l2,a2]=lonLatOf(s2);npcSpots.push({lon:l2,lat:a2,face:toSea,fixed:'Elin'});
     const sg=_q.copy(end.n).addScaledVector(end.side,-3/R).normalize().clone();const [gl,ga]=lonLatOf(sg);placeOn(roundSign(P.blue,'☼'),gl,ga);
   })();
@@ -760,8 +761,8 @@ function cutClip(c,t0,t1){const tracks=[];for(const tr of c.tracks){const n=tr.g
 /* the bone rotations of a clip at time t, keyed by bone name: a clean base pose for sitting and riding */
 function poseFromClip(clip,t){const out={};for(const tr of clip.tracks){const m=tr.name.match(/^(.*)\.quaternion$/);if(!m)continue;const v=tr.createInterpolant().evaluate(t);out[m[1].replace(/^.*[\/|]/,'')]=new THREE.Quaternion(v[0],v[1],v[2],v[3]);}return out;}
 function groundFix(holder,root){holder.updateMatrixWorld(true);let minY=Infinity;
-  root.traverse(m=>{if(!m.isSkinnedMesh)return;const pa=m.geometry.attributes.position;const step=Math.max(1,Math.floor(pa.count/1500));
-    for(let i=0;i<pa.count;i+=step){m.boneTransform(i,_gv);_gv.applyMatrix4(m.matrixWorld);holder.worldToLocal(_gv);if(_gv.y<minY)minY=_gv.y;}});
+  root.traverse(m=>{if(!m.isMesh)return;const pa=m.geometry.attributes.position;const step=Math.max(1,Math.floor(pa.count/1500));
+    for(let i=0;i<pa.count;i+=step){if(m.isSkinnedMesh)m.boneTransform(i,_gv);else _gv.fromBufferAttribute(pa,i);_gv.applyMatrix4(m.matrixWorld);holder.worldToLocal(_gv);if(_gv.y<minY)minY=_gv.y;}});
   if(isFinite(minY)&&Math.abs(minY)<1.5)root.position.y-=minY;}
 (function loadKid(){const sc=document.createElement('script');sc.src='https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/GLTFLoader.js';
   sc.onload=()=>{new THREE.GLTFLoader().load('assets/kid.glb',g=>{
@@ -842,8 +843,8 @@ function groundFix(holder,root){holder.updateMatrixWorld(true);let minY=Infinity
     for(const kind in PROPS){const [file,hgt,cross]=PROPS[kind];loader.load(file,g=>{toonify(g.scene);fit(g.scene,hgt);for(const sl of propSlots){if(sl.kind!==kind)continue;const inst=new THREE.Group();inst.add(g.scene.clone());if(cross){const w=new THREE.Group();w.add(g.scene.clone());w.rotation.y=Math.PI/2;inst.add(w);}if(sl.k)inst.scale.setScalar(sl.k);placeOn(inst,sl.lon,sl.lat,sl.yaw);if(kind.startsWith('rock')){inst.translateY(-(kind==='rock'?.3:.14)*hgt*(sl.k||1));inst.updateMatrixWorld(true);}else if(kind==='tree1'||kind==='tree2'||kind==='bush'||kind==='hedge'||kind.startsWith('grass')||kind==='clover'||kind==='sprout'){inst.translateY(-.06*(sl.k||1));inst.updateMatrixWorld(true);} /* rocks sit into the ground, so they never float on a slope */ if(sl.collide)colliders.push(inst);const SR={treeBig:.5,treeSmall:.4,tree1:.5,tree2:.5,bush:.6,hedge:.9*(sl.k||1),mailbox:.35,rock:.6*(sl.k||1),rock2:.9*(sl.k||1),rock3:.5*(sl.k||1),rock4:.55*(sl.k||1),rock5:.35*(sl.k||1),crate:.5,planter1:.5,planter2:.4,planter3:.5,planter4:.35,planter5:.35,planter6:.5,planter7:.4,planter8:.3,bench2:.6,upole:.22,postbox:.3,vend2:.7,busstop2:.2,cone1:.2,cone2:.2,mirror:.15,sign1:.12,sign2:.12,sign3:.12,bikerack:.6,acunit:.5,gate1:.9,gate2:.9,gate3:.9}[kind];if(SR)solidCircle(inst,SR);}sceneDirty=true;},undefined,e=>console.warn(kind,'not loaded',e));}
     // residents: Josh's four modelled characters, cloned with their skeletons
     const su=document.createElement('script');su.src='https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/utils/SkeletonUtils.js';
-    su.onload=()=>{const NPC_MODELS=['assets/npc1.glb','assets/npc2.glb','assets/npc3.glb','assets/npc4.glb','assets/npc5.glb','assets/npc6.glb?v=2'];
-      const NPC_FOR={Theo:0,Kofi:5,Ravi:0,Sam:4,Mina:1,Elin:1,Ada:2,June:3}; // npc1 = the man in the waistcoat; 2 = girl with the bag; 3 = the mum; 4 = the girl with buns; 5 = the skate park boy (Sam); 6 = Josh's second anime character (Kofi)
+    su.onload=()=>{const NPC_MODELS=['assets/npc1.glb','assets/npc2.glb','assets/npc3.glb','assets/npc4.glb','assets/npc5.glb','assets/npc6.glb?v=2','assets/npc7.glb'];
+      const NPC_FOR={Theo:0,Kofi:5,Ravi:0,Sam:4,Mina:1,Elin:1,Ada:2,June:3,Leslie:6}; // npc1 = the man in the waistcoat; 2 = girl with the bag; 3 = the mum; 4 = the girl with buns; 5 = the skate park boy (Sam); 6 = Josh's second anime character (Kofi)
       NPC_MODELS.forEach((file,mi)=>loader.load(file,g=>{
         const clips={};for(const c of g.animations){const n_=c.name.toLowerCase();let travel=0;
           c.tracks=c.tracks.filter(t=>{if(!t.name.endsWith('.position'))return true;const v=t.values;let mn=[1e9,1e9,1e9],mx=[-1e9,-1e9,-1e9];for(let i=0;i<v.length;i+=3)for(let k=0;k<3;k++){mn[k]=Math.min(mn[k],v[i+k]);mx[k]=Math.max(mx[k],v[i+k]);}const range=Math.max(mx[0]-mn[0],mx[1]-mn[1],mx[2]-mn[2]);if(range>.2)travel=Math.max(travel,range);return !/^(Root|Hip|Hips|Pelvis)\./i.test(t.name)&&range<=.2;});
@@ -852,7 +853,7 @@ function groundFix(holder,root){holder.updateMatrixWorld(true);let minY=Infinity
         const bb=new THREE.Box3().setFromObject(g.scene);const hgt=bb.max.y-bb.min.y;const sc_=1.78/hgt;
         npcs.forEach((n,i)=>{if((NPC_FOR[n.name]??(i%NPC_MODELS.length))!==mi)return;
           const root=THREE.SkeletonUtils.clone(g.scene);root.scale.setScalar(sc_);root.position.y=-bb.min.y*sc_;root.rotation.y=Math.PI;
-          root.traverse(m=>{if(m.isMesh){const old=m.material;if(old.map){old.map.encoding=THREE.LinearEncoding;old.map.needsUpdate=true;}const mat=new THREE.MeshBasicMaterial({map:old.map||null,color:old.map?0xffffff:old.color,skinning:!!m.isSkinnedMesh});m.material=mat;m.frustumCulled=false;m.userData.noInk=true;}});
+          root.traverse(m=>{if(m.isMesh){const old=m.material;if(old.map){old.map.encoding=THREE.LinearEncoding;old.map.needsUpdate=true;}const mat=new THREE.MeshBasicMaterial({map:old.map||null,color:old.map?0xffffff:old.color,skinning:!!m.isSkinnedMesh});if(n.ghost){mat.transparent=true;mat.opacity=.82;}m.material=mat;m.frustumCulled=false;m.userData.noInk=true;}});
           const holder=new THREE.Group();holder.add(root);scene.add(holder);
           const mixer=new THREE.AnimationMixer(root);const act={};for(const k of ['walk','idle','talk','fidget']){if(clips[k]){act[k]=mixer.clipAction(clips[k]);act[k].play();act[k].setEffectiveWeight(k==='idle'?1:0);if(k==='fidget')act[k].setLoop(THREE.LoopOnce,1);}}
           n.model={holder,mixer,act,root,walkSpeed:clips.travel?clips.travel*sc_/clips.walk.duration:1,w:{walk:0,talk:0,fidget:0},fidgetAt:performance.now()/1000+5+Math.random()*10,groundAt:performance.now()+1200};mixers.push(mixer);n.rig.group.visible=false;});
@@ -891,6 +892,7 @@ const PEOPLE=[
   {name:'June',sub:'out for a walk',greet:'Hi there! Ask me anything you like about veganism.','chips':['Why isn’t “humane” flesh the answer?','What about animals in medicine?','Is veganism about the environment?'],pitch:1.2,rate:1.08,voiceWish:'Moira'},
   {name:'Ravi',sub:'by the vending machine',greet:'Hey. Ask me something. I’ll give you a straight answer.',chips:['Why do vegans say animals are “property”?','What’s a single-issue campaign?','Are pets exploitation?'],pitch:.9,rate:1,voiceWish:'Rishi'},
   {name:'Elin',sub:'heading to the bakery',greet:'Hello! I like questions. What have you got?',chips:['What about backyard hens?','Can you be vegan for health?','Why 1951?'],pitch:1.1,rate:1.02,voiceWish:'Fiona'},
+  {name:'Leslie',sub:'the ghost of vegan past, on the beach',greet:'Ah — a visitor. Leslie Cross, or what remains of him. Ask me what you like.',chips:['Why did they change the definition the year you died?','As a founder of veganism, what do you think of the movement today?','What did you mean by veganism?'],pitch:.8,rate:.9,voiceWish:'Daniel',ghost:true},
   {name:'Sam',sub:'waiting for a friend',greet:'Hi. Ask me anything about veganism, seriously.',chips:['What happened to the definition in 1979?','Is veganism about suffering?','Isn’t veganism extreme?'],pitch:.95,rate:.98,voiceWish:'Alex'},
 ];
 const npcs=[];
@@ -903,6 +905,7 @@ const npcs=[];
     const spot=fixed(p.name)||(spots.length?spots.splice(Math.floor(rnd()*spots.length),1)[0]:{lon:rnd()*Math.PI*2,lat:.05});
     const n={...p,id:'p'+i,rig,lon:spot.lon,lat:spot.lat,walker:!!road,road,s:rnd()*(road?road.L:1),lane:(rnd()<.5?1:-1)*1.4,dir:rnd()<.5?1:-1,speed:1.6+rnd()*.6,yaw:spot.face?yawFace(spot.lon,spot.lat,spot.face):rnd()*Math.PI*2,facing:null,session:'planet-'+Math.random().toString(36).slice(2)};
     if(road){const sm=atS(road,n.s);const q=offsetFrom(sm,n.lane);[n.lon,n.lat]=lonLatOf(q);}
+    if(p.name==='Leslie'){const br=ROADS.find(r=>r.name==='beach');n.road=br;n.patrol={s0:br.L-9.5,s1:br.L-2};n.lane=-2.8;n.s=br.L-4;n.strolling=false;n.restT=5+Math.random()*4;n.speed=.9;n.dir=-1;const sm=atS(br,n.s);const q=offsetFrom(sm,n.lane);[n.lon,n.lat]=lonLatOf(q);n.yaw=yawFace(n.lon,n.lat,frameAt(n.lon,n.lat).north.clone().negate());} /* the ghost drifts up and down the last stretch of beach beside the bench, resting between strolls, facing the sea */
     npcs.push(n);
     const b=document.createElement('button');b.type='button';b.dataset.go=n.id;b.innerHTML='<i></i>'+n.name+'<small>'+n.sub+'</small>';$('#stops').appendChild(b);
   });
@@ -1053,8 +1056,11 @@ function update(dt){
       n.yaw=Math.atan2(-toP.dot(r),toP.dot(f));} /* the rig's front after a yaw is f·cos − r·sin, so the sideways term is negated */
     else
     if(n.walker&&!n.paused){n.s+=n.dir*n.speed*dt;const sm=atS(n.road,n.s);const q=offsetFrom(sm,n.lane);[n.lon,n.lat]=lonLatOf(q);n.yaw=yawFace(n.lon,n.lat,sm.t.clone().multiplyScalar(n.dir));sp=n.speed;}
+    if(n.patrol&&!n.paused&&n!==talking){n.restT-=dt;if(n.restT<=0){n.strolling=!n.strolling;n.restT=n.strolling?5+Math.random()*6:6+Math.random()*10;if(n.strolling)n.dir=n.s<(n.patrol.s0+n.patrol.s1)/2?1:-1;}
+      if(n.strolling){n.s+=n.dir*n.speed*dt;if(n.s<=n.patrol.s0||n.s>=n.patrol.s1){n.s=clamp(n.s,n.patrol.s0,n.patrol.s1);n.strolling=false;n.restT=6+Math.random()*8;}const sm=atS(n.road,n.s);const q=offsetFrom(sm,n.lane);[n.lon,n.lat]=lonLatOf(q);n.yaw=yawFace(n.lon,n.lat,sm.t.clone().multiplyScalar(n.dir));sp=n.speed;}
+      else{const ty=yawFace(n.lon,n.lat,frameAt(n.lon,n.lat).north.clone().negate());let d=ty-n.yaw;d=((d+Math.PI)%(2*Math.PI)+2*Math.PI)%(2*Math.PI)-Math.PI;n.yaw+=d*Math.min(1,dt*1.5);}}
     poseOn(n.rig.group,n.lon,n.lat,n.yaw);n.rig.pose(sp,dt,'walk');
-    if(n.model){const md=n.model;md.holder.quaternion.copy(n.rig.group.quaternion);md.holder.position.copy(n.rig.group.position);
+    if(n.model){const md=n.model;md.holder.quaternion.copy(n.rig.group.quaternion);md.holder.position.copy(n.rig.group.position);if(n.ghost)md.holder.position.addScaledVector(_gv.copy(md.holder.position).normalize(),.18+.1*Math.sin(performance.now()/900));
       if(md.groundAt&&performance.now()>md.groundAt){md.groundAt=0;groundFix(md.holder,md.root);}
       const speaking=n===talking&&((voiceAudio&&!voiceAudio.paused)||(canSpeak&&speechSynthesis.speaking)||!sbN.hidden);
       md.w.walk+=((sp>.1?1:0)-md.w.walk)*Math.min(1,dt*6);md.w.talk+=((speaking&&sp<=.1&&md.act.talk&&md.act.talk!==md.act.idle?1:0)-md.w.talk)*Math.min(1,dt*4); /* only if this resident has a talking clip; otherwise the idle keeps driving the bones */
@@ -1341,7 +1347,7 @@ async function ask(text){unlockAudio();
   if(pre&&pre.answer){await new Promise(r=>setTimeout(r,900));say(esc(pre.answer),n,pre.answer,pre.key||'');send.disabled=false;chips.hidden=false;return;}
   const ctrl=new AbortController();const to=setTimeout(()=>ctrl.abort(),58000);
   try{
-    const r=await fetch(API,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({query,mode:'game',sessionId:n.session}),signal:ctrl.signal});
+    const r=await fetch(API,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({query,mode:'game',sessionId:n.session,who:n.name}),signal:ctrl.signal});
     clearTimeout(to);
     if(r.status===429){const j=await r.json().catch(()=>({}));say(esc(j.error||'That’s all the questions the town can take today. Come back tomorrow.'),n);return;}
     if(!r.ok)throw new Error('bad status');
