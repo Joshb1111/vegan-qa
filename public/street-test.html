@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <title>Street test — graphic 3D drawing</title>
 <style>
-html,body{margin:0;height:100%;background:#b6e2d6;overflow:hidden;font-family:system-ui,sans-serif}
+html,body{margin:0;height:100%;background:#8fd9e2;overflow:hidden;font-family:system-ui,sans-serif}
 #c{display:block;width:100%;height:100%}
 #hint{position:fixed;left:14px;top:12px;color:#22333a;font-size:13px;opacity:.7;pointer-events:none}
 </style>
@@ -21,12 +21,12 @@ html,body{margin:0;height:100%;background:#b6e2d6;overflow:hidden;font-family:sy
    shadows, thin dark lines on silhouettes and corners only. No textures, no grain.
    ===================================================================================== */
 const PAL={
-  sky:0xb6e2d6, cloud:0xd2ede5,
-  road:0x6a8494, roadLine:0xe9ece6, kerb:0xb5b3a4, pavement:0xc4c1b1,
-  concrete:0xb9b4a6, concreteLt:0xd0cbbd, beige:0xd6ccb7, beigeLt:0xe6dfcf, offwhite:0xefece2,
-  darkHouse:0x5a5049, slate:0x6f8290, seafoam:0x8fcabb, teal:0x5fa79a, orange:0xe39a3c,
-  rail:0xd9d8cf, metal:0x8f958f, ink:0x2a3a44, glass:0x33414a, plant:0x7a9c6e, pot:0x9c7f75,
-  skin:0xf1d2b6, shirt:0x3f9bd2, shorts:0xb3a06d, hair:0x2b2e34, shoe:0xf1efe6
+  sky:0x8fd9e2, cloud:0xe4f3f1, sea:0x56b9c9, seaFar:0x4aa9bb, mountain:0x6f8a99,
+  road:0x6d7f8c, roadLine:0xe9ece6, kerb:0xb9bcb4, pavement:0xc9ccc3,
+  concrete:0xb9bcb5, concreteLt:0xd3d5cf, beige:0xd9d3c1, beigeLt:0xe9e5d8, offwhite:0xf1f0e8,
+  darkHouse:0x5f5b57, slate:0x66757f, seafoam:0x8fcabb, teal:0x5fa79a, orange:0xe38c3a,
+  rail:0xe2e3dd, metal:0x8f958f, ink:0x2a3a44, glass:0x33414a, plant:0x6e9e5c, pot:0x9c7f75,
+  skin:0xf1d2b6, shirt:0xc0392b, collar:0xf1e9d6, shorts:0x6f6b46, hair:0x1f2226, shoe:0xc0392b, sock:0xf3f1ea
 };
 const canvas=document.getElementById('c');
 const renderer=new THREE.WebGLRenderer({canvas,antialias:false});
@@ -47,7 +47,7 @@ function box(w,h,d,c,x=0,y=0,z=0,ry=0){const m=mesh(new THREE.BoxGeometry(w,h,d)
 function plane(w,h,c,x,y,z,ry=0,rx=0){const m=new THREE.Mesh(new THREE.PlaneGeometry(w,h),unlit(c));m.position.set(x,y,z);m.rotation.set(rx,ry,0);m.userData.noInk=true;return m;}
 function cyl(r,h,c,x,y,z,seg=8){return mesh(new THREE.CylinderGeometry(r,r,h,seg),flat(c),x,y,z);}
 /* ---------- road: narrow, curving, climbing ---------- */
-const path=new THREE.CatmullRomCurve3([V(0,0,22),V(0.5,0.35,9),V(-1.0,1.2,-5),V(-4.0,2.5,-20),V(-8.5,4.1,-36)]);
+const path=new THREE.CatmullRomCurve3([V(0,3.2,22),V(0.5,2.7,9),V(-1.0,1.7,-5),V(-4.0,0.6,-20),V(-8.5,-0.6,-36)]);
 const ROAD_W=4.4,PAV=1.1,KERB=.15;
 const frame=t=>{const P=path.getPointAt(t),T=path.getTangentAt(t);return {P,T,S:V(-T.z,0,T.x).normalize()};};
 function ribbon(a,b,lift,c,N=120,t0=0,t1=1){const g=new THREE.BufferGeometry();const p=[],ind=[];
@@ -61,7 +61,13 @@ for(const o of [-ROAD_W/2,ROAD_W/2]){const g=new THREE.BufferGeometry();const p=
   for(let i=0;i<N;i++){const k=i*2;ind.push(k,k+1,k+2,k+1,k+3,k+2);}
   g.setAttribute('position',new THREE.Float32BufferAttribute(p,3));g.setIndex(ind);g.computeVertexNormals();scene.add(new THREE.Mesh(g,flat(PAL.kerb,true)));}
 for(let i=0;i<9;i++){const {P,T}=frame(.05+i*.105);const m=new THREE.Mesh(new THREE.PlaneGeometry(.28,2.4),unlit(PAL.roadLine));m.position.copy(P).add(V(0,.012,0));m.rotation.set(-Math.PI/2,0,-Math.atan2(T.x,T.z));m.userData.noInk=true;scene.add(m);}
-{const g=new THREE.Mesh(new THREE.PlaneGeometry(160,160),flat(0xa9a89a));g.rotation.x=-Math.PI/2;g.position.y=-.02;g.receiveShadow=true;scene.add(g);}
+{const g=new THREE.Mesh(new THREE.PlaneGeometry(160,160),flat(0xb4b7ae));g.rotation.x=-Math.PI/2;g.position.y=-.02;g.receiveShadow=true;scene.add(g);}
+/* the sea beyond the end of the street, a mountain silhouette, a harbour wall with a lighthouse */
+{const sea=new THREE.Mesh(new THREE.PlaneGeometry(600,300),unlit(PAL.sea));sea.rotation.x=-Math.PI/2;sea.position.set(-40,-1.4,-190);sea.userData.noInk=true;scene.add(sea);
+  const far=new THREE.Mesh(new THREE.PlaneGeometry(600,20),unlit(PAL.seaFar));far.position.set(-40,-1.3,-330);far.userData.noInk=true;scene.add(far);
+  const shape=new THREE.Shape();shape.moveTo(-220,0);shape.lineTo(-150,9);shape.lineTo(-95,4);shape.lineTo(-40,16);shape.lineTo(10,11);shape.lineTo(60,17);shape.lineTo(120,6);shape.lineTo(200,10);shape.lineTo(260,0);shape.lineTo(-220,0);
+  const m=new THREE.Mesh(new THREE.ShapeGeometry(shape),unlit(PAL.mountain));m.position.set(-40,-1.2,-320);m.userData.noInk=true;scene.add(m);
+  const wall=box(60,1.6,2.2,PAL.concreteLt,-70,-.6,-150);wall.castShadow=false;scene.add(wall);const lh=cyl(.7,5,PAL.offwhite,-100,1.7,-150,10);scene.add(lh);scene.add(cyl(.9,.5,PAL.orange,-100,4.4,-150,10));}
 function atRoad(t,o,obj,extraYaw=0){const {P,T,S}=frame(t);obj.position.set(P.x+S.x*o,P.y+(Math.abs(o)>ROAD_W/2?KERB:0),P.z+S.z*o);obj.rotation.y=Math.atan2(T.x,T.z)+extraYaw;scene.add(obj);return obj;}
 const faceRoad=o=>o<0?-Math.PI/2:Math.PI/2; // a group's local +z is its front; turn it to face the road
 /* ---------- continuous walls, with steps in height and an optional railing ---------- */
@@ -133,7 +139,7 @@ atRoad(.15,LW+.75,G.cabinet(1.3,1.7));
 atRoad(.19,LW+.6,G.pot(5));
 atRoad(.36,LW+.62,G.cabinet(1.6,2.0));atRoad(.39,LW+.55,G.crate());
 onWall(.46,LW,1.0,F.meter);onWall(.49,LW,0,F.pipe);
-onWall(.55,LW,1.1,F.signW);
+onWall(.55,LW,1.1,F.signW);onWall(.23,LW,1.3,g=>{g.add(plane(.7,.95,PAL.offwhite,0,0,.03));g.add(plane(.34,.1,PAL.ink,0,.25,.04));g.add(plane(.34,.1,PAL.ink,0,.05,.04));g.add(plane(.3,.08,PAL.ink,.02,-.2,.04));g.add(plane(.1,.2,PAL.ink,.2,-.2,.04));});
 atRoad(.58,LW+.55,G.pot(4));atRoad(.6,LW+.55,G.pot(6));
 onWall(.66,LW,1.3,F.lamp);onWall(.7,LW,1.5,F.vent);
 onWall(.76,LW,0,F.pipe);onWall(.8,LW,1.9,F.ac);
@@ -157,7 +163,7 @@ onWall(.92,LW,2.2,F.signW);
   atRoad(.20,RW+3.1,g,faceRoad(1));}
 atRoad(.12,RW-.55,G.pot(5));atRoad(.14,RW-.45,G.bin());
 atRoad(.30,RW-.5,G.sign());
-atRoad(.33,RW-.6,G.pole(8.6));
+{const p=G.pole(8.6);p.add(box(.1,.1,1.4,PAL.metal,0,7.2,-.7));p.add(mesh(new THREE.CylinderGeometry(.42,.2,.28,12),flat(PAL.slate),0,7.05,-1.4));atRoad(.33,RW-.6,p);}
 onWall(.4,RW,1.1,F.cutout);onWall(.45,RW,.0,F.door);onWall(.5,RW,1.4,F.window);
 atRoad(.47,RW-.6,G.pot(4));
 onWall(.54,RW,0,F.pipe);onWall(.57,RW,1.6,F.ac);
@@ -185,15 +191,16 @@ atRoad(.9,RW-.55,G.planter());atRoad(.94,RW-.9,G.bollard());
 for(const [x,y,z,s] of [[-26,24,-70,12],[8,29,-84,17],[38,22,-58,9]]){const c=new THREE.Mesh(new THREE.CircleGeometry(s,24),unlit(PAL.cloud));c.position.set(x,y,z);c.scale.y=.4;c.userData.noInk=true;scene.add(c);}
 /* ---------- the kid: still primitives, but proportioned like a child ---------- */
 const kid=new THREE.Group();
-{kid.add(mesh(new THREE.CylinderGeometry(.21,.24,.5,14),flat(PAL.shirt),0,.98,0));
-  kid.add(mesh(new THREE.CylinderGeometry(.25,.23,.3,14),flat(PAL.shorts),0,.6,0));
-  kid.add(box(.34,.4,.15,PAL.orange,0,1.0,-.27));
+{kid.add(mesh(new THREE.CylinderGeometry(.23,.26,.56,14),flat(PAL.shirt),0,.98,0));
+  kid.add(mesh(new THREE.CylinderGeometry(.25,.24,.06,14),flat(PAL.collar),0,1.26,0));
+  kid.add(mesh(new THREE.CylinderGeometry(.25,.24,.34,14),flat(PAL.shorts),0,.6,0));
+  const strap=box(.08,.7,.05,PAL.ink,0,1.0,.24);strap.rotation.z=.7;kid.add(strap);kid.add(box(.26,.3,.14,PAL.ink,.1,.95,-.28));
   kid.add(cyl(.07,.16,PAL.skin,0,1.3,0,8));
   kid.add(mesh(new THREE.SphereGeometry(.3,18,14),flat(PAL.skin),0,1.6,0));
   const hair=mesh(new THREE.SphereGeometry(.33,18,14),flat(PAL.hair),0,1.68,-.04);hair.scale.set(1,.85,1);kid.add(hair);
   kid.add(box(.5,.14,.2,PAL.hair,0,1.5,.2));
-  kid.add(cyl(.06,.42,PAL.skin,-.29,.95,0,8));kid.add(cyl(.06,.42,PAL.skin,.29,.95,0,8));
-  kid.userData.legs=[];for(const x of [-.12,.12]){const leg=new THREE.Group();leg.position.set(x,.46,0);leg.add(cyl(.075,.36,PAL.skin,0,-.18,0,8));leg.add(box(.17,.1,.28,PAL.shoe,0,-.4,.04));kid.add(leg);kid.userData.legs.push(leg);}}
+  kid.add(cyl(.065,.3,PAL.shirt,-.3,1.06,0,8));kid.add(cyl(.065,.3,PAL.shirt,.3,1.06,0,8));kid.add(cyl(.055,.2,PAL.skin,-.3,.82,0,8));kid.add(cyl(.055,.2,PAL.skin,.3,.82,0,8));
+  kid.userData.legs=[];for(const x of [-.12,.12]){const leg=new THREE.Group();leg.position.set(x,.46,0);leg.add(cyl(.075,.3,PAL.skin,0,-.15,0,8));leg.add(cyl(.08,.08,PAL.sock,0,-.33,0,8));leg.add(box(.17,.1,.28,PAL.shoe,0,-.41,.04));kid.add(leg);kid.userData.legs.push(leg);}}
 kid.scale.setScalar(.9);scene.add(kid);
 /* ---------- ink pass ---------- */
 const rt=new THREE.WebGLRenderTarget(2,2,{minFilter:THREE.LinearFilter,magFilter:THREE.LinearFilter});rt.depthTexture=new THREE.DepthTexture();rt.depthTexture.type=THREE.UnsignedIntType;
