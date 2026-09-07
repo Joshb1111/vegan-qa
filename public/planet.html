@@ -333,7 +333,11 @@ function inPark(n){const [dx,dz]=parkXZ(n);return Math.abs(dx)<PARK_EXT.hx&&Math
 let groundMesh=null;
 fetch('assets/skatepark-h.json?v=4').then(r=>r.json()).then(j=>{HM=j;HM.S=PLAZA.r*2*.96;HM.hk=1.5; /* the model is scaled to the plaza across, and 1.5x in height */if(groundMesh){const pa=groundMesh.geometry.attributes.position;for(let i=0;i<pa.count;i++){_q.set(pa.getX(i),pa.getY(i),pa.getZ(i)).normalize();const h=hAt(_q);pa.setXYZ(i,_q.x*h,_q.y*h,_q.z*h);}pa.needsUpdate=true;groundMesh.geometry.computeVertexNormals();}}).catch(e=>console.warn('park height map not loaded',e));
 function smooth(a,b,x){const t=clamp((x-a)/(b-a),0,1);return t*t*(3-2*t);}
-function terrainBase(n){const lat=Math.asin(clamp(n.y,-1,1));let h=-3.2*smooth(-.2,-.46,lat);
+/* rolling ground: three overlapping swells give the town ups and downs; flat on the shore and around the skate park */
+function hills(n){const lat=Math.asin(clamp(n.y,-1,1)),lon=Math.atan2(n.z,n.x);
+  let h=.8*Math.sin(2*lon+.8)*Math.sin(3.1*lat+.4)+.6*Math.sin(4*lon+2.3)*Math.cos(5*lat-.6)+.45*Math.sin(7*lon-1.1)*Math.sin(2*lat+2);
+  h*=smooth(-.3,-.12,lat);const o=parkOut(n);if(o<14)h*=smooth(3,14,o);return h;}
+function terrainBase(n){const lat=Math.asin(clamp(n.y,-1,1));let h=-3.2*smooth(-.2,-.46,lat)+hills(n);
   {const o=parkOut(n);if(o<PARK_SINK.w)h-=PARK_SINK.d*(1-smooth(0,PARK_SINK.w,o));} /* the skate park's pit, flat across the whole park, banked at the rim */
   return h;}
 /* the ground mesh: the base terrain, dipped under the park's bowl and tucked just under its floor */
@@ -398,11 +402,14 @@ const colliders=[];let skyDome=null,nightDome=null,SUNSET=null;const PLACES={};
   const loopPts=(f,n)=>Array.from({length:n},(_,i)=>{const lon=i/n*Math.PI*2;return [lon,f(lon)];});
   const MAIN=addRoad('main',loopPts(mainLat,24),true,4.8,'road',.06);
   const RING=addRoad('ring',loopPts(ringLat,20),true,3.6,'road',.06);
-  [[0.85,0.95,.06],[2.55,2.45,-.05],[4.35,4.5,.05]].forEach(([a,b,k],i)=>addRoad('side'+i,[[a,mainLat(a)],[(a+b)/2+k,(mainLat(a)+ringLat(b))/2],[b,ringLat(b)]],false,3.6,'road',.07));
+  const upperLat=lon=>1.0+.04*Math.sin(3*lon+.6)+.3*smooth(1.75,1.2,Math.abs(lon-PLAZA.lon)); // a third, tighter street up the hill, bowing over the park
+  const UPPER=addRoad('upper',loopPts(upperLat,20),true,3.0,'road',.06);
+  [0.1,2.15,5.85].forEach((a,i)=>{const r=addRoad('link'+i,[[a,ringLat(a)],[a+.03,(ringLat(a)+upperLat(a))/2],[a+.06,upperLat(a+.06)]],false,3.0,'road',.07);r.host0=RING;r.host1=UPPER;});
+  [[0.85,0.95,.06],[2.55,2.45,-.05],[4.35,4.5,.05],[1.3,1.32,.02],[5.85,5.85,-.03],[0.1,0.1,.03]].forEach(([a,b,k],i)=>addRoad('side'+i,[[a,mainLat(a)],[(a+b)/2+k,(mainLat(a)+ringLat(b))/2],[b,ringLat(b)]],false,3.6,'road',.07));
   [[1.75,1.85],[5.2,5.12]].forEach(([a,b],i)=>addRoad('alley'+i,[[a,mainLat(a)],[a+.02,mainLat(a)+.13],[b-.03,mainLat(a)+.3],[b,ringLat(b)]],false,1.5,'alley',.08));
   addRoad('skate',[[3.5,mainLat(3.5)],[PLAZA.lon,PLAZA.lat-(PLAZA.hz+.5)/R]],false,3.2,'road',.07);
   addRoad('beach',[[1.3,mainLat(1.3)],[1.36,-.12],[1.26,-.23],[1.32,-.325]],false,2.2,'path',.03);
-  window.__roads={MAIN,RING,mainLat,ringLat};
+  window.__roads={MAIN,RING,UPPER,mainLat,ringLat,upperLat};
   ZONES.push({n:sphere(1.32,-.36),r:9});
   /* ground texture: grass, a sandy shore, foam at the waterline, the concrete plaza */
   const cv=document.createElement('canvas');cv.width=2048;cv.height=1024;const g=cv.getContext('2d');
@@ -436,7 +443,7 @@ const colliders=[];let skyDome=null,nightDome=null,SUNSET=null;const PLACES={};
   const pavementMat=toon(0xc9ccc3,{side:THREE.DoubleSide,polygonOffset:true,polygonOffsetFactor:-1,polygonOffsetUnits:-1});
   /* open roads stop at the kerb line of the road they join, so their painted verges never cross its asphalt; the
      mouth of each junction is then covered by a plain asphalt patch (below) */
-  const MAINR=ROADS[0],RINGR=ROADS[1];for(const road of ROADS){if(road.closed)continue;road.trim0=road.kind==='path'?MAINR.halfW+.1:MAINR.kerb+.1;road.trim1=/^(side|alley)/.test(road.name)?RINGR.kerb+.1:(road.kind==='path'?2.6:0);}
+  const MAINR=ROADS[0],RINGR=ROADS[1];for(const road of ROADS){if(road.closed)continue;road.trim0=road.host0?road.host0.kerb+.1:(road.kind==='path'?MAINR.halfW+.1:MAINR.kerb+.1);road.trim1=road.host1?road.host1.kerb+.1:(/^(side|alley)/.test(road.name)?RINGR.kerb+.1:(road.kind==='path'?2.6:0));}
   for(const road of ROADS){const S=road.samples,M=6,hw=road.halfW,N=S.length;const texLen=road.closed?road.L/Math.round(road.L/19.6):19.6;const pos=[],uv=[],idx=[];
     const rowList=road.closed?[...S,null]:S.filter(sm=>sm.s>=road.trim0&&sm.s<=road.L-road.trim1);const rows=rowList.length;
     for(let i=0;i<rows;i++){const sm=rowList[i]||S[0];const s_=road.closed&&i===rows-1?road.L:sm.s;
@@ -452,7 +459,7 @@ const colliders=[];let skyDome=null,nightDome=null,SUNSET=null;const PLACES={};
         const pm=new THREE.Mesh(pg,pavementMat);pm.userData.noInk=true;scene.add(pm);}}}
   /* junction mouths: a strip of plain asphalt from the host road's kerb line out past its verge, as wide as the side road's asphalt */
   const matFor=r=>r.kind==='road'?roadMat:r.kind==='alley'?alleyMat:pathMat;
-  function mouth(r,atEnd){const host=atEnd?RINGR:MAINR;const sm=atS(r,atEnd?r.L:0);const dir=sm.t.clone().multiplyScalar(atEnd?-1:1);const a0=host.halfW*.56,a1=r.trim0+.3,w=r.halfW*.64,rows=6;const pos=[],uv=[],idx=[];
+  function mouth(r,atEnd){const host=atEnd?(r.host1||RINGR):(r.host0||MAINR);const sm=atS(r,atEnd?r.L:0);const dir=sm.t.clone().multiplyScalar(atEnd?-1:1);const a0=host.halfW*.56,a1=(atEnd?r.trim1:r.trim0)+.3,w=r.halfW*.64,rows=6;const pos=[],uv=[],idx=[];
     for(let i=0;i<=rows;i++){const a=a0+(a1-a0)*i/rows;for(let j=0;j<=1;j++){const o=w*(1-2*j);const pt=_q.copy(sm.n).addScaledVector(dir,a/R).addScaledVector(sm.side,o/R).normalize();const h=hAt(pt)+host.lift;pos.push(pt.x*h,pt.y*h,pt.z*h);uv.push(a/19.6,.30+.14*(1-j));}} /* a plain lane of asphalt from the road picture, no dashes */
     for(let i=0;i<rows;i++){const a=i*2,b=a+1,c=a+2,d=a+3;idx.push(a,b,c,b,d,c);}
     const g2=new THREE.BufferGeometry();g2.setAttribute('position',new THREE.Float32BufferAttribute(pos,3));g2.setAttribute('uv',new THREE.Float32BufferAttribute(uv,2));g2.setIndex(idx);g2.computeVertexNormals();
@@ -613,7 +620,9 @@ function townAlong(road,o){o=o||{};const kerb=road.kerb;const end=Math.min(road.
   const byName=n=>ROADS.find(r=>r.name===n);
   townAlong(byName('main'),{modelT:.08});
   townAlong(byName('ring'),{wMin:6,wVar:5,dMin:4,modelP:1,modelT:.08});
-  for(let i=0;i<3;i++)townAlong(byName('side'+i),{wMin:5.5,wVar:4,startS:5,modelP:1,modelT:.1});
+  for(let i=0;i<6;i++)townAlong(byName('side'+i),{wMin:5.5,wVar:4,startS:5,modelP:1,modelT:.1});
+  townAlong(byName('upper'),{wMin:5.5,wVar:4,dMin:4,modelP:1,modelT:.1});
+  for(let i=0;i<3;i++)townAlong(byName('link'+i),{wMin:5.5,wVar:4,startS:4.5,endS:byName('link'+i).L-4.5,modelP:1,modelT:.1});
   for(let i=0;i<2;i++)townAlong(byName('alley'+i),{alley:true,wMin:4,wVar:3,dMin:3.5,startS:5});
   townAlong(byName('skate'),{wMin:5,wVar:3,startS:5,endS:0,modelP:0}); /* the park street runs down the bank: no plots on it */
   townAlong(byName('beach'),{wMin:5,wVar:3,startS:5,endS:9,modelP:0});
@@ -628,8 +637,14 @@ function townAlong(road,o){o=o||{};const kerb=road.kerb;const end=Math.min(road.
   for(let i=0;i<40;i++){const lon=rnd()*Math.PI*2,lat=-.22-rnd()*.09;const v=sphere(lon,lat);if(blocked(v,2.5))continue;propSlots.push({kind:treeKind(rnd()<.4),lon,lat,yaw:rnd()*Math.PI*2,k:.8+rnd()*.5,collide:true});if(propSlots.length>400)break;}
   for(let i=0;i<14;i++){const lon=rnd()*Math.PI*2,lat=-.30-rnd()*.06;if(blocked(sphere(lon,lat),1.5))continue;propSlots.push({kind:rockKind(),lon,lat,yaw:rnd()*Math.PI,k:.7+rnd()*.9});}
   // grass tufts along the street verges, and bushes/grass among the hillside trees
-  for(const r of ROADS){if(r.kind!=='road')continue;for(let s_=1.5;s_<r.L-1.5;s_+=3.5+rnd()*4){if(rnd()<.45)continue;const side=rnd()<.5?1:-1;const p=offsetFrom(atS(r,s_),side*(r.kerb+.5+rnd()*1.3));if(blocked(p,.6,r))continue;const [gl,ga]=lonLatOf(p);propSlots.push({kind:grassKind(),lon:gl,lat:ga,yaw:rnd()*Math.PI*2,k:.7+rnd()*.5});}}
+  for(const r of ROADS){if(r.kind!=='road')continue;for(let s_=1.5;s_<r.L-1.5;s_+=3.5+rnd()*4){if(rnd()<.45)continue;const side=rnd()<.5?1:-1;const p=offsetFrom(atS(r,s_),side*(r.kerb+.5+rnd()*1.3));if(blocked(p,.6,r))continue;const [gl,ga]=lonLatOf(p);if(rnd()<.14){propSlots.push({kind:'upole',lon:gl,lat:ga,yaw:yawFor(gl,ga,atS(r,s_).side),collide:true});continue;}propSlots.push({kind:grassKind(),lon:gl,lat:ga,yaw:rnd()*Math.PI*2,k:.7+rnd()*.5});}}
   for(let i=0;i<30;i++){const lon=rnd()*Math.PI*2,lat=rnd()<.5?.8+rnd()*.25:-.2-rnd()*.1;const v=sphere(lon,lat);if(blocked(v,1.5))continue;propSlots.push({kind:rnd()<.35?'bush':grassKind(),lon,lat,yaw:rnd()*Math.PI*2,k:.8+rnd()*.6});}
+  // fill the open ground: copses, bushes and rocks wherever nothing else stands, so no field is left empty
+  (function fill(){const _p=new THREE.Vector3();const taken=v=>{_p.copy(v).multiplyScalar(R);for(const so of solids){const r=(so.r||Math.max(so.hx,so.hz))+2.4;if(_p.distanceToSquared(so.c)<r*r)return true;}
+      for(const sl of modelSlots){if(Math.acos(clamp(v.dot(sphere(sl.lon,sl.lat)),-1,1))*R<8)return true;}
+      for(const sl of propSlots){if(!/^tree|Big|Small/.test(sl.kind))continue;if(Math.acos(clamp(v.dot(sphere(sl.lon,sl.lat)),-1,1))*R<3)return true;}return false;};
+    let n=0;for(let i=0;i<1600&&n<210;i++){const lon=rnd()*Math.PI*2,lat=-.26+rnd()*1.72;const v=sphere(lon,lat);if(blocked(v,2.2)||taken(v))continue;const t=rnd();
+      propSlots.push(t<.42?{kind:treeKind(rnd()<.5),lon,lat,yaw:rnd()*Math.PI*2,k:.8+rnd()*.5,collide:true}:t<.72?{kind:'bush',lon,lat,yaw:rnd()*Math.PI*2,k:.8+rnd()*.6}:t<.86?{kind:rockKind(),lon,lat,yaw:rnd()*Math.PI,k:.7+rnd()*.8}:{kind:grassKind(),lon,lat,yaw:rnd()*Math.PI*2,k:.8+rnd()*.6});n++;}})();
   /* the beach: the path ends at a bench looking out to sea, with the sunset ahead */
   (function beach(){const end=atS(byName('beach'),byName('beach').L-.5);const {north}=frameAt(end.lon,end.lat);const toSea=north.clone().negate();
     const bp=_q.copy(end.n).addScaledVector(toSea,-.4/R).addScaledVector(end.side,1.2/R).normalize().clone();const [bl,ba]=lonLatOf(bp);const bn=placeOn(bench(),bl,ba,yawFor(bl,ba,toSea));bn.translateY(-.12);bn.updateMatrixWorld(true); /* sunk a touch so a seated kid's feet reach the sand */
@@ -975,7 +990,7 @@ function introCam(dt){if(isNaN(introTh))introTh=Math.atan2(up.x,up.z);introT+=dt
   const lat=.36+.05*Math.sin(t*.7),D=66/(Math.tan(camera.fov*Math.PI/360)*Math.min(1,camera.aspect)*.62);
   camPos.set(D*Math.cos(lat)*Math.sin(introTh),D*Math.sin(lat),D*Math.cos(lat)*Math.cos(introTh));camUp.set(0,1,0);camLook.set(0,7+.6*Math.sin(t*1.7),0);
   const sq=.028*Math.sin(t*2.6);scene.scale.set(1+sq,1-sq*1.5,1+sq); /* squash and stretch */
-  skyCol=introBg;if(skyDome)skyDome.visible=false;}
+  skyCol=introBg;if(skyDome)skyDome.visible=false;if(SUNSET)for(const m of SUNSET.parts)m.visible=false;}
 /* touch controls only when there is NO hover-capable pointer at all (a PC with a touchscreen still has a mouse) and the primary pointer is coarse; ?touch / ?pc force either way */
 let isTouch=location.search.includes('pc')?false:(location.search.includes('touch')||(!matchMedia('(any-hover:hover)').matches&&matchMedia('(pointer:coarse)').matches));
 try{const pref=localStorage.getItem('planet-controls');if(pref==='pc')isTouch=false;else if(pref==='touch')isTouch=true;}catch(_){} /* a remembered choice beats the guess */
@@ -1209,7 +1224,7 @@ $('#musicbtn').addEventListener('click',e=>{e.stopPropagation();musicOn=!musicOn
 musicUI();
 setInterval(()=>{if(actx&&actx.state==='suspended'&&titleGone)actx.resume().catch(()=>{});const want=musicOn?(talking?MUSIC_VOL*.35:musicTarget):0;musicVol+=(want-musicVol)*.15;setVol(music,musicVol);if(musicVol<.005&&!musicOn)music.pause();
   const sw=musicOn?stepsTarget:0;stepsVol+=(sw-stepsVol)*.4;setVol(steps,stepsVol);if(sw>.01&&steps.paused)steps.play().catch(()=>{});if(sw<=.01&&stepsVol<.01&&!steps.paused)steps.pause();},100);
-function dismissTitle(){if(titleGone)return;titleGone=true;intro=false;introFly=3;skyCol=dayBg;scene.scale.set(1,1,1);if(skyDome)skyDome.visible=true;document.body.classList.remove('intro');$('#title').classList.add('gone');game.focus();unlockAudio();startMusic();startSteps();}
+function dismissTitle(){if(titleGone)return;titleGone=true;intro=false;introFly=3;skyCol=dayBg;scene.scale.set(1,1,1);if(skyDome)skyDome.visible=true;if(SUNSET)for(const m of SUNSET.parts)m.visible=true;document.body.classList.remove('intro');$('#title').classList.add('gone');game.focus();unlockAudio();startMusic();startSteps();}
 $('#enter').addEventListener('click',e=>{e.stopPropagation();dismissTitle();});
 window.addEventListener('keydown',e=>{if(intro&&!e.repeat&&(e.key==='Enter'||e.key===' ')){e.preventDefault();dismissTitle();}});
 for(let i=0;i<11;i++){const b=document.createElement('i');b.className='bub';const sz=6+Math.random()*16;b.style.cssText=`left:${Math.random()*100}%;width:${sz}px;height:${sz}px;animation-duration:${9+Math.random()*9}s;animation-delay:-${Math.random()*14}s`;$('#title').appendChild(b);}
