@@ -437,11 +437,11 @@ const colliders=[];let skyDome=null,nightDome=null,SUNSET=null;const PLACES={};
     sh.fragmentShader='varying vec3 vWn;uniform vec3 uPC,uPE,uPN;uniform vec2 uPH;\n'+sh.fragmentShader.replace('#include <clipping_planes_fragment>','#include <clipping_planes_fragment>\n {float k=dot(vWn,uPC);if(k>0.5){float dx=50.0*dot(vWn,uPE)/k,dz=50.0*dot(vWn,uPN)/k;if(abs(dx)<uPH.x&&abs(dz)<uPH.y)discard;}}');};
   const water=new THREE.Mesh(new THREE.SphereGeometry(R+SEA_LEVEL,160,100),waterMat);scene.add(water);window.__water=waterMat;
   /* road ribbons: Josh's drawn road for streets, plain dark asphalt for alleys, sand for the beach path */
-  const roadTex=(()=>{const c=document.createElement('canvas');c.width=512;c.height=128;const g=c.getContext('2d');g.fillStyle='#7f9294';g.fillRect(0,0,512,128);
-    g.fillStyle='rgba(38,51,58,.07)';for(let i=0;i<90;i++){g.beginPath();g.ellipse(rnd()*512,rnd()*128,6+rnd()*22,3+rnd()*9,0,0,Math.PI*2);g.fill();}
-    g.fillStyle='rgba(255,255,255,.06)';for(let i=0;i<60;i++){g.beginPath();g.ellipse(rnd()*512,rnd()*128,6+rnd()*22,3+rnd()*9,0,0,Math.PI*2);g.fill();}
-    g.fillStyle='#b9c2bd';g.fillRect(0,0,512,7);g.fillRect(0,121,512,7);g.fillStyle='#4f5f64';g.fillRect(0,7,512,1.5);g.fillRect(0,119.5,512,1.5); /* kerb stones with a thin dark gutter line */
-    const t=new THREE.CanvasTexture(c);t.wrapS=THREE.RepeatWrapping;t.anisotropy=8;return t;})();
+  const roadTex=(()=>{ /* Josh's drawn road with its centre dashes and edge lines painted out: clean asphalt from the picture itself is copied over them */
+    const c=document.createElement('canvas');c.width=2048;c.height=1024;const g=c.getContext('2d');g.fillStyle='#7b9597';g.fillRect(0,0,2048,1024);
+    const t=new THREE.CanvasTexture(c);t.wrapS=THREE.RepeatWrapping;t.anisotropy=8;
+    const img=new Image();img.onload=()=>{g.drawImage(img,0,0,2048,1024);const patch=(y0,y1,sy)=>{for(let x=0;x<2048;x+=256)g.drawImage(c,x,sy,256,y1-y0,x,y0,256,y1-y0);};
+      patch(478,548,560); /* the centre dashes */ patch(140,195,215); patch(838,893,585); /* the solid edge lines */ t.needsUpdate=true;};img.src='assets/road.jpg';return t;})();
   const roadMat=new THREE.MeshBasicMaterial({map:roadTex,side:THREE.DoubleSide,polygonOffset:true,polygonOffsetFactor:-2,polygonOffsetUnits:-2});
   const mouthMat=new THREE.MeshBasicMaterial({map:roadTex,side:THREE.DoubleSide,polygonOffset:true,polygonOffsetFactor:-6,polygonOffsetUnits:-6});
   const alleyMat=toon(0x7d8b8d,{side:THREE.DoubleSide,polygonOffset:true,polygonOffsetFactor:-2,polygonOffsetUnits:-2});
@@ -476,7 +476,7 @@ const colliders=[];let skyDome=null,nightDome=null,SUNSET=null;const PLACES={};
   function zebra(road,s_){const sm=atS(road,s_);const hw=road.halfW*.9,bw=.5,SEG=4;for(let o=-hw+bw/2;o<=hw-bw/2+.01;o+=bw*2){const k0=zpos.length/3;
       for(let i=0;i<=SEG;i++){const a=-1.1+2.2*i/SEG;for(const b of [o-bw/2,o+bw/2]){const pt=_q.copy(sm.n).addScaledVector(sm.t,a/R).addScaledVector(sm.side,b/R).normalize();const h=hAt(pt)+road.lift+.006;zpos.push(pt.x*h,pt.y*h,pt.z*h);znrm.push(pt.x,pt.y,pt.z);}}
       for(let i=0;i<SEG;i++){const k=k0+i*2;zidx.push(k,k+1,k+2,k+1,k+3,k+2);}}} /* each bar is a short strip of quads so it follows the hills without creasing */
-  for(const r of ROADS){if(r.kind!=='road')continue;if(r.closed){for(let s_=9+rnd()*10;s_<r.L-8;s_+=34+rnd()*18)zebra(r,s_);}else{zebra(r,r.trim0+2.4);if(r.trim1>0)zebra(r,r.L-r.trim1-2.4);}}
+  for(const r of ROADS){if(r.kind!=='road')continue;if(r.closed){for(let s_=12+rnd()*20;s_<r.L-8;s_+=60+rnd()*30)zebra(r,s_);}else if(/^side/.test(r.name))zebra(r,r.trim0+2.4);}
   {const zg=new THREE.BufferGeometry();zg.setAttribute('position',new THREE.Float32BufferAttribute(zpos,3));zg.setAttribute('normal',new THREE.Float32BufferAttribute(znrm,3));zg.setIndex(zidx); /* sphere normals, so the ink pass sees no crease along each bar's diagonal */const zm=new THREE.Mesh(zg,zebraMat);zm.userData.noInk=true;scene.add(zm);}
   /* the sunset: a low sun over the sea, seen from the beach looking out across the water */
   (function sunset(){const B=sphere(1.3,-.40);const {north}=frameAt(1.3,-.40);const D=north.clone().negate().addScaledVector(B,.11).normalize();
