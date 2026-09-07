@@ -183,6 +183,7 @@ body.touch .tpad{margin-left:auto}
   </div>
 </div>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/DRACOLoader.js"></script>
 <script>
 (() => {
 'use strict';
@@ -571,13 +572,13 @@ function townAlong(road,o){o=o||{};const kerb=road.kerb;const end=Math.min(road.
     while(s<end-3){const w=(o.wMin||6)+rnd()*(o.wVar||5),d=(o.dMin||4.5)+rnd()*2.5;const step=w+1.5+rnd()*2.5;if(s+step>end)break;
       const sm=atS(road,s+step/2);const t=rnd();let b=null,isModel=false;
       if(o.alley){b=rnd()<.5?house(w,d):block(w,d);}
-      else{const mt=o.modelT??.42;if(t<mt*.45)b=house(w,d);else if(t<mt*.8)b=block(w,d);else if(t<mt)b=shop(w,d);else if(t<mt+.06)b=greenHouse(w,d);else if(t<.95&&w>=7.5){if(rnd()<(o.modelP??1))isModel=true;else b=shop(w,d);}}
+      else{const mt=o.modelT??.42;if(t<mt*.45)b=house(w,d);else if(t<mt*.8)b=block(w,d);else if(t<mt)b=shop(w,d);else if(t<mt+.06)b=greenHouse(w,d);else if(t<.95&&w>=5.8){if(rnd()<(o.modelP??1))isModel=true;else b=shop(w,d);}}
       const setback=o.alley?.4:(rnd()<.2?1.6:0);
       const off=side*(isModel?kerb+1.4+2.7+(rnd()<.2?1.6:0):kerb+(o.alley?1:1.5)+d/2+setback);
       const c=offsetFrom(sm,off);const [lon,lat]=lonLatOf(c);const face=sm.side.clone().multiplyScalar(-side);const yaw=yawFor(lon,lat,face);
       if(blocked(c,(isModel?9:w)/2+1,road)){s+=step;continue;}
       const at_=(dist,along)=>{const p=offsetFrom(along===undefined?sm:atS(road,along),side*dist);return [p,...lonLatOf(p)];};
-      if(isModel){modelSlots.push({lon,lat,yaw});}
+      if(isModel){modelSlots.push({lon,lat,yaw,w});}
       else if(b){placeOnGround(b,lon,lat,yaw);colliders.push(b);
         if(!o.alley&&rnd()<.3){const [ap,al,aa]=at_(kerb+2.2+setback-.35,s+step/2+(w/2-1.1)*(rnd()<.5?1:-1));if(!blocked(ap,.5,road))propSlots.push({kind:'acunit',lon:al,lat:aa,yaw});}
         if(setback>1){const [,wl,wa]=at_(kerb+2.4);placeOnGround(lowWall(w-1,.9),wl,wa,yaw);}
@@ -613,9 +614,9 @@ function townAlong(road,o){o=o||{};const kerb=road.kerb;const end=Math.min(road.
       s+=step;}}}
 (function buildTown(){
   const byName=n=>ROADS.find(r=>r.name===n);
-  townAlong(byName('main'),{modelT:.3});
-  townAlong(byName('ring'),{wMin:6,wVar:5,dMin:4,modelP:.8,modelT:.4});
-  for(let i=0;i<3;i++)townAlong(byName('side'+i),{wMin:5,wVar:4,startS:5,modelP:.6,modelT:.5});
+  townAlong(byName('main'),{modelT:.08});
+  townAlong(byName('ring'),{wMin:6,wVar:5,dMin:4,modelP:1,modelT:.08});
+  for(let i=0;i<3;i++)townAlong(byName('side'+i),{wMin:5.5,wVar:4,startS:5,modelP:1,modelT:.1});
   for(let i=0;i<2;i++)townAlong(byName('alley'+i),{alley:true,wMin:4,wVar:3,dMin:3.5,startS:5});
   townAlong(byName('skate'),{wMin:5,wVar:3,startS:5,endS:0,modelP:0}); /* the park street runs down the bank: no plots on it */
   townAlong(byName('beach'),{wMin:5,wVar:3,startS:5,endS:9,modelP:0});
@@ -789,7 +790,7 @@ function groundFix(holder,root){holder.updateMatrixWorld(true);let minY=Infinity
     if(!clips.idle&&clips.walk){clips.idle=clips.walk;}
     root.traverse(m=>{if(m.isMesh)m.castShadow=true;});player.group.visible=false;scene.add(holder);kidModel=holder;kidModel.userData.root=root;kidModel.userData.bones={};root.traverse(o=>{if(o.isBone)kidModel.userData.bones[o.name]=o;});kidModel.userData.groundAt=performance.now()+1200;sceneDirty=true;},undefined,e=>console.warn('character not loaded',e));
     // modelled buildings and props from Josh's asset folder
-    const loader=new THREE.GLTFLoader();
+    const loader=new THREE.GLTFLoader();if(THREE.DRACOLoader){const draco=new THREE.DRACOLoader();draco.setDecoderPath('https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/libs/draco/');loader.setDRACOLoader(draco);} /* newer buildings are Draco-compressed (5x smaller) */
     // Modelled assets arrive with light and shadow baked into their textures, so they are drawn unlit,
     // lifted a little, and posterised so the colours flatten back toward cel shading.
     /* Tripo textures carry baked, blotchy shading that reads as a 3D scan. The material smooths the texture, flattens it to a few
@@ -813,7 +814,7 @@ function groundFix(holder,root){holder.updateMatrixWorld(true);let minY=Infinity
     const toonify=(root,sharp)=>root.traverse(m=>{if(m.isMesh){const old=m.material;asDrawn(old.map);const pure=/concept/i.test(old.name||'');m.material=flatMat(old.map,old.color,sharp||pure,pure);m.userData.noInk=true;}});
     const fit=(root,height)=>{const bb=new THREE.Box3().setFromObject(root);const sc=height/(bb.max.y-bb.min.y);root.scale.setScalar(sc);root.position.y=-bb.min.y*sc;root.position.x=-(bb.min.x+bb.max.x)/2*sc;root.position.z=-(bb.min.z+bb.max.z)/2*sc;};
     // Josh's buildings: slots rotate through the list, so each one appears several times around the planet
-    const BUILDINGS=['assets/building1v2.glb?v=2','assets/building3.glb?v=2','assets/building4.glb?v=2','assets/building6.glb?v=2','assets/building5.glb?v=2','assets/building7.glb?v=2','assets/building8.glb?v=2','assets/building9.glb?v=2','assets/building10.glb?v=2','assets/building11.glb?v=2','assets/building12.glb?v=2','assets/building13.glb?v=2','assets/building14.glb?v=2','assets/building15.glb?v=2','assets/building16.glb?v=2','assets/building17.glb?v=3']; // 8–14 are Josh's Tripo builds of the town pack (corner house, townhouse, convenience shop, garage house, cafe, storefront, two-storey)
+    const BUILDINGS=['assets/building1v2.glb?v=2','assets/building3.glb?v=2','assets/building4.glb?v=2','assets/building6.glb?v=2','assets/building5.glb?v=2','assets/building7.glb?v=2','assets/building8.glb?v=2','assets/building9.glb?v=2','assets/building10.glb?v=2','assets/building11.glb?v=2','assets/building12.glb?v=2','assets/building13.glb?v=2','assets/building14.glb?v=2','assets/building15.glb?v=2','assets/building16.glb?v=2','assets/building17.glb?v=3','assets/building18.glb','assets/building19.glb?v=2','assets/building20.glb?v=2','assets/building21.glb?v=2','assets/building22.glb?v=2','assets/building23.glb?v=2','assets/building24.glb?v=2','assets/building25.glb?v=2','assets/building26.glb?v=2']; // 8–14 are Josh's Tripo builds of the town pack (corner house, townhouse, convenience shop, garage house, cafe, storefront, two-storey)
     /* Spread the types out: walk the slots and give each one the building whose nearest copy so far is
        furthest away round the planet (ties go to the least-used type), so the same building is never
        next to, or across the road from, itself. */
@@ -824,7 +825,7 @@ function groundFix(holder,root){holder.updateMatrixWorld(true);let minY=Infinity
       slotType[i]=pool[0].t;});
     window.__town={modelSlots,propSlots,slotType};
     BUILDINGS.forEach((file,bi)=>loader.load(file,g=>{toonify(g.scene,true);fit(g.scene,9);
-      modelSlots.forEach((sl,i)=>{if(slotType[i]!==bi)return;const inst=new THREE.Group();inst.add(g.scene.clone());placeOnGround(inst,sl.lon,sl.lat,sl.yaw);colliders.push(inst);});sceneDirty=true;},undefined,e=>console.warn('building not loaded',file,e)));
+      modelSlots.forEach((sl,i)=>{if(slotType[i]!==bi)return;const inst=new THREE.Group();inst.add(g.scene.clone());inst.scale.setScalar(Math.min(1,Math.max(.72,(sl.w||9)/8.6)));placeOnGround(inst,sl.lon,sl.lat,sl.yaw);colliders.push(inst);});sceneDirty=true;},undefined,e=>console.warn('building not loaded',file,e)));
     // the skate park: Josh's model, scaled to the plaza and set flat on its platform
     loader.load('assets/skatepark.glb?v=3',g=>{toonify(g.scene);const bb=new THREE.Box3().setFromObject(g.scene);const sc=(PLAZA.r*2*.96)/Math.max(bb.max.x-bb.min.x,bb.max.z-bb.min.z),sy=sc*.75;
       g.scene.scale.set(sc,sy,sc);g.scene.position.set(-(bb.min.x+bb.max.x)/2*sc,-bb.min.y*sy,-(bb.min.z+bb.max.z)/2*sc);
