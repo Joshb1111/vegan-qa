@@ -85,6 +85,8 @@ body.touch .tpad{margin-left:auto}
 #title .bub{position:absolute;bottom:-40px;border:2px solid rgba(38,51,58,.5);border-radius:50%;animation:bubrise linear infinite;pointer-events:none}
 @keyframes bubrise{to{transform:translateY(-120vh)}}
 body.intro #hint,body.intro #menubtn,body.intro #musicbtn,body.intro #pad,body.intro #score{visibility:hidden}
+body.intro #game{background:#5abfb2}
+#c{transform-origin:50% 50%}
 @keyframes bob{0%,100%{transform:translateY(0)}50%{transform:translateY(-6px)}}
 #title svg{animation:bob 2.4s ease-in-out infinite}
 @media (prefers-reduced-motion:reduce){#title svg{animation:none}}
@@ -1000,7 +1002,7 @@ let intro=true,introT=0,introTh=NaN,introFly=0;document.body.classList.add('intr
 function introCam(dt){if(isNaN(introTh))introTh=Math.atan2(up.x,up.z);introT+=dt;const t=introT;introTh+=(.36+.16*Math.sin(t*.9))*dt; /* the spin speeds up and eases like a pushed globe */
   const lat=.36+.05*Math.sin(t*.7),D=66/(Math.tan(camera.fov*Math.PI/360)*Math.min(1,camera.aspect)*.62);
   camPos.set(D*Math.cos(lat)*Math.sin(introTh),D*Math.sin(lat),D*Math.cos(lat)*Math.cos(introTh));camUp.set(0,1,0);camLook.set(0,7+.6*Math.sin(t*1.7),0);
-  const sq=.028*Math.sin(t*2.6);scene.scale.set(1+sq,1-sq*1.5,1+sq); /* squash and stretch */
+  const sq=.028*Math.sin(t*2.6);canvas.style.transform=`scale(${1+sq},${1-sq*1.5})`; /* squash and stretch, done to the picture (never the scene: models loading during the intro bake their world matrices) */
   skyCol=introBg;if(skyDome)skyDome.visible=false;if(SUNSET)for(const m of SUNSET.parts)m.visible=false;}
 /* touch controls only when there is NO hover-capable pointer at all (a PC with a touchscreen still has a mouse) and the primary pointer is coarse; ?touch / ?pc force either way */
 let isTouch=location.search.includes('pc')?false:(location.search.includes('touch')||(!matchMedia('(any-hover:hover)').matches&&matchMedia('(pointer:coarse)').matches));
@@ -1235,7 +1237,7 @@ $('#musicbtn').addEventListener('click',e=>{e.stopPropagation();musicOn=!musicOn
 musicUI();
 setInterval(()=>{if(actx&&actx.state==='suspended'&&titleGone)actx.resume().catch(()=>{});const want=musicOn?(talking?MUSIC_VOL*.35:musicTarget):0;musicVol+=(want-musicVol)*.15;setVol(music,musicVol);if(musicVol<.005&&!musicOn)music.pause();
   const sw=musicOn?stepsTarget:0;stepsVol+=(sw-stepsVol)*.4;setVol(steps,stepsVol);if(sw>.01&&steps.paused)steps.play().catch(()=>{});if(sw<=.01&&stepsVol<.01&&!steps.paused)steps.pause();},100);
-function dismissTitle(){if(titleGone)return;titleGone=true;intro=false;introFly=3;skyCol=dayBg;scene.scale.set(1,1,1);if(skyDome)skyDome.visible=true;if(SUNSET)for(const m of SUNSET.parts)m.visible=true;document.body.classList.remove('intro');$('#title').classList.add('gone');game.focus();unlockAudio();startMusic();startSteps();}
+function dismissTitle(){if(titleGone)return;titleGone=true;intro=false;introFly=3;skyCol=dayBg;canvas.style.transform='';if(skyDome)skyDome.visible=true;if(SUNSET)for(const m of SUNSET.parts)m.visible=true;document.body.classList.remove('intro');$('#title').classList.add('gone');game.focus();unlockAudio();startMusic();startSteps();}
 $('#enter').addEventListener('click',e=>{e.stopPropagation();dismissTitle();});
 window.addEventListener('keydown',e=>{if(intro&&!e.repeat&&(e.key==='Enter'||e.key===' ')){e.preventDefault();dismissTitle();}});
 for(let i=0;i<11;i++){const b=document.createElement('i');b.className='bub';const sz=6+Math.random()*16;b.style.cssText=`left:${Math.random()*100}%;width:${sz}px;height:${sz}px;animation-duration:${9+Math.random()*9}s;animation-delay:-${Math.random()*14}s`;$('#title').appendChild(b);}
