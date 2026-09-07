@@ -1029,7 +1029,7 @@ function update(dt){
     if(atLip&&h>1&&v>2.2&&ride.bail===0){ride.air=1.4+v*.12;ride.airT=0;ride.airDur=1.15;ride.spin=1;ride.flip=true;ride.flipped=false;ride.fwd0.copy(fwd);ride.spinHold=0;ride.tilt0=Math.max(ride.tilt,1.1);sfx('pop',.7);}}
   if(ride.on){const want=ride.air>0&&ride.spin?ride.tilt0*Math.cos(Math.PI*clamp(ride.airT/ride.airDur,0,1)):(ride.grind||ride.air>0?0:Math.atan2(surfaceAhead(.5)-surfaceAhead(-.5),1));ride.tilt+=(want-ride.tilt)*Math.min(1,dt*(ride.air>0?12:9));}
   if(ride.on){const flat=!ride.grind&&ride.air===0&&Math.abs(surfaceAhead(.8)-parkH(up))<.12&&Math.abs(parkH(up)-surfaceAhead(-.8))<.12;
-    if(fw>0&&!ride.fwHeld&&flat){ride.pushBurst=true;ride.pushT=0;}ride.fwHeld=fw>0;if(ride.pushT>=Math.PI*4||!flat)ride.pushBurst=false; /* each press of forward is two kicks, then both feet go back on */
+    const nowS=performance.now()/1000;if(fw>0&&flat&&!ride.pushBurst&&(!ride.fwHeld||nowS>(ride.nextPush||0))&&v<MAXV*1.4){ride.pushBurst=true;ride.pushT=0;ride.nextPush=nowS+2.2+Math.random()*1.6;}ride.fwHeld=fw>0;if(ride.pushT>=Math.PI*4||!flat)ride.pushBurst=false; /* a fresh press pushes at once; holding forward keeps pushing every couple of seconds — two kicks each time */
     const pushing=ride.pushBurst&&fw>0&&v<MAXV*1.6;
     ride.push+=((pushing?1:0)-ride.push)*Math.min(1,dt*6);const k0=Math.floor(ride.pushT/(Math.PI*2));ride.pushT+=dt*(pushing?5.5:0);if(pushing&&Math.floor(ride.pushT/(Math.PI*2))>k0)sfx('push',.35);}
   const speed=Math.abs(step/Math.max(dt,1e-4));
@@ -1040,7 +1040,7 @@ function update(dt){
   if(kidModel){kidModel.quaternion.copy(player.group.quaternion);kidModel.position.copy(player.group.position);if(sitting)kidModel.position.addScaledVector(up,-(window.__sitDrop??.26));
     if(ride.on){const a=ride.air>0?Math.sin(Math.PI*clamp(ride.airT/ride.airDur,0,1))*ride.air:0;const lean=-tn*.22*(ride.grind||ride.manualOn?0:1);
       const spinV=(ride.spin?Math.PI*clamp(ride.airT/ride.airDur,0,1)-(ride.flipped?Math.PI:0):0)+(ride.air>0?ride.spinHold:0);
-      const bob=(ride.air===0&&!ride.grind&&Math.abs(v)>1)?.015*Math.sin(performance.now()/1000*7):0;kidModel.position.addScaledVector(up,BOARD.lift+a+bob).addScaledVector(fwd,-.16);kidModel.quaternion.multiply(_sq.setFromAxisAngle(_sy,1.15*(1-ride.push*.85)+spinV)).multiply(_sq2.setFromAxisAngle(new THREE.Vector3(0,0,1),lean));
+      const bob=(ride.air===0&&!ride.grind&&Math.abs(v)>1)?.015*Math.sin(performance.now()/1000*7):0;kidModel.position.addScaledVector(up,BOARD.lift+a+bob-.16*ride.legs-.06*ride.push).addScaledVector(fwd,-.16);kidModel.quaternion.multiply(_sq.setFromAxisAngle(_sy,1.15*(1-ride.push*.95)+spinV)).multiply(_sq2.setFromAxisAngle(new THREE.Vector3(0,0,1),lean));
       if(ride.manual>0.01)kidModel.quaternion.premultiply(_sq.setFromAxisAngle(right,.28*ride.manual)); /* leaning back on the tail */
       if(Math.abs(ride.tilt)>.01)kidModel.quaternion.premultiply(_sq.setFromAxisAngle(right,ride.tilt)); /* leans back, perpendicular to the ramp */
       if(ride.bail>0){const bt=1-ride.bail/1.3;kidModel.quaternion.premultiply(_sq.setFromAxisAngle(right,Math.min(1.45,bt*4)));kidModel.position.addScaledVector(up,-.2*Math.min(1,bt*3));}
@@ -1333,14 +1333,18 @@ function ollie(){if(ride.air>0||ride.grind||ride.bail>0)return;const [dx,dz]=par
   for(const g of GRINDS){const lx=g.x1-g.x0,lz=g.z1-g.z0,L=Math.hypot(lx,lz),ux=lx/L,uz=lz/L;const t=((dx-g.x0)*ux+(dz-g.z0)*uz);if(t<-1||t>L+1)continue;const px=g.x0+ux*t,pz=g.z0+uz*t;const lat_=Math.hypot(dx-px,dz-pz);const along=fe*ux+fn*uz;if(lat_<1.6&&Math.abs(along)>.5&&Math.abs(v)>1&&(!best||lat_<best.lat_))best={g,ux,uz,L,t:clamp(t,0,L),dir:along>0?1:-1,lat_};}
   if(best){ride.grind={g:best.g,ux:best.ux,uz:best.uz,L:best.L,t:best.t,dir:best.dir};ride.bal=0;ride.air=.35;ride.airT=0;ride.airDur=.35;ride.spin=0;addTrick(best.g.name,60);return;}
   ride.airT=0;ride.airDur=.7;ride.air=.9;ride.spin=0;ride.spinAng=0;ride.spinHold=0;ride.landed=0;addTrick('Ollie',TRICKS.ollie[1]);}
+const _szv=new THREE.Vector3(0,0,1);
 function applyRide(){if(!ride.on||!kidModel)return;const bones=kidModel.userData.bones;if(!bones)return;
   if(!ride.pose){const base=clips.idle?poseFromClip(clips.idle.getClip(),0.2):{};ride.pose={};for(const k in bones)ride.pose[k]=(base[k]||bones[k].quaternion).clone();}
   for(const k in ride.pose)bones[k].quaternion.copy(ride.pose[k]);
   ride.legs+=(((ride.air>0||ride.grind)?0:1)-ride.legs)*.18; /* knees bent on the ground, legs straighten in the air */
   const tuck=-(1-ride.legs)*.55; /* negative: straightens the crouch */
   const kick=ride.push*(.5+.5*Math.sin(ride.pushT)); // the back leg swings back to push off the ground, then returns to the board
-  if(bones.L_Thigh)bones.L_Thigh.quaternion.multiply(_sq.setFromAxisAngle(_sx,.5+.1*ride.push+.75*tuck));if(bones.L_Calf)bones.L_Calf.quaternion.multiply(_sq.setFromAxisAngle(_sx,-.78-.15*ride.push-1.1*tuck));
-  if(bones.R_Thigh)bones.R_Thigh.quaternion.multiply(_sq.setFromAxisAngle(_sx,.5*(1-ride.push)+(-.55+.9*kick)*ride.push+.75*tuck));if(bones.R_Calf)bones.R_Calf.quaternion.multiply(_sq.setFromAxisAngle(_sx,-.78*(1-ride.push)+(-.15-.35*kick)*ride.push-1.1*tuck));
+  const crouch=ride.crouch||1; /* how low he rides: thighs forward, calves folded back */
+  if(bones.L_Thigh)bones.L_Thigh.quaternion.multiply(_sq.setFromAxisAngle(_sx,.85*crouch+.15*ride.push+.75*tuck));if(bones.L_Calf)bones.L_Calf.quaternion.multiply(_sq.setFromAxisAngle(_sx,-1.3*crouch-.2*ride.push-1.1*tuck));
+  if(bones.R_Thigh){bones.R_Thigh.quaternion.multiply(_sq.setFromAxisAngle(_sx,.85*crouch*(1-ride.push)+(-.8+1.7*kick)*ride.push+.75*tuck));bones.R_Thigh.quaternion.multiply(_sq2.setFromAxisAngle(_szv,.45*ride.push));} /* the pushing leg swings far back and out to the side */
+  if(bones.R_Calf)bones.R_Calf.quaternion.multiply(_sq.setFromAxisAngle(_sx,-1.3*crouch*(1-ride.push)+(-.1-.5*kick)*ride.push-1.1*tuck));
+  if(bones.Spine01)bones.Spine01.quaternion.multiply(_sq.setFromAxisAngle(_sx,.3*ride.push*(.6+.4*Math.sin(ride.pushT)))); /* leans into each push */
   if(bones.Spine01&&ride.air===0&&!ride.grind){const t=performance.now()/1000;bones.Spine01.quaternion.multiply(_sq.setFromAxisAngle(_sx,.06*Math.sin(t*2.1))).multiply(_sq2.setFromAxisAngle(_sy,.05*Math.sin(t*1.7)));} /* a little sway so he is not stiff */
   if(bones.NeckTwist01)bones.NeckTwist01.quaternion.multiply(_sq.setFromAxisAngle(_sy,-.45));if(bones.Head)bones.Head.quaternion.multiply(_sq.setFromAxisAngle(_sy,-.5));}
 function doJump(){if(ride.on){ollie();return;}if(talking||sitting||jump.on)return;jump.on=true;jump.t=0;jump.dur=.62;jumpSfx();firstMove();}
