@@ -400,14 +400,14 @@ const colliders=[];let skyDome=null,nightDome=null,SUNSET=null;const PLACES={};
   const ringLat=lon=>.62+.045*Math.sin(2*lon+1)+.42*smooth(1.5,1.05,Math.abs(lon-PLAZA.lon)); // bows north round the skate park
   function addRoad(name,pts,closed,halfW,kind,lift){const r=Object.assign(catmull(pts,closed,.8),{name,halfW,kerb:.575*halfW,kind,lift});ROADS.push(r);return r;}
   const loopPts=(f,n)=>Array.from({length:n},(_,i)=>{const lon=i/n*Math.PI*2;return [lon,f(lon)];});
-  const MAIN=addRoad('main',loopPts(mainLat,24),true,4.8,'road',.06);
-  const RING=addRoad('ring',loopPts(ringLat,20),true,3.6,'road',.06);
+  const MAIN=addRoad('main',loopPts(mainLat,24),true,3.7,'road',.06);
+  const RING=addRoad('ring',loopPts(ringLat,20),true,3.0,'road',.06);
   const upperLat=lon=>1.0+.04*Math.sin(3*lon+.6)+.3*smooth(1.75,1.2,Math.abs(lon-PLAZA.lon)); // a third, tighter street up the hill, bowing over the park
-  const UPPER=addRoad('upper',loopPts(upperLat,20),true,3.0,'road',.06);
-  [0.1,2.15,5.85].forEach((a,i)=>{const r=addRoad('link'+i,[[a,ringLat(a)],[a+.03,(ringLat(a)+upperLat(a))/2],[a+.06,upperLat(a+.06)]],false,3.0,'road',.07);r.host0=RING;r.host1=UPPER;});
-  [[0.85,0.95,.06],[2.55,2.45,-.05],[4.35,4.5,.05],[1.3,1.32,.02],[5.85,5.85,-.03],[0.1,0.1,.03]].forEach(([a,b,k],i)=>addRoad('side'+i,[[a,mainLat(a)],[(a+b)/2+k,(mainLat(a)+ringLat(b))/2],[b,ringLat(b)]],false,3.6,'road',.07));
+  const UPPER=addRoad('upper',loopPts(upperLat,20),true,2.7,'road',.06);
+  [0.1,2.15,5.85].forEach((a,i)=>{const r=addRoad('link'+i,[[a,ringLat(a)],[a+.03,(ringLat(a)+upperLat(a))/2],[a+.06,upperLat(a+.06)]],false,2.7,'road',.07);r.host0=RING;r.host1=UPPER;});
+  [[0.85,0.95,.06],[2.55,2.45,-.05],[4.35,4.5,.05],[1.3,1.32,.02],[5.85,5.85,-.03],[0.1,0.1,.03]].forEach(([a,b,k],i)=>addRoad('side'+i,[[a,mainLat(a)],[(a+b)/2+k,(mainLat(a)+ringLat(b))/2],[b,ringLat(b)]],false,2.8,'road',.07));
   [[1.75,1.85],[5.2,5.12]].forEach(([a,b],i)=>addRoad('alley'+i,[[a,mainLat(a)],[a+.02,mainLat(a)+.13],[b-.03,mainLat(a)+.3],[b,ringLat(b)]],false,1.5,'alley',.08));
-  addRoad('skate',[[3.5,mainLat(3.5)],[PLAZA.lon,PLAZA.lat-(PLAZA.hz+.5)/R]],false,3.2,'road',.07);
+  addRoad('skate',[[3.5,mainLat(3.5)],[PLAZA.lon,PLAZA.lat-(PLAZA.hz+.5)/R]],false,2.8,'road',.07);
   addRoad('beach',[[1.3,mainLat(1.3)],[1.36,-.12],[1.26,-.23],[1.32,-.325]],false,2.2,'path',.03);
   window.__roads={MAIN,RING,UPPER,mainLat,ringLat,upperLat};
   ZONES.push({n:sphere(1.32,-.36),r:9});
@@ -435,7 +435,11 @@ const colliders=[];let skyDome=null,nightDome=null,SUNSET=null;const PLACES={};
     sh.fragmentShader='varying vec3 vWn;uniform vec3 uPC,uPE,uPN;uniform vec2 uPH;\n'+sh.fragmentShader.replace('#include <clipping_planes_fragment>','#include <clipping_planes_fragment>\n {float k=dot(vWn,uPC);if(k>0.5){float dx=50.0*dot(vWn,uPE)/k,dz=50.0*dot(vWn,uPN)/k;if(abs(dx)<uPH.x&&abs(dz)<uPH.y)discard;}}');};
   const water=new THREE.Mesh(new THREE.SphereGeometry(R+SEA_LEVEL,160,100),waterMat);scene.add(water);window.__water=waterMat;
   /* road ribbons: Josh's drawn road for streets, plain dark asphalt for alleys, sand for the beach path */
-  const roadTex=new THREE.TextureLoader().load('assets/road.jpg');roadTex.wrapS=THREE.RepeatWrapping;roadTex.anisotropy=8;
+  const roadTex=(()=>{const c=document.createElement('canvas');c.width=512;c.height=128;const g=c.getContext('2d');g.fillStyle='#7f9294';g.fillRect(0,0,512,128);
+    g.fillStyle='rgba(38,51,58,.07)';for(let i=0;i<90;i++){g.beginPath();g.ellipse(rnd()*512,rnd()*128,6+rnd()*22,3+rnd()*9,0,0,Math.PI*2);g.fill();}
+    g.fillStyle='rgba(255,255,255,.06)';for(let i=0;i<60;i++){g.beginPath();g.ellipse(rnd()*512,rnd()*128,6+rnd()*22,3+rnd()*9,0,0,Math.PI*2);g.fill();}
+    g.fillStyle='#b9c2bd';g.fillRect(0,0,512,7);g.fillRect(0,121,512,7);g.fillStyle='#4f5f64';g.fillRect(0,7,512,1.5);g.fillRect(0,119.5,512,1.5); /* kerb stones with a thin dark gutter line */
+    const t=new THREE.CanvasTexture(c);t.wrapS=THREE.RepeatWrapping;t.anisotropy=8;return t;})();
   const roadMat=new THREE.MeshBasicMaterial({map:roadTex,side:THREE.DoubleSide,polygonOffset:true,polygonOffsetFactor:-2,polygonOffsetUnits:-2});
   const mouthMat=new THREE.MeshBasicMaterial({map:roadTex,side:THREE.DoubleSide,polygonOffset:true,polygonOffsetFactor:-6,polygonOffsetUnits:-6});
   const alleyMat=toon(0x7d8b8d,{side:THREE.DoubleSide,polygonOffset:true,polygonOffsetFactor:-2,polygonOffsetUnits:-2});
@@ -465,6 +469,13 @@ const colliders=[];let skyDome=null,nightDome=null,SUNSET=null;const PLACES={};
     const g2=new THREE.BufferGeometry();g2.setAttribute('position',new THREE.Float32BufferAttribute(pos,3));g2.setAttribute('uv',new THREE.Float32BufferAttribute(uv,2));g2.setIndex(idx);g2.computeVertexNormals();
     const m2=new THREE.Mesh(g2,mouthMat);m2.userData.noInk=true;scene.add(m2);}
   for(const r of ROADS){if(r.closed||r.kind==='path')continue;mouth(r,false);if(r.trim1>0)mouth(r,true);}
+  /* zebra crossings: white bars laid across the road, just inside each junction and now and then along the loops */
+  const zebraMat=new THREE.MeshBasicMaterial({color:0xf4f2ea,side:THREE.DoubleSide,polygonOffset:true,polygonOffsetFactor:-3,polygonOffsetUnits:-3});const zpos=[],zidx=[],znrm=[];
+  function zebra(road,s_){const sm=atS(road,s_);const hw=road.halfW*.9,bw=.5,SEG=4;for(let o=-hw+bw/2;o<=hw-bw/2+.01;o+=bw*2){const k0=zpos.length/3;
+      for(let i=0;i<=SEG;i++){const a=-1.1+2.2*i/SEG;for(const b of [o-bw/2,o+bw/2]){const pt=_q.copy(sm.n).addScaledVector(sm.t,a/R).addScaledVector(sm.side,b/R).normalize();const h=hAt(pt)+road.lift+.006;zpos.push(pt.x*h,pt.y*h,pt.z*h);znrm.push(pt.x,pt.y,pt.z);}}
+      for(let i=0;i<SEG;i++){const k=k0+i*2;zidx.push(k,k+1,k+2,k+1,k+3,k+2);}}} /* each bar is a short strip of quads so it follows the hills without creasing */
+  for(const r of ROADS){if(r.kind!=='road')continue;if(r.closed){for(let s_=9+rnd()*10;s_<r.L-8;s_+=34+rnd()*18)zebra(r,s_);}else{zebra(r,r.trim0+2.4);if(r.trim1>0)zebra(r,r.L-r.trim1-2.4);}}
+  {const zg=new THREE.BufferGeometry();zg.setAttribute('position',new THREE.Float32BufferAttribute(zpos,3));zg.setAttribute('normal',new THREE.Float32BufferAttribute(znrm,3));zg.setIndex(zidx); /* sphere normals, so the ink pass sees no crease along each bar's diagonal */const zm=new THREE.Mesh(zg,zebraMat);zm.userData.noInk=true;scene.add(zm);}
   /* the sunset: a low sun over the sea, seen from the beach looking out across the water */
   (function sunset(){const B=sphere(1.3,-.40);const {north}=frameAt(1.3,-.40);const D=north.clone().negate().addScaledVector(B,.11).normalize();
     const mk=(inner,outer,w,h,alpha,dist)=>{const c2=document.createElement('canvas');c2.width=c2.height=256;const g2=c2.getContext('2d');const gr=g2.createRadialGradient(128,128,0,128,128,128);gr.addColorStop(0,inner);gr.addColorStop(.3,inner);gr.addColorStop(1,outer);g2.fillStyle=gr;g2.fillRect(0,0,256,256);
@@ -573,12 +584,12 @@ const grassKind=()=>pick(['grass1','grass2','grass2','grass3','clover','sprout']
 const planterKind=()=>pick(['planter1','planter2','planter3','planter4','planter5','planter6','planter7','planter8']);const signKind=()=>pick(['sign1','sign2','sign3']);
 function townAlong(road,o){o=o||{};const kerb=road.kerb;const end=Math.min(road.L-(road.closed?0:2),o.endS||1e9);
   for(const side of (o.sides||[1,-1])){let s=(o.startS||0)+rnd()*3;
-    while(s<end-3){const w=(o.wMin||6)+rnd()*(o.wVar||5),d=(o.dMin||4.5)+rnd()*2.5;const step=w+1.5+rnd()*2.5;if(s+step>end)break;
+    while(s<end-3){const w=(o.wMin||6)+rnd()*(o.wVar||5),d=(o.dMin||4.5)+rnd()*2.5;const step=w+.7+rnd()*1.4;if(s+step>end)break;
       const sm=atS(road,s+step/2);const t=rnd();let b=null,isModel=false;
       if(o.alley){b=rnd()<.5?house(w,d):block(w,d);}
       else{const mt=o.modelT??.42;if(t<mt*.45)b=house(w,d);else if(t<mt*.8)b=block(w,d);else if(t<mt)b=shop(w,d);else if(t<mt+.06)b=greenHouse(w,d);else if(t<.95&&w>=5.8){if(rnd()<(o.modelP??1))isModel=true;else b=shop(w,d);}}
       const setback=o.alley?.4:(rnd()<.2?1.6:0);
-      const off=side*(isModel?kerb+1.4+2.7+(rnd()<.2?1.6:0):kerb+(o.alley?1:1.5)+d/2+setback);
+      const off=side*(isModel?kerb+1.2+2.5+(rnd()<.15?1.2:0):kerb+(o.alley?1:1.3)+d/2+setback);
       const c=offsetFrom(sm,off);const [lon,lat]=lonLatOf(c);const face=sm.side.clone().multiplyScalar(-side);const yaw=yawFor(lon,lat,face);
       if(blocked(c,(isModel?9:w)/2+1,road)){s+=step;continue;}
       const at_=(dist,along)=>{const p=offsetFrom(along===undefined?sm:atS(road,along),side*dist);return [p,...lonLatOf(p)];};
