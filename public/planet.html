@@ -451,7 +451,8 @@ const colliders=[];let skyDome=null,nightDome=null,SUNSET=null;const PLACES={};
   const roadMat=new THREE.MeshBasicMaterial({map:roadTex,side:THREE.DoubleSide,polygonOffset:true,polygonOffsetFactor:-2,polygonOffsetUnits:-2});
   const mouthMat=new THREE.MeshBasicMaterial({map:roadTex,side:THREE.DoubleSide,polygonOffset:true,polygonOffsetFactor:-6,polygonOffsetUnits:-6});
   const alleyMat=toon(0x7d8b8d,{side:THREE.DoubleSide,polygonOffset:true,polygonOffsetFactor:-2,polygonOffsetUnits:-2});
-  const pathMat=toon(0xdcc99b,{side:THREE.DoubleSide,polygonOffset:true,polygonOffsetFactor:-2,polygonOffsetUnits:-2});
+  const pathTex=(()=>{const c=document.createElement('canvas');c.width=c.height=512;const g=c.getContext('2d');g.fillStyle='#e7cf8f';g.fillRect(0,0,512,512);const t=new THREE.CanvasTexture(c);t.wrapS=t.wrapT=THREE.RepeatWrapping;t.repeat.set(4,1);t.anisotropy=8;t.ctx=g;return t;})(); /* filled with a clean patch of the shore painting's sand once it loads */
+  const pathMat=new THREE.MeshBasicMaterial({map:pathTex,side:THREE.DoubleSide,polygonOffset:true,polygonOffsetFactor:-2,polygonOffsetUnits:-2});
   const pavementMat=toon(0xc9ccc3,{side:THREE.DoubleSide,polygonOffset:true,polygonOffsetFactor:-1,polygonOffsetUnits:-1});
   /* open roads stop at the kerb line of the road they join, so their painted verges never cross its asphalt; the
      mouth of each junction is then covered by a plain asphalt patch (below) */
@@ -493,9 +494,13 @@ const colliders=[];let skyDome=null,nightDome=null,SUNSET=null;const PLACES={};
     const geo=new THREE.BufferGeometry();geo.setAttribute('position',new THREE.Float32BufferAttribute(pos,3));geo.setAttribute('uv',new THREE.Float32BufferAttribute(uv,2));geo.setIndex(idx);geo.computeVertexNormals();
     const cv2=document.createElement('canvas');cv2.width=2048;cv2.height=1024;const g2=cv2.getContext('2d');g2.fillStyle='#e9dcb0';g2.fillRect(0,0,2048,1024);
     const tex=new THREE.CanvasTexture(cv2);tex.wrapS=THREE.MirroredRepeatWrapping;tex.wrapT=THREE.ClampToEdgeWrapping;tex.anisotropy=8;
-    const img=new Image();img.onload=()=>{g2.drawImage(img,0,0,2048,1024);const px=g2.getImageData(1024,24,1,1).data;waterMat.color.setRGB(px[0]/255,px[1]/255,px[2]/255); /* the open sea takes the painting's deep blue so the join disappears */
+    const img=new Image();img.onload=()=>{g2.drawImage(img,0,0,2048,1024);pathTex.ctx.drawImage(img,1080,700,320,300,0,0,512,512);pathTex.needsUpdate=true;const px=g2.getImageData(1024,24,1,1).data;waterMat.color.setRGB(px[0]/255,px[1]/255,px[2]/255); /* the open sea takes the painting's deep blue so the join disappears */
       g2.globalCompositeOperation='destination-in';const fd=g2.createLinearGradient(0,0,0,1024);fd.addColorStop(0,'rgba(0,0,0,0)');fd.addColorStop(.18,'rgba(0,0,0,1)');fd.addColorStop(.93,'rgba(0,0,0,1)');fd.addColorStop(1,'rgba(0,0,0,0)');g2.fillStyle=fd;g2.fillRect(0,0,2048,1024);g2.globalCompositeOperation='source-over';tex.needsUpdate=true;};img.src='assets/shore.jpg';
     const mat=new THREE.MeshBasicMaterial({map:tex,transparent:true,alphaTest:.03,side:THREE.DoubleSide,polygonOffset:true,polygonOffsetFactor:-1,polygonOffsetUnits:-1});
+    /* the sea part of the painting moves: the shallows rise and fall with the toon water, and the foam line laps up the sand and back */
+    mat.onBeforeCompile=sh=>{sh.uniforms.uT={value:0};mat.userData.sh=sh;
+      sh.vertexShader='uniform float uT;\n'+sh.vertexShader.replace('#include <begin_vertex>','vec3 transformed=vec3(position);{float ww=smoothstep(.44,.6,uv.y);transformed+=normal*ww*(sin(position.x*1.7+uT*1.1)+sin(position.z*1.3-uT*.9)+sin(position.y*2.1+uT*.7))*0.05;}');
+      sh.fragmentShader='uniform float uT;\n'+sh.fragmentShader.replace('vec4 texelColor = texture2D( map, vUv );','vec2 suv=vUv;{float w=smoothstep(.36,.5,vUv.y);suv.y+=w*(0.011*sin(vUv.x*31.0+uT*1.1)+0.006*sin(vUv.x*67.0-uT*1.9)+0.004*sin(uT*.6));}vec4 texelColor = texture2D( map, suv );');};
     const m=new THREE.Mesh(geo,mat);m.userData.noInk=true;scene.add(m);window.__shore=m;})();
   /* the sunset: a low sun over the sea, seen from the beach looking out across the water */
   (function sunset(){const B=sphere(1.3,-.40);const {north}=frameAt(1.3,-.40);const D=north.clone().negate().addScaledVector(B,.11).normalize();
@@ -1210,7 +1215,7 @@ function update(dt){
   for(const n of npcs)if(n!==nearN&&n!==talking)n.paused=false;
 }
 let last=performance.now();
-function frame(now){const dt=Math.min(.05,(now-last)/1000)*(window.__dtScale??1);last=now;if(!paused)update(dt);if(mixer)mixer.update(dt);applySit();applyRide();applyJump();for(const m of mixers)m.update(dt);updateBirds(dt,now/1000);if(window.__water&&window.__water.userData.sh)window.__water.userData.sh.uniforms.uT.value=now/1000;renderInk();requestAnimationFrame(frame);}
+function frame(now){const dt=Math.min(.05,(now-last)/1000)*(window.__dtScale??1);last=now;if(!paused)update(dt);if(mixer)mixer.update(dt);applySit();applyRide();applyJump();for(const m of mixers)m.update(dt);updateBirds(dt,now/1000);if(window.__water&&window.__water.userData.sh)window.__water.userData.sh.uniforms.uT.value=now/1000;if(window.__shore&&window.__shore.material.userData.sh)window.__shore.material.userData.sh.uniforms.uT.value=now/1000;renderInk();requestAnimationFrame(frame);}
 requestAnimationFrame(frame);
 
 /* =====================================================================
