@@ -204,7 +204,7 @@ const ROOFS=[0x8fb07a,0xc8785a,0x5f7e8c,0x7d6540,0x6d905a];
 const R=50;
 const game=$('#game'), canvas=$('#c');
 const renderer=new THREE.WebGLRenderer({canvas,antialias:false});
-const DPR=Math.min(devicePixelRatio||1,2);renderer.setPixelRatio(DPR);
+const COARSE=matchMedia('(pointer:coarse)').matches&&!matchMedia('(any-hover:hover)').matches;const DPR=Math.min(devicePixelRatio||1,COARSE?1.5:2);renderer.setPixelRatio(DPR); /* phones render at 1.5x at most: the ink pass is three full-screen passes */
 const scene=new THREE.Scene(); scene.background=new THREE.Color(P.sky);
 const camera=new THREE.PerspectiveCamera(64,1,0.3,900); scene.add(camera);
 const sun=new THREE.DirectionalLight(0xfff6e8,0.30); sun.position.set(4,7,3); camera.add(sun); sun.target.position.set(0,0,-10); camera.add(sun.target);
@@ -214,7 +214,7 @@ scene.add(new THREE.AmbientLight(0xffffff,0.78));
    The sun sits high and a little to the east/north of wherever the player stands, so the shadow always
    falls the same way relative to the street. */
 renderer.shadowMap.enabled=true;renderer.shadowMap.type=THREE.PCFShadowMap;renderer.shadowMap.autoUpdate=false;
-const sunL=new THREE.DirectionalLight(0xffffff,0);sunL.castShadow=true;sunL.shadow.mapSize.set(2048,2048);
+const sunL=new THREE.DirectionalLight(0xffffff,0);sunL.castShadow=true;sunL.shadow.mapSize.set(COARSE?1024:2048,COARSE?1024:2048);
 Object.assign(sunL.shadow.camera,{left:-8.5,right:8.5,top:8.5,bottom:-8.5,near:2,far:40});sunL.shadow.bias=-0.0015;sunL.shadow.normalBias=.02;sunL.shadow.camera.updateProjectionMatrix();
 scene.add(sunL);scene.add(sunL.target);
 /* the shadow patch: a small grid that is re-laid over the ground round the player every frame, so it hugs slopes, the beach and the park floor */
@@ -1223,7 +1223,9 @@ function update(dt){
   for(const n of npcs)if(n!==nearN&&n!==talking)n.paused=false;
 }
 let last=performance.now();
-function frame(now){const dt=Math.min(.05,(now-last)/1000)*(window.__dtScale??1);last=now;if(!paused)update(dt);if(mixer)mixer.update(dt);applySit();applyRide();applyJump();for(const m of mixers)m.update(dt);updateBirds(dt,now/1000);if(window.__water&&window.__water.userData.sh)window.__water.userData.sh.uniforms.uT.value=now/1000;if(window.__shore&&window.__shore.material.userData.sh)window.__shore.material.userData.sh.uniforms.uT.value=now/1000;renderInk();requestAnimationFrame(frame);}
+let fpsN=0,fpsT=0;function frame(now){const dt=Math.min(.25,(now-last)/1000)*(window.__dtScale??1);last=now;if(!paused){let acc=dt;while(acc>1e-4){const h=Math.min(.05,acc);update(h);acc-=h;}} /* a slow phone gets several small steps, so the world and the run keep real time instead of slowing down */
+  if(fpsEl){fpsN++;if(now-fpsT>500){fpsEl.textContent=Math.round(fpsN*1000/(now-fpsT))+' fps';fpsN=0;fpsT=now;}}
+  if(mixer)mixer.update(dt);applySit();applyRide();applyJump();for(const m of mixers)m.update(dt);updateBirds(dt,now/1000);if(window.__water&&window.__water.userData.sh)window.__water.userData.sh.uniforms.uT.value=now/1000;if(window.__shore&&window.__shore.material.userData.sh)window.__shore.material.userData.sh.uniforms.uT.value=now/1000;renderInk();requestAnimationFrame(frame);}
 requestAnimationFrame(frame);
 
 /* =====================================================================
@@ -1268,7 +1270,7 @@ document.querySelectorAll('#tricks [data-t]').forEach(el=>{const t=el.dataset.t;
   const off=()=>{if(t==='manual')hold.m=false;};el.addEventListener('pointerdown',on);['pointerup','pointercancel','lostpointercapture'].forEach(ev=>el.addEventListener(ev,off));el.addEventListener('contextmenu',e=>e.preventDefault());});
 $('#ba').addEventListener('click',()=>action());
 game.addEventListener('pointerdown',()=>game.focus());game.focus();
-let titleGone=false;
+let titleGone=false;const fpsEl=location.search.includes('fps')?Object.assign(document.body.appendChild(document.createElement('div')),{style:'position:fixed;left:8px;bottom:8px;z-index:30;font:14px monospace;background:rgba(0,0,0,.5);color:#fff;padding:2px 6px;border-radius:4px'}):null;
 /* All game audio goes through Web Audio gain nodes: iPhones ignore an <audio> element's volume, so a loop
    'silenced' with volume 0 would play at full blast. Gains work everywhere; elements are the fallback. */
 let actx=null;const gainMap=new Map();
