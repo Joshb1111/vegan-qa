@@ -656,7 +656,7 @@ function townAlong(road,o){o=o||{};const kerb=road.kerb;const end=Math.min(road.
   (function signs(){const main=byName('main');const post=(s_,side,arms)=>{const sm=atS(main,s_);const p=offsetFrom(sm,side*(main.kerb+1.3));const [lon,lat]=lonLatOf(p);fingerpost(lon,lat,arms.map(([t,dirS])=>[t,sm.t.clone().multiplyScalar(dirS)]));};
     const sAt=lon=>{let best=0,bd=-2;for(const sm of main.samples){const d=sm.n.dot(sphere(lon,mainLat_(lon)));if(d>bd){bd=d;best=sm.s;}}return best;};const mainLat_=window.__roads.mainLat;
     post(sAt(.42),-1,[['Skate park',1],['Sunset beach',1]]);post(sAt(3.9),1,[['Skate park',-1],['Sunset beach',-1]]);
-    for(const [name,text] of [['beach','Sunset beach'],['skate','Skate park']]){const r=byName(name);const s0=r.samples[0],s1=atS(r,Math.min(6.5,r.L*.6));const p=offsetFrom(s1,-(r.kerb+1.3));if(blocked(p,.8,r))continue;const [lon,lat]=lonLatOf(p);fingerpost(lon,lat,[[text,s0.t]]);}
+    for(const [name,text] of [['skate','Skate park']]){const r=byName(name); /* the beach path had one too, but it stood right in front of Leslie */const s0=r.samples[0],s1=atS(r,Math.min(6.5,r.L*.6));const p=offsetFrom(s1,-(r.kerb+1.3));if(blocked(p,.8,r))continue;const [lon,lat]=lonLatOf(p);fingerpost(lon,lat,[[text,s0.t]]);}
   })();
   // trees on the hillsides: beyond the ring road and down the slope towards the beach
   for(let i=0;i<10;i++){const lon=rnd()*Math.PI*2,lat=.8+rnd()*.2;if(blocked(sphere(lon,lat),3))continue;propSlots.push({kind:treeKind(rnd()<.5),lon,lat,yaw:rnd()*Math.PI*2,k:.9+rnd()*.5});}
@@ -678,7 +678,7 @@ function townAlong(road,o){o=o||{};const kerb=road.kerb;const end=Math.min(road.
     const s1=_q.copy(bp).addScaledVector(end.side,3.4/R).normalize().clone();const [l1,a1]=lonLatOf(s1);npcSpots.push({lon:l1,lat:a1,face:toSea,fixed:'June'});
     const sL=_q.copy(bp).addScaledVector(end.side,-3.2/R).normalize().clone();const [lL,aL]=lonLatOf(sL);npcSpots.push({lon:lL,lat:aL,face:toSea,fixed:'Leslie'});
     const s2=_q.copy(end.n).addScaledVector(toSea,-.6/R).addScaledVector(end.side,6/R).normalize().clone();const [l2,a2]=lonLatOf(s2);npcSpots.push({lon:l2,lat:a2,face:toSea,fixed:'Elin'});
-    const sg=_q.copy(end.n).addScaledVector(end.side,-3/R).normalize().clone();const [gl,ga]=lonLatOf(sg);placeOn(roundSign(P.blue,'☼'),gl,ga);
+    /* (the little sun sign that stood here was in Leslie's way) */
   })();
   /* the skate park: a concrete plaza with a half-pipe, a fun box, a rail and a bowl sunk into the ground */
   (function skatePark(){const C=sphere(PLAZA.lon,PLAZA.lat);const {east,north}=frameAt(PLAZA.lon,PLAZA.lat);
@@ -1145,7 +1145,7 @@ function update(dt){
       if(n.strolling){n.s+=n.dir*n.speed*dt;if(n.s<=n.patrol.s0||n.s>=n.patrol.s1){n.s=clamp(n.s,n.patrol.s0,n.patrol.s1);n.strolling=false;n.restT=6+Math.random()*8;}const sm=atS(n.road,n.s);const q=offsetFrom(sm,n.lane);[n.lon,n.lat]=lonLatOf(q);n.yaw=yawFace(n.lon,n.lat,sm.t.clone().multiplyScalar(n.dir));sp=n.speed;}
       else{const ty=yawFace(n.lon,n.lat,frameAt(n.lon,n.lat).north.clone().negate());let d=ty-n.yaw;d=((d+Math.PI)%(2*Math.PI)+2*Math.PI)%(2*Math.PI)-Math.PI;n.yaw+=d*Math.min(1,dt*1.5);}}
     poseOn(n.rig.group,n.lon,n.lat,n.yaw);n.rig.pose(sp,dt,'walk');
-    if(n.model){const md=n.model;md.holder.quaternion.copy(n.rig.group.quaternion);md.holder.position.copy(n.rig.group.position);if(n.ghost)md.holder.position.addScaledVector(_gv.copy(md.holder.position).normalize(),.18+.1*Math.sin(performance.now()/900));
+    if(n.model){const md=n.model;md.holder.quaternion.copy(n.rig.group.quaternion);md.holder.position.copy(n.rig.group.position);if(n.ghost)md.holder.position.addScaledVector(_gv.copy(md.holder.position).normalize(),.01+.03*Math.sin(performance.now()/900));
       if(md.groundAt&&performance.now()>md.groundAt){md.groundAt=0;groundFix(md.holder,md.root);}
       const speaking=n===talking&&((voiceAudio&&!voiceAudio.paused)||(canSpeak&&speechSynthesis.speaking)||!sbN.hidden);
       md.w.walk+=((sp>.1?1:0)-md.w.walk)*Math.min(1,dt*6);md.w.talk+=((speaking&&sp<=.1&&md.act.talk&&md.act.talk!==md.act.idle?1:0)-md.w.talk)*Math.min(1,dt*4); /* only if this resident has a talking clip; otherwise the idle keeps driving the bones */
