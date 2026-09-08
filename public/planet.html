@@ -451,8 +451,7 @@ const colliders=[];let skyDome=null,nightDome=null,SUNSET=null;const PLACES={};
   const roadMat=new THREE.MeshBasicMaterial({map:roadTex,side:THREE.DoubleSide,polygonOffset:true,polygonOffsetFactor:-2,polygonOffsetUnits:-2});
   const mouthMat=new THREE.MeshBasicMaterial({map:roadTex,side:THREE.DoubleSide,polygonOffset:true,polygonOffsetFactor:-6,polygonOffsetUnits:-6});
   const alleyMat=toon(0x7d8b8d,{side:THREE.DoubleSide,polygonOffset:true,polygonOffsetFactor:-2,polygonOffsetUnits:-2});
-  const pathTex=(()=>{const c=document.createElement('canvas');c.width=c.height=512;const g=c.getContext('2d');g.fillStyle='#e7cf8f';g.fillRect(0,0,512,512);const t=new THREE.CanvasTexture(c);t.wrapS=t.wrapT=THREE.RepeatWrapping;t.repeat.set(4,1);t.anisotropy=8;t.ctx=g;return t;})(); /* filled with a clean patch of the shore painting's sand once it loads */
-  const pathMat=new THREE.MeshBasicMaterial({map:pathTex,side:THREE.DoubleSide,polygonOffset:true,polygonOffsetFactor:-2,polygonOffsetUnits:-2});
+  /* the beach path is a route only (for walking and the auto-walk), not a drawn strip: the grass runs straight onto the sand */
   const pavementMat=toon(0xc9ccc3,{side:THREE.DoubleSide,polygonOffset:true,polygonOffsetFactor:-1,polygonOffsetUnits:-1});
   /* open roads stop at the kerb line of the road they join, so their painted verges never cross its asphalt; the
      mouth of each junction is then covered by a plain asphalt patch (below) */
@@ -463,7 +462,7 @@ const colliders=[];let skyDome=null,nightDome=null,SUNSET=null;const PLACES={};
       for(let j=0;j<=M;j++){const o=hw*(1-2*j/M);const pt=_q.copy(sm.n).addScaledVector(sm.side,o/R).normalize();const h=hAt(pt)+road.lift;pos.push(pt.x*h,pt.y*h,pt.z*h);uv.push(s_/texLen,1-j/M);}}
     for(let i=0;i<rows-1;i++)for(let j=0;j<M;j++){const a=i*(M+1)+j,b=a+1,c=a+(M+1),d=c+1;idx.push(a,b,c,b,d,c);}
     const rg=new THREE.BufferGeometry();rg.setAttribute('position',new THREE.Float32BufferAttribute(pos,3));rg.setAttribute('uv',new THREE.Float32BufferAttribute(uv,2));rg.setIndex(idx);rg.computeVertexNormals();
-    const rm=new THREE.Mesh(rg,road.kind==='road'?roadMat:road.kind==='alley'?alleyMat:pathMat);if(road.kind==='path')rm.userData.noInk=true;scene.add(rm);
+    if(road.kind==='path')continue;const rm=new THREE.Mesh(rg,road.kind==='road'?roadMat:alleyMat);scene.add(rm);
     if(road.kind==='road'){ /* a paved strip either side, from the kerb line to where the plots begin */
       for(const sd of [1,-1]){const pp=[],pi=[];const a0=road.kerb+.02,a1=road.kerb+2.15;
         for(let i=0;i<rows;i++){const sm=rowList[i]||S[0];for(const o of [a0,a1]){const pt=_q.copy(sm.n).addScaledVector(sm.side,sd*o/R).normalize();const h=hAt(pt)+road.lift-.01;pp.push(pt.x*h,pt.y*h,pt.z*h);}}
@@ -471,7 +470,7 @@ const colliders=[];let skyDome=null,nightDome=null,SUNSET=null;const PLACES={};
         const pg=new THREE.BufferGeometry();pg.setAttribute('position',new THREE.Float32BufferAttribute(pp,3));pg.setIndex(pi);pg.computeVertexNormals();
         const pm=new THREE.Mesh(pg,pavementMat);pm.userData.noInk=true;scene.add(pm);}}}
   /* junction mouths: a strip of plain asphalt from the host road's kerb line out past its verge, as wide as the side road's asphalt */
-  const matFor=r=>r.kind==='road'?roadMat:r.kind==='alley'?alleyMat:pathMat;
+  const matFor=r=>r.kind==='road'?roadMat:alleyMat;
   function mouth(r,atEnd){const host=atEnd?(r.host1||RINGR):(r.host0||MAINR);const sm=atS(r,atEnd?r.L:0);const dir=sm.t.clone().multiplyScalar(atEnd?-1:1);const a0=host.halfW*.56,a1=(atEnd?r.trim1:r.trim0)+.3,w=r.halfW*.64,rows=6;const pos=[],uv=[],idx=[];
     for(let i=0;i<=rows;i++){const a=a0+(a1-a0)*i/rows;for(let j=0;j<=1;j++){const o=w*(1-2*j);const pt=_q.copy(sm.n).addScaledVector(dir,a/R).addScaledVector(sm.side,o/R).normalize();const h=hAt(pt)+host.lift;pos.push(pt.x*h,pt.y*h,pt.z*h);uv.push(a/19.6,.30+.14*(1-j));}} /* a plain lane of asphalt from the road picture, no dashes */
     for(let i=0;i<rows;i++){const a=i*2,b=a+1,c=a+2,d=a+3;idx.push(a,b,c,b,d,c);}
@@ -494,7 +493,7 @@ const colliders=[];let skyDome=null,nightDome=null,SUNSET=null;const PLACES={};
     const geo=new THREE.BufferGeometry();geo.setAttribute('position',new THREE.Float32BufferAttribute(pos,3));geo.setAttribute('uv',new THREE.Float32BufferAttribute(uv,2));geo.setIndex(idx);geo.computeVertexNormals();
     const cv2=document.createElement('canvas');cv2.width=2048;cv2.height=1024;const g2=cv2.getContext('2d');g2.fillStyle='#e9dcb0';g2.fillRect(0,0,2048,1024);
     const tex=new THREE.CanvasTexture(cv2);tex.wrapS=THREE.MirroredRepeatWrapping;tex.wrapT=THREE.ClampToEdgeWrapping;tex.anisotropy=8;
-    const img=new Image();img.onload=()=>{g2.drawImage(img,0,0,2048,1024);pathTex.ctx.drawImage(img,1080,700,320,300,0,0,512,512);pathTex.needsUpdate=true;const px=g2.getImageData(1024,24,1,1).data;waterMat.color.setRGB(px[0]/255,px[1]/255,px[2]/255); /* the open sea takes the painting's deep blue so the join disappears */
+    const img=new Image();img.onload=()=>{g2.drawImage(img,0,0,2048,1024);const px=g2.getImageData(1024,24,1,1).data;waterMat.color.setRGB(px[0]/255,px[1]/255,px[2]/255); /* the open sea takes the painting's deep blue so the join disappears */
       g2.globalCompositeOperation='destination-in';const fd=g2.createLinearGradient(0,0,0,1024);fd.addColorStop(0,'rgba(0,0,0,0)');fd.addColorStop(.18,'rgba(0,0,0,1)');fd.addColorStop(.93,'rgba(0,0,0,1)');fd.addColorStop(1,'rgba(0,0,0,0)');g2.fillStyle=fd;g2.fillRect(0,0,2048,1024);g2.globalCompositeOperation='source-over';tex.needsUpdate=true;};img.src='assets/shore.jpg?v=2';
     const mat=new THREE.MeshBasicMaterial({map:tex,transparent:true,alphaTest:.03,side:THREE.DoubleSide,polygonOffset:true,polygonOffsetFactor:-1,polygonOffsetUnits:-1});
     /* the sea part of the painting moves: the shallows rise and fall with the toon water, and the foam line laps up the sand and back */
