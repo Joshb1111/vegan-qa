@@ -1273,7 +1273,7 @@ game.addEventListener('pointerdown',()=>game.focus());game.focus();
 let titleGone=false;const fpsEl=location.search.includes('fps')?Object.assign(document.body.appendChild(document.createElement('div')),{style:'position:fixed;left:8px;bottom:8px;z-index:30;font:14px monospace;background:rgba(0,0,0,.5);color:#fff;padding:2px 6px;border-radius:4px'}):null;
 /* All game audio goes through Web Audio gain nodes: iPhones ignore an <audio> element's volume, so a loop
    'silenced' with volume 0 would play at full blast. Gains work everywhere; elements are the fallback. */
-let actx=null;const gainMap=new Map();
+let actx=null;const gainMap=new Map();let audioHidden=false; /* true while the player is away: nothing starts itself until they are back */
 function ensureCtx(){if(actx)return actx;const AC=window.AudioContext||window.webkitAudioContext;if(!AC)return null;try{actx=new AC();}catch(_){return null;}return actx;}
 function gainFor(el){const c=ensureCtx();if(!c)return null;if(gainMap.has(el))return gainMap.get(el);try{const src=c.createMediaElementSource(el);const g=c.createGain();g.gain.value=0;src.connect(g);g.connect(c.destination);gainMap.set(el,g);try{el.volume=1;}catch(_){} /* the element's own volume still multiplies the graph on desktop, so it must be 1 once the gain takes over */ return g;}catch(_){gainMap.set(el,null);return null;}}
 function setVol(el,v){const g=gainFor(el);if(g)g.gain.value=v;else{try{el.volume=v;}catch(_){}}}
@@ -1289,17 +1289,17 @@ function sfx(name,vol){if(!musicOn)return;const c=ensureCtx();const v=vol??.7;
 function sfxLoop(name){const a=sfxGet(name);if(!a)return null;a.loop=true;a.volume=0;return a;}
 const rollLoop=sfxLoop('roll'),grindLoop=sfxLoop('grind');let rollVol=0,grindVol=0;const loopCur={roll:0,grind:0};
 setInterval(()=>{for(const [a,want,k] of [[rollLoop,rollVol,'roll'],[grindLoop,grindVol,'grind']]){if(!a)continue;const w=musicOn?want:0;loopCur[k]+=(w-loopCur[k])*.35;setVol(a,loopCur[k]);
-  if(w>.01&&a.paused)a.play().catch(()=>{});if(w<=.01&&loopCur[k]<.01&&!a.paused)a.pause();}},100);
+  if(w>.01&&a.paused&&!audioHidden)a.play().catch(()=>{});if(w<=.01&&loopCur[k]<.01&&!a.paused)a.pause();}},100);
 /* footsteps: Josh's jogging loop, kept running silently and faded up only while the kid is on the move (quieter when walking); the ♪ button mutes it with the music */
 const steps=new Audio('assets/steps.m4a');steps.loop=true;steps.volume=0;let stepsTarget=0,stepsVol=0;const STEP_VOL=.3;
 function startSteps(){setVol(steps,0);} /* the loop is started by the mixer only when it should be heard */
 window.__audio={music,steps};window.__footLat=()=>{const b=kidModel&&kidModel.userData.bones;if(!b)return null;const names=Object.keys(b).filter(k=>/foot|toe/i.test(k));const right=new THREE.Vector3().crossVectors(fwd,up).normalize();const kp=player.group.position.clone();const out={names,deck:BOARD?+BOARD.lift.toFixed(2):null};for(const n of names){const wp=new THREE.Vector3();b[n].getWorldPosition(wp);const d=wp.sub(kp);out[n]={lat:+d.dot(right).toFixed(2),fwd:+d.dot(fwd).toFixed(2),up:+d.dot(up).toFixed(2)};}return out;};window.__snap=()=>{renderInk();return renderer.domElement.toDataURL('image/jpeg',.92);};window.__voice=()=>voiceAudio;window.__bubble=()=>bubble;window.__scene=scene;window.__renderer=renderer;window.__gAt=(lon,lat)=>{const n=sphere(lon,lat);return {g:+(gAt(n)-R).toFixed(2),base:+terrainBase(n).toFixed(2),park:+parkH(n).toFixed(2),out:+parkOut(n).toFixed(2)};};window.__solidsNear=r=>{const me=player.group.position;return solids.filter(sd=>sd.c.distanceTo(me)<(r||6)).map(sd=>({r:sd.r,hx:sd.hx,hz:sd.hz,d:+sd.c.distanceTo(me).toFixed(1)}));};window.__gain=el=>gainMap.get(el);window.__actx=()=>actx;
 function musicUI(){const b=$('#musicbtn');b.setAttribute('aria-pressed',String(musicOn));b.title=musicOn?'Music on':'Music off';}
-function startMusic(){if(!musicOn)return;musicTarget=MUSIC_VOL;setVol(music,musicVol);music.play().catch(()=>{});}
+function startMusic(){if(!musicOn||audioHidden)return;musicTarget=MUSIC_VOL;setVol(music,musicVol);music.play().catch(()=>{});}
 $('#musicbtn').addEventListener('click',e=>{e.stopPropagation();musicOn=!musicOn;try{localStorage.setItem('planet-music',musicOn?'on':'off');}catch(_){}musicUI();if(musicOn)startMusic();else{musicTarget=0;}});
 musicUI();
-setInterval(()=>{if(actx&&actx.state==='suspended'&&titleGone)actx.resume().catch(()=>{});const want=musicOn?(talking?MUSIC_VOL*.35:musicTarget):0;musicVol+=(want-musicVol)*.15;setVol(music,musicVol);if(musicVol<.005&&!musicOn)music.pause();
-  const sw=musicOn?stepsTarget:0;stepsVol+=(sw-stepsVol)*.4;setVol(steps,stepsVol);if(sw>.01&&steps.paused)steps.play().catch(()=>{});if(sw<=.01&&stepsVol<.01&&!steps.paused)steps.pause();},100);
+setInterval(()=>{if(actx&&actx.state==='suspended'&&titleGone&&!audioHidden)actx.resume().catch(()=>{});const want=musicOn?(talking?MUSIC_VOL*.35:musicTarget):0;musicVol+=(want-musicVol)*.15;setVol(music,musicVol);if(musicVol<.005&&!musicOn)music.pause();
+  const sw=musicOn?stepsTarget:0;stepsVol+=(sw-stepsVol)*.4;setVol(steps,stepsVol);if(sw>.01&&steps.paused&&!audioHidden)steps.play().catch(()=>{});if(sw<=.01&&stepsVol<.01&&!steps.paused)steps.pause();},100);
 function dismissTitle(){if(titleGone)return;titleGone=true;intro=false;introFly=3;skyCol=dayBg;canvas.style.transform='';if(skyDome)skyDome.visible=true;if(SUNSET)for(const m of SUNSET.parts)m.visible=true;document.body.classList.remove('intro');$('#title').classList.add('gone');game.focus();unlockAudio();startMusic();startSteps();}
 $('#enter').addEventListener('click',e=>{e.stopPropagation();dismissTitle();});
 window.addEventListener('keydown',e=>{if(intro&&!e.repeat&&(e.key==='Enter'||e.key===' ')){e.preventDefault();dismissTitle();}});
@@ -1336,6 +1336,25 @@ const hosted={};let speakSeq=0;
 const voiceAudio=new Audio();voiceAudio.preload='auto';let audioUnlocked=false;
 const SILENCE='data:audio/wav;base64,UklGRiQAAABXQVZFZm10IBAAAAABAAEAQB8AAIA+AAACABAAZGF0YQAAAAA=';
 function unlockAudio(){const c=ensureCtx();if(c&&c.state==='suspended')c.resume().catch(()=>{});if(audioUnlocked)return;try{voiceAudio.src=SILENCE;const p=voiceAudio.play();if(p&&p.then)p.then(()=>{audioUnlocked=true;}).catch(()=>{});}catch(_){}}
+/* Leaving the game — a desktop tab switch, a phone lock, switching apps — silences everything, and coming
+   back restores only what was actually playing when they left. Anything the player had already silenced (the
+   ♪ toggle, voice off) is paused before we ever get here, so it is never force-started on their return. */
+let audioResume=null,speechPaused=false;
+function pauseGameAudio(){if(audioHidden)return;audioHidden=true;audioResume=[];
+  for(const a of [music,steps,rollLoop,grindLoop,voiceAudio]){if(a&&!a.paused){audioResume.push(a);try{a.pause();}catch(_){}}}
+  if(canSpeak&&speechSynthesis.speaking&&!speechSynthesis.paused){try{speechSynthesis.pause();speechPaused=true;}catch(_){}}
+  if(actx&&actx.state==='running')actx.suspend().catch(()=>{});}
+function resumeGameAudio(){if(!audioHidden)return;audioHidden=false;
+  /* if this resume is refused the 100ms mixer tick above keeps retrying, so the context always comes back */
+  if(actx&&actx.state==='suspended'&&titleGone)actx.resume().catch(()=>{});
+  for(const a of audioResume||[]){if(a===voiceAudio?!voiceOn:!musicOn)continue;try{a.play().catch(()=>{});}catch(_){}}
+  audioResume=null;
+  if(speechPaused){speechPaused=false;try{speechSynthesis.resume();}catch(_){}}}
+document.addEventListener('visibilitychange',()=>{if(document.hidden)pauseGameAudio();else resumeGameAudio();});
+/* belt and braces: some mobile browsers fire blur/pagehide on lock more reliably than visibilitychange */
+window.addEventListener('blur',pauseGameAudio);window.addEventListener('pagehide',pauseGameAudio);
+window.addEventListener('focus',()=>{if(!document.hidden)resumeGameAudio();});
+window.addEventListener('pageshow',()=>{if(!document.hidden)resumeGameAudio();});
 function browserSpeak(text,n){if(!canSpeak)return;speechSynthesis.cancel();const u=new SpeechSynthesisUtterance(text);const vc=pickVoice(n);if(vc)u.voice=vc;u.rate=n.rate||1;u.pitch=n.pitch||1;speechSynthesis.speak(u);}
 function stopSpeech(){speakSeq++;try{voiceAudio.pause();}catch(_){}if(canSpeak)speechSynthesis.cancel();}
 async function speak(text,n){if(!voiceOn)return;stopSpeech();const seq=speakSeq;
