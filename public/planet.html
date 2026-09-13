@@ -1308,6 +1308,7 @@ requestAnimationFrame(frame);
 if(isTouch)$('#hint').textContent='drag the stick to move · drag the view to look around';else $('#hint').textContent='↑ ↓ to move · ← → to turn · space to jump';
 const KEYS={ArrowUp:'u',w:'u',W:'u',ArrowDown:'d',s:'d',S:'d',ArrowLeft:'l',a:'l',A:'l',ArrowRight:'r',d:'r',D:'r'};
 window.addEventListener('keydown',e=>{if(isTouch&&!(e.target&&/^(INPUT|TEXTAREA)$/.test(e.target.tagName||''))&&/^(ArrowUp|ArrowDown|ArrowLeft|ArrowRight|w|a|s|d)$/i.test(e.key))setTouch(false,true);
+  if(e.target&&/^(INPUT|TEXTAREA)$/.test(e.target.tagName||'')&&e.key!=='Escape')return; /* typing in a box (a name for the leaderboard, a question) is never read as game keys */
   if(filmOn){if(e.key==='Escape')closeFilm();return;}if(!$('#raceend').hidden&&e.key==='Escape'){$('#raceend').hidden=true;return;}
   if(e.metaKey||e.ctrlKey||e.altKey)return;if(e.key==='Shift'){hold.shift=true;return;}
   if(talking){if(e.key==='Escape')endTalk();else if((e.key==='Enter'||e.key===' ')&&document.activeElement!==q){nextChunk();e.preventDefault();}return;}
