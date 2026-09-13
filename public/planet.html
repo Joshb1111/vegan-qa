@@ -871,7 +871,7 @@ function person(o){
 const outfits=()=>{const skin=pick([0xf2cfae,0xe0b48a,0xc68a5a,0x8d5a3b,0x6b4227]);const legsSkin=rnd()<.6;return {skin,hair:pick([0x2a2430,0x5a3b2a,0x8a6a3a,0xc9a24a,0x3d3d3d,0xb04a3a]),top:pick([P.orange,P.blue,P.red,P.green2,0xf3d24a,0xe7d5cd,0x7d5ba6,P.cream,0x3d5a66]),bottom:pick([0xb9a66e,0x3d5a66,0x26333a,0x6d905a,0xa9b0ac,P.red]),legs:legsSkin?skin:pick([0x3d5a66,0x26333a]),sock:P.cream,shoe:pick([P.ink,P.red,0x5a3b2a,P.blue,P.cream]),shoeCap:pick([P.cream,P.ink]),skinLegs:legsSkin,cargo:rnd()<.5,collar:rnd()<.5,bag:rnd()<.4,skirt:rnd()<.25,sleeves:rnd()<.5,hairStyle:pick(['bob','short','pony','bun']),hat:rnd()<.2?pick([P.yellow,P.slate,P.cream]):null,glasses:rnd()<.25};};
 
 /* ---------- the player ---------- */
-const player=person({skin:0xf2cfae,hair:0x2a2430,top:P.red,bottom:0xb9a66e,legs:0xf2cfae,sock:P.cream,shoe:P.red,shoeCap:P.cream,skinLegs:true,cargo:true,collar:true,bag:true,hairStyle:'bob'});
+const player=person({skin:0xf2cfae,hair:0x2a2430,top:P.red,bottom:0xb9a66e,legs:0xf2cfae,sock:P.cream,shoe:P.red,shoeCap:P.cream,skinLegs:true,cargo:true,collar:true,bag:true,hairStyle:'bob'});player.group.visible=false; /* the built-in stand-in stays hidden: Josh's kid model takes his place as soon as it loads */
 scene.add(player.group);
 /* ---------- the modelled character (Tripo GLB), with its own walk animation ---------- */
 let kidModel=null,mixer=null;const clips={};let gait={walk:0,run:0,fidget:0};const mixers=[];let jump={on:false,t:0,dur:0},idleFor=0,fidgetUntil=0,wasMoving=false,fidgetOK=false;const birdGroups=[];
@@ -1061,7 +1061,7 @@ const npcs=[];
   const spots=npcSpots.filter(sp=>!sp.fixed);const fixed=name=>npcSpots.find(sp=>sp.fixed===name);
   const WALKERS={Theo:'main',Kofi:'main',Ravi:'ring'};
   PEOPLE.forEach((p,i)=>{
-    const rig=person(outfits());scene.add(rig.group);
+    const rig=person(outfits());rig.group.visible=false;scene.add(rig.group); /* stand-ins stay hidden until (and unless) their modelled selves fail to arrive */
     const road=WALKERS[p.name]?ROADS.find(r=>r.name===WALKERS[p.name]):null;
     const spot=fixed(p.name)||(spots.length?spots.splice(Math.floor(rnd()*spots.length),1)[0]:{lon:rnd()*Math.PI*2,lat:.05});
     const n={...p,id:'p'+i,rig,lon:spot.lon,lat:spot.lat,walker:!!road,road,s:rnd()*(road?road.L:1),lane:(rnd()<.5?1:-1)*1.4,dir:rnd()<.5?1:-1,speed:1.6+rnd()*.6,yaw:spot.face?yawFace(spot.lon,spot.lat,spot.face):rnd()*Math.PI*2,facing:null,session:'planet-'+Math.random().toString(36).slice(2)};
@@ -1345,7 +1345,7 @@ document.querySelectorAll('#tricks [data-t]').forEach(el=>{const t=el.dataset.t;
   const off=()=>{if(t==='manual')hold.m=false;};el.addEventListener('pointerdown',on);['pointerup','pointercancel','lostpointercapture'].forEach(ev=>el.addEventListener(ev,off));el.addEventListener('contextmenu',e=>e.preventDefault());});
 $('#ba').addEventListener('click',()=>action());
 game.addEventListener('pointerdown',()=>game.focus());game.focus();
-let titleGone=false;const fpsEl=location.search.includes('fps')?Object.assign(document.body.appendChild(document.createElement('div')),{style:'position:fixed;left:8px;bottom:8px;z-index:30;font:14px monospace;background:rgba(0,0,0,.5);color:#fff;padding:2px 6px;border-radius:4px'}):null;
+let titleGone=false;setTimeout(()=>{if(!kidModel)player.group.visible=true;for(const n of npcs)if(!n.model)n.rig.group.visible=true;},30000); /* only if a model never arrives does the stand-in step in */const fpsEl=location.search.includes('fps')?Object.assign(document.body.appendChild(document.createElement('div')),{style:'position:fixed;left:8px;bottom:8px;z-index:30;font:14px monospace;background:rgba(0,0,0,.5);color:#fff;padding:2px 6px;border-radius:4px'}):null;
 /* All game audio goes through Web Audio gain nodes: iPhones ignore an <audio> element's volume, so a loop
    'silenced' with volume 0 would play at full blast. Gains work everywhere; elements are the fallback. */
 let actx=null;const gainMap=new Map();let audioHidden=false; /* true while the player is away: nothing starts itself until they are back */
