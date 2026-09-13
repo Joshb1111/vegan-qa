@@ -82,6 +82,18 @@ body.touch .tpad{margin-left:auto}
 #title p{font-family:var(--hand);font-size:19px;margin:12px 0 0;color:var(--ink);line-height:1.25;opacity:.85}
 #title p b{color:var(--ink);font-weight:normal}
 #title p.err{color:var(--red);opacity:1}
+#racehud[hidden],#raceend[hidden],#film[hidden]{display:none}
+#racehud{position:fixed;left:50%;top:max(14px,env(safe-area-inset-top));transform:translateX(-50%);z-index:5;display:flex;align-items:baseline;gap:12px;padding:6px 14px;font-family:var(--hand)}
+#racehud b{font-size:30px;font-weight:normal;font-variant-numeric:tabular-nums}#racehud small{font-size:18px;color:var(--muted)}#racehud button{appearance:none;background:none;border:0;font-family:var(--hand);font-size:17px;color:var(--red);cursor:pointer;text-decoration:underline}
+#raceend{position:fixed;left:50%;top:50%;transform:translate(-50%,-50%);z-index:12;width:min(440px,92vw);max-height:88vh;overflow:auto;padding:16px 18px;font-family:var(--hand)}
+#raceend h2{margin:0 0 6px;font-weight:normal;font-size:30px;letter-spacing:.04em}#raceend p{font-size:26px;margin:0 0 10px}#raceend form{display:flex;gap:8px;margin:0 0 12px}#raceend input{flex:1;min-width:0;font:20px var(--hand);padding:6px 10px;border:2px solid var(--ink);border-radius:6px;background:#fff}
+#raceend ol{margin:0 0 14px;padding-left:34px;font-size:22px;line-height:1.35}#raceend ol span{float:right;font-variant-numeric:tabular-nums}#raceend button{font-family:var(--hand);font-size:20px;padding:6px 16px;cursor:pointer}
+#film{position:fixed;inset:0;z-index:25;background:rgba(18,24,30,.92);display:grid;place-items:center;padding:12px}
+#film .fpanel{width:min(1100px,96vw);max-height:96vh;overflow:auto;padding:12px 14px;display:flex;flex-direction:column;gap:10px}
+#film header{display:flex;align-items:center;gap:10px;font-family:var(--hand);font-size:26px}#film header .sp{flex:1}#film header button{font-family:var(--hand);font-size:18px;padding:4px 12px;cursor:pointer}
+#film-list{display:flex;flex-wrap:wrap;gap:10px}#film-list button{font-family:var(--hand);font-size:21px;padding:10px 16px;cursor:pointer;background:#fff}#film-list button small{display:block;color:var(--muted);font-size:16px}#film-list button.on{background:#f4c945}
+#film-frame:empty{display:none}#film-frame iframe{display:block;border:0;background:#000;margin:0 auto;max-width:100%}
+#film .note{margin:0;font-family:var(--hand);color:var(--muted);font-size:16px}
 #title .bub{position:absolute;bottom:-40px;border:2px solid rgba(38,51,58,.5);border-radius:50%;animation:bubrise linear infinite;pointer-events:none}
 @keyframes bubrise{to{transform:translateY(-120vh)}}
 body.intro #hint,body.intro #menubtn,body.intro #musicbtn,body.intro #pad,body.intro #score{visibility:hidden}
@@ -174,6 +186,9 @@ body.intro #game{background:#5abfb2}
   <form id="ask" autocomplete="off"><input id="q" type="text" maxlength="300" placeholder="Ask anything about veganism…" aria-label="Your question"><button id="send" class="ink" type="submit">Ask</button></form>
   <p class="note">Answers come from the Understand Veganism chatbot.</p>
 </section>
+<div id="racehud" class="ink" hidden><b>0:00.0</b><small>0 / 0 rings</small><button type="button" id="race-quit">quit</button></div>
+<div id="raceend" class="ink" hidden><h2>Skate park race</h2><p id="race-time" hidden></p><form id="race-post" hidden><input id="race-name" type="text" maxlength="16" placeholder="Your name for the board" aria-label="Your name"><button class="ink" type="submit">Post it</button></form><ol id="race-top"><li>loading…</li></ol><button id="race-close" class="ink" type="button">Back to the park</button></div>
+<div id="film" hidden><div class="fpanel ink"><header><b>Beach cinema</b><span class="sp"></span><button id="film-x" class="ink" type="button">Close</button></header><div id="film-list"></div><div id="film-frame"></div><p class="note">The films from the front page of understand-veganism.com.</p></div></div>
 <div id="sbN" class="sb" hidden></div>
 <div id="sbMe" class="sb me" hidden></div>
 <div id="title" aria-label="Start">
@@ -305,6 +320,11 @@ function frameAt(lon,lat){const n=sphere(lon,lat);const east=new THREE.Vector3(-
 const SEA_LEVEL=-2.4, PLAZA={lon:3.5,lat:.52,r:24,hx:23.2,hz:21.3}; /* the park: twice the old size; hx/hz are the model's half-extents east/north; the ring road bows north round it */
 const PLAZA_N=sphere(PLAZA.lon,PLAZA.lat);const PARK=(()=>{const {east,north}=frameAt(PLAZA.lon,PLAZA.lat);return {C:PLAZA_N,east,north};})();
 const parkPt=(dx,dz)=>new THREE.Vector3().copy(PARK.C).addScaledVector(PARK.east,dx/R).addScaledVector(PARK.north,dz/R).normalize();
+/* the race isle: a flat island out in the southern sea, reached only by the race button; and the break room, a little house near the top of the world */
+const ISLE={lon:3.5,lat:-1.12,r:22};const ISLE_N=sphere(ISLE.lon,ISLE.lat);const ISLE_F=(()=>{const {east,north}=frameAt(ISLE.lon,ISLE.lat);return {east,north};})();
+const islePt=(dx,dz)=>new THREE.Vector3().copy(ISLE_N).addScaledVector(ISLE_F.east,dx/R).addScaledVector(ISLE_F.north,dz/R).normalize();
+function isleOut(n){const k=n.dot(ISLE_N);if(k<.3)return 1e9;return Math.max(0,Math.acos(clamp(k,-1,1))*R-ISLE.r);}
+const ROOM={lon:.6,lat:1.5};const ROOM_N=sphere(ROOM.lon,ROOM.lat);
 /* the skate park model (assets/skatepark.glb) laid out in plaza units, east/north of the centre; measured from the model:
    big quarter pipe at the back (dz 6.2..10.4, wall at the north end, 3.8 tall), fun box in the middle (top 1.5),
    bowl to the south-west (1.8 deep), a floor-level rail along the south edge */
@@ -343,6 +363,8 @@ function hills(n){const lat=Math.asin(clamp(n.y,-1,1)),lon=Math.atan2(n.z,n.x);
   h*=smooth(-.3,-.12,lat);const o=parkOut(n);if(o<14)h*=smooth(3,14,o);return h;}
 function terrainBase(n){const lat=Math.asin(clamp(n.y,-1,1));let h=-3.2*smooth(-.2,-.46,lat)+hills(n);
   {const o=parkOut(n);if(o<PARK_SINK.w)h-=PARK_SINK.d*(1-smooth(0,PARK_SINK.w,o));} /* the skate park's pit, flat across the whole park, banked at the rim */
+  {const o=isleOut(n);if(o<6)h+=4.1*(1-smooth(0,6,o));} /* the race isle: a flat top a little above the sea, with a sandy bank all round */
+  {const k=n.dot(ROOM_N);if(k>.95){const d=Math.acos(clamp(k,-1,1))*R;if(d<10){if(ROOM.lvl==null)ROOM.lvl=hills(ROOM_N);const t=1-smooth(5,10,d);h=h*(1-t)+ROOM.lvl*t;}}} /* level ground under the break room */
   return h;}
 /* the ground mesh: the base terrain, dipped under the park's bowl and tucked just under its floor */
 function terrainH(n){let h=terrainBase(n);if(HM&&inPark(n))h+=Math.min(parkH(n),0)-.02;return h;}
@@ -418,8 +440,9 @@ const colliders=[];let skyDome=null,nightDome=null,SUNSET=null;const PLACES={};
   [[1.75,1.85],[5.2,5.12]].forEach(([a,b],i)=>addRoad('alley'+i,[[a,mainLat(a)],[a+.02,mainLat(a)+.13],[b-.03,mainLat(a)+.3],[b,ringLat(b)]],false,1.5,'alley',.08));
   addRoad('skate',[[3.5,mainLat(3.5)],[PLAZA.lon,PLAZA.lat-(PLAZA.hz+.5)/R]],false,2.8,'road',.07);
   addRoad('beach',[[1.3,mainLat(1.3)],[1.36,-.12],[1.26,-.23],[1.32,-.325]],false,2.2,'path',.03);
+  addRoad('race',[[0,-14],[9,-12],[15,-5],[13,5],[6,11],[0,5],[-6,12],[-14,7],[-16,-3],[-10,-12]].map(([x,z])=>lonLatOf(islePt(x,z))),true,3.2,'track',.06); /* the isle's ring course, a closed loop in island coordinates */
   window.__roads={MAIN,RING,UPPER,mainLat,ringLat,upperLat};
-  ZONES.push({n:sphere(1.32,-.36),r:9});
+  ZONES.push({n:sphere(1.32,-.36),r:9});ZONES.push({n:ROOM_N,r:9});ZONES.push({n:sphere(1.62,-.335),r:7});ZONES.push({n:sphere(1.07,-.335),r:7}); /* the beach, the break room, and the sand either side of the bench for the cinema */
   /* ground texture: grass, a sandy shore, foam at the waterline, the concrete plaza */
   const cv=document.createElement('canvas');cv.width=2048;cv.height=1024;const g=cv.getContext('2d');
   const cy=lat=>(Math.PI/2-lat)/Math.PI*1024,cx=lon=>(((Math.PI-lon)/(Math.PI*2))%1+1)%1*2048;
@@ -432,6 +455,7 @@ const colliders=[];let skyDome=null,nightDome=null,SUNSET=null;const PLACES={};
   g.fillStyle='rgba(255,255,255,.75)';for(let x=0;x<2048;x+=14){g.fillRect(x,cy(-.371),9,3);} // foam
   {const w=PARK_EXT.hx*6.52/Math.cos(PLAZA.lat),hh=PARK_EXT.hz*6.52;g.fillStyle='#c4c8c4';for(const off of [-2048,0,2048])g.fillRect(cx(PLAZA.lon)-w+off,cy(PLAZA.lat)-hh,2*w,2*hh); // the park's concrete apron (drawn across the texture seam)
     const bx=cx(PLAZA.lon)+(-WBOWL.x)*6.52/Math.cos(PLAZA.lat),by=cy(PLAZA.lat)-WBOWL.z*6.52;g.fillStyle='#aeb3af';for(const off of [-2048,0,2048]){g.beginPath();g.ellipse(bx+off,by,WBOWL.r*6.52/Math.cos(PLAZA.lat),WBOWL.r*6.52,0,0,Math.PI*2);g.fill();}}
+  {const k=6.52/Math.cos(ISLE.lat);for(const off of [-2048,0,2048]){for(const [rr,col] of [[ISLE.r+5,'#e9dcb0'],[ISLE.r+.5,'#9cb87c']]){g.fillStyle=col;g.beginPath();g.ellipse(cx(ISLE.lon)+off,cy(ISLE.lat),rr*k,rr*6.52,0,0,Math.PI*2);g.fill();}}} /* the race isle: grass with a sandy rim */
   const tex=new THREE.CanvasTexture(cv);tex.anisotropy=8;
   const geo=new THREE.SphereGeometry(R,256,160);const pa=geo.attributes.position;
   for(let i=0;i<pa.count;i++){_q.set(pa.getX(i),pa.getY(i),pa.getZ(i)).normalize();const h=hAt(_q);pa.setXYZ(i,_q.x*h,_q.y*h,_q.z*h);}geo.computeVertexNormals();
@@ -452,6 +476,7 @@ const colliders=[];let skyDome=null,nightDome=null,SUNSET=null;const PLACES={};
   const roadMat=new THREE.MeshBasicMaterial({map:roadTex,side:THREE.DoubleSide,polygonOffset:true,polygonOffsetFactor:-2,polygonOffsetUnits:-2});
   const mouthMat=new THREE.MeshBasicMaterial({map:roadTex,side:THREE.DoubleSide,polygonOffset:true,polygonOffsetFactor:-6,polygonOffsetUnits:-6});
   const alleyMat=toon(0x7d8b8d,{side:THREE.DoubleSide,polygonOffset:true,polygonOffsetFactor:-2,polygonOffsetUnits:-2});
+  const trackMat=toon(0x66737a,{side:THREE.DoubleSide,polygonOffset:true,polygonOffsetFactor:-2,polygonOffsetUnits:-2});
   /* the beach path is a route only (for walking and the auto-walk), not a drawn strip: the grass runs straight onto the sand */
   const pavementMat=toon(0xc9ccc3,{side:THREE.DoubleSide,polygonOffset:true,polygonOffsetFactor:-1,polygonOffsetUnits:-1});
   /* open roads stop at the kerb line of the road they join, so their painted verges never cross its asphalt; the
@@ -463,7 +488,7 @@ const colliders=[];let skyDome=null,nightDome=null,SUNSET=null;const PLACES={};
       for(let j=0;j<=M;j++){const o=hw*(1-2*j/M);const pt=_q.copy(sm.n).addScaledVector(sm.side,o/R).normalize();const h=hAt(pt)+road.lift;pos.push(pt.x*h,pt.y*h,pt.z*h);uv.push(s_/texLen,1-j/M);}}
     for(let i=0;i<rows-1;i++)for(let j=0;j<M;j++){const a=i*(M+1)+j,b=a+1,c=a+(M+1),d=c+1;idx.push(a,b,c,b,d,c);}
     const rg=new THREE.BufferGeometry();rg.setAttribute('position',new THREE.Float32BufferAttribute(pos,3));rg.setAttribute('uv',new THREE.Float32BufferAttribute(uv,2));rg.setIndex(idx);rg.computeVertexNormals();
-    if(road.kind==='path')continue;const rm=new THREE.Mesh(rg,road.kind==='road'?roadMat:alleyMat);scene.add(rm);
+    if(road.kind==='path')continue;const rm=new THREE.Mesh(rg,road.kind==='road'?roadMat:road.kind==='track'?trackMat:alleyMat);scene.add(rm);
     if(road.kind==='road'){ /* a paved strip either side, from the kerb line to where the plots begin */
       for(const sd of [1,-1]){const pp=[],pi=[];const a0=road.kerb+.02,a1=road.kerb+2.15;
         for(let i=0;i<rows;i++){const sm=rowList[i]||S[0];for(const o of [a0,a1]){const pt=_q.copy(sm.n).addScaledVector(sm.side,sd*o/R).normalize();const h=hAt(pt)+road.lift-.01;pp.push(pt.x*h,pt.y*h,pt.z*h);}}
@@ -595,6 +620,9 @@ const npcSpots=[]; // places people like to stand
 const modelSlots=[]; // plots kept free for Josh's modelled buildings: {lon,lat,yaw}
 const propSlots=[]; // {kind,lon,lat,yaw} filled with Josh's modelled props once they load
 let BENCH=null,SKATE_SPOT=null,BOARD=null,BOARD_MODEL=null,parkModel=null;
+/* the skate race, the beach cinema and the break room */
+const race={phase:'idle',t:0,count:0,next:0,rings:[],road:null,startN:null,startFwd:null,finC:null,finT:null,mats:null,booth:null};const _rp=new THREE.Vector3(),_rd=new THREE.Vector3();
+let CINEMA=null,nearRace=false,nearFilm=false,inRoom=false,filmOn=false;const FILMS=[['What is veganism?','15 min','kq9a_6-eagA',16/9],['Who are animals?','3 min','XLUO1ZBhqew',9/16],['What is vegan?','1 min','_iePD_XhUx8',9/16]];
 /* the kick scooter: Josh's model split into the bars (stem, fork, front wheel) and the deck, so the deck can whip round the stem */
 const SCOOT={model:null,lift:.1,yawOff:-Math.PI/2,axP:new THREE.Vector3(),axD:new THREE.Vector3(0,1,0),ride:new THREE.Group(),
   make(){const g=new THREE.Group();if(SCOOT.model)g.add(SCOOT.model.clone());else{const d=box(1.1,.05,.16,0x2b2e31);d.position.y=.1;d.name='deck';g.add(d);const st=cyl(.03,.03,1.1,P.grey2,6);st.position.set(-.5,.6,0);st.name='bars';g.add(st);}return g;},
@@ -694,11 +722,35 @@ function townAlong(road,o){o=o||{};const kerb=road.kerb;const end=Math.min(road.
   /* the beach: the path ends at a bench looking out to sea, with the sunset ahead */
   (function beach(){const end=atS(byName('beach'),byName('beach').L-.5);const {north}=frameAt(end.lon,end.lat);const toSea=north.clone().negate();
     const bp=_q.copy(end.n).addScaledVector(toSea,-.4/R).addScaledVector(end.side,1.2/R).normalize().clone();const [bl,ba]=lonLatOf(bp);const bn=placeOn(bench(),bl,ba,yawFor(bl,ba,toSea));bn.traverse(m=>{if(m.isMesh)m.castShadow=true;});bn.translateY(-.12);bn.updateMatrixWorld(true); /* sunk a touch so a seated kid's feet reach the sand */
-    BENCH={n:bp,face:toSea,lon:bl,lat:ba};PLACES.sunset={road:byName('beach'),s:byName('beach').L-1.5,then:_q.copy(bp).addScaledVector(toSea,-1.6/R).normalize().clone()};
+    BENCH={n:bp,face:toSea,lon:bl,lat:ba,side:end.side.clone()};PLACES.sunset={road:byName('beach'),s:byName('beach').L-1.5,then:_q.copy(bp).addScaledVector(toSea,-1.6/R).normalize().clone()};
     const s1=_q.copy(bp).addScaledVector(end.side,3.4/R).addScaledVector(toSea,-1.7/R).normalize().clone(); /* June and Elin stand back on dry sand, out of the shallows */const [l1,a1]=lonLatOf(s1);npcSpots.push({lon:l1,lat:a1,face:toSea,fixed:'June'});
     const sL=_q.copy(bp).addScaledVector(end.side,-3.2/R).normalize().clone();const [lL,aL]=lonLatOf(sL);npcSpots.push({lon:lL,lat:aL,face:toSea,fixed:'Leslie'});
     const s2=_q.copy(end.n).addScaledVector(toSea,-3.4/R).addScaledVector(end.side,6/R).normalize().clone();const [l2,a2]=lonLatOf(s2);npcSpots.push({lon:l2,lat:a2,face:toSea,fixed:'Elin'});
     /* (the little sun sign that stood here was in Leslie's way) */
+    /* the beach cinema: a screen on the sand past Leslie, with log seats, showing the three films from the front page of the site */
+    (function cinema(){const cn=_q.copy(bp).addScaledVector(end.side,-14/R).normalize().clone();const [cl,ca]=lonLatOf(cn);const face=end.side.clone();const yaw=yawFor(cl,ca,face); /* the screen faces back along the beach towards the bench */
+      const sg=new THREE.Group();for(const x of [-3.3,3.3])sg.add(at(cyl(.09,.1,3.9,P.grey2,8),x,1.95,0));sg.add(at(box(6.9,4,.16,P.ink),0,2.45,0));
+      const cv3=document.createElement('canvas');cv3.width=620;cv3.height=340;const g3=cv3.getContext('2d');g3.fillStyle='#1d2a3a';g3.fillRect(0,0,620,340);g3.fillStyle='#f3efe4';g3.font='700 54px "Patrick Hand","Segoe Print",cursive';g3.textAlign='center';g3.fillText('BEACH CINEMA',310,86);g3.font='34px "Patrick Hand","Segoe Print",cursive';let yy=150;for(const [t,d] of FILMS){g3.fillStyle='#f4c945';g3.fillText(t+'  ·  '+d,310,yy);yy+=52;}g3.fillStyle='#8fc7c2';g3.font='26px "Patrick Hand","Segoe Print",cursive';g3.fillText('walk up and press Watch',310,318);
+      const scr=new THREE.Mesh(new THREE.PlaneGeometry(6.4,3.5),new THREE.MeshBasicMaterial({map:new THREE.CanvasTexture(cv3)}));scr.userData.noInk=true;scr.position.set(0,2.45,.1);sg.add(scr);
+      placeOnGround(sg,cl,ca,yaw);colliders.push(sg);
+      for(const dz of [3.2,5.2,7.2]){const lp=_q.copy(cn).addScaledVector(face,dz/R).normalize();const [ll,la]=lonLatOf(lp);const lg=new THREE.Group();const c=cyl(.3,.3,2.8,P.wood,10);c.rotation.z=Math.PI/2;lg.add(at(c,0,.3,0));placeOnGround(lg,ll,la,yaw);colliders.push(lg);}
+      CINEMA={n:cn,face,lon:cl,lat:ca,w:cn.clone().multiplyScalar(gAt(cn))};PLACES.cinema={road:byName('beach'),s:byName('beach').L-1.5,then:_q.copy(cn).addScaledVector(face,4.5/R).normalize().clone()};})();
+    /* the break room: a small house up near the pole, with bean bags, a rug and a lamp; the door faces south */
+    (function breakRoom(){const {east,north}=frameAt(ROOM.lon,ROOM.lat);const face=north.clone().negate();const W=12,D=11,H=3.2;
+      const put=(obj,dx,dz,mode)=>{const p=_q.copy(ROOM_N).addScaledVector(east,dx/R).addScaledVector(face,dz/R).normalize();const [l,a]=lonLatOf(p);const yaw=yawFor(l,a,face);if(mode==='solid'){placeOnGround(obj,l,a,yaw);colliders.push(obj);}else{placeOn(obj,l,a,yaw);}return obj;}; /* 'solid' walls sink to the ground and block; everything else just stands at its spot */
+      const fl=new THREE.Group();fl.add(at(plain(W+.8,.8,D+.8,0xd9c9a8),0,-.25,0));fl.add(at(cyl(3,3,.06,0xc8785a,28),0,.18,0));put(fl,0,0); /* a thick slab, so its corners still meet the curved ground */
+      for(const [x,z,w,d] of [[0,-D/2,W,.3],[-W/2,0,.3,D],[W/2,0,.3,D],[-W/4-.9,D/2,W/2-1.8,.3],[W/4+.9,D/2,W/2-1.8,.3]]){const wl=box(w,H+.7,d,P.cream);wl.children[0].position.y=(H+.7)/2-.1;put(wl,x,z,'solid');}
+      const lintel=box(3.6,.5,.34,P.wood);lintel.children[0].position.y=H-.15;put(lintel,0,D/2);
+      const roof=box(W+.9,.6,D+.9,P.cream2);roof.children[0].position.y=H+.2;put(roof,0,0);colliders.push(roof);
+      const sgp=new THREE.Group();const sign=label('take a break',2.6,.7,'#f4c945','#26333a',.42);sign.position.y=H+.9;sgp.add(sign);put(sgp,0,D/2+.2);
+      for(const [x,z,c] of [[-3.4,-2.2,P.red],[3.2,-2.6,P.blue],[0,-3.6,P.yellow],[-3.8,1.6,P.green2],[3.8,1.4,P.orange]]){const bg=new THREE.Group();const b=new THREE.Mesh(new THREE.SphereGeometry(1,20,14),toon(c));b.scale.set(1,.5,1);b.position.y=.6;bg.add(b);const dent=new THREE.Mesh(new THREE.SphereGeometry(.62,16,10),toon(c));dent.scale.set(1,.28,1);dent.position.y=.86;bg.add(dent);put(bg,x,z);solidCircle(bg,1);colliders.push(bg);}
+      const tb=new THREE.Group();tb.add(at(box(1.8,.08,1,P.wood),0,.7,0));for(const [x,z] of [[-.8,-.4],[.8,-.4],[-.8,.4],[.8,.4]])tb.add(at(cyl(.04,.04,.55,P.wood,6),x,.42,z));tb.add(at(cyl(.24,.2,.18,0x8fc7c2,10),.35,.85,0));put(tb,0,-.6);solidCircle(tb,1);
+      const lamp=new THREE.Group();lamp.add(at(cyl(.05,.07,1.8,P.grey2,8),0,1.05,0));lamp.add(at(cyl(.5,.32,.5,P.cream2,12),0,2.15,0));put(lamp,-5,-4.4);solidCircle(lamp,.4);
+      const sh=new THREE.Group();sh.add(at(box(2.8,.08,.42,P.wood),0,1.6,0));for(let i=0;i<9;i++)sh.add(at(plain(.2,.5+rnd()*.3,.32,pick([P.red,P.blue,P.green2,P.yellow,P.orange])),-1.2+i*.3,1.92,0));put(sh,4.2,-5.1);
+      const pic=new THREE.Group();pic.add(at(label('be back soon',2.6,1.3,'#ffffff','#26333a',.55),0,2.1,0));put(pic,0,-D/2+.22);
+      for(const sd of [-1,1]){const pp=_q.copy(ROOM_N).addScaledVector(face,(D/2+1.4)/R).addScaledVector(east,sd*2.4/R).normalize();const [pl,pa]=lonLatOf(pp);propSlots.push({kind:planterKind(),lon:pl,lat:pa,yaw:yawFor(pl,pa,face)});}
+      ROOM.spawn=_q.copy(ROOM_N).addScaledVector(face,-2.4/R).normalize().clone();ROOM.face=face.clone();})(); /* he arrives near the back wall, facing the door, so the camera sits inside the room */
+    raceBuild(byName('race'));
   })();
   /* the skate park: a concrete plaza with a half-pipe, a fun box, a rail and a bowl sunk into the ground */
   (function skatePark(){const C=sphere(PLAZA.lon,PLAZA.lat);const {east,north}=frameAt(PLAZA.lon,PLAZA.lat);
@@ -1053,7 +1105,7 @@ function resolveSolids(){const PR=.42;const p=_sc.copy(up).multiplyScalar(R);wal
     if(ox<oz)slide(_sb.copy(s.X).multiplyScalar(lx<0?-1:1),ox);else slide(_sb.copy(s.Z).multiplyScalar(lz<0?-1:1),oz);p.copy(up).multiplyScalar(R);wallHit=true;}}
 function firstMove(){if(!hintGone){hintGone=true;$('#hint').classList.add('gone');}dismissTitle();}
 orthonormalize();
-window.__tp=(lon,lat,h)=>{up.copy(sphere(lon,lat));const {east,north}=frameAt(lon,lat);fwd.copy(h==='n'?north:h==='s'?north.clone().negate():h==='w'?east.clone().negate():east);orthonormalize();camInit=false;};window.__up=()=>up.clone();window.__resnap=()=>{sitPose=null;};window.__parkPt=(dx,dz)=>lonLatOf(parkPt(dx,dz));window.__xz=()=>parkXZ(up).map(v=>+v.toFixed(2));window.__boards=()=>BOARD?BOARD.boards.map(b=>parkXZ(b.n).map(v=>+v.toFixed(1))):null;window.__freeze=(kind,tt)=>{window.__dtScale=.0005;ride.air=.9;ride.airT=.35;ride.airDur=.7;ride.trick=kind?{kind,t:(tt??.5)*.6,dur:.6}:null;return 'frozen';};window.__unfreeze=()=>{window.__dtScale=1;ride.air=0;ride.trick=null;return 'ok';};window.__rideSet=o=>Object.assign(ride,o);window.__applyRide=()=>{applyRide();if(kidModel)kidModel.updateMatrixWorld(true);};window.__kid=()=>kidModel;window.__scoot=()=>SCOOT;window.__vehicles=()=>BOARD.boards.map(b=>({kind:b.kind||'board',ll:lonLatOf(b.n).map(v=>+v.toFixed(4))}));window.__ride=kind=>{const b=BOARD.boards.find(b=>(b.kind||'board')===kind);if(!b)return 'none';up.copy(b.n);orthonormalize();nearBoard=b;startRide();return 'riding '+kind;};window.__npcxz=name=>{const n=npcs.find(x=>x.name===name);return n?parkXZ(sphere(n.lon,n.lat)).map(v=>+v.toFixed(1)):null;};window.__say=(name,text)=>{const n=npcs.find(x=>x.name===name);if(!n)return 'no npc';talking=n;sayBubble(n,text,'dbg',false);return 'said';};window.__npc=name=>{const n=npcs.find(x=>x.name===name);return n?[n.lon,n.lat]:null;};window.__bone=n=>kidModel.userData.bones[n].quaternion.toArray().map(v=>+v.toFixed(3)); /* debug: jump somewhere facing n/s/e/w; read the player's position */
+window.__tp=(lon,lat,h)=>{up.copy(sphere(lon,lat));const {east,north}=frameAt(lon,lat);fwd.copy(h==='n'?north:h==='s'?north.clone().negate():h==='w'?east.clone().negate():east);orthonormalize();camInit=false;};window.__up=()=>up.clone();window.__resnap=()=>{sitPose=null;};window.__parkPt=(dx,dz)=>lonLatOf(parkPt(dx,dz));window.__xz=()=>parkXZ(up).map(v=>+v.toFixed(2));window.__boards=()=>BOARD?BOARD.boards.map(b=>parkXZ(b.n).map(v=>+v.toFixed(1))):null;window.__freeze=(kind,tt)=>{window.__dtScale=.0005;ride.air=.9;ride.airT=.35;ride.airDur=.7;ride.trick=kind?{kind,t:(tt??.5)*.6,dur:.6}:null;return 'frozen';};window.__unfreeze=()=>{window.__dtScale=1;ride.air=0;ride.trick=null;return 'ok';};window.__rideSet=o=>Object.assign(ride,o);window.__applyRide=()=>{applyRide();if(kidModel)kidModel.updateMatrixWorld(true);};window.__kid=()=>kidModel;window.__scoot=()=>SCOOT;window.__race=()=>race;window.__raceFinish=()=>finishRace();window.__cinema=()=>CINEMA;window.__room=()=>ROOM;window.__vehicles=()=>BOARD.boards.map(b=>({kind:b.kind||'board',ll:lonLatOf(b.n).map(v=>+v.toFixed(4))}));window.__ride=kind=>{const b=BOARD.boards.find(b=>(b.kind||'board')===kind);if(!b)return 'none';up.copy(b.n);orthonormalize();nearBoard=b;startRide();return 'riding '+kind;};window.__npcxz=name=>{const n=npcs.find(x=>x.name===name);return n?parkXZ(sphere(n.lon,n.lat)).map(v=>+v.toFixed(1)):null;};window.__say=(name,text)=>{const n=npcs.find(x=>x.name===name);if(!n)return 'no npc';talking=n;sayBubble(n,text,'dbg',false);return 'said';};window.__npc=name=>{const n=npcs.find(x=>x.name===name);return n?[n.lon,n.lat]:null;};window.__bone=n=>kidModel.userData.bones[n].quaternion.toArray().map(v=>+v.toFixed(3)); /* debug: jump somewhere facing n/s/e/w; read the player's position */
 const camPos=new THREE.Vector3(), camUp=up.clone(), camLook=new THREE.Vector3(), raycaster=new THREE.Raycaster();
 let camInit=false, nearN=null, shownN=null, talking=null, idleT=0, camYaw=0;
 // Messenger-style intro: the whole planet as a small globe on flat teal, spinning with a jelly wobble, until "enter"
@@ -1214,16 +1266,24 @@ function update(dt){
   nearBoard=null;if(BOARD&&!talking&&!sitting&&!ride.on){let bw=null;for(const b of BOARD.boards){const w_=b.n.clone().multiplyScalar(gAt(b.n));const d=w_.distanceTo(player.group.position);if(d<2.2&&d<bestD&&!nearBench){bestD=d;nearBoard=b;bw=w_;nearN=null;}}if(nearBoard){
     _proj.copy(bw).addScaledVector(up,1.1).project(camera);const ba=$('#ba');if(_proj.z<1){ba.style.left=clamp((_proj.x+1)/2*W+70,90,W-90)+'px';ba.style.top=clamp((1-_proj.y)/2*H,40,H-140)+'px';}}}
   if(ride.on){_proj.copy(player.group.position).addScaledVector(up,2.1).project(camera);const ba=$('#ba');if(_proj.z<1){ba.style.left=clamp((_proj.x+1)/2*W+70,90,W-90)+'px';ba.style.top=clamp((1-_proj.y)/2*H,40,H-140)+'px';}}
-  const shown=ride.on?'ride':sitting?'sit':nearBench?'bench':nearBoard?'board':nearN;
+  nearRace=false;nearFilm=false;inRoom=false;if(!talking&&!sitting&&!ride.on){const pl=player.group.position;const place=(w,h)=>{_proj.copy(w).addScaledVector(up,h).project(camera);const ba=$('#ba');if(_proj.z<1){ba.style.left=clamp((_proj.x+1)/2*W,90,W-90)+'px';ba.style.top=clamp((1-_proj.y)/2*H,40,H-140)+'px';}};
+    if(race.booth&&race.phase==='idle'){const d=race.booth.w.distanceTo(pl);if(d<3&&d<bestD){bestD=d;nearRace=true;nearN=null;nearBoard=null;nearBench=false;place(race.booth.w,3.1);}}
+    if(CINEMA){const d=CINEMA.w.distanceTo(pl);if(d<5&&d<bestD){bestD=d;nearFilm=true;nearN=null;nearBoard=null;nearBench=false;place(CINEMA.w,4.6);}}
+    if(ROOM.spawn&&Math.acos(clamp(up.dot(ROOM_N),-1,1))*R<5.5){inRoom=true;if(!nearN&&!nearBoard&&!nearBench&&!nearRace){const ba=$('#ba');ba.style.left=(W/2)+'px';ba.style.top=Math.max(40,H*.16)+'px';}}}
+  const shown=ride.on?'ride':sitting?'sit':nearBench?'bench':nearRace?'race':nearFilm?'film':nearBoard?'board':nearN?nearN:inRoom?'room':null;
   if(shown!==shownN){shownN=shown;const pr=$('#prompt'),ba=$('#ba');
     if(nearN){ba.textContent='Talk to '+nearN.name;ba.classList.remove('off');nearN.paused=true;}
     else if(nearBench){ba.textContent='Sit and watch the sunset';ba.classList.remove('off');}
+    else if(nearRace){ba.textContent='Start the race';ba.classList.remove('off');}
+    else if(nearFilm){ba.textContent='Watch a film';ba.classList.remove('off');}
     else if(nearBoard){ba.textContent=nearBoard.kind==='scooter'?'Ride the scooter':'Ride the skateboard';ba.classList.remove('off');}
+    else if(inRoom){ba.textContent='Back to town';ba.classList.remove('off');}
     else if(!sitting&&!ride.on){pr.classList.add('off');ba.classList.add('off');}}
   for(const n of npcs)if(n!==nearN&&n!==talking)n.paused=false;
 }
 let last=performance.now();
 let fpsN=0,fpsT=0;function frame(now){const dt=Math.min(.25,(now-last)/1000)*(window.__dtScale??1);last=now;if(!paused){let acc=dt;while(acc>1e-4){const h=Math.min(.05,acc);update(h);acc-=h;}} /* a slow phone gets several small steps, so the world and the run keep real time instead of slowing down */
+  raceUpdate(dt);
   if(fpsEl){fpsN++;if(now-fpsT>500){fpsEl.textContent=Math.round(fpsN*1000/(now-fpsT))+' fps';fpsN=0;fpsT=now;}}
   if(mixer)mixer.update(dt);applySit();applyRide();applyJump();for(const m of mixers)m.update(dt);updateBirds(dt,now/1000);if(window.__water&&window.__water.userData.sh)window.__water.userData.sh.uniforms.uT.value=now/1000;if(window.__shore&&window.__shore.material.userData.sh)window.__shore.material.userData.sh.uniforms.uT.value=now/1000;renderInk();requestAnimationFrame(frame);}
 requestAnimationFrame(frame);
@@ -1234,6 +1294,7 @@ requestAnimationFrame(frame);
 if(isTouch)$('#hint').textContent='drag the stick to move · drag the view to look around';else $('#hint').textContent='↑ ↓ to move · ← → to turn · space to jump';
 const KEYS={ArrowUp:'u',w:'u',W:'u',ArrowDown:'d',s:'d',S:'d',ArrowLeft:'l',a:'l',A:'l',ArrowRight:'r',d:'r',D:'r'};
 window.addEventListener('keydown',e=>{if(isTouch&&!(e.target&&/^(INPUT|TEXTAREA)$/.test(e.target.tagName||''))&&/^(ArrowUp|ArrowDown|ArrowLeft|ArrowRight|w|a|s|d)$/i.test(e.key))setTouch(false,true);
+  if(filmOn){if(e.key==='Escape')closeFilm();return;}if(!$('#raceend').hidden&&e.key==='Escape'){$('#raceend').hidden=true;return;}
   if(e.metaKey||e.ctrlKey||e.altKey)return;if(e.key==='Shift'){hold.shift=true;return;}
   if(talking){if(e.key==='Escape')endTalk();else if((e.key==='Enter'||e.key===' ')&&document.activeElement!==q){nextChunk();e.preventDefault();}return;}
   if(!$('#stops').hidden&&e.key==='Escape'){toggleStops(false);return;}
@@ -1298,7 +1359,7 @@ function musicUI(){const b=$('#musicbtn');b.setAttribute('aria-pressed',String(m
 function startMusic(){if(!musicOn||audioHidden)return;musicTarget=MUSIC_VOL;setVol(music,musicVol);music.play().catch(()=>{});}
 $('#musicbtn').addEventListener('click',e=>{e.stopPropagation();musicOn=!musicOn;try{localStorage.setItem('planet-music',musicOn?'on':'off');}catch(_){}musicUI();if(musicOn)startMusic();else{musicTarget=0;}});
 musicUI();
-setInterval(()=>{if(actx&&actx.state==='suspended'&&titleGone&&!audioHidden)actx.resume().catch(()=>{});const want=musicOn?(talking?MUSIC_VOL*.35:musicTarget):0;musicVol+=(want-musicVol)*.15;setVol(music,musicVol);if(musicVol<.005&&!musicOn)music.pause();
+setInterval(()=>{if(actx&&actx.state==='suspended'&&titleGone&&!audioHidden)actx.resume().catch(()=>{});const want=musicOn?(filmOn?0:talking?MUSIC_VOL*.35:musicTarget):0;musicVol+=(want-musicVol)*.15;setVol(music,musicVol);if(musicVol<.005&&!musicOn)music.pause();
   const sw=musicOn?stepsTarget:0;stepsVol+=(sw-stepsVol)*.4;setVol(steps,stepsVol);if(sw>.01&&steps.paused&&!audioHidden)steps.play().catch(()=>{});if(sw<=.01&&stepsVol<.01&&!steps.paused)steps.pause();},100);
 function dismissTitle(){if(titleGone)return;titleGone=true;intro=false;introFly=3;skyCol=dayBg;canvas.style.transform='';if(skyDome)skyDome.visible=true;if(SUNSET)for(const m of SUNSET.parts)m.visible=true;document.body.classList.remove('intro');$('#title').classList.add('gone');game.focus();unlockAudio();startMusic();startSteps();}
 $('#enter').addEventListener('click',e=>{e.stopPropagation();dismissTitle();});
@@ -1306,11 +1367,11 @@ window.addEventListener('keydown',e=>{if(intro&&!e.repeat&&(e.key==='Enter'||e.k
 for(let i=0;i<11;i++){const b=document.createElement('i');b.className='bub';const sz=6+Math.random()*16;b.style.cssText=`left:${Math.random()*100}%;width:${sz}px;height:${sz}px;animation-duration:${9+Math.random()*9}s;animation-delay:-${Math.random()*14}s`;$('#title').appendChild(b);}
 function toggleStops(show){const s=$('#stops');const vis=show==null?s.hidden:show;s.hidden=!vis;$('#menubtn').setAttribute('aria-expanded',String(vis));}
 $('#menubtn').addEventListener('click',e=>{e.stopPropagation();toggleStops();});
-$('#stops').addEventListener('click',e=>{const cbtn=e.target.closest('[data-ctl]');if(cbtn){setTouch(!isTouch,true);toggleStops(false);return;}const pb=e.target.closest('[data-place]');if(pb){if(pb.dataset.place==='skateSpawn'){if(sitting)standUp();if(ride.on)stopRide();autoTarget=null;autoRoute=[];up.copy(parkPt(-16,-19.5));fwd.copy(PARK.north);orthonormalize();v=0;camInit=false;firstMove();toggleStops(false);return;}
+$('#stops').addEventListener('click',e=>{const cbtn=e.target.closest('[data-ctl]');if(cbtn){setTouch(!isTouch,true);toggleStops(false);return;}const pb=e.target.closest('[data-place]');if(pb){if(pb.dataset.place==='skateSpawn'){spawnPark();toggleStops(false);return;}if(pb.dataset.place==='race'){startRace();return;}if(pb.dataset.place==='board'){openRaceBoard(null);toggleStops(false);return;}if(pb.dataset.place==='afk'){enterRoom();return;}
     if(pb.dataset.place==='sunsetSpawn'&&BENCH){if(sitting)standUp();if(ride.on)stopRide();autoTarget=null;autoRoute=[];up.copy(BENCH.n).addScaledVector(BENCH.face,-2.2/R).normalize();fwd.copy(BENCH.face);orthonormalize();v=0;camInit=false;firstMove();toggleStops(false);return;} /* straight to the sand behind the bench, facing the sea */const pl=PLACES[pb.dataset.place];if(pl){if(sitting)standUp();goTo(pl);firstMove();toggleStops(false);}return;}
   const b=e.target.closest('[data-go]');if(!b)return;const n=npcs.find(x=>x.id===b.dataset.go);if(sitting)standUp();goTo({n:npcPos(n)},n);firstMove();toggleStops(false);});
 (function placesMenu(){const h=document.createElement('h2');h.textContent='Places';$('#stops').appendChild(h);
-  for(const [k,t,sub] of [['sunset','The sunset bench','down the hill, by the sea'],['skate','Skate park','off the main street'],['skateSpawn','Spawn at the skate park','jump straight there'],['sunsetSpawn','Spawn at the sunset bench','jump straight there']]){const b=document.createElement('button');b.type='button';b.dataset.place=k;b.innerHTML='<i></i>'+t+'<small>'+sub+'</small>';$('#stops').appendChild(b);}
+  for(const [k,t,sub] of [['sunset','The sunset bench','down the hill, by the sea'],['skate','Skate park','off the main street'],['cinema','Beach cinema','a screen on the sand'],['skateSpawn','Spawn at the skate park','jump straight there'],['sunsetSpawn','Spawn at the sunset bench','jump straight there'],['race','Skate park race','a ring course out at sea, against the clock'],['board','Race leaderboard','the fastest laps'],['afk','Take a break (AFK)','a quiet room to wait in']]){const b=document.createElement('button');b.type='button';b.dataset.place=k;b.innerHTML='<i></i>'+t+'<small>'+sub+'</small>';$('#stops').appendChild(b);}
   const cb=document.createElement('button');cb.type='button';cb.dataset.ctl='1';cb.innerHTML='<i></i>'+(isTouch?'Switch to keyboard controls':'Switch to touch controls')+'<small>if the wrong ones came up</small>';$('#stops').appendChild(cb);})();
 document.addEventListener('pointerdown',e=>{if(!e.target.closest('#stops,#menubtn'))toggleStops(false);});
 
@@ -1401,7 +1462,59 @@ function thinkingBubble(n){clearTimeout(bubble.timer);bubble.who=n;bubble.chunks
 function meBubble(text){sbMe.innerHTML=esc(text);sbMe.hidden=false;clearTimeout(sbMe._t);sbMe._t=setTimeout(()=>{sbMe.hidden=true;},Math.max(2000,text.length*60));}
 function hideBubbles(){clearTimeout(bubble.timer);bubble.who=null;bubble.pending=false;sbN.hidden=true;sbMe.hidden=true;}
 function say(html,n,plainForVoice,key){if(typer){clearInterval(typer);typer=null;}const plain=plainForVoice||html.replace(/<[^>]+>/g,'');const wait=!!plainForVoice&&voiceOn&&hosted[n.name]!==false;if(plainForVoice)speak(plainForVoice,n);sayBubble(n,plain,key||'',wait);}
-function action(){unlockAudio();if(ride.on){stopRide();return;}if(sitting){standUp();return;}if(nearBench&&!talking){sitDown();return;}if(nearBoard&&!talking){startRide();return;}if(nearN&&!talking)startTalk(nearN);}
+/* ---------- the skate race: a timed lap through rings on the isle, with a shared leaderboard ---------- */
+function fmtT(ms){const m=Math.floor(ms/60000),sec=(ms%60000)/1000;return m+':'+(sec<10?'0':'')+sec.toFixed(1);}
+function setRing(r,state){r.state=state;r.mesh.material=race.mats[state];r.mesh.scale.setScalar(state==='next'?1.06:1);}
+function raceBuild(road){if(!road)return;race.road=road;race.mats={todo:toon(0xdde3e6),next:toon(0xf4c945),done:toon(0x8fb07a)};const N=10;const _m=new THREE.Matrix4();
+  for(let k=0;k<N;k++){const s_=4+k*(road.L-8)/(N-1);const sm=atS(road,s_);const jump=k%4===2;const rr=jump?1.9:1.7,hc=jump?2.7:1.55;
+    const mesh=new THREE.Mesh(new THREE.TorusGeometry(rr,.14,10,40),race.mats.todo);const c=sm.n.clone().multiplyScalar(gAt(sm.n)+hc);mesh.position.copy(c);_m.makeBasis(sm.side,sm.n,sm.t);mesh.quaternion.setFromRotationMatrix(_m);scene.add(mesh);
+    if(jump){const lb=label('JUMP',1.3,.5,'#e8792b','#ffffff',.34);lb.position.copy(sm.n).multiplyScalar(gAt(sm.n)+hc+rr+.45);lb.quaternion.copy(mesh.quaternion).multiply(new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0,1,0),Math.PI/2));scene.add(lb);} /* a JUMP sign over the rings you have to ollie through */
+    race.rings.push({mesh,c,t:sm.t.clone(),r:rr,state:'todo'});}
+  const s0=atS(road,0);race.finC=s0.n.clone().multiplyScalar(gAt(s0.n)+1.4);race.finT=s0.t.clone();race.startN=atS(road,1.6).n.clone();race.startFwd=s0.t.clone();
+  {const [l,a]=lonLatOf(s0.n);const arch=new THREE.Group();for(const x of [-3.2,3.2])arch.add(at(cyl(.1,.1,3.6,P.grey2,8),x,1.8,0));const ban=label('FINISH',6.2,.8,'#f4c945','#26333a',.55);ban.position.set(0,3.55,0);arch.add(ban);const ban2=ban.clone();ban2.rotation.y=Math.PI;arch.add(ban2);placeOn(arch,l,a,yawFor(l,a,s0.side));arch.translateY(-sinkFor(arch));arch.updateMatrixWorld(true);} /* the arch stands across the track at the start line */
+  /* the booth at the skate park: a board showing the fastest laps, and where you start the race from */
+  {const bn=parkPt(-25,-12);const [l,a]=lonLatOf(bn);const g=new THREE.Group();g.add(at(cyl(.09,.1,2.8,P.grey2,8),-1,1.4,0));g.add(at(cyl(.09,.1,2.8,P.grey2,8),1,1.4,0));
+    const cv=document.createElement('canvas');cv.width=512;cv.height=400;const tx=new THREE.CanvasTexture(cv);const bd=new THREE.Mesh(new THREE.PlaneGeometry(2.6,2.05),new THREE.MeshBasicMaterial({map:tx}));bd.userData.noInk=true;bd.position.set(0,2.6,.06);g.add(bd);g.add(at(box(2.75,2.2,.1,P.ink),0,2.6,0));
+    placeOn(g,l,a,yawFor(l,a,PARK.east.clone().negate()));g.translateY(-sinkFor(g));g.updateMatrixWorld(true);colliders.push(g);race.booth={w:bn.clone().multiplyScalar(gAt(bn)),cv,tx};boothDraw([]);}}
+function boothDraw(top){const b=race.booth;if(!b)return;const g=b.cv.getContext('2d');g.fillStyle='#f3efe4';g.fillRect(0,0,512,400);for(let i=0;i<16;i++){g.fillStyle=i%2?'#26333a':'#f3efe4';g.fillRect(i*32,0,32,22);g.fillStyle=i%2?'#f3efe4':'#26333a';g.fillRect(i*32,22,32,22);}
+  g.fillStyle='#26333a';g.textAlign='center';g.font='700 46px "Patrick Hand","Segoe Print",cursive';g.fillText('SKATE RACE',256,96);g.font='26px "Patrick Hand","Segoe Print",cursive';g.fillStyle='#5f6d72';g.fillText('fastest laps round the isle',256,132);
+  g.font='30px "Patrick Hand","Segoe Print",cursive';g.textAlign='left';const rows=top.slice(0,5);if(!rows.length){g.fillStyle='#5f6d72';g.textAlign='center';g.fillText('no laps yet — be the first',256,230);}
+  rows.forEach((r,i)=>{g.fillStyle='#26333a';g.fillText((i+1)+'.  '+r.name,40,190+i*40);g.textAlign='right';g.fillText(fmtT(r.ms),472,190+i*40);g.textAlign='left';});g.textAlign='center';g.fillStyle='#c8402f';g.font='28px "Patrick Hand","Segoe Print",cursive';g.fillText('walk up to race',256,382);b.tx.needsUpdate=true;}
+function spawnPark(){if(sitting)standUp();if(ride.on)stopRide();if(talking)endTalk();autoTarget=null;autoRoute=[];autoFace=null;up.copy(parkPt(-16,-19.5));fwd.copy(PARK.north);orthonormalize();v=0;pendingMove=0;camInit=false;firstMove();}
+function startRace(){if(!race.road||race.phase==='count'||race.phase==='run')return;if(sitting)standUp();if(ride.on)stopRide();if(talking)endTalk();autoTarget=null;autoRoute=[];autoFace=null;
+  up.copy(race.startN);fwd.copy(race.startFwd);orthonormalize();v=0;pendingMove=0;camInit=false;
+  const [lon,lat]=lonLatOf(up);dropBoard(up,yawFor(lon,lat,fwd)+Math.PI/2,'board');nearBoard=BOARD.boards[BOARD.boards.length-1];startRide(); /* a board is waiting under him at the line */
+  for(const r of race.rings)setRing(r,'todo');setRing(race.rings[0],'next');race.next=0;race.t=0;race.count=3.999;race.phase='count';$('#racehud').hidden=false;$('#raceend').hidden=true;raceHud();firstMove();toggleStops(false);}
+function raceHud(){$('#racehud b').textContent=fmtT(Math.round(race.t*1000));$('#racehud small').textContent=race.next+' / '+race.rings.length+' rings';}
+function quitRace(){if(race.phase==='idle')return;race.phase='idle';$('#racehud').hidden=true;spawnPark();}
+function raceUpdate(dt){if(race.phase==='count'){v=0;up.copy(race.startN);fwd.copy(race.startFwd);orthonormalize();const c=Math.ceil(race.count);race.count-=dt;const nc=Math.ceil(race.count);if(nc!==c){if(nc>0){showTrick(String(nc));jumpSfx();}else{showTrick('GO!');sfx('pop',.7);race.phase='run';race.t=0;}}return;}
+  if(race.phase!=='run')return;race.t+=dt;const a=ride.on&&ride.air>0?Math.sin(Math.PI*clamp(ride.airT/ride.airDur,0,1))*ride.air:0;_rp.copy(player.group.position).addScaledVector(up,a+.7);
+  const r=race.rings[race.next];
+  if(r){_rd.copy(_rp).sub(r.c);const along=_rd.dot(r.t);const off=_rd.addScaledVector(r.t,-along).length();if(Math.abs(along)<1&&off<r.r-.2){setRing(r,'done');race.next++;sfx('pop',.5);if(race.next<race.rings.length)setRing(race.rings[race.next],'next');else showTrick('To the finish!');}}
+  else{_rd.copy(_rp).sub(race.finC);const along=_rd.dot(race.finT);if(Math.abs(along)<1.2&&_rd.addScaledVector(race.finT,-along).length()<3.6)finishRace();}
+  if(isleOut(up)>3){up.copy(race.startN);fwd.copy(race.startFwd);orthonormalize();v=0;showTrick('Back to the line');} /* off the island: back to the start, clock still running */
+  raceHud();}
+function finishRace(){race.phase='done';const ms=Math.round(race.t*1000);showTrick('Finished!  '+fmtT(ms));sfx('land',.6);$('#racehud').hidden=true;setTimeout(()=>{race.phase='idle';spawnPark();openRaceBoard(ms);},1400);}
+const RACE_API='/api/race';function localBoard(){try{return JSON.parse(localStorage.getItem('planet-race')||'[]');}catch(_){return [];}}
+function localAdd(name,ms){const l=localBoard();l.push({name,ms});l.sort((a,b)=>a.ms-b.ms);try{localStorage.setItem('planet-race',JSON.stringify(l.slice(0,10)));}catch(_){}}
+async function loadBoard(){try{const r=await fetch(RACE_API,{cache:'no-store'});if(!r.ok)throw 0;const j=await r.json();return {top:j.top||[],shared:true};}catch(_){return {top:localBoard(),shared:false};}}
+async function postTime(name,ms){localAdd(name,ms);try{const r=await fetch(RACE_API,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({name,ms})});if(!r.ok)throw 0;const j=await r.json();return {top:j.top||[],shared:true};}catch(_){return {top:localBoard(),shared:false};}}
+function renderBoard(b,mine){const ol=$('#race-top');ol.innerHTML='';if(!b.top.length)ol.innerHTML='<li>no laps yet — be the first</li>';for(const r of b.top.slice(0,10)){const li=document.createElement('li');li.textContent=r.name+' ';const sp=document.createElement('span');sp.textContent=fmtT(r.ms);li.appendChild(sp);if(mine&&r.ms===mine)li.style.background='#f4c945';ol.appendChild(li);}
+  if(!b.shared){const li=document.createElement('li');li.style.listStyle='none';li.style.color='var(--muted)';li.style.fontSize='16px';li.textContent='(times on this device only — the shared board could not be reached)';ol.appendChild(li);}boothDraw(b.top);}
+let raceMs=null;async function openRaceBoard(ms){raceMs=ms;const el=$('#raceend');el.hidden=false;$('#race-time').hidden=ms==null;$('#race-post').hidden=ms==null;if(ms!=null){$('#race-time').textContent='Your lap: '+fmtT(ms);try{$('#race-name').value=localStorage.getItem('planet-name')||'';}catch(_){}}renderBoard(await loadBoard(),null);}
+$('#race-close').addEventListener('click',()=>{$('#raceend').hidden=true;game.focus();});$('#race-quit').addEventListener('click',quitRace);
+$('#race-post').addEventListener('submit',async e=>{e.preventDefault();if(raceMs==null)return;const name=($('#race-name').value||'').trim().slice(0,16)||'Someone';try{localStorage.setItem('planet-name',name);}catch(_){}const ms=raceMs;$('#race-post').hidden=true;renderBoard(await postTime(name,ms),ms);});
+setTimeout(async()=>{boothDraw((await loadBoard()).top);},2500);
+/* ---------- the break room ---------- */
+let roomBack=null;function enterRoom(){if(!ROOM.spawn)return;if(sitting)standUp();if(ride.on)stopRide();if(talking)endTalk();if(race.phase!=='idle')quitRace();autoTarget=null;autoRoute=[];autoFace=null;roomBack={up:up.clone(),fwd:fwd.clone()};up.copy(ROOM.spawn);fwd.copy(ROOM.face);orthonormalize();v=0;pendingMove=0;camInit=false;firstMove();toggleStops(false);}
+function leaveRoom(){if(roomBack){up.copy(roomBack.up);fwd.copy(roomBack.fwd);roomBack=null;}else{up.copy(START_N);fwd.set(-Math.sin(START_LON),0,Math.cos(START_LON));}orthonormalize();v=0;pendingMove=0;camInit=false;}
+/* ---------- the beach cinema ---------- */
+function openFilm(){filmOn=true;paused=true;for(const k in hold)hold[k]=false;$('#film').hidden=false;const list=$('#film-list');list.innerHTML='';FILMS.forEach(([t,d,id,ar],i)=>{const b=document.createElement('button');b.className='ink';b.type='button';b.innerHTML=t+'<small>'+d+'</small>';b.addEventListener('click',()=>playFilm(i));list.appendChild(b);});$('#film-frame').innerHTML='';}
+function playFilm(i){const [t,d,id,ar]=FILMS[i];document.querySelectorAll('#film-list button').forEach((b,k)=>b.classList.toggle('on',k===i));const fr=$('#film-frame');fr.innerHTML='';const f=document.createElement('iframe');f.allow='autoplay; fullscreen; picture-in-picture';f.allowFullscreen=true;f.title=t;
+  const vw=Math.min(innerWidth*.9,1060),vh=innerHeight*.66;let w=vw,h=vw/ar;if(h>vh){h=vh;w=vh*ar;}f.width=Math.round(w);f.height=Math.round(h);f.src='https://www.youtube-nocookie.com/embed/'+id+'?autoplay=1&rel=0&playsinline=1';fr.appendChild(f);}
+function closeFilm(){filmOn=false;paused=false;$('#film-frame').innerHTML='';$('#film').hidden=true;game.focus();}
+$('#film-x').addEventListener('click',closeFilm);$('#film').addEventListener('click',e=>{if(e.target===$('#film'))closeFilm();});
+function action(){unlockAudio();if(ride.on){stopRide();return;}if(sitting){standUp();return;}if(nearBench&&!talking){sitDown();return;}if(nearRace&&!talking){startRace();return;}if(nearFilm&&!talking){openFilm();return;}if(nearBoard&&!talking){startRide();return;}if(nearN&&!talking){startTalk(nearN);return;}if(inRoom&&!talking)leaveRoom();}
 /* sitting on the bench: the kid is set on the seat facing the sea and his legs are bent after the animation
    has run; the sun goes down, the stars come out for half a minute, then it brightens again */
 let sitting=false,nearBench=false,nightT=null,night=0;const sitOrbit={yaw:0,pitch:0}; /* while seated the controls swing the camera round him instead */const _sq=new THREE.Quaternion(),_sx=new THREE.Vector3(1,0,0);
