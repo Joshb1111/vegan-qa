@@ -225,7 +225,7 @@ const LITE=(()=>{const q=location.search;if(/[?&]full\b/.test(q))return false;if
 const LITE_SET=new Set('building1v2 building3 building4 building5 building6 building7 building8 building9 building10 building11 building12 building13 building14 building15 building16 building17 building18 building19 building20 building21 building22 building23 building24 building25 building26 npc1 npc2 npc3 npc4 npc5 npc6 npc7 kid scooter skatepark'.split(' '));
 function A(url){if(!LITE)return url;const m=url.match(/^assets\/([A-Za-z0-9_]+)\.glb(\?.*)?$/);return m&&LITE_SET.has(m[1])?'assets/lite/'+m[1]+'.glb'+(m[2]||''):url;}
 function liteLoader(ld){const raw=ld.load.bind(ld);ld.load=(url,ok,prog,err)=>{const lf=A(url);raw(lf,ok,prog,e=>{if(lf!==url){console.warn('lite model missing, using the full one',lf);raw(url,ok,prog,err);}else if(err)err(e);});};return ld;} /* a missing lite file falls back to the full one */
-const DPR=Math.min(devicePixelRatio||1,LITE?1:2);renderer.setPixelRatio(DPR); /* phones render at 1.5x at most: the ink pass is three full-screen passes */
+const DPR=Math.min(devicePixelRatio||1,LITE?1:2);let introRes=true;const INTRO_SCALE=LITE?.6:1; /* the spinning globe renders smaller on phones */renderer.setPixelRatio(DPR); /* phones render at 1.5x at most: the ink pass is three full-screen passes */
 const scene=new THREE.Scene(); scene.background=new THREE.Color(P.sky);
 const camera=new THREE.PerspectiveCamera(64,1,0.3,900); scene.add(camera);
 const sun=new THREE.DirectionalLight(0xfff6e8,0.30); sun.position.set(4,7,3); camera.add(sun); sun.target.position.set(0,0,-10); camera.add(sun.target);
@@ -278,17 +278,17 @@ const inkPass=new THREE.ShaderMaterial({uniforms:{tColor:{value:rt.texture},tDep
     float nf=night*(d0<300.?1.:.3);col=mix(col,col*vec3(.20,.26,.46)+vec3(.01,.02,.07),nf); // dusk to night; the sky keeps more of its own picture
     gl_FragColor=vec4(col,1.);}`});
 const quadScene=new THREE.Scene();quadScene.add(new THREE.Mesh(new THREE.PlaneGeometry(2,2),inkPass));const quadCam=new THREE.OrthographicCamera(-1,1,1,-1,0,1);
-function resize(){W=game.clientWidth;H=game.clientHeight;renderer.setSize(W,H,false);camera.aspect=W/H;camera.updateProjectionMatrix();const rw=Math.round(W*DPR),rh=Math.round(H*DPR);rt.setSize(rw,rh);rtN.setSize(rw,rh);inkPass.uniforms.res.value.set(rw,rh);}
+function resize(){W=game.clientWidth;H=game.clientHeight;const eff=DPR*(introRes?INTRO_SCALE:1);renderer.setPixelRatio(eff);renderer.setSize(W,H,false);camera.aspect=W/H;camera.updateProjectionMatrix();const rw=Math.round(W*eff),rh=Math.round(H*eff);rt.setSize(rw,rh);rtN.setSize(rw,rh);inkPass.uniforms.res.value.set(rw,rh);}
 window.addEventListener('resize',resize);resize();
 let skyCol=scene.background;const dayBg=skyCol,introBg=new THREE.Color(0x5abfb2),normalBg=new THREE.Color(0x8080ff); // background 'normal' faces the camera so the sky stays line-free
 let meshList=[],sceneDirty=true;const nmPlain=new THREE.MeshNormalMaterial(),nmSkin=new THREE.MeshNormalMaterial({skinning:true});
 const nmFlat=new THREE.MeshBasicMaterial({color:0x8080ff}),nmFlatSkin=new THREE.MeshBasicMaterial({color:0x8080ff,skinning:true}); // 'facing the camera': no interior lines, silhouette only
-let cullList=[];const _cn=new THREE.Vector3(),_on=new THREE.Vector3(),_cb=new THREE.Box3();
+let cullList=[],farState=null;const _cn=new THREE.Vector3(),_on=new THREE.Vector3(),_ws=new THREE.Vector3(),_cb=new THREE.Box3();
 function refreshMeshes(){meshList=[];cullList=[];scene.traverse(o=>{if(o.isMesh&&!o.userData.skipInk)meshList.push(o);});
   /* things standing on the planet (not the sky, sea, ground or ribbons, which sit at the origin) can hide behind it: note how far over the horizon each one can still peek */
-  for(const o of scene.children){const d=o.position.length();if(d<R-8||d>R+16||o.userData.noCull||o.isCamera||o.isLight||!o.visible)continue;_cb.setFromObject(o);if(_cb.isEmpty())continue;let top=0;for(const x of [_cb.min.x,_cb.max.x])for(const y of [_cb.min.y,_cb.max.y])for(const z of [_cb.min.z,_cb.max.z])top=Math.max(top,Math.hypot(x,y,z));o.userData.hAng=Math.acos(Math.min(1,R/Math.max(R,top)))+.04;cullList.push(o);}
-  sceneDirty=false;}
-function cullHorizon(){_cn.copy(camera.position);const camH=_cn.length()-R;_cn.normalize();const lim=Math.acos(R/(R+Math.max(.3,camH)));for(const o of cullList){_on.copy(o.position).normalize();o.visible=_on.dot(_cn)>Math.cos(lim+o.userData.hAng);}}
+  for(const o of scene.children){const d=o.position.length();if(d<R-8||d>R+16||o.userData.noCull||o.isCamera||o.isLight||!o.visible)continue;_cb.setFromObject(o);if(_cb.isEmpty())continue;let top=0;for(const x of [_cb.min.x,_cb.max.x])for(const y of [_cb.min.y,_cb.max.y])for(const z of [_cb.min.z,_cb.max.z])top=Math.max(top,Math.hypot(x,y,z));o.userData.hAng=Math.acos(Math.min(1,R/Math.max(R,top)))+.04;o.userData.hTop=top-R;const parts=[];o.traverse(m=>{if(m.isMesh&&m.geometry){if(!m.geometry.boundingSphere)m.geometry.computeBoundingSphere();m.getWorldScale(_ws);if(m.geometry.boundingSphere.radius*Math.max(_ws.x,_ws.y,_ws.z)<.9)parts.push(m);}});o.userData.smallParts=parts;cullList.push(o);} /* windows, doors, knobs: too small to see from the globe view */
+  if(farState!==null)for(const o of cullList)for(const m of o.userData.smallParts)m.visible=!farState;sceneDirty=false;}
+function cullHorizon(){_cn.copy(camera.position);const camH=_cn.length()-R;_cn.normalize();const lim=Math.acos(R/(R+Math.max(.3,camH)));const far=camH>30;if(far!==farState){farState=far;for(const o of cullList)for(const m of o.userData.smallParts)m.visible=!far;}for(const o of cullList){_on.copy(o.position).normalize();o.visible=_on.dot(_cn)>Math.cos(lim+o.userData.hAng)&&!(far&&o.userData.hTop<2.4);}} /* from the globe view the small props are too tiny to see, so they are skipped */
 const hideInNormals=[];
 function renderInk(){if(sceneDirty)refreshMeshes();cullHorizon();renderer.shadowMap.needsUpdate=true;renderer.setRenderTarget(rt);renderer.render(scene,camera);shadowCap.visible=false;for(const o of hideInNormals)o.visible=false;
   if(sceneDirty)refreshMeshes();for(const m of meshList){m.userData.mat=m.material;m.material=m.userData.noInk?(m.isSkinnedMesh?nmFlatSkin:nmFlat):(m.isSkinnedMesh?nmSkin:nmPlain);}
@@ -1120,7 +1120,7 @@ window.__tp=(lon,lat,h)=>{up.copy(sphere(lon,lat));const {east,north}=frameAt(lo
 const camPos=new THREE.Vector3(), camUp=up.clone(), camLook=new THREE.Vector3(), raycaster=new THREE.Raycaster();
 let camInit=false, nearN=null, shownN=null, talking=null, idleT=0, camYaw=0;
 // Messenger-style intro: the whole planet as a small globe on flat teal, spinning with a jelly wobble, until "enter"
-let intro=true,introT=0,introTh=NaN,introFly=0;document.body.classList.add('intro');
+let intro=true,introT=0,introTh=NaN,introFly=0,flyFrom=null;const FLY_T=3.2,_fa=new THREE.Vector3(),_fb=new THREE.Vector3();document.body.classList.add('intro');
 function introCam(dt){if(isNaN(introTh))introTh=Math.atan2(up.x,up.z);introT+=dt;const t=introT;introTh+=(.36+.16*Math.sin(t*.9))*dt; /* the spin speeds up and eases like a pushed globe */
   const lat=.36+.05*Math.sin(t*.7),D=66/(Math.tan(camera.fov*Math.PI/360)*Math.min(1,camera.aspect)*.62);
   camPos.set(D*Math.cos(lat)*Math.sin(introTh),D*Math.sin(lat),D*Math.cos(lat)*Math.cos(introTh));camUp.set(0,1,0);camLook.set(0,7+.6*Math.sin(t*1.7),0);
@@ -1265,8 +1265,10 @@ function update(dt){
   const hits=raycaster.intersectObjects(colliders,true);
   if(hits.length){const d=Math.max(1.6,hits[0].distance-.4);desired.copy(eye).addScaledVector(ray,d);look.lerp(eye,1-d/len);}
   if(intro)introCam(dt);
-  else{introFly=Math.max(0,introFly-dt);const k=camInit?1-Math.exp(-(introFly>0?2.2:5)*dt):1; /* after "enter" the camera swoops down from the globe view over ~3 s */
-  camPos.lerp(desired,k);camUp.lerp(up,k).normalize();camLook.lerp(look,k);}camInit=true;
+  else if(introFly>0&&flyFrom){introFly=Math.max(0,introFly-dt);const e=smooth(0,1,1-introFly/FLY_T); /* after "enter": the camera swings round the globe and drops in behind him */
+    _fa.copy(flyFrom.dir);_fb.copy(desired).normalize();const ang=Math.acos(clamp(_fa.dot(_fb),-1,1));if(ang<1e-4)_fa.copy(_fb);else _fa.multiplyScalar(Math.sin((1-e)*ang)/Math.sin(ang)).addScaledVector(_fb,Math.sin(e*ang)/Math.sin(ang));
+    camPos.copy(_fa).multiplyScalar(flyFrom.r+(desired.length()-flyFrom.r)*e);camUp.copy(flyFrom.up).lerp(up,e).normalize();camLook.copy(flyFrom.look).lerp(look,e);if(introFly<=0)flyFrom=null;}
+  else{const k=camInit?1-Math.exp(-5*dt):1;camPos.lerp(desired,k);camUp.lerp(up,k).normalize();camLook.lerp(look,k);}camInit=true;
   camera.position.copy(camPos);camera.up.copy(camUp);camera.lookAt(camLook);if(window.__camView){const cv=window.__camView;camera.position.fromArray(cv.pos);camera.up.fromArray(cv.up);camera.lookAt(new THREE.Vector3().fromArray(cv.look));} /* debug: a fixed inspection camera */
   if(talking){if(!sbN.hidden)placeBubble(sbN,headOf(talking.rig.group,2.25),34);if(!sbMe.hidden)placeBubble(sbMe,headOf(player.group,2.25),34);}
   if(nearN&&!talking){_proj.copy(headOf(nearN.rig.group,2.75)).project(camera);const ba=$('#ba');if(_proj.z<1){ba.style.left=clamp((_proj.x+1)/2*W,90,W-90)+'px';ba.style.top=clamp((1-_proj.y)/2*H,40,H-140)+'px';}}
@@ -1293,7 +1295,7 @@ function update(dt){
   for(const n of npcs)if(n!==nearN&&n!==talking)n.paused=false;
 }
 let last=performance.now();
-let fpsN=0,fpsT=0;function frame(now){const dt=Math.min(.25,(now-last)/1000)*(window.__dtScale??1);last=now;if(!paused){let acc=dt;while(acc>1e-4){const h=Math.min(.05,acc);update(h);acc-=h;}} /* a slow phone gets several small steps, so the world and the run keep real time instead of slowing down */
+let fpsN=0,fpsT=0,skipN=0;function frame(now){if(intro&&LITE&&((++skipN)&1)){requestAnimationFrame(frame);return;} /* the title globe draws every other frame on phones */const dt=Math.min(.25,(now-last)/1000)*(window.__dtScale??1);last=now;if(!paused){let acc=dt;while(acc>1e-4){const h=Math.min(.05,acc);update(h);acc-=h;}} /* a slow phone gets several small steps, so the world and the run keep real time instead of slowing down */
   raceUpdate(dt);
   if(fpsEl){fpsN++;if(now-fpsT>500){fpsEl.textContent=Math.round(fpsN*1000/(now-fpsT))+' fps';fpsN=0;fpsT=now;}}
   if(mixer)mixer.update(dt);applySit();applyRide();applyJump();for(const m of mixers)m.update(dt);updateBirds(dt,now/1000);if(window.__water&&window.__water.userData.sh)window.__water.userData.sh.uniforms.uT.value=now/1000;if(window.__shore&&window.__shore.material.userData.sh)window.__shore.material.userData.sh.uniforms.uT.value=now/1000;renderInk();requestAnimationFrame(frame);}
@@ -1372,7 +1374,7 @@ $('#musicbtn').addEventListener('click',e=>{e.stopPropagation();musicOn=!musicOn
 musicUI();
 setInterval(()=>{if(actx&&actx.state==='suspended'&&titleGone&&!audioHidden)actx.resume().catch(()=>{});const want=musicOn?(filmOn?0:talking?MUSIC_VOL*.35:musicTarget):0;musicVol+=(want-musicVol)*.15;setVol(music,musicVol);if(musicVol<.005&&!musicOn)music.pause();
   const sw=musicOn?stepsTarget:0;stepsVol+=(sw-stepsVol)*.4;setVol(steps,stepsVol);if(sw>.01&&steps.paused&&!audioHidden)steps.play().catch(()=>{});if(sw<=.01&&stepsVol<.01&&!steps.paused)steps.pause();},100);
-function dismissTitle(){if(titleGone)return;titleGone=true;intro=false;introFly=3;skyCol=dayBg;canvas.style.transform='';if(skyDome)skyDome.visible=true;if(SUNSET)for(const m of SUNSET.parts)m.visible=true;document.body.classList.remove('intro');$('#title').classList.add('gone');game.focus();unlockAudio();startMusic();startSteps();}
+function dismissTitle(){if(titleGone)return;titleGone=true;intro=false;introFly=FLY_T;flyFrom={dir:camPos.clone().normalize(),r:camPos.length(),look:camLook.clone(),up:camUp.clone()};introRes=false;resize();skyCol=dayBg;canvas.style.transform='';if(skyDome)skyDome.visible=true;if(SUNSET)for(const m of SUNSET.parts)m.visible=true;document.body.classList.remove('intro');$('#title').classList.add('gone');game.focus();unlockAudio();startMusic();startSteps();}
 $('#enter').addEventListener('click',e=>{e.stopPropagation();dismissTitle();});
 window.addEventListener('keydown',e=>{if(intro&&!e.repeat&&(e.key==='Enter'||e.key===' ')){e.preventDefault();dismissTitle();}});
 for(let i=0;i<11;i++){const b=document.createElement('i');b.className='bub';const sz=6+Math.random()*16;b.style.cssText=`left:${Math.random()*100}%;width:${sz}px;height:${sz}px;animation-duration:${9+Math.random()*9}s;animation-delay:-${Math.random()*14}s`;$('#title').appendChild(b);}
