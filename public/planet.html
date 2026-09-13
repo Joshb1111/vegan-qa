@@ -84,7 +84,7 @@ body.touch .tpad{margin-left:auto}
 #title p.err{color:var(--red);opacity:1}
 #racehud[hidden],#raceend[hidden],#film[hidden]{display:none}
 #racehud{position:fixed;left:50%;top:max(14px,env(safe-area-inset-top));transform:translateX(-50%);z-index:5;display:flex;align-items:baseline;gap:12px;padding:6px 14px;font-family:var(--hand)}
-#racehud b{font-size:30px;font-weight:normal;font-variant-numeric:tabular-nums}#racehud small{font-size:18px;color:var(--muted)}#racehud button{appearance:none;background:none;border:0;font-family:var(--hand);font-size:17px;color:var(--red);cursor:pointer;text-decoration:underline}
+#racehud b{font-size:30px;font-weight:normal;font-variant-numeric:tabular-nums}#racehud small{font-size:18px;color:var(--muted)}#racehud .hb{display:flex;flex-direction:column;align-items:flex-start;gap:2px;align-self:center}#racehud button{appearance:none;background:none;border:0;padding:0;font-family:var(--hand);font-size:17px;color:var(--red);cursor:pointer;text-decoration:underline;line-height:1.1}#race-restart{color:var(--ink)}
 #raceend{position:fixed;left:50%;top:50%;transform:translate(-50%,-50%);z-index:12;width:min(440px,92vw);max-height:88vh;overflow:auto;padding:16px 18px;font-family:var(--hand)}
 #raceend h2{margin:0 0 6px;font-weight:normal;font-size:30px;letter-spacing:.04em}#raceend p{font-size:26px;margin:0 0 10px}#raceend form{display:flex;gap:8px;margin:0 0 12px}#raceend input{flex:1;min-width:0;font:20px var(--hand);padding:6px 10px;border:2px solid var(--ink);border-radius:6px;background:#fff}
 #raceend ol{margin:0 0 14px;padding-left:34px;font-size:22px;line-height:1.35}#raceend ol span{float:right;font-variant-numeric:tabular-nums}#raceend button{font-family:var(--hand);font-size:20px;padding:6px 16px;cursor:pointer}
@@ -186,7 +186,7 @@ body.intro #game{background:#5abfb2}
   <form id="ask" autocomplete="off"><input id="q" type="text" maxlength="300" placeholder="Ask anything about veganism…" aria-label="Your question"><button id="send" class="ink" type="submit">Ask</button></form>
   <p class="note">Answers come from the Understand Veganism chatbot.</p>
 </section>
-<div id="racehud" class="ink" hidden><b>0:00.0</b><small>0 / 0 rings</small><button type="button" id="race-quit">quit</button></div>
+<div id="racehud" class="ink" hidden><b>0:00.0</b><small>0 / 0 rings</small><span class="hb"><button type="button" id="race-quit">quit</button><button type="button" id="race-restart">restart</button></span></div>
 <div id="raceend" class="ink" hidden><h2>Skate park race</h2><p id="race-time" hidden></p><form id="race-post" hidden><input id="race-name" type="text" maxlength="16" placeholder="Your name for the board" aria-label="Your name"><button class="ink" type="submit">Post it</button></form><ol id="race-top"><li>loading…</li></ol><button id="race-close" class="ink" type="button">Back to the park</button></div>
 <div id="film" hidden><div class="fpanel ink"><header><b>Beach cinema</b><span class="sp"></span><button id="film-x" class="ink" type="button">Close</button></header><div id="film-list"></div><div id="film-frame"></div><p class="note">The films from the front page of understand-veganism.com.</p></div></div>
 <div id="sbN" class="sb" hidden></div>
@@ -1481,7 +1481,7 @@ function boothDraw(top){const b=race.booth;if(!b)return;const g=b.cv.getContext(
   g.font='30px "Patrick Hand","Segoe Print",cursive';g.textAlign='left';const rows=top.slice(0,5);if(!rows.length){g.fillStyle='#5f6d72';g.textAlign='center';g.fillText('no laps yet — be the first',256,230);}
   rows.forEach((r,i)=>{g.fillStyle='#26333a';g.fillText((i+1)+'.  '+r.name,40,190+i*40);g.textAlign='right';g.fillText(fmtT(r.ms),472,190+i*40);g.textAlign='left';});g.textAlign='center';g.fillStyle='#c8402f';g.font='28px "Patrick Hand","Segoe Print",cursive';g.fillText('walk up to race',256,382);b.tx.needsUpdate=true;}
 function spawnPark(){if(sitting)standUp();if(ride.on)stopRide();if(talking)endTalk();autoTarget=null;autoRoute=[];autoFace=null;up.copy(parkPt(-16,-19.5));fwd.copy(PARK.north);orthonormalize();v=0;pendingMove=0;camInit=false;firstMove();}
-function startRace(){if(!race.road||race.phase==='count'||race.phase==='run')return;if(sitting)standUp();if(ride.on)stopRide();if(talking)endTalk();autoTarget=null;autoRoute=[];autoFace=null;
+function startRace(){if(!race.road||race.phase==='count')return;if(race.phase==='run'){race.phase='idle';$('#racehud').hidden=true;}if(sitting)standUp();if(ride.on)stopRide();if(talking)endTalk();autoTarget=null;autoRoute=[];autoFace=null;
   up.copy(race.startN);fwd.copy(race.startFwd);orthonormalize();v=0;pendingMove=0;camInit=false;
   const [lon,lat]=lonLatOf(up);dropBoard(up,yawFor(lon,lat,fwd)+Math.PI/2,'board');nearBoard=BOARD.boards[BOARD.boards.length-1];startRide(); /* a board is waiting under him at the line */
   for(const r of race.rings)setRing(r,'todo');setRing(race.rings[0],'next');race.next=0;race.t=0;race.count=3.999;race.phase='count';$('#racehud').hidden=false;$('#raceend').hidden=true;raceHud();firstMove();toggleStops(false);}
@@ -1502,7 +1502,7 @@ async function postTime(name,ms){localAdd(name,ms);try{const r=await fetch(RACE_
 function renderBoard(b,mine){const ol=$('#race-top');ol.innerHTML='';if(!b.top.length)ol.innerHTML='<li>no laps yet — be the first</li>';for(const r of b.top.slice(0,10)){const li=document.createElement('li');li.textContent=r.name+' ';const sp=document.createElement('span');sp.textContent=fmtT(r.ms);li.appendChild(sp);if(mine&&r.ms===mine)li.style.background='#f4c945';ol.appendChild(li);}
   if(!b.shared){const li=document.createElement('li');li.style.listStyle='none';li.style.color='var(--muted)';li.style.fontSize='16px';li.textContent='(times on this device only — the shared board could not be reached)';ol.appendChild(li);}boothDraw(b.top);}
 let raceMs=null;async function openRaceBoard(ms){raceMs=ms;const el=$('#raceend');el.hidden=false;$('#race-time').hidden=ms==null;$('#race-post').hidden=ms==null;if(ms!=null){$('#race-time').textContent='Your lap: '+fmtT(ms);try{$('#race-name').value=localStorage.getItem('planet-name')||'';}catch(_){}}renderBoard(await loadBoard(),null);}
-$('#race-close').addEventListener('click',()=>{$('#raceend').hidden=true;game.focus();});$('#race-quit').addEventListener('click',quitRace);
+$('#race-close').addEventListener('click',()=>{$('#raceend').hidden=true;game.focus();});$('#race-quit').addEventListener('click',quitRace);$('#race-restart').addEventListener('click',()=>{if(race.phase==='run'||race.phase==='count')startRace();});
 $('#race-post').addEventListener('submit',async e=>{e.preventDefault();if(raceMs==null)return;const name=($('#race-name').value||'').trim().slice(0,16)||'Someone';try{localStorage.setItem('planet-name',name);}catch(_){}const ms=raceMs;$('#race-post').hidden=true;renderBoard(await postTime(name,ms),ms);});
 setTimeout(async()=>{boothDraw((await loadBoard()).top);},2500);
 /* ---------- the break room ---------- */
