@@ -240,7 +240,7 @@ Object.assign(sunL.shadow.camera,{left:-8.5,right:8.5,top:8.5,bottom:-8.5,near:2
 scene.add(sunL);scene.add(sunL.target);
 /* the shadow patch: a small grid that is re-laid over the ground round the player every frame, so it hugs slopes, the beach and the park floor */
 const SHW=8.5,SHN=28,_sv=new THREE.Vector3();const shadowCap=new THREE.Mesh(new THREE.PlaneGeometry(1,1,SHN,SHN),new THREE.ShadowMaterial({color:0x1b2630,opacity:.36,transparent:true,depthWrite:false}));
-shadowCap.receiveShadow=true;shadowCap.userData.skipInk=true;shadowCap.frustumCulled=false;shadowCap.renderOrder=3;scene.add(shadowCap); /* drawn after the other see-through ground layers (the sand strip), so shadows show on them */
+shadowCap.receiveShadow=true;shadowCap.userData.skipInk=true;shadowCap.userData.noCull=true;shadowCap.frustumCulled=false;shadowCap.renderOrder=3;scene.add(shadowCap); /* drawn after the other see-through ground layers (the sand strip), so shadows show on them */
 const _se=new THREE.Vector3(),_sn=new THREE.Vector3(),_sd=new THREE.Vector3(),_sm=new THREE.Matrix4();
 function updateSky(up){if(!skyDome)return;_se.set(0,1,0);if(Math.abs(up.y)>.98)_se.set(1,0,0);_se.addScaledVector(up,-_se.dot(up)).normalize();_sn.crossVectors(_se,up);_sm.makeBasis(_se,up,_sn);skyDome.quaternion.setFromRotationMatrix(_sm);if(nightDome)nightDome.quaternion.copy(skyDome.quaternion);}
 function updateShadowRig(pos,up,q){_se.set(-up.z,0,up.x).normalize();_sn.crossVectors(_se,up).normalize();
@@ -283,9 +283,14 @@ window.addEventListener('resize',resize);resize();
 let skyCol=scene.background;const dayBg=skyCol,introBg=new THREE.Color(0x5abfb2),normalBg=new THREE.Color(0x8080ff); // background 'normal' faces the camera so the sky stays line-free
 let meshList=[],sceneDirty=true;const nmPlain=new THREE.MeshNormalMaterial(),nmSkin=new THREE.MeshNormalMaterial({skinning:true});
 const nmFlat=new THREE.MeshBasicMaterial({color:0x8080ff}),nmFlatSkin=new THREE.MeshBasicMaterial({color:0x8080ff,skinning:true}); // 'facing the camera': no interior lines, silhouette only
-function refreshMeshes(){meshList=[];scene.traverse(o=>{if(o.isMesh&&!o.userData.skipInk)meshList.push(o);});sceneDirty=false;}
+let cullList=[];const _cn=new THREE.Vector3(),_on=new THREE.Vector3(),_cb=new THREE.Box3();
+function refreshMeshes(){meshList=[];cullList=[];scene.traverse(o=>{if(o.isMesh&&!o.userData.skipInk)meshList.push(o);});
+  /* things standing on the planet (not the sky, sea, ground or ribbons, which sit at the origin) can hide behind it: note how far over the horizon each one can still peek */
+  for(const o of scene.children){const d=o.position.length();if(d<R-8||d>R+16||o.userData.noCull||o.isCamera||o.isLight||!o.visible)continue;_cb.setFromObject(o);if(_cb.isEmpty())continue;let top=0;for(const x of [_cb.min.x,_cb.max.x])for(const y of [_cb.min.y,_cb.max.y])for(const z of [_cb.min.z,_cb.max.z])top=Math.max(top,Math.hypot(x,y,z));o.userData.hAng=Math.acos(Math.min(1,R/Math.max(R,top)))+.04;cullList.push(o);}
+  sceneDirty=false;}
+function cullHorizon(){_cn.copy(camera.position);const camH=_cn.length()-R;_cn.normalize();const lim=Math.acos(R/(R+Math.max(.3,camH)));for(const o of cullList){_on.copy(o.position).normalize();o.visible=_on.dot(_cn)>Math.cos(lim+o.userData.hAng);}}
 const hideInNormals=[];
-function renderInk(){renderer.shadowMap.needsUpdate=true;renderer.setRenderTarget(rt);renderer.render(scene,camera);shadowCap.visible=false;for(const o of hideInNormals)o.visible=false;
+function renderInk(){if(sceneDirty)refreshMeshes();cullHorizon();renderer.shadowMap.needsUpdate=true;renderer.setRenderTarget(rt);renderer.render(scene,camera);shadowCap.visible=false;for(const o of hideInNormals)o.visible=false;
   if(sceneDirty)refreshMeshes();for(const m of meshList){m.userData.mat=m.material;m.material=m.userData.noInk?(m.isSkinnedMesh?nmFlatSkin:nmFlat):(m.isSkinnedMesh?nmSkin:nmPlain);}
   scene.background=normalBg;renderer.setRenderTarget(rtN);renderer.render(scene,camera);
   for(const m of meshList)m.material=m.userData.mat;shadowCap.visible=true;for(const o of hideInNormals)o.visible=true;scene.background=skyCol;renderer.setRenderTarget(null);renderer.render(quadScene,quadCam);}
@@ -634,7 +639,7 @@ const SCOOT={model:null,lift:.1,yawOff:-Math.PI/2,axP:new THREE.Vector3(),axD:ne
   make(){const g=new THREE.Group();if(SCOOT.model)g.add(SCOOT.model.clone());else{const d=box(1.1,.05,.16,0x2b2e31);d.position.y=.1;d.name='deck';g.add(d);const st=cyl(.03,.03,1.1,P.grey2,6);st.position.set(-.5,.6,0);st.name='bars';g.add(st);}return g;},
   /* rotate a part round the stem axis (for tailwhips and barspins) */
   spinPart(name,ang){const part=SCOOT.ride.getObjectByName(name);if(!part)return;const q=_sq.setFromAxisAngle(SCOOT.axD,ang);part.quaternion.copy(q);part.position.copy(SCOOT.axP).sub(_q.copy(SCOOT.axP).applyQuaternion(q));}};
-SCOOT.ride.visible=false;
+SCOOT.ride.visible=false;SCOOT.ride.userData.noCull=true;
 function spawnBoard(){if(!BOARD)return;if(BOARD.boards.some(b=>Math.acos(clamp(b.n.dot(BOARD.spawn),-1,1))*R<1.5))return;const [lon,lat]=lonLatOf(BOARD.spawn);BOARD.boards.push({prop:placeOn(BOARD.make(),lon,lat,BOARD.spawnYaw),n:BOARD.spawn.clone()});}
 function dropBoard(n,yaw,kind){const [lon,lat]=lonLatOf(n);const sc=kind==='scooter';BOARD.boards.push({prop:placeOn(sc?SCOOT.make():BOARD.make(),lon,lat,yaw),n:n.clone(),kind:kind||'board'});while(BOARD.boards.length>6){const old=BOARD.boards.shift();scene.remove(old.prop);sceneDirty=true;}}
 /* a fingerpost: arms of text, each pointing along a world direction */
@@ -789,7 +794,7 @@ function townAlong(road,o){o=o||{};const kerb=road.kerb;const end=Math.min(road.
      const lg=box(ELEDGE.x1-ELEDGE.x0,ELEDGE.h,ELEDGE.w,0xbfc3c0);const [,ll,la]=pt((ELEDGE.x0+ELEDGE.x1)/2,ELEDGE.z);placeOn(lg,ll,la,yawFor(ll,la,north));colliders.push(lg);
      const py=funBox(PYR.top*2,PYR.half*2,PYR.h);const [,pl_,pa_]=pt(PYR.x,PYR.z);placeOn(py,pl_,pa_,yawFor(pl_,pa_,north));colliders.push(py);}
     const [,sl,sa]=pt(-9.5,-19.5);npcSpots.push({lon:sl,lat:sa,face:north,fixed:'Sam'});PLACES.skate={road:byName('skate'),s:byName('skate').L-1,then:pt(0,-15)[0]};/* skateboards: one always waits at the south-west corner of the park; a new one appears there when it is taken */
-    const [bn]=pt(-20.4,-18.8);BOARD={spawn:bn.clone(),spawnYaw:.4,boards:[],ride:skateboard(),make:skateboard,lift:.17};BOARD.ride.visible=false;scene.add(BOARD.ride);spawnBoard();
+    const [bn]=pt(-20.4,-18.8);BOARD={spawn:bn.clone(),spawnYaw:.4,boards:[],ride:skateboard(),make:skateboard,lift:.17};BOARD.ride.visible=false;BOARD.ride.userData.noCull=true;scene.add(BOARD.ride);spawnBoard();
     const [,tl,ta]=pt(14,-20);placeOn(bench(),tl,ta,yawFor(tl,ta,north));const [,ol,oa]=pt(19,-12);npcSpots.push({lon:ol,lat:oa,face:north.clone().negate()});
   })();
   /* by the start: a skateboard and a scooter wait on the pavement, so you can ride straight away */
@@ -963,13 +968,13 @@ function groundFix(holder,root){holder.updateMatrixWorld(true);let minY=Infinity
       for(const [dx,dz,hz] of [[21.6,-.7,6.9],[-21.6,7,6.3]]){const wv=parkPt(dx,dz);solids.push({c:wv.clone().multiplyScalar(R),X:PARK.east.clone(),Z:PARK.north.clone(),hx:.25,hz});} /* the backs of the side ramps */},undefined,e=>console.warn('skate park not loaded',e));
     loader.load('assets/board.glb',g=>{const root=g.scene;toonify(root);const bb=new THREE.Box3().setFromObject(root);const sc=1.22/(bb.max.x-bb.min.x);root.scale.set(sc,sc,sc*1.4);root.position.set(-(bb.min.x+bb.max.x)/2*sc,-bb.min.y*sc,-(bb.min.z+bb.max.z)/2*sc);
       BOARD_MODEL=root;BOARD.lift=(bb.max.y-bb.min.y)*sc+.02;for(const o of [BOARD.ride,...BOARD.boards.filter(b=>b.kind!=='scooter').map(b=>b.prop)]){o.clear();o.add(root.clone());}sceneDirty=true;},undefined,e=>console.warn('board not loaded',e));
-    /* pebbles: little stones over the sand and, smaller and sparser, over the grass; one instanced mesh per stone shape, so they cost almost nothing */
-    for(const [file,N,latMin,latMax,sMin,sMax,onGrass] of [['assets/green14.glb',700,-.352,-.256,.09,.21,false],['assets/green16.glb',380,-.35,-.26,.07,.17,false],['assets/green15.glb',1100,-.225,1.45,.06,.14,true]]){loader.load(file,g=>{let mesh=null;g.scene.traverse(m=>{if(m.isMesh&&!mesh)mesh=m;});if(!mesh)return;toonify(g.scene);g.scene.updateMatrixWorld(true);
-      const geo=mesh.geometry.clone().applyMatrix4(mesh.matrixWorld);const bb=new THREE.Box3().setFromBufferAttribute(geo.attributes.position);const h=bb.max.y-bb.min.y;geo.translate(-(bb.min.x+bb.max.x)/2,-bb.min.y-.38*h,-(bb.min.z+bb.max.z)/2);geo.scale(1/h,1/h,1/h);
-      const NN=LITE?Math.round(N*.35):N;const im=new THREE.InstancedMesh(geo,mesh.material,NN);const M=new THREE.Matrix4(),Bm=new THREE.Matrix4(),Q=new THREE.Quaternion(),Q2=new THREE.Quaternion(),S=new THREE.Vector3(),Pp=new THREE.Vector3(),X=new THREE.Vector3();let k=0;
+    /* pebbles: little stones over the sand and, smaller and sparser, over the grass; lumpy 80-triangle shapes, one instanced mesh each, so they cost almost nothing */
+    for(const [col,N,latMin,latMax,sMin,sMax,onGrass] of [[0x8d9296,700,-.352,-.256,.09,.21,false],[0xb0aba0,380,-.35,-.26,.07,.17,false],[0x7f8a86,1100,-.225,1.45,.06,.14,true]]){
+      const geo=new THREE.IcosahedronGeometry(.55,1);{const pa=geo.attributes.position;for(let i=0;i<pa.count;i++){const k=.78+Math.random()*.44;pa.setXYZ(i,pa.getX(i)*k,pa.getY(i)*.62*k,pa.getZ(i)*k);}geo.translate(0,-.12,0);geo.computeVertexNormals();}
+      const NN=LITE?Math.round(N*.35):N;const im=new THREE.InstancedMesh(geo,toon(col),NN);const M=new THREE.Matrix4(),Bm=new THREE.Matrix4(),Q=new THREE.Quaternion(),Q2=new THREE.Quaternion(),S=new THREE.Vector3(),Pp=new THREE.Vector3(),X=new THREE.Vector3();let k=0;
       for(let t=0;t<NN*8&&k<NN;t++){const lon=Math.random()*Math.PI*2,lat=latMin+Math.random()*(latMax-latMin);const n=sphere(lon,lat);if(blocked(n,onGrass?.9:.4))continue;if(BENCH&&Math.acos(clamp(n.dot(BENCH.n),-1,1))*R<1.6)continue;
-        const {north}=frameAt(lon,lat);const Z=north.clone().negate();X.crossVectors(n,Z);Bm.makeBasis(X,n,Z);Q.setFromRotationMatrix(Bm).multiply(Q2.setFromAxisAngle(_sy,Math.random()*Math.PI*2));const sc=sMin+Math.random()*(sMax-sMin);S.set(sc*(0.8+Math.random()*.5),sc,sc*(0.8+Math.random()*.5));Pp.copy(n).multiplyScalar(gAt(n)+.012);M.compose(Pp,Q,S);im.setMatrixAt(k++,M);}
-      im.count=k;im.instanceMatrix.needsUpdate=true;im.frustumCulled=false;im.castShadow=!LITE;scene.add(im);sceneDirty=true;},undefined,e=>console.warn('pebbles not loaded',file,e));}
+        const {north}=frameAt(lon,lat);const Z=north.clone().negate();X.crossVectors(n,Z);Bm.makeBasis(X,n,Z);Q.setFromRotationMatrix(Bm).multiply(Q2.setFromAxisAngle(_sy,Math.random()*Math.PI*2));const sc=(sMin+Math.random()*(sMax-sMin))*1.4;S.set(sc*(0.8+Math.random()*.5),sc,sc*(0.8+Math.random()*.5));Pp.copy(n).multiplyScalar(gAt(n)+.012);M.compose(Pp,Q,S);im.setMatrixAt(k++,M);}
+      im.count=k;im.instanceMatrix.needsUpdate=true;im.frustumCulled=false;im.castShadow=!LITE;scene.add(im);sceneDirty=true;}
     loader.load('assets/scooter.glb',g=>{let mesh=null;g.scene.traverse(m=>{if(m.isMesh&&!mesh)mesh=m;});if(!mesh)return;toonify(g.scene);g.scene.updateMatrixWorld(true);
       {const map=mesh.material.map;const lift=()=>{const im=map.image;if(!im||!im.width)return;const c=document.createElement('canvas');c.width=im.width;c.height=im.height;const x=c.getContext('2d');x.filter='brightness(1.3) contrast(1.1)';x.drawImage(im,0,0);const t=new THREE.CanvasTexture(c);t.encoding=map.encoding;t.flipY=map.flipY;t.anisotropy=map.anisotropy;mesh.material.map=t;mesh.material.needsUpdate=true;}; /* the painted scooter is almost black; lifted to charcoal so its lines read */
         if(map&&map.image&&map.image.width)lift();else if(map){const iv=setInterval(()=>{if(map.image&&map.image.width){clearInterval(iv);lift();}},200);}}
