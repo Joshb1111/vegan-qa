@@ -1049,8 +1049,9 @@ function groundFix(holder,root){holder.updateMatrixWorld(true);let minY=Infinity
       for(const c of g.animations){c.tracks=c.tracks.filter(t=>!(t.name.endsWith('.position')&&/Hips/.test(t.name))||false);SPIDEY.clips[c.name]=c;} /* hips position tracks carry root motion */
       SPIDEY.model=root;
       {const tmp=spideyInstance();tmp.play('walk',0);const bp=new THREE.Vector3();let y0=1e9,y1=-1e9;let sm=null;tmp.root.traverse(o=>{if(o.isSkinnedMesh&&!sm)sm=o;});const dur=SPIDEY.clips.walk.duration;
-        for(const tt of [0,.25,.5,.75]){tmp.act.walk.time=tt*dur;tmp.mixer.update(0);tmp.holder.updateMatrixWorld(true);for(const b of sm.skeleton.bones){b.getWorldPosition(bp);y0=Math.min(y0,bp.y);y1=Math.max(y1,bp.y);}}
-        const sc=1.85/((y1-y0)*1.13);root.scale.setScalar(sc);root.position.y=-y0*sc+.02;scene.remove(tmp.holder);mixers.splice(mixers.indexOf(tmp.mixer),1);}
+        let cx=0,cz=0,nf=0;const feet=sm.skeleton.bones.filter(b=>/(Left|Right)Foot$/.test(b.name));
+        for(const tt of [0,.25,.5,.75]){tmp.act.walk.time=tt*dur;tmp.mixer.update(0);tmp.holder.updateMatrixWorld(true);for(const b of sm.skeleton.bones){b.getWorldPosition(bp);y0=Math.min(y0,bp.y);y1=Math.max(y1,bp.y);}for(const b of feet){b.getWorldPosition(bp);cx+=bp.x;cz+=bp.z;nf++;}}
+        const sc=1.85/((y1-y0)*1.13);root.scale.setScalar(sc);root.position.set(-cx/nf*sc,-y0*sc+.02,-cz/nf*sc); /* feet under the origin, soles on it */scene.remove(tmp.holder);mixers.splice(mixers.indexOf(tmp.mixer),1);}
       const inst=spideyInstance();SPIDEY.npc=inst;placeOn(inst.holder,SPIDEY.spot.lon,SPIDEY.spot.lat,SPIDEY.spot.yaw);inst.holder.userData.noCull=true;inst.play('walk',0);inst.act.walk.paused=true;inst.act.walk.time=.4; /* stands in the walk's first pose until the fight */
       sceneDirty=true;},undefined,e=>console.warn('spidey not loaded',e));
     const NPC_MODELS=['assets/npc1.glb','assets/npc2.glb','assets/npc3.glb','assets/npc4.glb','assets/npc5.glb','assets/npc6.glb?v=2','assets/npc7.glb'];

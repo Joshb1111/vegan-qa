@@ -3,7 +3,7 @@
    (no stale index.html pointing at a deleted asset hash → no blank first load).
    Content-hashed /assets/* are immutable, so those stay cache-first for speed.
    Everything falls back to cache when offline. /api/* is never intercepted. */
-const CACHE = 'vegan-chat-v2';
+const CACHE = 'vegan-chat-v3';
 
 self.addEventListener('install', () => {
     self.skipWaiting();
@@ -34,7 +34,8 @@ self.addEventListener('fetch', (e) => {
 
     // Content-hashed assets are immutable — a given filename never changes.
     // Cache-first is safe and fast; fetch + cache on a miss.
-    if (url.pathname.startsWith('/assets/')) {
+    // Only the build's hashed bundles (name-HASH.ext) are immutable; the game's models, textures and sounds under /assets/ change, so they go network-first like the HTML.
+    if (/^\/assets\/[^/]+-[A-Za-z0-9_]{6,}\.(js|css|woff2?|png|svg|jpe?g)$/.test(url.pathname)) {
         e.respondWith(
             caches.match(e.request).then((cached) => cached || fetch(e.request).then(putInCache))
         );
