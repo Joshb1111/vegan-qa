@@ -1348,8 +1348,8 @@ function update(dt){
   for(const n of npcs)if(n!==nearN&&n!==talking)n.paused=false;
 }
 let last=performance.now();
-let fpsN=0,fpsT=0,skipN=0;function frame(now){if(intro&&LITE&&((++skipN)&1)){requestAnimationFrame(frame);return;} /* the title globe draws every other frame on phones */const dt=Math.min(.25,(now-last)/1000)*(window.__dtScale??1);last=now;if(!paused){let acc=dt;while(acc>1e-4){const h=Math.min(.05,acc);update(h);acc-=h;}} /* a slow phone gets several small steps, so the world and the run keep real time instead of slowing down */
-  raceUpdate(dt);fightUpdate(dt);webUpdate(dt);
+let fpsN=0,fpsT=0,skipN=0;function frame(now){if(intro&&LITE&&((++skipN)&1)){requestAnimationFrame(frame);return;} /* the title globe draws every other frame on phones */const dt=Math.min(.25,(now-last)/1000)*(window.__dtScale??1);last=now;if(!paused){let acc=dt;while(acc>1e-4){const h=Math.min(.05,acc);update(h);fightUpdate(h);acc-=h;}} /* a slow phone gets several small steps, so the world and the run keep real time instead of slowing down */
+  raceUpdate(dt);webUpdate(dt);
   if(fpsEl){fpsN++;if(now-fpsT>500){fpsEl.textContent=Math.round(fpsN*1000/(now-fpsT))+' fps';fpsN=0;fpsT=now;}}
   if(mixer)mixer.update(dt);applySit();applyRide();applyJump();applyWeb();for(const m of mixers)m.update(dt);updateBirds(dt,now/1000);if(window.__water&&window.__water.userData.sh)window.__water.userData.sh.uniforms.uT.value=now/1000;if(window.__shore&&window.__shore.material.userData.sh)window.__shore.material.userData.sh.uniforms.uT.value=now/1000;renderInk();requestAnimationFrame(frame);}
 requestAnimationFrame(frame);
@@ -1532,7 +1532,7 @@ function meBubble(text){sbMe.innerHTML=esc(text);sbMe.hidden=false;clearTimeout(
 function hideBubbles(){clearTimeout(bubble.timer);bubble.who=null;bubble.pending=false;sbN.hidden=true;sbMe.hidden=true;}
 function say(html,n,plainForVoice,key){if(typer){clearInterval(typer);typer=null;}const plain=plainForVoice||html.replace(/<[^>]+>/g,'');const wait=!!plainForVoice&&voiceOn&&hosted[n.name]!==false;if(plainForVoice)speak(plainForVoice,n);sayBubble(n,plain,key||'',wait);}
 /* ---------- Spider-Man: the arena fight and the web swing ---------- */
-function spideyInstance(){const root=THREE.SkeletonUtils.clone(SPIDEY.model);root.rotation.y=Math.PI; /* like the other characters: the model faces +Z, the game's forward is -Z */const holder=new THREE.Group();holder.add(root);scene.add(holder);const mixer=new THREE.AnimationMixer(root);mixers.push(mixer);const act={};for(const k in SPIDEY.clips){act[k]=mixer.clipAction(SPIDEY.clips[k]);act[k].enabled=true;act[k].setEffectiveWeight(0);act[k].play();}
+function spideyInstance(){const root=THREE.SkeletonUtils.clone(SPIDEY.model); /* this rig already faces the game's forward (-Z); the Tripo characters need a half turn, he does not */const holder=new THREE.Group();holder.add(root);scene.add(holder);const mixer=new THREE.AnimationMixer(root);mixers.push(mixer);const act={};for(const k in SPIDEY.clips){act[k]=mixer.clipAction(SPIDEY.clips[k]);act[k].enabled=true;act[k].setEffectiveWeight(0);act[k].play();}
   const inst={holder,root,mixer,act,cur:null,hp:100,busy:0,x:0,face:1,vy:0,y:0,anim:'walk'};
   inst.play=(k,fade)=>{if(!act[k]||inst.cur===k)return;for(const j in act)act[j].setEffectiveWeight(j===k?1:0);act[k].reset().paused=false;inst.cur=k;if(k==='punch'||k==='kick'||k==='hit'||k==='jump'){act[k].setLoop(THREE.LoopOnce,1);act[k].clampWhenFinished=true;}else act[k].setLoop(THREE.LoopRepeat);};
   return inst;}
@@ -1559,13 +1559,13 @@ function fightUpdate(dt){if(!fight.on)return;const A=SPIDEY.arena;const P=fight.
   /* the player: left/right along the mat, attacks and jumps */
   if(live){const toB=Math.sign(B.x-P.x)||1;const mv=clamp((hold.r||fight.hr?1:0)-(hold.l||fight.hl?1:0)+(hold.u?toB:0)-(hold.d?toB:0)+(joy.on?clamp(joy.x*1.6,-1,1)-clamp(joy.y*1.6,-1,1)*toB:0),-1,1); /* left/right, or forward/back towards him */if(P.busy<=0){P.x+=mv*4.2*dt;if(Math.abs(mv)>.1)P.face=mv>0?1:-1;else P.face=B.x>P.x?1:-1;}P.x=clamp(P.x,-A.r+.6,A.r-.6);
     /* the bot: closes in, keeps a little distance, attacks when in reach, sometimes jumps clear */
-    fight.aiT-=dt;const gap=P.x-B.x;B.face=gap>0?1:-1;if(B.busy<=0){if(Math.abs(gap)>1.9)B.x+=Math.sign(gap)*3.1*dt;else if(fight.aiT<=0){const r=Math.random();if(r<.55)fightAttack(B,Math.random()<.6?'punch':'kick');else if(r<.7)fightJump(B);else B.x-=Math.sign(gap)*1.2;fight.aiT=.55+Math.random()*.7;}}B.x=clamp(B.x,-A.r+.6,A.r-.6);
+    fight.aiT-=dt;const gap=P.x-B.x;B.face=gap>0?1:-1;if(B.busy<=0){if(Math.abs(gap)>1.35)B.x+=Math.sign(gap)*Math.min(3.1*dt,Math.abs(gap)-1.35);else if(fight.aiT<=0){const r=Math.random();if(r<.55)fightAttack(B,Math.random()<.6?'punch':'kick');else if(r<.7)fightJump(B);else B.x-=Math.sign(gap)*1.2;fight.aiT=.55+Math.random()*.7;}}B.x=clamp(B.x,-A.r+.6,A.r-.6);
     if(Math.abs(P.x-B.x)<.9){const m=(P.x+B.x)/2,s=Math.sign(P.x-B.x)||1;P.x=m+s*.45;B.x=m-s*.45;}}
   for(const f of [P,B]){const o=f===P?B:P;
-    if(f.busy>0){const was=f.busy;f.busy-=dt;if(was>f.hitAt&&f.busy<=f.hitAt&&live){const reach=f.hitKind==='kick'?1.9:1.5;if(Math.abs(o.x-f.x)<reach&&Math.sign(o.x-f.x)===f.face&&o.y<.6){o.hp-=f.hitKind==='kick'?14:9;o.busy=Math.max(o.busy,.45);o.hitAt=-1;o.play('hit',.05);o.x+=f.face*.5;sfx(f.hitKind,.9);fightBars();}}
+    if(f.busy>0){const was=f.busy;f.busy-=dt;if(was>f.hitAt&&f.busy<=f.hitAt&&live){const reach=f.hitKind==='kick'?1.45:1.15; /* only a hit that visibly connects counts */if(Math.abs(o.x-f.x)<reach&&Math.sign(o.x-f.x)===f.face&&o.y<.6){o.hp-=f.hitKind==='kick'?14:9;o.busy=Math.max(o.busy,.45);o.hitAt=-1;o.play('hit',.05);o.x+=f.face*.5;sfx(f.hitKind,.9);fightBars();}}
       if(f.busy<=0&&f.y<=0.001){f.play('walk',.1);f.act.walk.paused=true;f.act.walk.time=.4;}}
     if(f.y>0||f.vy>0){f.vy-=16*dt;f.y+=f.vy*dt;if(f.y<=0){f.y=0;f.vy=0;if(f.busy<=0){f.play('walk',.1);f.act.walk.paused=true;f.act.walk.time=.4;}}}
-    else if(f.busy<=0&&f.cur==='walk'){const moving=f===P?(Math.abs((hold.r||fight.hr?1:0)-(hold.l||fight.hl?1:0)+(hold.u?1:0)-(hold.d?1:0)+(joy.on?joy.x-joy.y:0))>.1&&live):(Math.abs(P.x-B.x)>1.9&&live);f.act.walk.paused=!moving;if(!moving)f.act.walk.time=.4;}
+    else if(f.busy<=0&&f.cur==='walk'){const moving=f===P?(Math.abs((hold.r||fight.hr?1:0)-(hold.l||fight.hl?1:0)+(hold.u?1:0)-(hold.d?1:0)+(joy.on?joy.x-joy.y:0))>.1&&live):(Math.abs(P.x-B.x)>1.35&&live);f.act.walk.paused=!moving;if(!moving)f.act.walk.time=.4;}
     const n=_q.copy(A.n).addScaledVector(A.sx,f.x/R).normalize();const [l,a]=lonLatOf(n);poseOn(f.holder,l,a,yawFor(l,a,A.sx.clone().multiplyScalar(f.face)));f.holder.position.copy(n).multiplyScalar(gAt(n)+.62+f.y);f.holder.updateMatrixWorld(true);}
   if(live&&(P.hp<=0||B.hp<=0)){fight.end=2.2;const won=B.hp<=0;showTrick(won?'You win!':'Knocked out…');sfx(won?'land':'bail',.7);fight.won=won;}
   if(fight.end>0){fight.end-=dt;if(fight.end<=0){const w=fight.won;endFight(w);if(!w)setTimeout(()=>showTrick('Talk to Spider-Man to try again'),300);}}}
