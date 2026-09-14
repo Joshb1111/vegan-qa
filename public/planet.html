@@ -1584,7 +1584,7 @@ function webUpdate(dt){web.cool=Math.max(0,web.cool-dt);if(!web.on)return;web.t+
   _rp.copy(web.a).multiplyScalar((1-e)*(1-e)).addScaledVector(web.ctl,2*(1-e)*e).addScaledVector(web.b,e*e); /* a bezier arc from the ground, up over the line's anchor, back down */
   up.copy(_rp).normalize();orthonormalize();web.h=_rp.length()-gAt(up);
   const pa=web.line.geometry.attributes.position;pa.setXYZ(0,_rp.x,_rp.y+0,_rp.z);const hand=_rp.clone().addScaledVector(up,1.5);pa.setXYZ(0,hand.x,hand.y,hand.z);pa.setXYZ(1,web.anchor.x,web.anchor.y,web.anchor.z);pa.needsUpdate=true;
-  if(t>=1){web.on=false;web.line.visible=false;web.cool=.25;v=MAXV*1.2;sfx('land',.4);jump.on=false;}}
+  if(t>=1){web.on=false;web.line.visible=false;web.cool=.25;v=MAXV*1.2;jump.on=false;} /* a quiet landing: the skateboard's landing clip did not belong here */}
 function applyWeb(){if(!web.on||!kidModel)return;const bones=kidModel.userData.bones;if(!bones)return;const t=clamp(web.t/web.dur,0,1);const arm=Math.sin(Math.PI*Math.min(1,t*1.3));
   if(bones.R_Upperarm)bones.R_Upperarm.quaternion.multiply(_sq.setFromAxisAngle(_sx,-2.6*arm)); /* one arm up the line */
   for(const k of ['L_Thigh','R_Thigh']){const b=bones[k];if(b)b.quaternion.multiply(_sq.setFromAxisAngle(_sx,.9*arm));}for(const k of ['L_Calf','R_Calf']){const b=bones[k];if(b)b.quaternion.multiply(_sq.setFromAxisAngle(_sx,-1.2*arm));}
