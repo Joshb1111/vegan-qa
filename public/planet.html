@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover,user-scalable=no">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,viewport-fit=cover,user-scalable=no">
 <title>The Planet — Understand Veganism</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Patrick+Hand&family=Karla:wght@400;700&family=Rubik+Mono+One&display=swap">
@@ -87,12 +87,13 @@ body.touch .tpad{margin-left:auto}
 #fighthud .bar{flex:1;background:var(--cream);border:2.5px solid var(--ink);border-radius:6px;box-shadow:3px 3px 0 var(--ink);height:26px;position:relative;overflow:hidden}
 #fighthud .bar i{position:absolute;left:0;top:0;bottom:0;width:100%;background:#c8402f;transition:width .15s}#fighthud .bar.ai i{background:#4f86b3;left:auto;right:0}
 #fighthud .bar b{position:absolute;left:8px;top:1px;z-index:1;font-weight:normal;font-size:17px;color:var(--ink)}#fighthud .bar.ai b{left:auto;right:8px}#fighthud .vs{font-size:24px;color:var(--ink);text-shadow:0 2px 0 #fff}
-#fightctl{position:fixed;left:0;right:0;bottom:calc(16px + env(safe-area-inset-bottom));display:flex;justify-content:center;gap:10px;padding:0 12px;z-index:5;font-family:var(--hand)}
+#fightctl{position:fixed;left:0;right:0;bottom:calc(16px + env(safe-area-inset-bottom));display:flex;justify-content:center;gap:10px;padding:0 12px;z-index:5;font-family:var(--hand);touch-action:none}
+html,body{touch-action:manipulation}#fighthud,#racehud,#pad,#tricks,.dpad{touch-action:none}
 #fightctl button{appearance:none;font-family:var(--hand);font-size:22px;min-width:74px;height:60px;background:var(--cream);border:2.5px solid var(--ink);border-radius:6px;box-shadow:3px 3px 0 var(--ink);cursor:pointer;touch-action:none;user-select:none;-webkit-user-select:none}
 #fightctl button.sp2{font-size:15px;line-height:1.05;background:#f4c945}#fightctl button.sp2.cool{opacity:.45}#fightctl button.quit{min-width:0;font-size:16px;background:none;border:0;box-shadow:none;color:var(--red);text-decoration:underline}#fightctl .sp{width:20px}
 body.fighting #hint,body.fighting #menubtn,body.fighting #musicbtn,body.fighting #score{visibility:hidden}
 @media (max-width:560px){#fightctl{gap:5px;padding:0 6px}#fightctl button{min-width:0;flex:1;font-size:17px;height:54px;padding:0 4px}#fightctl button.sp2{font-size:12px}#fightctl .sp{width:4px}#fightctl button.quit{flex:0 0 auto;font-size:14px}}
-#pad.fightpad .dpad,#pad.fightpad #jumpbtn,#pad.fightpad #ba,#pad.fightpad #tricks{visibility:hidden}#pad.fightpad{z-index:6}
+#pad.fightpad .dpad,#pad.fightpad #jumpbtn,#pad.fightpad #ba,#pad.fightpad #tricks,#pad.fightpad #stick{visibility:hidden}#pad.fightpad{z-index:6}
 #racehud{position:fixed;left:50%;top:max(14px,env(safe-area-inset-top));transform:translateX(-50%);z-index:5;display:flex;align-items:baseline;gap:12px;padding:6px 14px;font-family:var(--hand)}
 #racehud b{font-size:30px;font-weight:normal;font-variant-numeric:tabular-nums}#racehud small{font-size:18px;color:var(--muted)}#racehud .hb{display:flex;flex-direction:column;align-items:flex-start;gap:2px;align-self:center}#racehud button{appearance:none;background:none;border:0;padding:0;font-family:var(--hand);font-size:17px;color:var(--red);cursor:pointer;text-decoration:underline;line-height:1.1}#race-restart{color:var(--ink)}
 #raceend{position:fixed;left:50%;top:50%;transform:translate(-50%,-50%);z-index:12;width:min(440px,92vw);max-height:88vh;overflow:auto;padding:16px 18px;font-family:var(--hand)}
@@ -1401,7 +1402,11 @@ document.querySelectorAll('#tricks [data-t]').forEach(el=>{const t=el.dataset.t;
   const off=()=>{if(t==='manual')hold.m=false;};el.addEventListener('pointerdown',on);['pointerup','pointercancel','lostpointercapture'].forEach(ev=>el.addEventListener(ev,off));el.addEventListener('contextmenu',e=>e.preventDefault());});
 $('#ba').addEventListener('click',()=>action());
 game.addEventListener('pointerdown',()=>game.focus());game.focus();
-window.__loadErrs=[];window.addEventListener('unhandledrejection',e=>{const t=String(e.reason&&e.reason.stack||e.reason);window.__loadErrs.push(t);console.warn('load error:',t);});let titleGone=false;setTimeout(()=>{if(!kidModel)player.group.visible=true;for(const n of npcs)if(!n.model)n.rig.group.visible=true;},30000); /* only if a model never arrives does the stand-in step in */const fpsEl=location.search.includes('fps')?Object.assign(document.body.appendChild(document.createElement('div')),{style:'position:fixed;left:8px;bottom:8px;z-index:30;font:14px monospace;background:rgba(0,0,0,.5);color:#fff;padding:2px 6px;border-radius:4px'}):null;
+window.__loadErrs=[];window.addEventListener('unhandledrejection',e=>{const t=String(e.reason&&e.reason.stack||e.reason);window.__loadErrs.push(t);console.warn('load error:',t);});/* iPad Safari zooms on a fast double tap or when two thumbs land at once (it reads them as a pinch): both are stopped here, since there is no way back from a zoomed game */
+document.addEventListener('gesturestart',e=>e.preventDefault());document.addEventListener('gesturechange',e=>e.preventDefault());
+document.addEventListener('touchmove',e=>{if(e.touches.length>1)e.preventDefault();},{passive:false});
+{let lastTap=0;document.addEventListener('touchend',e=>{const now=performance.now();if(now-lastTap<350&&!e.target.closest('input,textarea,#stops,#chat,#film'))e.preventDefault();lastTap=now;},{passive:false});}
+let titleGone=false;setTimeout(()=>{if(!kidModel)player.group.visible=true;for(const n of npcs)if(!n.model)n.rig.group.visible=true;},30000); /* only if a model never arrives does the stand-in step in */const fpsEl=location.search.includes('fps')?Object.assign(document.body.appendChild(document.createElement('div')),{style:'position:fixed;left:8px;bottom:8px;z-index:30;font:14px monospace;background:rgba(0,0,0,.5);color:#fff;padding:2px 6px;border-radius:4px'}):null;
 /* All game audio goes through Web Audio gain nodes: iPhones ignore an <audio> element's volume, so a loop
    'silenced' with volume 0 would play at full blast. Gains work everywhere; elements are the fallback. */
 let actx=null;const gainMap=new Map();let audioHidden=false; /* true while the player is away: nothing starts itself until they are back */
