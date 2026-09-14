@@ -1410,7 +1410,7 @@ const music=new Audio('assets/music.m4a');music.loop=true;music.volume=0;let mus
 let musicTarget=0;const MUSIC_VOL=.32;
 /* skate sounds: assets/sfx/<name>.m4a|mp3 when Josh adds them; missing files are simply silent */
 const SFX={};function sfxGet(name){if(SFX[name]!==undefined)return SFX[name];const a=new Audio('assets/sfx/'+name+'.mp3');a.preload='auto';a.addEventListener('error',()=>{SFX[name]=null;});SFX[name]=a;return a;}
-const sfxBufs={};
+const sfxBufs={};function sfxWarm(name){const c=ensureCtx();if(!c||sfxBufs[name]!==undefined)return;sfxBufs[name]=null;fetch('assets/sfx/'+name+'.mp3').then(r=>r.ok?r.arrayBuffer():Promise.reject()).then(b=>c.decodeAudioData(b)).then(buf=>{sfxBufs[name]=buf;}).catch(()=>{sfxBufs[name]=false;});}
 function sfx(name,vol){if(!musicOn)return;const c=ensureCtx();const v=vol??.7;
   if(c){if(sfxBufs[name]===undefined){sfxBufs[name]=null;fetch('assets/sfx/'+name+'.mp3').then(r=>r.ok?r.arrayBuffer():Promise.reject()).then(b=>c.decodeAudioData(b)).then(buf=>{sfxBufs[name]=buf;}).catch(()=>{sfxBufs[name]=false;});}
     const buf=sfxBufs[name];if(!buf)return;try{const src=c.createBufferSource();src.buffer=buf;const g=c.createGain();g.gain.value=v;src.connect(g);g.connect(c.destination);src.start();if(name==='land'||name==='bail'){g.gain.setValueAtTime(v,c.currentTime+.4);g.gain.linearRampToValueAtTime(0,c.currentTime+.5);src.stop(c.currentTime+.5);}else if(name==='punch'||name==='kick'){g.gain.setValueAtTime(v,c.currentTime+.5);g.gain.linearRampToValueAtTime(0,c.currentTime+.65);src.stop(c.currentTime+.65);}}catch(_){}return;}
@@ -1543,6 +1543,7 @@ function fightHud(){if(!fight.hud){const h=document.createElement('div');h.id='f
 function fightBars(){if(!fight.hud)return;fight.hud.querySelector('.you i').style.width=Math.max(0,fight.p.hp)+'%';fight.hud.querySelector('.ai i').style.width=Math.max(0,fight.ai.hp)+'%';}
 function startFight(){if(!SPIDEY.model||fight.on||!SPIDEY.arena)return;if(sitting)standUp();if(ride.on)stopRide();if(talking)endTalk();if(race.phase!=='idle')quitRace();autoTarget=null;autoRoute=[];autoFace=null;
   fight.back={up:up.clone(),fwd:fwd.clone()};fight.on=true;fight.t=0;fight.end=0;fight.cool=0;fight.aiCool=0;fight.aiT=0;fight.ready=3.999;
+  for(const n of ['punch','kick','pop','land','bail'])sfxWarm(n);
   fight.p=spideyInstance();fight.ai=spideyInstance();fight.p.x=-2.6;fight.ai.x=2.6;fight.p.face=1;fight.ai.face=-1;fight.ai.root.traverse(m=>{if(m.isMesh){m.material=new THREE.MeshToonMaterial({color:0x5f86b8,gradientMap:grad,skinning:true});}}); /* the bot is a plain steel-blue double */
   for(const f of [fight.p,fight.ai]){f.play('walk',0);f.act.walk.paused=true;f.act.walk.time=.4;}
   const A=SPIDEY.arena;up.copy(A.n).addScaledVector(A.north,-9/R).normalize();fwd.copy(A.north);orthonormalize();v=0;pendingMove=0;camInit=false;if(kidModel)kidModel.visible=false;player.group.visible=false;
@@ -1557,16 +1558,17 @@ function fightUpdate(dt){if(!fight.on)return;const A=SPIDEY.arena;const P=fight.
   if(fight.ready>0){const c=Math.ceil(fight.ready);fight.ready-=dt;const nc=Math.ceil(fight.ready);if(nc!==c){if(nc>0){showTrick(String(nc));jumpSfx();}else{showTrick('FIGHT!');sfx('pop',.7);}}}
   const live=fight.ready<=0&&!fight.end;
   /* the player: left/right along the mat, attacks and jumps */
-  if(live){const toB=Math.sign(B.x-P.x)||1;const mv=clamp((hold.r||fight.hr?1:0)-(hold.l||fight.hl?1:0)+(hold.u?toB:0)-(hold.d?toB:0)+(joy.on?clamp(joy.x*1.6,-1,1)-clamp(joy.y*1.6,-1,1)*toB:0),-1,1); /* left/right, or forward/back towards him */if(P.busy<=0){P.x+=mv*4.2*dt;if(Math.abs(mv)>.1)P.face=mv>0?1:-1;else P.face=B.x>P.x?1:-1;}P.x=clamp(P.x,-A.r+.6,A.r-.6);
+  fight.t+=dt;if(live){const toB=Math.sign(B.x-P.x)||1;const mv=clamp((hold.r||fight.hr?1:0)-(hold.l||fight.hl?1:0)+(hold.u?toB:0)-(hold.d?toB:0)+(joy.on?clamp(joy.x*1.6,-1,1)-clamp(joy.y*1.6,-1,1)*toB:0),-1,1); /* left/right, or forward/back towards him */if(P.busy<=0){P.x+=mv*(Math.sign(mv)===toB?4.2:3)*dt;P.mv=mv;}else P.mv=0;if(P.busy<=0)P.face=toB;P.x=clamp(P.x,-A.r+.6,A.r-.6);
     /* the bot: closes in, keeps a little distance, attacks when in reach, sometimes jumps clear */
-    fight.aiT-=dt;const gap=P.x-B.x;B.face=gap>0?1:-1;if(B.busy<=0){if(Math.abs(gap)>1.35)B.x+=Math.sign(gap)*Math.min(3.1*dt,Math.abs(gap)-1.35);else if(fight.aiT<=0){const r=Math.random();if(r<.55)fightAttack(B,Math.random()<.6?'punch':'kick');else if(r<.7)fightJump(B);else B.x-=Math.sign(gap)*1.2;fight.aiT=.55+Math.random()*.7;}}B.x=clamp(B.x,-A.r+.6,A.r-.6);
-    if(Math.abs(P.x-B.x)<.9){const m=(P.x+B.x)/2,s=Math.sign(P.x-B.x)||1;P.x=m+s*.45;B.x=m-s*.45;}}
-  for(const f of [P,B]){const o=f===P?B:P;
-    if(f.busy>0){const was=f.busy;f.busy-=dt;if(was>f.hitAt&&f.busy<=f.hitAt&&live){const reach=f.hitKind==='kick'?1.45:1.15; /* only a hit that visibly connects counts */if(Math.abs(o.x-f.x)<reach&&Math.sign(o.x-f.x)===f.face&&o.y<.6){o.hp-=f.hitKind==='kick'?14:9;o.busy=Math.max(o.busy,.45);o.hitAt=-1;o.play('hit',.05);o.x+=f.face*.5;sfx(f.hitKind,.9);fightBars();}}
+    fight.aiT-=dt;const gap=P.x-B.x;if(B.busy<=0)B.face=gap>0?1:-1;B.mv=0;if(B.busy<=0){if(B.back>0){B.back-=dt;B.x-=Math.sign(gap)*2.6*dt;B.mv=-Math.sign(gap);}else if(Math.abs(gap)>1.0){B.x+=Math.sign(gap)*Math.min(3.1*dt,Math.abs(gap)-1.0);B.mv=Math.sign(gap);}else if(fight.aiT<=0){const r=Math.random();if(r<.6)fightAttack(B,Math.random()<.6?'punch':'kick');else if(r<.72)fightJump(B);else B.back=.35;fight.aiT=.5+Math.random()*.6;}}B.x=clamp(B.x,-A.r+.6,A.r-.6);
+    if(Math.abs(P.x-B.x)<.85){const m=(P.x+B.x)/2,s=Math.sign(P.x-B.x)||1;P.x=m+s*.425;B.x=m-s*.425;}}
+  for(const f of [P,B]){const o=f===P?B:P;if(f.push){const d=f.push*Math.min(1,dt*10);f.x+=d;f.push-=d;if(Math.abs(f.push)<.01)f.push=0;f.x=clamp(f.x,-A.r+.6,A.r-.6);}
+    if(f.busy>0){const was=f.busy;f.busy-=dt;if(was>f.hitAt&&f.busy<=f.hitAt&&live){const reach=f.hitKind==='kick'?1.45:1.15; /* only a hit that visibly connects counts */if(Math.abs(o.x-f.x)<reach&&Math.sign(o.x-f.x)===f.face&&o.y<.6){o.hp-=f.hitKind==='kick'?14:9;o.busy=Math.max(o.busy,.45);o.hitAt=-1;o.play('hit',.05);o.push=(o.push||0)+f.face*(f.hitKind==='kick'?.7:.45);sfx(f.hitKind,.9);fightBars();}}
       if(f.busy<=0&&f.y<=0.001){f.play('walk',.1);f.act.walk.paused=true;f.act.walk.time=.4;}}
     if(f.y>0||f.vy>0){f.vy-=16*dt;f.y+=f.vy*dt;if(f.y<=0){f.y=0;f.vy=0;if(f.busy<=0){f.play('walk',.1);f.act.walk.paused=true;f.act.walk.time=.4;}}}
-    else if(f.busy<=0&&f.cur==='walk'){const moving=f===P?(Math.abs((hold.r||fight.hr?1:0)-(hold.l||fight.hl?1:0)+(hold.u?1:0)-(hold.d?1:0)+(joy.on?joy.x-joy.y:0))>.1&&live):(Math.abs(P.x-B.x)>1.35&&live);f.act.walk.paused=!moving;if(!moving)f.act.walk.time=.4;}
+    else if(f.busy<=0&&f.cur==='walk'){const mv=live?(f.mv||0):0;const moving=Math.abs(mv)>.1;f.act.walk.paused=!moving;f.act.walk.timeScale=(Math.sign(mv)||1)===f.face?1:-1;if(!moving)f.act.walk.time=.4;}
     const n=_q.copy(A.n).addScaledVector(A.sx,f.x/R).normalize();const [l,a]=lonLatOf(n);poseOn(f.holder,l,a,yawFor(l,a,A.sx.clone().multiplyScalar(f.face)));f.holder.position.copy(n).multiplyScalar(gAt(n)+.62+f.y);f.holder.updateMatrixWorld(true);}
+  if(window.__fl)window.__fl.push([+fight.t.toFixed(2),+P.x.toFixed(2),+B.x.toFixed(2),P.face,B.face,P.cur,B.cur,+P.busy.toFixed(2),+B.busy.toFixed(2)]);
   if(live&&(P.hp<=0||B.hp<=0)){fight.end=2.2;const won=B.hp<=0;showTrick(won?'You win!':'Knocked out…');sfx(won?'land':'bail',.7);fight.won=won;}
   if(fight.end>0){fight.end-=dt;if(fight.end<=0){const w=fight.won;endFight(w);if(!w)setTimeout(()=>showTrick('Talk to Spider-Man to try again'),300);}}}
 /* web swing: hold Space (or the Swing button) with webs unlocked: a line shoots up ahead, he arcs along it and lands well forward */
