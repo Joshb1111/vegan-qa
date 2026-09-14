@@ -1,10 +1,10 @@
 // Which ElevenLabs voice each planet resident speaks with. Characters not listed here use the
 // browser's built-in voice. Replace the IDs with the ones you pick in ElevenLabs (Voices → ⋯ → Copy voice ID).
 export const VOICES = {
-  // one voice per resident (Ada keeps the shared voice until she has her own)
+  // one voice per resident
   Mina: "uIcuMM41cZqo2iDgQbCW",
   Theo: "Wq15xSaY3gWvazBRaGEU",
-  Ada: "85o4S4rAEvTIDGtpFNUq",
+  Ada: "TpWWQ1feZo6r95mPs1nf",
   Kofi: "T7TOOaZZ6tdlmJhBoEjH",
   June: "EQx6HGDYjkDpcli6vorJ",
   Ravi: "RBUtdrDRjER5aScqHwAS",
