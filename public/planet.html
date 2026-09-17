@@ -103,6 +103,7 @@ body.fighting #hint,body.fighting #menubtn,body.fighting #musicbtn,body.fighting
 #film .fpanel{width:min(1100px,96vw);max-height:96vh;overflow:auto;padding:12px 14px;display:flex;flex-direction:column;gap:10px}
 #film header{display:flex;align-items:center;gap:10px;font-family:var(--hand);font-size:26px}#film header .sp{flex:1}#film header button{font-family:var(--hand);font-size:18px;padding:4px 12px;cursor:pointer}
 #film-list{display:flex;flex-wrap:wrap;gap:10px}#film-list button{font-family:var(--hand);font-size:21px;padding:10px 16px;cursor:pointer;background:#fff}#film-list button small{display:block;color:var(--muted);font-size:16px}#film-list button.on{background:#f4c945}
+#cinescreen{position:fixed;left:0;top:0;transform-origin:0 0;border:0;background:#000;z-index:4}
 #film-frame:empty{display:none}#film-frame iframe{display:block;border:0;background:#000;margin:0 auto;max-width:100%}
 #film .note{margin:0;font-family:var(--hand);color:var(--muted);font-size:16px}
 #title .bub{position:absolute;bottom:-40px;border:2px solid rgba(38,51,58,.5);border-radius:50%;animation:bubrise linear infinite;pointer-events:none}
@@ -234,7 +235,7 @@ const COARSE=matchMedia('(pointer:coarse)').matches&&!matchMedia('(any-hover:hov
 /* lite mode for phones and tablets: 1x pixel ratio, lighter models (assets/lite), fewer scattered props and shadows. ?lite / ?full force it; the menu remembers a choice */
 const LITE=(()=>{const q=location.search;if(/[?&]full\b/.test(q))return false;if(/[?&]lite\b/.test(q))return true;try{const p=localStorage.getItem('planet-quality');if(p==='full')return false;if(p==='lite')return true;}catch(_){}return COARSE;})();
 const LITE_SET=new Set('spidey building1v2 building3 building4 building5 building6 building7 building8 building9 building10 building11 building12 building13 building14 building15 building16 building17 building18 building19 building20 building21 building22 building23 building24 building25 building26 npc1 npc2 npc3 npc4 npc5 npc6 npc7 kid scooter skatepark'.split(' '));
-function A(url){if(!LITE)return url;const m=url.match(/^assets\/([A-Za-z0-9_]+)\.glb(\?.*)?$/);return m&&LITE_SET.has(m[1])?'assets/lite/'+m[1]+'.glb'+(m[2]||''):url;}
+function A(url){if(!LITE)return url;const m=url.match(/^assets\/([A-Za-z0-9_]+)\.glb(\?.*)?$/);return m&&LITE_SET.has(m[1])?'assets/lite/'+m[1]+'.glb?lv=2':url;} /* lv: bump when the lite set is rebuilt, so phones drop their cached copies */
 function liteLoader(ld){const raw=ld.load.bind(ld);ld.load=(url,ok,prog,err)=>{const lf=A(url);raw(lf,ok,prog,e=>{if(lf!==url){console.warn('lite model missing, using the full one',lf);raw(url,ok,prog,err);}else if(err)err(e);});};return ld;} /* a missing lite file falls back to the full one */
 const DPR=Math.min(devicePixelRatio||1,LITE?1:2);let introRes=true;const INTRO_SCALE=LITE?.6:1; /* the spinning globe renders smaller on phones */renderer.setPixelRatio(DPR); /* phones render at 1.5x at most: the ink pass is three full-screen passes */
 const scene=new THREE.Scene(); scene.background=new THREE.Color(P.sky);
@@ -273,13 +274,13 @@ const inkPass=new THREE.ShaderMaterial({uniforms:{tColor:{value:rt.texture},tDep
   float noise(vec2 p){vec2 i=floor(p),f=fract(p);f=f*f*(3.-2.*f);return mix(mix(hash(i),hash(i+vec2(1,0)),f.x),mix(hash(i+vec2(0,1)),hash(i+vec2(1,1)),f.x),f.y);}
   void main(){vec2 px=1./res;vec2 sp=vUv*res;
     vec2 wob=(vec2(noise(sp/9.),noise(sp/9.+31.7))-.5)*0.8*px;vec2 u=vUv+wob;
-    float d0=lin(texture2D(tDepth,u).x);vec3 n0=texture2D(tNormal,u).xyz*2.-1.;
+    float d0=lin(texture2D(tDepth,u).x);vec4 nt=texture2D(tNormal,u);vec3 n0=nt.xyz*2.-1.;float soft=nt.a<.75?1.:0.; /* a character */
     float e=0.;
     // depth: second derivative, so flat surfaces at grazing angles stay clean and only real steps draw a line
     vec2 ox=vec2(1.3,0.)*px,oy=vec2(0.,1.3)*px;
     float dl=lin(texture2D(tDepth,u-ox).x),dr=lin(texture2D(tDepth,u+ox).x),du=lin(texture2D(tDepth,u-oy).x),dd=lin(texture2D(tDepth,u+oy).x);
-    if(d0<far*.9){e=max(e,abs(dl+dr-2.*d0)/max(d0,1.)*22.);e=max(e,abs(du+dd-2.*d0)/max(d0,1.)*22.);}
-    for(int i=0;i<4;i++){vec2 o=(i==0?ox:i==1?-ox:i==2?oy:-oy);vec3 n=texture2D(tNormal,u+o).xyz*2.-1.;e=max(e,(1.-dot(n0,n))*2.2);}
+    if(d0<far*.9){float k=mix(22.,1.6,soft);e=max(e,abs(dl+dr-2.*d0)/max(d0,1.)*k);e=max(e,abs(du+dd-2.*d0)/max(d0,1.)*k);}
+    for(int i=0;i<4;i++){vec2 o=(i==0?ox:i==1?-ox:i==2?oy:-oy);vec3 n=texture2D(tNormal,u+o).xyz*2.-1.;e=max(e,(1.-dot(n0,n))*mix(2.2,0.,soft));} /* characters: no normal-break lines at all (inner layers poking through a Tripo character's clothes made black specks); their outline comes from depth */
     float line=smoothstep(.3,.8,e);
     line*=mix(.85,1.,noise(sp/13.));
     vec3 col=texture2D(tColor,vUv).rgb;
@@ -288,12 +289,12 @@ const inkPass=new THREE.ShaderMaterial({uniforms:{tColor:{value:rt.texture},tDep
     col=mix(col,vec3(.16,.21,.26),line*.9);
     float nf=night*(d0<300.?1.:.3);col=mix(col,col*vec3(.20,.26,.46)+vec3(.01,.02,.07),nf); // dusk to night; the sky keeps more of its own picture
     gl_FragColor=vec4(col,1.);}`});
-const quadScene=new THREE.Scene();quadScene.add(new THREE.Mesh(new THREE.PlaneGeometry(2,2),inkPass));const quadCam=new THREE.OrthographicCamera(-1,1,1,-1,0,1);
+window.__ink=inkPass;const quadScene=new THREE.Scene();quadScene.add(new THREE.Mesh(new THREE.PlaneGeometry(2,2),inkPass));const quadCam=new THREE.OrthographicCamera(-1,1,1,-1,0,1);
 function resize(){W=game.clientWidth;H=game.clientHeight;const eff=DPR*(introRes?INTRO_SCALE:1);renderer.setPixelRatio(eff);renderer.setSize(W,H,false);camera.aspect=W/H;camera.updateProjectionMatrix();const rw=Math.round(W*eff),rh=Math.round(H*eff);rt.setSize(rw,rh);rtN.setSize(rw,rh);inkPass.uniforms.res.value.set(rw,rh);}
 window.addEventListener('resize',resize);resize();
 let skyCol=scene.background;const dayBg=skyCol,introBg=new THREE.Color(0x5abfb2),normalBg=new THREE.Color(0x8080ff); // background 'normal' faces the camera so the sky stays line-free
-let meshList=[],sceneDirty=true;const nmPlain=new THREE.MeshNormalMaterial(),nmSkin=new THREE.MeshNormalMaterial({skinning:true});
-const nmFlat=new THREE.MeshBasicMaterial({color:0x8080ff}),nmFlatSkin=new THREE.MeshBasicMaterial({color:0x8080ff,skinning:true}); // 'facing the camera': no interior lines, silhouette only
+let meshList=[],sceneDirty=true;const nmPlain=new THREE.MeshNormalMaterial(),nmSkin=new THREE.MeshNormalMaterial({skinning:true,opacity:.5,side:THREE.DoubleSide});
+const nmFlat=new THREE.MeshBasicMaterial({color:0x8080ff}),nmFlatSkin=new THREE.MeshBasicMaterial({color:0x8080ff,skinning:true,opacity:.5,side:THREE.DoubleSide}); /* characters are drawn double-sided: decimated Tripo characters carry a scatter of flipped triangles, which back-face culling turned into pinholes (and the ink pass into black specks) */ // 'facing the camera': no interior lines, silhouette only
 let cullList=[],farState=null;const _cn=new THREE.Vector3(),_on=new THREE.Vector3(),_ws=new THREE.Vector3(),_cb=new THREE.Box3();
 function refreshMeshes(){meshList=[];cullList=[];scene.traverse(o=>{if(o.isMesh&&!o.userData.skipInk)meshList.push(o);});
   /* things standing on the planet (not the sky, sea, ground or ribbons, which sit at the origin) can hide behind it: note how far over the horizon each one can still peek */
@@ -356,6 +357,13 @@ const PARK_EXT={hx:44,hz:22.5}; /* the whole park including the wings either sid
 const START_LON=3.44;let START_N=null; /* you start on the main street just west of the skate-park turning */
 const PARK_SINK={d:3.2,w:3.4}; /* the park is sunk into the ground: this deep, with grass banks this wide round the rim, so you look down over it as you arrive */
 function parkOut(n){const [dx,dz]=parkXZ(n);return Math.hypot(Math.max(0,Math.abs(dx)-PARK_EXT.hx),Math.max(0,Math.abs(dz)-PARK_EXT.hz));}
+/* the main street clips the park's south-west corner: there the pit gives way, so the street and its pavement stay on level
+   ground and the bank starts beyond them (PARK_GUARD = the main street's samples near the park, set once the street exists) */
+let PARK_GUARD=null;const GUARD0=4.7,GUARDW=3;
+function guardDist(n){if(!PARK_GUARD||n.dot(PARK_GUARD.c)<PARK_GUARD.cos)return 1e9;let bd=-2,best=null;for(const sm of PARK_GUARD.s){const d=n.dot(sm.n);if(d>bd){bd=d;best=sm;}}if(!best)return 1e9;return Math.hypot(n.dot(best.side)*R,Math.max(0,Math.abs(n.dot(best.t)*R)-.5));}
+/* under the park skirt (apron and the foot of the bank) the coarse ground mesh is dropped out of the way, so its big triangles never poke through the skirt */
+function skirtDrop(n){const [dx,dz]=parkXZ(n);if(Math.abs(dx)>PARK_EXT.hx+4||Math.abs(dz)>PARK_EXT.hz+4)return 0;return parkOutE(n)<PARK_SINK.w-1.5?.4:0;} /* under the park model too: its own floor covers the ground, and the slimmer lite floor used to let green show through */
+function parkOutE(n){const o=parkOut(n);if(o>=PARK_SINK.w)return o;const d=guardDist(n);return d>=GUARD0+GUARDW?o:Math.max(o,PARK_SINK.w*(1-clamp((d-GUARD0)/GUARDW,0,1)));}
 /* the wings: west = a quarter-pipe wall, a bowl and a flat rail; east = a stair set with a handrail, a long ledge and a pyramid */
 const WQP={x:-42,r:4.6,z0:-8,z1:8},WBOWL={x:-30,z:7,r:5,d:2.4},WRAIL={x0:-33,x1:-24,z:-15,h:1.0},
       STAIR={x0:26,x1:34,z0:-4,z1:4,h:1.6,steps:5,run:.85},ELEDGE={x0:26,x1:36,z:-13,h:.6,w:.7},PYR={x:29,z:12,half:3,top:1.4,h:1.2};
@@ -377,15 +385,15 @@ function parkH(n){if(!HM)return 0;const [dx,dz]=parkXZ(n);const x=-dx/HM.S,y=dz/
   const gx=(x-HM.x0)/(HM.x1-HM.x0)*(HM.nx-1),gy=(y-HM.y0)/(HM.y1-HM.y0)*(HM.ny-1);const i=Math.floor(gx),j=Math.floor(gy),fx=gx-i,fy=gy-j;const D=HM.data,W=HM.nx;
   const h00=D[j*W+i],h10=D[j*W+i+1],h01=D[(j+1)*W+i],h11=D[(j+1)*W+i+1];return ((h00*(1-fx)+h10*fx)*(1-fy)+(h01*(1-fx)+h11*fx)*fy)/HM.scale*(HM.hk||1);}
 function inPark(n){const [dx,dz]=parkXZ(n);return Math.abs(dx)<PARK_EXT.hx&&Math.abs(dz)<PARK_EXT.hz;}
-let groundMesh=null;
-fetch('assets/skatepark-h.json?v=4').then(r=>r.json()).then(j=>{HM=j;HM.S=PLAZA.r*2*.96;HM.hk=1.5; /* the model is scaled to the plaza across, and 1.5x in height */if(groundMesh){const pa=groundMesh.geometry.attributes.position;for(let i=0;i<pa.count;i++){_q.set(pa.getX(i),pa.getY(i),pa.getZ(i)).normalize();const h=hAt(_q);pa.setXYZ(i,_q.x*h,_q.y*h,_q.z*h);}pa.needsUpdate=true;groundMesh.geometry.computeVertexNormals();}}).catch(e=>console.warn('park height map not loaded',e));
+let groundMesh=null,parkSkirtLay=null;
+fetch('assets/skatepark-h.json?v=4').then(r=>r.json()).then(j=>{HM=j;HM.S=PLAZA.r*2*.96;HM.hk=1.5; /* the model is scaled to the plaza across, and 1.5x in height */if(groundMesh){const pa=groundMesh.geometry.attributes.position;for(let i=0;i<pa.count;i++){_q.set(pa.getX(i),pa.getY(i),pa.getZ(i)).normalize();const h=hAt(_q)-skirtDrop(_q);pa.setXYZ(i,_q.x*h,_q.y*h,_q.z*h);}pa.needsUpdate=true;groundMesh.geometry.computeVertexNormals();}if(parkSkirtLay)parkSkirtLay();}).catch(e=>console.warn('park height map not loaded',e));
 function smooth(a,b,x){const t=clamp((x-a)/(b-a),0,1);return t*t*(3-2*t);}
 /* rolling ground: three overlapping swells give the town ups and downs; flat on the shore and around the skate park */
 function hills(n){const lat=Math.asin(clamp(n.y,-1,1)),lon=Math.atan2(n.z,n.x);
   let h=.8*Math.sin(2*lon+.8)*Math.sin(3.1*lat+.4)+.6*Math.sin(4*lon+2.3)*Math.cos(5*lat-.6)+.45*Math.sin(7*lon-1.1)*Math.sin(2*lat+2);
   h*=smooth(-.3,-.12,lat);const o=parkOut(n);if(o<14)h*=smooth(3,14,o);return h;}
 function terrainBase(n){const lat=Math.asin(clamp(n.y,-1,1));let h=-3.2*smooth(-.2,-.46,lat)+hills(n);
-  {const o=parkOut(n);if(o<PARK_SINK.w)h-=PARK_SINK.d*(1-smooth(0,PARK_SINK.w,o));} /* the skate park's pit, flat across the whole park, banked at the rim */
+  {const o=parkOutE(n);if(o<PARK_SINK.w)h-=PARK_SINK.d*(1-smooth(0,PARK_SINK.w,o));} /* the skate park's pit, flat across the whole park, banked at the rim */
   {const o=isleOut(n);if(o<6)h+=4.1*(1-smooth(0,6,o));} /* the race isle: a flat top a little above the sea, with a sandy bank all round */
   {const k=n.dot(ROOM_N);if(k>.95){const d=Math.acos(clamp(k,-1,1))*R;if(d<10){if(ROOM.lvl==null)ROOM.lvl=hills(ROOM_N);const t=1-smooth(5,10,d);h=h*(1-t)+ROOM.lvl*t;}}} /* level ground under the break room */
   return h;}
@@ -394,8 +402,8 @@ function terrainH(n){let h=terrainBase(n);if(HM&&inPark(n))h+=Math.min(parkH(n),
 const gAt=n=>R+terrainBase(n)+parkH(n); /* where the player's feet go: base terrain plus the park's surface */
 const hAt=n=>R+terrainH(n);
 /* the drawn ground is a 256x160 mesh, so on steep banks it sits a little below the exact terrain: gMesh gives the height the mesh actually shows, gVis the lower of the two (things are settled onto that, so nothing floats) */
-const GW=256,GH=160;function gMesh(n){const lon=Math.atan2(n.z,n.x),lat=Math.asin(clamp(n.y,-1,1));let phi=Math.PI-lon;phi=((phi%(2*Math.PI))+2*Math.PI)%(2*Math.PI);const th=Math.PI/2-lat;const fu=phi/(2*Math.PI)*GW,fv=th/Math.PI*GH;const iu=Math.floor(fu),iv=Math.floor(fv),tu=fu-iu,tv=fv-iv;
-  const h=(a,b)=>hAt(sphere(Math.PI-(((a%GW)+GW)%GW)/GW*2*Math.PI,Math.PI/2-Math.min(GH,Math.max(0,b))/GH*Math.PI));return (h(iu,iv)*(1-tu)+h(iu+1,iv)*tu)*(1-tv)+(h(iu,iv+1)*(1-tu)+h(iu+1,iv+1)*tu)*tv;}
+const GW=256,GH=160;function gMesh(n,drop){const lon=Math.atan2(n.z,n.x),lat=Math.asin(clamp(n.y,-1,1));let phi=Math.PI-lon;phi=((phi%(2*Math.PI))+2*Math.PI)%(2*Math.PI);const th=Math.PI/2-lat;const fu=phi/(2*Math.PI)*GW,fv=th/Math.PI*GH;const iu=Math.floor(fu),iv=Math.floor(fv),tu=fu-iu,tv=fv-iv;
+  const h=(a,b)=>{const q=sphere(Math.PI-(((a%GW)+GW)%GW)/GW*2*Math.PI,Math.PI/2-Math.min(GH,Math.max(0,b))/GH*Math.PI);return hAt(q)-(drop?skirtDrop(q):0);}; /* drop: the mesh as actually drawn under the park skirt */return (h(iu,iv)*(1-tu)+h(iu+1,iv)*tu)*(1-tv)+(h(iu,iv+1)*(1-tu)+h(iu+1,iv+1)*tu)*tv;}
 const gVis=n=>(HM&&inPark(n))?gAt(n):Math.min(gAt(n),gMesh(n));
 function lonLatOf(v){return [Math.atan2(v.z,v.x),Math.asin(clamp(v.y,-1,1))];}
 /* yaw that makes an object placed with poseOn face along world direction f (buildings face +Z; rigs face -Z, so they use yawFace) */
@@ -470,6 +478,7 @@ const colliders=[];let skyDome=null,nightDome=null,SUNSET=null;const PLACES={};
   const loopPts=(f,n)=>Array.from({length:n},(_,i)=>{const lon=i/n*Math.PI*2;return [lon,f(lon)];});
   const MAIN=addRoad('main',loopPts(mainLat,24),true,3.7,'road',.06);
   START_N=sphere(START_LON,mainLat(START_LON));
+  {const gs=MAIN.samples.filter(sm=>parkOut(sm.n)<16);if(gs.length){const c=new THREE.Vector3();for(const sm of gs)c.add(sm.n);c.normalize();let mn=1;for(const sm of gs)mn=Math.min(mn,c.dot(sm.n));PARK_GUARD={s:gs,c,cos:Math.cos(Math.acos(mn)+10/R)};}}
   const RING=addRoad('ring',loopPts(ringLat,20),true,3.0,'road',.06);
   const upperLat=lon=>1.0+.04*Math.sin(3*lon+.6)+.3*smooth(1.75,1.2,Math.abs(lon-PLAZA.lon)); // a third, tighter street up the hill, bowing over the park
   const UPPER=addRoad('upper',loopPts(upperLat,20),true,2.7,'road',.06);
@@ -491,13 +500,31 @@ const colliders=[];let skyDome=null,nightDome=null,SUNSET=null;const PLACES={};
   g.fillStyle='#d9c99a';g.fillRect(0,cy(-.35),2048,cy(-.5)-cy(-.35)); // wetter sand near the water
   g.fillStyle='#b9c7a0';g.fillRect(0,cy(-.5),2048,1024-cy(-.5)); // sea bed (under the water)
   g.fillStyle='rgba(255,255,255,.75)';for(let x=0;x<2048;x+=14){g.fillRect(x,cy(-.371),9,3);} // foam
-  {const w=PARK_EXT.hx*6.52/Math.cos(PLAZA.lat),hh=PARK_EXT.hz*6.52;g.fillStyle='#c4c8c4';for(const off of [-2048,0,2048])g.fillRect(cx(PLAZA.lon)-w+off,cy(PLAZA.lat)-hh,2*w,2*hh); // the park's concrete apron (drawn across the texture seam)
-    const bx=cx(PLAZA.lon)+(-WBOWL.x)*6.52/Math.cos(PLAZA.lat),by=cy(PLAZA.lat)-WBOWL.z*6.52;g.fillStyle='#aeb3af';for(const off of [-2048,0,2048]){g.beginPath();g.ellipse(bx+off,by,WBOWL.r*6.52/Math.cos(PLAZA.lat),WBOWL.r*6.52,0,0,Math.PI*2);g.fill();}}
+  {const w=17*6.52/Math.cos(PLAZA.lat),hh=15*6.52;g.fillStyle='#c4c8c4';for(const off of [-2048,0,2048])g.fillRect(cx(PLAZA.lon)-w+off,cy(PLAZA.lat)-hh,2*w,2*hh);} // concrete under the middle of the park model only; the park's true outline is drawn by the skirt below
   {const k=6.52/Math.cos(ISLE.lat);for(const off of [-2048,0,2048]){for(const [rr,col] of [[ISLE.r+5,'#e9dcb0'],[ISLE.r+.5,'#9cb87c']]){g.fillStyle=col;g.beginPath();g.ellipse(cx(ISLE.lon)+off,cy(ISLE.lat),rr*k,rr*6.52,0,0,Math.PI*2);g.fill();}}} /* the race isle: grass with a sandy rim */
   const tex=new THREE.CanvasTexture(cv);tex.anisotropy=8;
   const geo=new THREE.SphereGeometry(R,256,160);const pa=geo.attributes.position;
-  for(let i=0;i<pa.count;i++){_q.set(pa.getX(i),pa.getY(i),pa.getZ(i)).normalize();const h=hAt(_q);pa.setXYZ(i,_q.x*h,_q.y*h,_q.z*h);}geo.computeVertexNormals();
+  for(let i=0;i<pa.count;i++){_q.set(pa.getX(i),pa.getY(i),pa.getZ(i)).normalize();const h=hAt(_q)-skirtDrop(_q);pa.setXYZ(i,_q.x*h,_q.y*h,_q.z*h);}geo.computeVertexNormals();
   groundMesh=new THREE.Mesh(geo,toon(0xffffff,{map:tex}));scene.add(groundMesh);
+  /* the park skirt: concrete apron, a kerb line, the grass bank and a paved rim, drawn in the park's own coordinates so
+     the outline is exact and crisp (the ground mesh is too coarse for the bank and its texture is in lon/lat) */
+  (function parkSkirt(){const w=PARK_SINK.w,RIM=.75,X=PARK_EXT.hx+w+2,Z=PARK_EXT.hz+w+2;const CW=1600,CH=Math.round(CW*Z/X);
+    const cv=document.createElement('canvas');cv.width=CW;cv.height=CH;const g2=cv.getContext('2d');const im=g2.createImageData(CW,CH);const D=im.data;
+    let gb=null;if(PARK_GUARD){gb=[1e9,-1e9,1e9,-1e9];for(const sm of PARK_GUARD.s){const [gx,gz]=parkXZ(sm.n);gb[0]=Math.min(gb[0],gx);gb[1]=Math.max(gb[1],gx);gb[2]=Math.min(gb[2],gz);gb[3]=Math.max(gb[3],gz);}gb[0]-=16;gb[1]+=16;gb[2]-=16;gb[3]+=16;}
+    const outAt=(x,z)=>{let o=Math.hypot(Math.max(0,Math.abs(x)-PARK_EXT.hx),Math.max(0,Math.abs(z)-PARK_EXT.hz));if(gb&&x>gb[0]&&x<gb[1]&&z>gb[2]&&z<gb[3]){const n=parkPt(x,z);if(o<w)o=parkOutE(n);if(o>=w&&guardDist(n)<GUARD0)o=99; /* the paved rim gives way to the main street's own pavement */}return o;};
+    for(let j=0;j<CH;j++){const z=Z-(j+.5)/CH*2*Z;for(let i=0;i<CW;i++){const x=-X+(i+.5)/CW*2*X;const o=outAt(x,z);let c;
+        if(o<=0)c=Math.hypot(x-WBOWL.x,z-WBOWL.z)<WBOWL.r?[174,179,175]:[196,200,196];else if(o<.22)c=[146,153,150];else if(o<w)c=[156,184,124];else if(o<w+RIM)c=[201,204,195];else c=null;
+        const k=(j*CW+i)*4;if(c){D[k]=c[0];D[k+1]=c[1];D[k+2]=c[2];D[k+3]=255;}else{D[k]=156;D[k+1]=184;D[k+2]=124;D[k+3]=0;}}}
+    g2.putImageData(im,0,0);const tx=new THREE.CanvasTexture(cv);tx.anisotropy=8;
+    const NX=Math.ceil(2*X),NZ=Math.ceil(2*Z);const pos=[],uv=[],idx=[],keep=[],und=[];
+    for(let j=0;j<=NZ;j++)for(let i=0;i<=NX;i++){const x=-X+i/NX*2*X,z=-Z+j/NZ*2*Z;pos.push(0,0,0);uv.push((x+X)/(2*X),(z+Z)/(2*Z));keep.push(outAt(x,z)<w+RIM+.2);und.push(Math.abs(x)<PLAZA.hx-.5&&Math.abs(z)<PLAZA.hz-.5);}
+    for(let j=0;j<NZ;j++)for(let i=0;i<NX;i++){const a=j*(NX+1)+i,b=a+1,c=a+NX+1,d=c+1;if((keep[a]||keep[b]||keep[c]||keep[d])&&!(und[a]&&und[b]&&und[c]&&und[d]))idx.push(a,b,c,b,d,c);} /* the park model has its own floor */
+    const geo=new THREE.BufferGeometry();geo.setAttribute('position',new THREE.Float32BufferAttribute(pos,3));geo.setAttribute('uv',new THREE.Float32BufferAttribute(uv,2));geo.setIndex(idx);
+    const lay=()=>{const pa=geo.attributes.position;let k=0;for(let j=0;j<=NZ;j++)for(let i=0;i<=NX;i++){const x=-X+i/NX*2*X,z=-Z+j/NZ*2*Z;const n=parkPt(x,z);
+        const under=Math.abs(x)<PLAZA.hx-.5&&Math.abs(z)<PLAZA.hz-.5;const h=under?hAt(n):Math.max(hAt(n),gMesh(n,true))+.04; /* tucked under the park model's own floor; everywhere else just proud of the coarse ground */
+        pa.setXYZ(k++,n.x*h,n.y*h,n.z*h);}pa.needsUpdate=true;geo.computeVertexNormals();geo.computeBoundingSphere();};
+    lay();parkSkirtLay=lay;
+    const m=new THREE.Mesh(geo,toon(0xffffff,{map:tx,alphaTest:.5,side:THREE.DoubleSide,polygonOffset:true,polygonOffsetFactor:-1,polygonOffsetUnits:-1}));m.receiveShadow=true;scene.add(m);})();
   /* the sea: a sphere at sea level with a gentle wave in the shader */
   const waterMat=new THREE.MeshToonMaterial({color:0x62b3d2,gradientMap:grad});waterMat.onBeforeCompile=sh=>{sh.uniforms.uT={value:0};waterMat.userData.sh=sh;
     sh.uniforms.uPC={value:PARK.C};sh.uniforms.uPE={value:PARK.east};sh.uniforms.uPN={value:PARK.north};sh.uniforms.uPH={value:new THREE.Vector2(PARK_EXT.hx+PARK_SINK.w,PARK_EXT.hz+PARK_SINK.w)};
@@ -512,37 +539,53 @@ const colliders=[];let skyDome=null,nightDome=null,SUNSET=null;const PLACES={};
     const img=new Image();img.onload=()=>{g.drawImage(img,0,0,2048,1024);const patch=(y0,y1,sy)=>{for(let x=0;x<2048;x+=256)g.drawImage(c,x,sy,256,y1-y0,x,y0,256,y1-y0);};
       patch(478,548,560); /* the centre dashes */ patch(140,195,215); patch(838,893,585); /* the solid edge lines */ t.needsUpdate=true;};img.src='assets/road.jpg';return t;})();
   const roadMat=new THREE.MeshBasicMaterial({map:roadTex,side:THREE.DoubleSide,polygonOffset:true,polygonOffsetFactor:-2,polygonOffsetUnits:-2});
+  const sideMat=new THREE.MeshBasicMaterial({map:roadTex,side:THREE.DoubleSide,polygonOffset:true,polygonOffsetFactor:-3,polygonOffsetUnits:-3}); /* joining streets lie over the verge of the road they meet */
   const mouthMat=new THREE.MeshBasicMaterial({map:roadTex,side:THREE.DoubleSide,polygonOffset:true,polygonOffsetFactor:-6,polygonOffsetUnits:-6});
-  const alleyMat=toon(0x7d8b8d,{side:THREE.DoubleSide,polygonOffset:true,polygonOffsetFactor:-2,polygonOffsetUnits:-2});
+  const alleyMat=toon(0x7d8b8d,{side:THREE.DoubleSide,polygonOffset:true,polygonOffsetFactor:-3,polygonOffsetUnits:-3});
   const trackMat=toon(0x66737a,{side:THREE.DoubleSide,polygonOffset:true,polygonOffsetFactor:-2,polygonOffsetUnits:-2});
   /* the beach path is a route only (for walking and the auto-walk), not a drawn strip: the grass runs straight onto the sand */
   const pavementMat=toon(0xc9ccc3,{side:THREE.DoubleSide,polygonOffset:true,polygonOffsetFactor:-1,polygonOffsetUnits:-1});
   /* open roads stop at the kerb line of the road they join, so their painted verges never cross its asphalt; the
      mouth of each junction is then covered by a plain asphalt patch (below) */
   const MAINR=ROADS[0],RINGR=ROADS[1];for(const road of ROADS){if(road.closed)continue;road.trim0=road.host0?road.host0.kerb+.1:(road.kind==='path'?MAINR.halfW+.1:MAINR.kerb+.1);road.trim1=road.host1?road.host1.kerb+.1:(/^(side|alley)/.test(road.name)?RINGR.kerb+.1:(road.kind==='path'?2.6:0));}
+  /* a junction is cut along the host road's own kerb line, column by column: a square end (the old way) overshoots
+     into the host's asphalt on one corner and stops short on the other whenever the two roads meet at an angle */
+  const _qc=new THREE.Vector3();
+  const hostDist=(H,p)=>{let best=null,bd=-2;for(const sm of H.samples){const d=p.dot(sm.n);if(d>bd){bd=d;best=sm;}}return Math.abs(p.dot(best.side))*R;};
+  const atSx=(road,s_)=>{if(s_>=0&&s_<=road.L)return atS(road,s_);const e=atS(road,s_<0?0:road.L);const over=s_<0?s_:s_-road.L;e.n=e.n.clone().addScaledVector(e.t,over/R).normalize();e.s=s_;return e;}; /* a street whose last point falls short of its host's centre line is carried on straight */
+  function clipS(road,H,o,atEnd,lim){const at=k=>atEnd?road.L-k*.1:k*.1;const dist=k=>{const sm=atSx(road,at(k));return hostDist(H,_qc.copy(sm.n).addScaledVector(sm.side,o/R).normalize());};
+    let k0=0,dm=1e9;for(let k=-60;k<=60;k+=2){const d=dist(k);if(d<dm){dm=d;k0=k;}} /* where this column comes closest to the host's centre line */
+    let pk=k0,pd=dm;for(let k=k0+1;k<=k0+170;k++){const d=dist(k);if(d>=lim)return at(pk)+(at(k)-at(pk))*(lim-pd)/Math.max(1e-6,d-pd);pk=k;pd=d;}return atEnd?road.L-road.trim1:road.trim0;}
+  function endRows(road,offs,lim0,lim1){ /* rows for an open road: a clipped row at each joined end, the plain samples between */
+    const S=road.samples;let sLo=road.trim0,sHi=road.L-road.trim1,r0=null,r1=null;const H0=road.host0||MAINR,H1=road.host1||(road.trim1>0?RINGR:null);
+    if(road.kind!=='path'){r0=offs.map(o=>clipS(road,H0,o,false,lim0(H0)));sLo=Math.max(...r0)+.25;if(H1){r1=offs.map(o=>clipS(road,H1,o,true,lim1(H1)));sHi=Math.min(...r1)-.25;}}
+    const rows=[];if(r0)rows.push({cut:r0});for(const sm of S)if(sm.s>=sLo&&sm.s<=sHi)rows.push({sm});if(r1)rows.push({cut:r1});return rows;}
+  const rowPoint=(road,row,j,o)=>{const sm=row.cut?atSx(road,row.cut[j]):row.sm;return {sm,pt:_q.copy(sm.n).addScaledVector(sm.side,o/R).normalize()};};
   for(const road of ROADS){const S=road.samples,M=6,hw=road.halfW,N=S.length;const texLen=road.closed?road.L/Math.round(road.L/19.6):19.6;const pos=[],uv=[],idx=[];
-    const rowList=road.closed?[...S,null]:S.filter(sm=>sm.s>=road.trim0&&sm.s<=road.L-road.trim1);const rows=rowList.length;
-    for(let i=0;i<rows;i++){const sm=rowList[i]||S[0];const s_=road.closed&&i===rows-1?road.L:sm.s;
-      for(let j=0;j<=M;j++){const o=hw*(1-2*j/M);const pt=_q.copy(sm.n).addScaledVector(sm.side,o/R).normalize();const h=hAt(pt)+road.lift;pos.push(pt.x*h,pt.y*h,pt.z*h);uv.push(s_/texLen,1-j/M);}}
+    const offs=Array.from({length:M+1},(_,j)=>hw*(1-2*j/M));
+    const rowList=road.closed?[...S.map(sm=>({sm})),{sm:S[0],wrap:true}]:endRows(road,offs,H=>H.kerb+.02,H=>H.kerb+.02);const rows=rowList.length;
+    for(let i=0;i<rows;i++){const row=rowList[i];
+      for(let j=0;j<=M;j++){const {sm,pt}=rowPoint(road,row,j,offs[j]);const s_=row.wrap?road.L:sm.s;const h=hAt(pt)+road.lift;pos.push(pt.x*h,pt.y*h,pt.z*h);uv.push(s_/texLen,1-j/M);}}
     for(let i=0;i<rows-1;i++)for(let j=0;j<M;j++){const a=i*(M+1)+j,b=a+1,c=a+(M+1),d=c+1;idx.push(a,b,c,b,d,c);}
     const rg=new THREE.BufferGeometry();rg.setAttribute('position',new THREE.Float32BufferAttribute(pos,3));rg.setAttribute('uv',new THREE.Float32BufferAttribute(uv,2));rg.setIndex(idx);rg.computeVertexNormals();
-    if(road.kind==='path')continue;const rm=new THREE.Mesh(rg,road.kind==='road'?roadMat:road.kind==='track'?trackMat:alleyMat);scene.add(rm);
+    if(road.kind==='path')continue;const rm=new THREE.Mesh(rg,road.kind==='road'?(road.closed?roadMat:sideMat):road.kind==='track'?trackMat:alleyMat);scene.add(rm);
     if(road.kind==='road'){ /* a paved strip either side, from the kerb line to where the plots begin */
-      for(const sd of [1,-1]){const pp=[],pi=[];const a0=road.kerb+.02,a1=road.kerb+2.15;
-        for(let i=0;i<rows;i++){const sm=rowList[i]||S[0];for(const o of [a0,a1]){const pt=_q.copy(sm.n).addScaledVector(sm.side,sd*o/R).normalize();const h=hAt(pt)+road.lift-.01;pp.push(pt.x*h,pt.y*h,pt.z*h);}}
-        for(let i=0;i<rows-1;i++){const a=i*2,b=a+1,c=a+2,d=c+1;pi.push(a,b,c,b,d,c);}
+      for(const sd of [1,-1]){const pp=[],pi=[];const a0=road.kerb+.02,a1=road.kerb+2.15;const po=[sd*a0,sd*a1];
+        const pRows=road.closed?rowList:endRows(road,po,H=>H.kerb+2.1,H=>H.kerb+2.1); /* a side street's pavement butts into the far edge of the host's pavement */
+        for(let i=0;i<pRows.length;i++){for(let j=0;j<2;j++){const {pt}=rowPoint(road,pRows[i],j,po[j]);const h=hAt(pt)+road.lift-.01;pp.push(pt.x*h,pt.y*h,pt.z*h);}}
+        for(let i=0;i<pRows.length-1;i++){const a=i*2,b=a+1,c=a+2,d=c+1;pi.push(a,b,c,b,d,c);}
         const pg=new THREE.BufferGeometry();pg.setAttribute('position',new THREE.Float32BufferAttribute(pp,3));pg.setIndex(pi);pg.computeVertexNormals();
         const pm=new THREE.Mesh(pg,pavementMat);pm.userData.noInk=true;scene.add(pm);}}}
   /* junction mouths: a strip of plain asphalt from the host road's kerb line out past its verge, as wide as the side road's asphalt */
   const matFor=r=>r.kind==='road'?roadMat:alleyMat;
-  function mouth(r,atEnd){const host=atEnd?(r.host1||RINGR):(r.host0||MAINR);const sm=atS(r,atEnd?r.L:0);const dir=sm.t.clone().multiplyScalar(atEnd?-1:1);const a0=host.halfW*.56,a1=(atEnd?r.trim1:r.trim0)+.3,w=r.halfW*.64,rows=6;const pos=[],uv=[],idx=[];
+  function mouth(r,atEnd){const host=atEnd?(r.host1||RINGR):(r.host0||MAINR);const sm=atS(r,atEnd?r.L:0);const dir=sm.t.clone().multiplyScalar(atEnd?-1:1);const w=(r.kind==='road'?r.kerb:r.halfW)-.03,rows=6;const reach=o=>{const c=clipS(r,host,o,atEnd,host.kerb+.02);return atEnd?r.L-c:c;};const a1=Math.max(reach(w),reach(-w))+.4,a0=Math.min(reach(w),reach(-w))-(host.kerb*.3+.6);const pos=[],uv=[],idx=[];
     for(let i=0;i<=rows;i++){const a=a0+(a1-a0)*i/rows;for(let j=0;j<=1;j++){const o=w*(1-2*j);const pt=_q.copy(sm.n).addScaledVector(dir,a/R).addScaledVector(sm.side,o/R).normalize();const h=hAt(pt)+host.lift;pos.push(pt.x*h,pt.y*h,pt.z*h);uv.push(a/19.6,.30+.14*(1-j));}} /* a plain lane of asphalt from the road picture, no dashes */
     for(let i=0;i<rows;i++){const a=i*2,b=a+1,c=a+2,d=a+3;idx.push(a,b,c,b,d,c);}
     const g2=new THREE.BufferGeometry();g2.setAttribute('position',new THREE.Float32BufferAttribute(pos,3));g2.setAttribute('uv',new THREE.Float32BufferAttribute(uv,2));g2.setIndex(idx);g2.computeVertexNormals();
-    const m2=new THREE.Mesh(g2,mouthMat);m2.userData.noInk=true;scene.add(m2);}
+    const m2=new THREE.Mesh(g2,mouthMat);scene.add(m2);} /* inked like the roads it bridges, so the ink pass sees one continuous surface and draws no box round the patch */
   for(const r of ROADS){if(r.closed||r.kind==='path')continue;mouth(r,false);if(r.trim1>0)mouth(r,true);}
   /* zebra crossings: white bars laid across the road, just inside each junction and now and then along the loops */
-  const zebraMat=new THREE.MeshBasicMaterial({color:0xf4f2ea,side:THREE.DoubleSide,polygonOffset:true,polygonOffsetFactor:-3,polygonOffsetUnits:-3});const zpos=[],zidx=[],znrm=[];
+  const zebraMat=new THREE.MeshBasicMaterial({color:0xf4f2ea,side:THREE.DoubleSide,polygonOffset:true,polygonOffsetFactor:-5,polygonOffsetUnits:-5});const zpos=[],zidx=[],znrm=[];
   function zebra(road,s_){const sm=atS(road,s_);const hw=road.halfW*.9,bw=.5,SEG=4;for(let o=-hw+bw/2;o<=hw-bw/2+.01;o+=bw*2){const k0=zpos.length/3;
       for(let i=0;i<=SEG;i++){const a=-1.1+2.2*i/SEG;for(const b of [o-bw/2,o+bw/2]){const pt=_q.copy(sm.n).addScaledVector(sm.t,a/R).addScaledVector(sm.side,b/R).normalize();const h=hAt(pt)+road.lift+.006;zpos.push(pt.x*h,pt.y*h,pt.z*h);znrm.push(pt.x,pt.y,pt.z);}}
       for(let i=0;i<SEG;i++){const k=k0+i*2;zidx.push(k,k+1,k+2,k+1,k+3,k+2);}}} /* each bar is a short strip of quads so it follows the hills without creasing */
@@ -775,8 +818,8 @@ function townAlong(road,o){o=o||{};const kerb=road.kerb;const end=Math.min(road.
       const cv3=document.createElement('canvas');cv3.width=620;cv3.height=340;const g3=cv3.getContext('2d');g3.fillStyle='#1d2a3a';g3.fillRect(0,0,620,340);g3.fillStyle='#f3efe4';g3.font='700 54px "Patrick Hand","Segoe Print",cursive';g3.textAlign='center';g3.fillText('BEACH CINEMA',310,86);g3.font='44px "Patrick Hand","Segoe Print",cursive';g3.fillStyle='#f4c945';g3.fillText('three short films',310,160);g3.fillText(FILMS.map(f=>f[1]).join('   ·   '),310,222);g3.fillStyle='#8fc7c2';g3.font='26px "Patrick Hand","Segoe Print",cursive';g3.fillText('walk up and press Watch',310,310);
       const scr=new THREE.Mesh(new THREE.PlaneGeometry(6.4,3.5),new THREE.MeshBasicMaterial({map:new THREE.CanvasTexture(cv3)}));scr.userData.noInk=true;scr.position.set(0,2.45,.1);sg.add(scr);
       placeOnGround(sg,cl,ca,yaw);colliders.push(sg);
-      for(const dz of [3.2,5.2,7.2]){const lp=_q.copy(cn).addScaledVector(face,dz/R).normalize();const [ll,la]=lonLatOf(lp);const lg=new THREE.Group();const c=cyl(.3,.3,2.8,P.wood,10);c.rotation.z=Math.PI/2;lg.add(at(c,0,.3,0));placeOnGround(lg,ll,la,yaw);colliders.push(lg);}
-      CINEMA={n:cn,face,lon:cl,lat:ca,w:cn.clone().multiplyScalar(gAt(cn))};PLACES.cinema={road:byName('beach'),s:byName('beach').L-1.5,then:_q.copy(cn).addScaledVector(face,4.5/R).normalize().clone()};})();
+      for(const dz of [3.2,5.2,7.2]){const lp=_q.copy(cn).addScaledVector(face,dz/R).normalize();const [ll,la]=lonLatOf(lp);const lg=new THREE.Group();const c=cyl(.25,.25,2.8,P.wood,10);c.rotation.z=Math.PI/2;lg.add(at(c,0,.25,0));placeOnGround(lg,ll,la,yaw);colliders.push(lg);} /* low enough for a kid to sit on */
+      CINEMA={n:cn,face,lon:cl,lat:ca,w:cn.clone().multiplyScalar(gAt(cn)),scr,seat:_q.copy(cn).addScaledVector(face,5.44/R).normalize().clone()}; /* seat: the middle log */PLACES.cinema={road:byName('beach'),s:byName('beach').L-1.5,then:_q.copy(cn).addScaledVector(face,4.5/R).normalize().clone()};})();
     /* the break room: a small house up near the pole, with bean bags, a rug and a lamp; the door faces south */
     (function breakRoom(){const {east,north}=frameAt(ROOM.lon,ROOM.lat);const face=north.clone().negate();const W=12,D=11,H=3.2;
       const put=(obj,dx,dz,mode)=>{const p=_q.copy(ROOM_N).addScaledVector(east,dx/R).addScaledVector(face,dz/R).normalize();const [l,a]=lonLatOf(p);const yaw=yawFor(l,a,face);if(mode==='solid'){placeOnGround(obj,l,a,yaw);colliders.push(obj);}else{placeOn(obj,l,a,yaw);}return obj;}; /* 'solid' walls sink to the ground and block; everything else just stands at its spot */
@@ -941,9 +984,9 @@ function groundFix(holder,root){holder.updateMatrixWorld(true);let minY=Infinity
     for(let i=0;i<pa.count;i+=step){if(m.isSkinnedMesh)m.boneTransform(i,_gv);else _gv.fromBufferAttribute(pa,i);_gv.applyMatrix4(m.matrixWorld);holder.worldToLocal(_gv);if(_gv.y<minY)minY=_gv.y;}});
   if(isFinite(minY)&&Math.abs(minY)<1.5)root.position.y-=minY;}
 (function loadKid(){const sc=document.createElement('script');sc.src='https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/GLTFLoader.js';
-  sc.onload=()=>{liteLoader(new THREE.GLTFLoader()).load('assets/kid.glb',g=>{
+  sc.onload=()=>{liteLoader(new THREE.GLTFLoader()).load('assets/kid.glb?v=2',g=>{
     const root=g.scene;const bb=new THREE.Box3().setFromObject(root);const hgt=bb.max.y-bb.min.y;const sc_=1.8/hgt;root.scale.setScalar(sc_);root.position.y=-bb.min.y*sc_;
-    root.traverse(m=>{if(m.isMesh){const old=m.material;if(old.map){old.map.encoding=THREE.LinearEncoding;old.map.needsUpdate=true;}m.material=new THREE.MeshToonMaterial({map:old.map||null,color:old.map?0xffffff:old.color,gradientMap:grad,skinning:!!m.isSkinnedMesh});m.frustumCulled=false;}});
+    root.traverse(m=>{if(m.isMesh){const old=m.material;if(old.map){old.map.encoding=THREE.LinearEncoding;old.map.needsUpdate=true;}m.material=new THREE.MeshToonMaterial({map:old.map||null,color:old.map?0xffffff:old.color,gradientMap:grad,skinning:!!m.isSkinnedMesh,side:THREE.DoubleSide});m.frustumCulled=false;}});
     const holder=new THREE.Group();holder.add(root);root.rotation.y=Math.PI; // model faces +Z; the rig faces -Z
     mixer=new THREE.AnimationMixer(root);
     for(const c of g.animations){const n=c.name.toLowerCase();
@@ -1047,7 +1090,7 @@ function groundFix(holder,root){holder.updateMatrixWorld(true);let minY=Infinity
     const su=document.createElement('script');su.src='https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/utils/SkeletonUtils.js';
     su.onload=()=>{
     loader.load('assets/spidey.glb',g=>{const root=g.scene; /* the mesh is skinned to a rig in other units, and its rest pose is collapsed: size him from the animated skeleton instead */
-      root.traverse(m=>{if(m.isMesh){const old=m.material;if(old.map){old.map.encoding=THREE.LinearEncoding;old.map.needsUpdate=true;}m.material=new THREE.MeshToonMaterial({map:old.map||null,color:old.map?0xffffff:old.color,gradientMap:grad,skinning:!!m.isSkinnedMesh});m.frustumCulled=false;m.castShadow=true;}});
+      root.traverse(m=>{if(m.isMesh){const old=m.material;if(old.map){old.map.encoding=THREE.LinearEncoding;old.map.needsUpdate=true;}m.material=new THREE.MeshToonMaterial({map:old.map||null,color:old.map?0xffffff:old.color,gradientMap:grad,skinning:!!m.isSkinnedMesh,side:THREE.DoubleSide});m.frustumCulled=false;m.castShadow=true;}});
       for(const c of g.animations){c.tracks=c.tracks.filter(t=>!(t.name.endsWith('.position')&&/Hips/.test(t.name))||false);SPIDEY.clips[c.name]=c;} /* hips position tracks carry root motion */
       SPIDEY.model=root;
       {const tmp=spideyInstance();tmp.play('walk',0);const bp=new THREE.Vector3();let y0=1e9,y1=-1e9;let sm=null;tmp.root.traverse(o=>{if(o.isSkinnedMesh&&!sm)sm=o;});const dur=SPIDEY.clips.walk.duration;
@@ -1062,14 +1105,14 @@ function groundFix(holder,root){holder.updateMatrixWorld(true);let minY=Infinity
         const clips={};for(const c of g.animations){const n_=c.name.toLowerCase();let travel=0;
           c.tracks=c.tracks.filter(t=>{if(!t.name.endsWith('.position'))return true;const v=t.values;let mn=[1e9,1e9,1e9],mx=[-1e9,-1e9,-1e9];for(let i=0;i<v.length;i+=3)for(let k=0;k<3;k++){mn[k]=Math.min(mn[k],v[i+k]);mx[k]=Math.max(mx[k],v[i+k]);}const range=Math.max(mx[0]-mn[0],mx[1]-mn[1],mx[2]-mn[2]);if(range>.2)travel=Math.max(travel,range);return !/^(Root|Hip|Hips|Pelvis)\./i.test(t.name)&&range<=.2;});
           if(n_.includes('walk')){clips.walk=c;clips.travel=travel;}else if(n_.includes('agree'))clips.talk=c;else if(n_.includes('scratch'))clips.fidget=c;else if(n_.includes('run'))clips.run=c;else clips.idle=c;}
-        if(!clips.idle)clips.idle=clips.fidget||clips.talk||clips.walk;
+        let stillIdle=false;if(!clips.idle){const src=clips.talk||clips.fidget||clips.walk;if(src){clips.idle=src.clone();clips.idle.name='still';stillIdle=true;}} /* no standing clip (June): hold the first frame of another clip as a still pose rather than looping a gesture for ever */
         const bb=new THREE.Box3().setFromObject(g.scene);const hgt=bb.max.y-bb.min.y;const sc_=1.78/hgt;
         npcs.forEach((n,i)=>{if((NPC_FOR[n.name]??(i%NPC_MODELS.length))!==mi)return;
           const root=THREE.SkeletonUtils.clone(g.scene);root.scale.setScalar(sc_);root.position.y=-bb.min.y*sc_;root.rotation.y=Math.PI;root.traverse(m=>{if(m.isMesh)m.castShadow=true;});
-          root.traverse(m=>{if(m.isMesh){const old=m.material;if(old.map){old.map.encoding=THREE.LinearEncoding;old.map.needsUpdate=true;}const mat=new THREE.MeshBasicMaterial({map:old.map||null,color:old.map?0xffffff:old.color,skinning:!!m.isSkinnedMesh});if(n.ghost){mat.transparent=true;mat.opacity=.82;}m.material=mat;m.frustumCulled=false;m.userData.noInk=true;}});
+          root.traverse(m=>{if(m.isMesh){const old=m.material;if(old.map){old.map.encoding=THREE.LinearEncoding;old.map.needsUpdate=true;}const mat=new THREE.MeshBasicMaterial({map:old.map||null,color:old.map?0xffffff:old.color,skinning:!!m.isSkinnedMesh,side:THREE.DoubleSide});if(n.ghost){mat.transparent=true;mat.opacity=.82;}m.material=mat;m.frustumCulled=false;m.userData.noInk=true;}});
           const holder=new THREE.Group();holder.add(root);scene.add(holder);
-          const mixer=new THREE.AnimationMixer(root);const act={};for(const k of ['walk','idle','talk','fidget']){if(clips[k]){act[k]=mixer.clipAction(clips[k]);act[k].play();act[k].setEffectiveWeight(k==='idle'?1:0);if(k==='fidget')act[k].setLoop(THREE.LoopOnce,1);}}
-          n.model={holder,mixer,act,root,walkSpeed:clips.travel?clips.travel*sc_/clips.walk.duration:1,w:{walk:0,talk:0,fidget:0},fidgetAt:performance.now()/1000+5+Math.random()*10,groundAt:performance.now()+1200};mixers.push(mixer);n.rig.group.visible=false;});
+          const mixer=new THREE.AnimationMixer(root);const act={};for(const k of ['walk','idle','talk','fidget']){if(clips[k]){act[k]=mixer.clipAction(clips[k]);act[k].play();act[k].setEffectiveWeight(k==='idle'?1:0);if(k==='fidget')act[k].setLoop(THREE.LoopOnce,1);if(k==='idle'&&stillIdle){act[k].time=0;act[k].paused=true;}}}
+          n.model={holder,mixer,act,root,walkSpeed:clips.travel?clips.travel*sc_/clips.walk.duration:1,w:{walk:0,talk:0,fidget:0},fidgetAt:performance.now()/1000+60+Math.random()*120,groundAt:performance.now()+1200};mixers.push(mixer);n.rig.group.visible=false;});
         sceneDirty=true;},undefined,e=>console.warn('resident not loaded',file,e)));};
     document.head.appendChild(su);
     // birds: Josh's rigged bird, one skeleton clone each; the wings flap from code by hinging the shoulder
@@ -1111,7 +1154,7 @@ const PEOPLE=[
 const npcs=[];
 (function makePeople(){
   const spots=npcSpots.filter(sp=>!sp.fixed);const fixed=name=>npcSpots.find(sp=>sp.fixed===name);
-  const WALKERS={Theo:'main',Kofi:'main',Ravi:'ring'};
+  const WALKERS={Theo:'main',Kofi:'main',Ravi:'ring',Ada:'upper'}; /* Ada is walking home along the upper road */
   PEOPLE.forEach((p,i)=>{
     const rig=person(outfits());rig.group.visible=false;scene.add(rig.group); /* stand-ins stay hidden until (and unless) their modelled selves fail to arrive */
     const road=WALKERS[p.name]?ROADS.find(r=>r.name===WALKERS[p.name]):null;
@@ -1161,7 +1204,7 @@ function turn(a){if(!a)return;const q=new THREE.Quaternion().setFromAxisAngle(up
 const _sa=new THREE.Vector3(),_sb=new THREE.Vector3(),_sc=new THREE.Vector3();
 function slide(dir,dist){_sa.copy(dir).addScaledVector(up,-dir.dot(up));if(_sa.lengthSq()<1e-8)return;_sa.normalize();const axis=_sb.crossVectors(up,_sa).normalize();const q=new THREE.Quaternion().setFromAxisAngle(axis,dist/R);up.applyQuaternion(q).normalize();fwd.applyQuaternion(q);orthonormalize();}
 let autoStuck=0,wallHit=false;
-function resolveSolids(){const PR=.42;const p=_sc.copy(up).multiplyScalar(R);wallHit=false;
+function resolveSolids(){if(sitting)return; /* seated on a bench or a log: he is meant to be inside its footprint */const PR=.42;const p=_sc.copy(up).multiplyScalar(R);wallHit=false;
   for(let pass=0;pass<2;pass++)for(const s of solids){if(Math.abs(s.c.x-p.x)>16||Math.abs(s.c.y-p.y)>16||Math.abs(s.c.z-p.z)>16)continue;
     const d=_sa.copy(p).sub(s.c);
     if(s.r!==undefined){d.addScaledVector(up,-d.dot(up));const L=d.length();const pen=s.r+PR-L;if(pen>0&&L>1e-4){slide(_sb.copy(d).multiplyScalar(1/L),pen);p.copy(up).multiplyScalar(R);wallHit=true;}continue;}
@@ -1169,7 +1212,7 @@ function resolveSolids(){const PR=.42;const p=_sc.copy(up).multiplyScalar(R);wal
     if(ox<oz)slide(_sb.copy(s.X).multiplyScalar(lx<0?-1:1),ox);else slide(_sb.copy(s.Z).multiplyScalar(lz<0?-1:1),oz);p.copy(up).multiplyScalar(R);wallHit=true;}}
 function firstMove(){if(!hintGone){hintGone=true;$('#hint').classList.add('gone');}dismissTitle();}
 orthonormalize();
-window.__tp=(lon,lat,h)=>{up.copy(sphere(lon,lat));const {east,north}=frameAt(lon,lat);fwd.copy(h==='n'?north:h==='s'?north.clone().negate():h==='w'?east.clone().negate():east);orthonormalize();camInit=false;};window.__up=()=>up.clone();window.__resnap=()=>{sitPose=null;};window.__parkPt=(dx,dz)=>lonLatOf(parkPt(dx,dz));window.__xz=()=>parkXZ(up).map(v=>+v.toFixed(2));window.__boards=()=>BOARD?BOARD.boards.map(b=>parkXZ(b.n).map(v=>+v.toFixed(1))):null;window.__freeze=(kind,tt)=>{window.__dtScale=.0005;ride.air=.9;ride.airT=.35;ride.airDur=.7;ride.trick=kind?{kind,t:(tt??.5)*.6,dur:.6}:null;return 'frozen';};window.__unfreeze=()=>{window.__dtScale=1;ride.air=0;ride.trick=null;return 'ok';};window.__rideSet=o=>Object.assign(ride,o);window.__applyRide=()=>{applyRide();if(kidModel)kidModel.updateMatrixWorld(true);};window.__kid=()=>kidModel;window.__scoot=()=>SCOOT;window.__race=()=>race;window.__raceFinish=()=>finishRace();window.__cinema=()=>CINEMA;window.__room=()=>ROOM;window.__gVis=(lon,lat)=>{const n=sphere(lon,lat);return {vis:+(gVis(n)-R).toFixed(2),exact:+(gAt(n)-R).toFixed(2),mesh:+(gMesh(n)-R).toFixed(2)};};window.__fight=()=>fight;window.__startFight=startFight;window.__endFight=endFight;window.__spidey=()=>SPIDEY;window.__web=()=>web;window.__webStart=webStart;window.__unlockWebs=()=>{webUnlocked=true;try{localStorage.setItem('planet-webs','1');}catch(_){}webBtn();return 'ok';};window.__fightAttack=(who,k)=>fightAttack(who==='ai'?fight.ai:fight.p,k);window.__vehicles=()=>BOARD.boards.map(b=>({kind:b.kind||'board',ll:lonLatOf(b.n).map(v=>+v.toFixed(4))}));window.__ride=kind=>{const b=BOARD.boards.find(b=>(b.kind||'board')===kind);if(!b)return 'none';up.copy(b.n);orthonormalize();nearBoard=b;startRide();return 'riding '+kind;};window.__npcxz=name=>{const n=npcs.find(x=>x.name===name);return n?parkXZ(sphere(n.lon,n.lat)).map(v=>+v.toFixed(1)):null;};window.__say=(name,text)=>{const n=npcs.find(x=>x.name===name);if(!n)return 'no npc';talking=n;sayBubble(n,text,'dbg',false);return 'said';};window.__npc=name=>{const n=npcs.find(x=>x.name===name);return n?[n.lon,n.lat]:null;};window.__bone=n=>kidModel.userData.bones[n].quaternion.toArray().map(v=>+v.toFixed(3)); /* debug: jump somewhere facing n/s/e/w; read the player's position */
+window.__tp=(lon,lat,h)=>{up.copy(sphere(lon,lat));const {east,north}=frameAt(lon,lat);fwd.copy(h==='n'?north:h==='s'?north.clone().negate():h==='w'?east.clone().negate():east);orthonormalize();camInit=false;};window.__up=()=>up.clone();window.__resnap=()=>{sitPose=null;};window.__parkPt=(dx,dz)=>lonLatOf(parkPt(dx,dz));window.__xz=()=>parkXZ(up).map(v=>+v.toFixed(2));window.__boards=()=>BOARD?BOARD.boards.map(b=>parkXZ(b.n).map(v=>+v.toFixed(1))):null;window.__freeze=(kind,tt)=>{window.__dtScale=.0005;ride.air=.9;ride.airT=.35;ride.airDur=.7;ride.trick=kind?{kind,t:(tt??.5)*.6,dur:.6}:null;return 'frozen';};window.__unfreeze=()=>{window.__dtScale=1;ride.air=0;ride.trick=null;return 'ok';};window.__rideSet=o=>Object.assign(ride,o);window.__applyRide=()=>{applyRide();if(kidModel)kidModel.updateMatrixWorld(true);};window.__kid=()=>kidModel;window.__scoot=()=>SCOOT;window.__race=()=>race;window.__raceFinish=()=>finishRace();window.__cinema=()=>CINEMA;window.__playFilm=i=>playFilm(i);window.__standUp=()=>standUp();window.__room=()=>ROOM;window.__gVis=(lon,lat)=>{const n=sphere(lon,lat);return {vis:+(gVis(n)-R).toFixed(2),exact:+(gAt(n)-R).toFixed(2),mesh:+(gMesh(n)-R).toFixed(2)};};window.__fight=()=>fight;window.__startFight=startFight;window.__endFight=endFight;window.__spidey=()=>SPIDEY;window.__web=()=>web;window.__webStart=webStart;window.__unlockWebs=()=>{webUnlocked=true;try{localStorage.setItem('planet-webs','1');}catch(_){}webBtn();return 'ok';};window.__fightAttack=(who,k)=>fightAttack(who==='ai'?fight.ai:fight.p,k);window.__vehicles=()=>BOARD.boards.map(b=>({kind:b.kind||'board',ll:lonLatOf(b.n).map(v=>+v.toFixed(4))}));window.__ride=kind=>{const b=BOARD.boards.find(b=>(b.kind||'board')===kind);if(!b)return 'none';up.copy(b.n);orthonormalize();nearBoard=b;startRide();return 'riding '+kind;};window.__npcxz=name=>{const n=npcs.find(x=>x.name===name);return n?parkXZ(sphere(n.lon,n.lat)).map(v=>+v.toFixed(1)):null;};window.__say=(name,text)=>{const n=npcs.find(x=>x.name===name);if(!n)return 'no npc';talking=n;sayBubble(n,text,'dbg',false);return 'said';};window.__npc=name=>{const n=npcs.find(x=>x.name===name);return n?[n.lon,n.lat]:null;};window.__bone=n=>kidModel.userData.bones[n].quaternion.toArray().map(v=>+v.toFixed(3)); /* debug: jump somewhere facing n/s/e/w; read the player's position */
 const camPos=new THREE.Vector3(), camUp=up.clone(), camLook=new THREE.Vector3(), raycaster=new THREE.Raycaster();
 let camInit=false, nearN=null, shownN=null, talking=null, idleT=0, camYaw=0;
 // Messenger-style intro: the whole planet as a small globe on flat teal, spinning with a jelly wobble, until "enter"
@@ -1246,7 +1289,7 @@ function update(dt){
   // player pose
   _m.makeBasis(right,up,fwd.clone().negate());player.group.quaternion.setFromRotationMatrix(_m);player.group.position.copy(up).multiplyScalar(gAt(up)+(ride.grind&&ride.grind.g.hOff?ride.grind.g.hOff:0));updateShadowRig(player.group.position,up,player.group.quaternion);updateSky(up);
   player.pose(speed,dt,speed>3?'run':'walk');
-  if(kidModel){kidModel.quaternion.copy(player.group.quaternion);kidModel.position.copy(player.group.position);if(sitting)kidModel.position.addScaledVector(up,-(window.__sitDrop??.26));
+  if(kidModel){kidModel.quaternion.copy(player.group.quaternion);kidModel.position.copy(player.group.position);if(sitting)kidModel.position.addScaledVector(up,-(window.__sitDrop??(cine.on?.31:.26)));
     if(ride.on){const a=ride.air>0?Math.sin(Math.PI*clamp(ride.airT/ride.airDur,0,1))*ride.air:0;const lean=-tn*.22*(ride.grind||ride.manualOn?0:1);
       const spinV=(ride.spin?Math.PI*clamp(ride.airT/ride.airDur,0,1)-(ride.flipped?Math.PI:0):0)+(ride.air>0?ride.spinHold:0);
       const bob=(ride.air===0&&!ride.grind&&Math.abs(v)>1)?.015*Math.sin(performance.now()/1000*7):0;const scoot=ride.veh==='scooter';kidModel.position.addScaledVector(up,(scoot?SCOOT.lift+(window.__scootUp??.03):BOARD.lift)+a+bob-(scoot?.05:.16)*ride.legs-(scoot?.12:.24)*ride.push).addScaledVector(fwd,scoot?(window.__scootFwd??-.1)+.06*ride.push:-.16+.12*ride.push).addScaledVector(right,scoot?0:.1);kidModel.quaternion.multiply(_sq.setFromAxisAngle(_sy,(scoot?0:1.15*(1-ride.push*.95))+spinV)).multiply(_sq2.setFromAxisAngle(new THREE.Vector3(0,0,1),lean));
@@ -1265,7 +1308,7 @@ function update(dt){
     stepsTarget=(moving&&!jump.on&&!ride.on)?(running?STEP_VOL:STEP_VOL*.6):0;steps.playbackRate=running?(speed>MAXV*1.2?1.3:1):.78;
     gait.run+=((running?1:0)-gait.run)*Math.min(1,dt*6);gait.walk+=((moving&&!running?1:0)-gait.walk)*Math.min(1,dt*6);
     idleFor=moving?0:idleFor+dt;const now_=performance.now()/1000;
-    if(moving)wasMoving=true;else if(wasMoving){wasMoving=false;fidgetOK=Math.random()<.2;fidgetUntil=now_+4+Math.random()*4;} // about one stop in five earns a stretch, a few seconds in
+    if(moving)wasMoving=true;else if(wasMoving){wasMoving=false;fidgetOK=Math.random()<.5;fidgetUntil=now_+22+Math.random()*10;} // he only stretches after standing about for a good while, and not every time
     if(clips.fidget&&!moving&&!sitting&&!ride.on&&!talking&&fidgetOK&&now_>fidgetUntil){clips.fidget.reset().play();fidgetOK=false;}
     if(sitting&&clips.fidget&&clips.fidget.isRunning())clips.fidget.stop();
     const fidgeting=clips.fidget&&clips.fidget.isRunning()&&!moving&&!sitting;gait.fidget+=((fidgeting?1:0)-gait.fidget)*Math.min(1,dt*5);
@@ -1293,7 +1336,7 @@ function update(dt){
       if(md.groundAt&&performance.now()>md.groundAt){md.groundAt=0;groundFix(md.holder,md.root);}
       const speaking=n===talking&&((voiceAudio&&!voiceAudio.paused)||(canSpeak&&speechSynthesis.speaking)||!sbN.hidden);
       md.w.walk+=((sp>.1?1:0)-md.w.walk)*Math.min(1,dt*6);md.w.talk+=((speaking&&sp<=.1&&md.act.talk&&md.act.talk!==md.act.idle?1:0)-md.w.talk)*Math.min(1,dt*4); /* only if this resident has a talking clip; otherwise the idle keeps driving the bones */
-      const tnow=performance.now()/1000;if(md.act.fidget&&md.act.fidget!==md.act.idle&&sp<=.1&&n!==talking&&tnow>md.fidgetAt){md.act.fidget.reset().play();md.fidgetAt=tnow+md.act.fidget.getClip().duration+8+Math.random()*12;}
+      const tnow=performance.now()/1000;if(md.act.fidget&&md.act.fidget!==md.act.idle&&sp<=.1&&n!==talking&&tnow>md.fidgetAt){md.act.fidget.reset().play();md.fidgetAt=tnow+md.act.fidget.getClip().duration+120+Math.random()*180;} /* a fidget every few minutes, not every few seconds */
       const fid=md.act.fidget&&md.act.fidget!==md.act.idle&&md.act.fidget.isRunning()&&sp<=.1&&n!==talking;md.w.fidget+=((fid?1:0)-md.w.fidget)*Math.min(1,dt*5);if(md.act.fidget&&md.act.fidget!==md.act.idle)md.act.fidget.setEffectiveWeight(md.w.fidget);
       if(md.act.walk){md.act.walk.setEffectiveWeight(md.w.walk);md.act.walk.setEffectiveTimeScale(clamp(sp/(md.walkSpeed||1)*.75,.5,2.5));}
       if(md.act.talk)md.act.talk.setEffectiveWeight(md.w.talk*(md.act.talk===md.act.idle?0:1));
@@ -1311,7 +1354,8 @@ function update(dt){
     const parkView=(!ride.on&&HM&&inPark(up))?1:0;
     let rim=0;if(!ride.on&&HM&&!parkView){const o=parkOut(up);if(o<14){const tp=new THREE.Vector3().copy(PARK.C).addScaledVector(up,-PARK.C.dot(up)).normalize();rim=(1-smooth(0,14,o))*clamp(dir.dot(tp)*1.4+.3,0,1);}} /* walking up to the rim, facing the park: the camera climbs for a view over the whole park */
     const camH=2.1+.3*camYaw+bell*6.5+rise+parkView*1.9+rim*5.5;
-    if(sitting){const sd=fwd.clone().multiplyScalar(Math.cos(sitOrbit.yaw)).addScaledVector(right,Math.sin(sitOrbit.yaw));desired=up.clone().multiplyScalar(hAt(up)+1.7+sitOrbit.pitch*2.2).addScaledVector(sd,-3.6);look=up.clone().multiplyScalar(hAt(up)+1.25).addScaledVector(fwd,7*Math.max(0,Math.cos(sitOrbit.yaw)));}
+    if(sitting&&cine.on){const hf=2*Math.atan(Math.tan(camera.fov*Math.PI/360)*camera.aspect);const D=Math.max(9.5,3.8/Math.tan(hf/2));const cq=_q.copy(CINEMA.n).addScaledVector(CINEMA.face,D/R).normalize();desired=cq.clone().multiplyScalar(gAt(cq)+3.1+D*.06);look=CINEMA.n.clone().multiplyScalar(gAt(CINEMA.n)+1.9);} /* the cinema: square on to the screen, the kid on his log below it */
+    else if(sitting){const sd=fwd.clone().multiplyScalar(Math.cos(sitOrbit.yaw)).addScaledVector(right,Math.sin(sitOrbit.yaw));desired=up.clone().multiplyScalar(hAt(up)+1.7+sitOrbit.pitch*2.2).addScaledVector(sd,-3.6);look=up.clone().multiplyScalar(hAt(up)+1.25).addScaledVector(fwd,7*Math.max(0,Math.cos(sitOrbit.yaw)));}
     else{desired=up.clone().multiplyScalar(gAt(up)+camH).addScaledVector(dir,-camBack);
     look=up.clone().multiplyScalar(gAt(up)+1.4-rim*1.6).addScaledVector(fwd,3.6*off*(1-bell)+rim*5);if(ride.air>0&&ride.spin)look.addScaledVector(up,ride.air*Math.sin(Math.PI*tA)*.6);}} // centred behind him while walking
   const eye=talking?look.clone():up.clone().multiplyScalar(gAt(up)+1.8);const ray=desired.clone().sub(eye);const len=ray.length();
@@ -1325,12 +1369,14 @@ function update(dt){
     camPos.copy(_fa).multiplyScalar(flyFrom.r+(desired.length()-flyFrom.r)*e);camUp.copy(flyFrom.up).lerp(up,e).normalize();camLook.copy(flyFrom.look).lerp(look,e);if(introFly<=0)flyFrom=null;}
   else{const k=camInit?1-Math.exp(-5*dt):1;camPos.lerp(desired,k);camUp.lerp(up,k).normalize();camLook.lerp(look,k);}camInit=true;
   camera.position.copy(camPos);camera.up.copy(camUp);camera.lookAt(camLook);if(window.__camView){const cv=window.__camView;camera.position.fromArray(cv.pos);camera.up.fromArray(cv.up);camera.lookAt(new THREE.Vector3().fromArray(cv.look));} /* debug: a fixed inspection camera */
+  if(cine.on){camera.updateMatrixWorld(true);cineLayout();}
   if(talking){if(!sbN.hidden)placeBubble(sbN,headOf(talking.rig.group,2.25),34);if(!sbMe.hidden)placeBubble(sbMe,headOf(player.group,2.25),34);}
   if(nearN&&!talking){_proj.copy(headOf(nearN.rig.group,2.75)).project(camera);const ba=$('#ba');if(_proj.z<1){ba.style.left=clamp((_proj.x+1)/2*W,90,W-90)+'px';ba.style.top=clamp((1-_proj.y)/2*H,40,H-140)+'px';}}
   // who is close enough to talk to?
   nearN=null;let bestD=2.6;if(!talking&&!sitting&&!ride.on){for(const n of npcs){const d=npcWorld(n).distanceTo(player.group.position);if(d<bestD){bestD=d;nearN=n;}}}
   nearBench=false;if(BENCH&&!talking){const bw=BENCH.n.clone().multiplyScalar(hAt(BENCH.n));const d=bw.distanceTo(player.group.position);if(sitting||(d<2.4&&d<bestD)){if(!sitting){nearBench=true;nearN=null;}
     _proj.copy(bw).addScaledVector(up,1.3).project(camera);const ba=$('#ba');if(_proj.z<1){ba.style.left=clamp((_proj.x+1)/2*W+70,90,W-90)+'px';ba.style.top=clamp((1-_proj.y)/2*H,40,H-140)+'px';}}}
+  if(sitting&&cine.on){const ba=$('#ba');ba.style.left=(W/2)+'px';ba.style.top=(H-70)+'px';}
   nearBoard=null;if(BOARD&&!talking&&!sitting&&!ride.on){let bw=null;for(const b of BOARD.boards){const w_=b.n.clone().multiplyScalar(gAt(b.n));const d=w_.distanceTo(player.group.position);if(d<2.2&&d<bestD&&!nearBench){bestD=d;nearBoard=b;bw=w_;nearN=null;}}if(nearBoard){
     _proj.copy(bw).addScaledVector(up,1.1).project(camera);const ba=$('#ba');if(_proj.z<1){ba.style.left=clamp((_proj.x+1)/2*W+70,90,W-90)+'px';ba.style.top=clamp((1-_proj.y)/2*H,40,H-140)+'px';}}}
   if(ride.on){_proj.copy(player.group.position).addScaledVector(up,2.1).project(camera);const ba=$('#ba');if(_proj.z<1){ba.style.left=clamp((_proj.x+1)/2*W+70,90,W-90)+'px';ba.style.top=clamp((1-_proj.y)/2*H,40,H-140)+'px';}}
@@ -1645,17 +1691,33 @@ setTimeout(async()=>{boothDraw((await loadBoard()).top);},2500);
 let roomBack=null;function enterRoom(){if(!ROOM.spawn)return;if(sitting)standUp();if(ride.on)stopRide();if(talking)endTalk();if(race.phase!=='idle')quitRace();autoTarget=null;autoRoute=[];autoFace=null;roomBack={up:up.clone(),fwd:fwd.clone()};up.copy(ROOM.spawn);fwd.copy(ROOM.face);orthonormalize();v=0;pendingMove=0;camInit=false;firstMove();toggleStops(false);}
 function leaveRoom(){if(roomBack){up.copy(roomBack.up);fwd.copy(roomBack.fwd);roomBack=null;}else{up.copy(START_N);fwd.set(-Math.sin(START_LON),0,Math.cos(START_LON));}orthonormalize();v=0;pendingMove=0;camInit=false;}
 /* ---------- the beach cinema ---------- */
+/* choosing a film cuts to the kid sitting on a log in front of the screen; the film itself is a YouTube frame pinned,
+   in perspective, onto the screen in the 3D world (a CSS homography re-laid every frame), so the beach carries on around it */
+const cine={on:false,el:null,w:0,h:0,quad:null};
 function openFilm(){filmOn=true;paused=true;for(const k in hold)hold[k]=false;$('#film').hidden=false;const list=$('#film-list');list.innerHTML='';FILMS.forEach(([t,d,id,ar],i)=>{const b=document.createElement('button');b.className='ink';b.type='button';b.textContent=d;b.addEventListener('click',()=>playFilm(i));list.appendChild(b);});$('#film-frame').innerHTML='';}
-function playFilm(i){const [t,d,id,ar]=FILMS[i];document.querySelectorAll('#film-list button').forEach((b,k)=>b.classList.toggle('on',k===i));const fr=$('#film-frame');fr.innerHTML='';const f=document.createElement('iframe');f.allow='autoplay; fullscreen; picture-in-picture';f.allowFullscreen=true;f.title=t;
-  const vw=Math.min(innerWidth*.9,1060),vh=innerHeight*.66;let w=vw,h=vw/ar;if(h>vh){h=vh;w=vh*ar;}f.width=Math.round(w);f.height=Math.round(h);f.src='https://www.youtube-nocookie.com/embed/'+id+'?autoplay=1&rel=0&playsinline=1';fr.appendChild(f);}
-function closeFilm(){filmOn=false;paused=false;$('#film-frame').innerHTML='';$('#film').hidden=true;game.focus();}
+function playFilm(i){const [t,d,id,ar]=FILMS[i];if(!CINEMA||!CINEMA.scr)return;cineStop();$('#film').hidden=true;paused=false;
+  if(ride.on)stopRide();autoTarget=null;autoRoute=[];autoFace=null;v=0;pendingMove=0;up.copy(CINEMA.seat);fwd.copy(CINEMA.face).negate();orthonormalize();sitting=true;sitPose=null;sitOrbit.yaw=0;sitOrbit.pitch=0;camInit=false; /* a cut, not a glide */
+  const SW=6.4,SH=3.5;let fw=SW,fh=SW/ar;if(fh>SH){fh=SH;fw=SH*ar;} /* the film letterboxed onto the 6.4 x 3.5 m screen */
+  const scr=CINEMA.scr;scr.updateMatrixWorld(true);cine.quad=[[-fw/2,fh/2],[fw/2,fh/2],[-fw/2,-fh/2],[fw/2,-fh/2]].map(([x,y])=>new THREE.Vector3(x,y,.02).applyMatrix4(scr.matrixWorld));
+  scr.material.color.set(0x05070a);cine.h=ar<1?640:405;cine.w=Math.round(cine.h*ar);
+  const f=document.createElement('iframe');f.id='cinescreen';f.allow='autoplay; fullscreen; picture-in-picture';f.allowFullscreen=true;f.title=t;f.width=cine.w;f.height=cine.h;f.style.visibility='hidden';
+  f.src='https://www.youtube-nocookie.com/embed/'+id+'?autoplay=1&rel=0&playsinline=1';document.body.appendChild(f);cine.el=f;cine.on=true;
+  const ba=$('#ba');ba.textContent='Stand up';ba.classList.remove('off');}
+function cineStop(){if(cine.el){cine.el.remove();cine.el=null;}if(cine.on&&CINEMA&&CINEMA.scr)CINEMA.scr.material.color.set(0xffffff);cine.on=false;}
+const _adj=m=>[m[4]*m[8]-m[5]*m[7],m[2]*m[7]-m[1]*m[8],m[1]*m[5]-m[2]*m[4],m[5]*m[6]-m[3]*m[8],m[0]*m[8]-m[2]*m[6],m[2]*m[3]-m[0]*m[5],m[3]*m[7]-m[4]*m[6],m[1]*m[6]-m[0]*m[7],m[0]*m[4]-m[1]*m[3]];
+const _mm=(a,b)=>{const c=[];for(let i=0;i<3;i++)for(let j=0;j<3;j++){let t=0;for(let k=0;k<3;k++)t+=a[3*i+k]*b[3*k+j];c[3*i+j]=t;}return c;};
+const _basis=(x1,y1,x2,y2,x3,y3,x4,y4)=>{const m=[x1,x2,x3,y1,y2,y3,1,1,1],a=_adj(m);const v=[a[0]*x4+a[1]*y4+a[2],a[3]*x4+a[4]*y4+a[5],a[6]*x4+a[7]*y4+a[8]];return _mm(m,[v[0],0,0,0,v[1],0,0,0,v[2]]);};
+function cineLayout(){if(!cine.on||!cine.el)return;const P=[];for(const c of cine.quad){_proj.copy(c).project(camera);if(_proj.z>1||_proj.z<-1){cine.el.style.visibility='hidden';return;}P.push((_proj.x+1)/2*W,(1-_proj.y)/2*H);}
+  const w=cine.w,h=cine.h;const t=_mm(_basis(P[0],P[1],P[2],P[3],P[4],P[5],P[6],P[7]),_adj(_basis(0,0,w,0,0,h,w,h)));for(let i=0;i<9;i++)t[i]/=t[8];
+  cine.el.style.transform='matrix3d('+[t[0],t[3],0,t[6],t[1],t[4],0,t[7],0,0,1,0,t[2],t[5],0,t[8]].join(',')+')';cine.el.style.visibility='visible';}
+function closeFilm(){filmOn=false;paused=false;$('#film-frame').innerHTML='';$('#film').hidden=true;if(cine.on)standUp();game.focus();}
 $('#film-x').addEventListener('click',closeFilm);$('#film').addEventListener('click',e=>{if(e.target===$('#film'))closeFilm();});
 function action(){unlockAudio();if(ride.on){stopRide();return;}if(sitting){standUp();return;}if(nearBench&&!talking){sitDown();return;}if(nearRace&&!talking){startRace();return;}if(nearFilm&&!talking){openFilm();return;}if(nearSpidey&&!talking){startFight();return;}if(nearBoard&&!talking){startRide();return;}if(nearN&&!talking){startTalk(nearN);return;}if(inRoom&&!talking)leaveRoom();}
 /* sitting on the bench: the kid is set on the seat facing the sea and his legs are bent after the animation
    has run; the sun goes down, the stars come out for half a minute, then it brightens again */
 let sitting=false,nearBench=false,nightT=null,night=0;const sitOrbit={yaw:0,pitch:0}; /* while seated the controls swing the camera round him instead */const _sq=new THREE.Quaternion(),_sx=new THREE.Vector3(1,0,0);
 function sitDown(){if(!BENCH)return;autoTarget=null;autoRoute=[];autoFace=null;v=0;pendingMove=0;up.copy(BENCH.n);fwd.copy(BENCH.face);if(SUNSET){const toSun=SUNSET.base[2].clone().sub(up.clone().multiplyScalar(hAt(up)));toSun.addScaledVector(up,-toSun.dot(up));if(toSun.lengthSq()>1e-6)fwd.copy(toSun);}orthonormalize();sitting=true;sitOrbit.yaw=0;sitOrbit.pitch=0;nightT=performance.now()/1000;$('#ba').textContent='Stand up';$('#ba').classList.remove('off');}
-function standUp(){if(!sitting)return;sitting=false;sitPose=null;if(nightT!==null&&performance.now()/1000-nightT<10)nightT=null;moveForward(.9);$('#ba').classList.add('off');shownN=undefined;}
+function standUp(){if(!sitting)return;sitting=false;sitPose=null;if(cine.on){cineStop();filmOn=false;}if(nightT!==null&&performance.now()/1000-nightT<10)nightT=null;moveForward(.9);$('#ba').classList.add('off');shownN=undefined;}
 let sitPose=null,sitT0=0;const _sy=new THREE.Vector3(0,1,0),_sq2=new THREE.Quaternion();
 /* seated: the whole body is frozen from a snapshot taken as he sits; only the head and neck move, by code:
    a slow look left and right, and every so often a look up at the sky */
