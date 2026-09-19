@@ -82,7 +82,7 @@ body.touch .tpad{margin-left:auto}
 #title p{font-family:var(--hand);font-size:19px;margin:12px 0 0;color:var(--ink);line-height:1.25;opacity:.85}
 #title p b{color:var(--ink);font-weight:normal}
 #title p.err{color:var(--red);opacity:1}
-#racehud[hidden],#raceend[hidden],#film[hidden],#fighthud[hidden],#fightctl[hidden]{display:none}
+#racehud[hidden],#raceend[hidden],#film[hidden],#house[hidden],#fighthud[hidden],#fightctl[hidden]{display:none}
 #fighthud{position:fixed;left:50%;top:max(14px,env(safe-area-inset-top));transform:translateX(-50%);z-index:5;display:flex;align-items:center;gap:14px;width:min(640px,94vw);font-family:var(--hand)}
 #fighthud .bar{flex:1;background:var(--cream);border:2.5px solid var(--ink);border-radius:6px;box-shadow:3px 3px 0 var(--ink);height:26px;position:relative;overflow:hidden}
 #fighthud .bar i{position:absolute;left:0;top:0;bottom:0;width:100%;background:#c8402f;transition:width .15s}#fighthud .bar.ai i{background:#4f86b3;left:auto;right:0}
@@ -103,6 +103,14 @@ body.fighting #hint,body.fighting #menubtn,body.fighting #musicbtn,body.fighting
 #film .fpanel{width:min(1100px,96vw);max-height:96vh;overflow:auto;padding:12px 14px;display:flex;flex-direction:column;gap:10px}
 #film header{display:flex;align-items:center;gap:10px;font-family:var(--hand);font-size:26px}#film header .sp{flex:1}#film header button{font-family:var(--hand);font-size:18px;padding:4px 12px;cursor:pointer}
 #film-list{display:flex;flex-wrap:wrap;gap:10px}#film-list button{font-family:var(--hand);font-size:21px;padding:10px 16px;cursor:pointer;background:#fff}#film-list button small{display:block;color:var(--muted);font-size:16px}#film-list button.on{background:#f4c945}
+#house{position:fixed;inset:0;z-index:26;background:#1d2a3a;display:flex;flex-direction:column}
+#house .hbar{display:flex;align-items:center;gap:10px;padding:8px 12px;font-family:var(--hand);font-size:24px;color:var(--cream);flex:none}#house .hbar .sp{flex:1}#house .hbar button{font-family:var(--hand);font-size:19px;padding:5px 14px;cursor:pointer;color:#26333a;background:#f4c945}
+#house-body{flex:1;min-height:0;position:relative;overflow:hidden}#house-body iframe{position:absolute;inset:0;width:100%;height:100%;border:0;background:#fff}
+.wash{position:absolute;inset:0;display:flex;flex-direction:column;background:#cfe3e6 linear-gradient(#d9ecef,#b7d3d8);font-family:var(--hand);color:#26333a;user-select:none;-webkit-user-select:none;touch-action:none}
+.wash .wtop{display:flex;justify-content:space-between;padding:10px 18px;font-size:24px}.wash .wmid{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:12px;min-height:0;padding:0 14px;text-align:center}
+.wash .wcard{background:#fffdf6;border:3px solid #26333a;border-radius:18px;box-shadow:0 6px 0 rgba(38,51,58,.25);padding:18px 30px 14px;min-width:210px;cursor:grab;touch-action:none}.wash .wcard.ok{border-color:#3d9a5b}.wash .wcard.no{border-color:#d8402f}
+.wash .wemo{font-size:84px;line-height:1.1}.wash .wname{font-size:28px}.wash .wfact{margin:0;min-height:2.6em;font-size:21px;max-width:520px}.wash .wfact em{display:inline-block;margin:8px 0;font-size:19px}.wash .wagain{font-family:var(--hand);font-size:22px;padding:8px 20px;cursor:pointer;background:#f4c945}
+.wash .wbins{display:flex;gap:12px;padding:12px;flex:none}.wash .wbins button{flex:1;font-family:var(--hand);font-size:22px;padding:14px 8px 12px;border:3px solid #26333a;border-radius:16px;background:#f3efe4;cursor:pointer;color:#26333a}.wash .wbins button i{display:block;font-style:normal;font-size:38px}.wash .wbins button b{font-weight:400}.wash.over .wbins{visibility:hidden}
 #cinescreen{position:fixed;left:0;top:0;transform-origin:0 0;border:0;background:#000;z-index:4}
 #film-frame:empty{display:none}#film-frame iframe{display:block;border:0;background:#000;margin:0 auto;max-width:100%}
 #film .note{margin:0;font-family:var(--hand);color:var(--muted);font-size:16px}
@@ -200,6 +208,7 @@ body.intro #game{background:#5abfb2}
 </section>
 <div id="racehud" class="ink" hidden><b>0:00.0</b><small>0 / 0 rings</small><span class="hb"><button type="button" id="race-quit">quit</button><button type="button" id="race-restart">restart</button></span></div>
 <div id="raceend" class="ink" hidden><h2>Skate park race</h2><p id="race-time" hidden></p><form id="race-post" hidden><input id="race-name" type="text" maxlength="16" placeholder="Your name for the board" aria-label="Your name"><button class="ink" type="submit">Post it</button></form><ol id="race-top"><li>loading…</li></ol><button id="race-close" class="ink" type="button">Back to the park</button></div>
+<div id="house" hidden><div class="hbar"><b id="house-t"></b><span class="sp"></span><button id="house-x" class="ink" type="button">Back to town</button></div><div id="house-body"></div></div>
 <div id="film" hidden><div class="fpanel ink"><header><b>Beach cinema</b><span class="sp"></span><button id="film-x" class="ink" type="button">Close</button></header><div id="film-list"></div><div id="film-frame"></div><p class="note">The films from the front page of understand-veganism.com.</p></div></div>
 <div id="sbN" class="sb" hidden></div>
 <div id="sbMe" class="sb me" hidden></div>
@@ -705,7 +714,7 @@ let BENCH=null,SKATE_SPOT=null,BOARD=null,BOARD_MODEL=null,parkModel=null;
 const race={phase:'idle',t:0,count:0,next:0,rings:[],road:null,startN:null,startFwd:null,finC:null,finT:null,mats:null,booth:null};const _rp=new THREE.Vector3(),_rd=new THREE.Vector3();
 let CINEMA=null,nearRace=false,nearFilm=false,inRoom=false,filmOn=false;
 /* Spider-Man: he waits by the skate park; beat his double in the arena and you can web-swing round town */
-const SPIDEY={model:null,clips:{},npc:null,spot:null,w:null,arena:null};let nearSpidey=false,webUnlocked=false;try{webUnlocked=localStorage.getItem('planet-webs')==='1';}catch(_){}
+const SPIDEY={model:null,clips:{},npc:null,spot:null,w:null,arena:null};const DOORS=[];let nearDoor=null;let nearSpidey=false,webUnlocked=false;try{webUnlocked=localStorage.getItem('planet-webs')==='1';}catch(_){}
 let websOn=true;try{websOn=localStorage.getItem('planet-webs-on')!=='0';}catch(_){}
 const fight={on:false,p:null,ai:null,t:0,end:0,dir:1,cool:0,aiCool:0,aiT:0,hud:null,ready:0};const web={on:false,t:0,dur:0,a:new THREE.Vector3(),b:new THREE.Vector3(),ctl:new THREE.Vector3(),line:null,anchor:new THREE.Vector3(),cool:0};const FILMS=[['What is veganism?','15 min','kq9a_6-eagA',16/9],['Who are animals?','3 min','XLUO1ZBhqew',9/16],['What is vegan?','1 min','_iePD_XhUx8',9/16]];
 /* the kick scooter: Josh's model split into the bars (stem, fork, front wheel) and the deck, so the deck can whip round the stem */
@@ -1036,8 +1045,8 @@ function groundFix(holder,root){holder.updateMatrixWorld(true);let minY=Infinity
       if(pool[0].dmin<Math.PI/4)pool=cand.sort((a,b)=>b.dmin-a.dmin); /* unless that would put one within 45° of itself */
       slotType[i]=pool[0].t;});
     window.__town={modelSlots,propSlots,slotType};
-    BUILDINGS.forEach((file,bi)=>loader.load(file,g=>{toonify(g.scene,true);fit(g.scene,9);
-      modelSlots.forEach((sl,i)=>{if(slotType[i]!==bi)return;const inst=new THREE.Group();inst.add(g.scene.clone());inst.scale.setScalar(Math.min(1,Math.max(.72,(sl.w||9)/8.6)));placeOnGround(inst,sl.lon,sl.lat,sl.yaw);colliders.push(inst);});sceneDirty=true;},undefined,e=>console.warn('building not loaded',file,e)));
+    BUILDINGS.forEach((file,bi)=>loader.load(file,g=>{toonify(g.scene,true);fit(g.scene,9);const bbF=new THREE.Box3().setFromObject(g.scene);const key=(file.match(/building(\w+?)\.glb/)||[])[1];const act=HOUSE_ACTS[key]; /* every copy of this building gets a front door just outside its façade (+Z) */
+      modelSlots.forEach((sl,i)=>{if(slotType[i]!==bi)return;const inst=new THREE.Group();inst.add(g.scene.clone());inst.scale.setScalar(Math.min(1,Math.max(.72,(sl.w||9)/8.6)));placeOnGround(inst,sl.lon,sl.lat,sl.yaw);colliders.push(inst);if(act){inst.updateMatrixWorld(true);const dn=inst.localToWorld(new THREE.Vector3(0,0,bbF.max.z+.55)).normalize();const cn=inst.localToWorld(new THREE.Vector3(0,0,0)).normalize();DOORS.push({n:dn,w:dn.clone().multiplyScalar(gAt(dn)),inw:cn.sub(dn).normalize(),act,key});}});sceneDirty=true;},undefined,e=>console.warn('building not loaded',file,e)));
     // the skate park: Josh's model, scaled to the plaza and set flat on its platform
     loader.load('assets/skatepark.glb?v=3',g=>{toonify(g.scene);const bb=new THREE.Box3().setFromObject(g.scene);const sc=(PLAZA.r*2*.96)/Math.max(bb.max.x-bb.min.x,bb.max.z-bb.min.z),sy=sc*.75;
       g.scene.scale.set(sc,sy,sc);g.scene.position.set(-(bb.min.x+bb.max.x)/2*sc,-bb.min.y*sy,-(bb.min.z+bb.max.z)/2*sc);
@@ -1383,14 +1392,16 @@ function update(dt){
   nearRace=false;nearFilm=false;inRoom=false;if(!talking&&!sitting&&!ride.on){const pl=player.group.position;const place=(w,h)=>{_proj.copy(w).addScaledVector(up,h).project(camera);const ba=$('#ba');if(_proj.z<1){ba.style.left=clamp((_proj.x+1)/2*W,90,W-90)+'px';ba.style.top=clamp((1-_proj.y)/2*H,40,H-140)+'px';}};
     if(race.booth&&race.phase==='idle'){const d=race.booth.w.distanceTo(pl);if(d<4.4&&!nearN&&!nearBoard&&!nearBench){bestD=d;nearRace=true;nearN=null;nearBoard=null;nearBench=false;place(race.booth.w,3.1);}}
     if(CINEMA){const d=CINEMA.w.distanceTo(pl);if(d<5&&!nearN&&!nearBoard&&!nearBench&&!nearRace){bestD=d;nearFilm=true;nearN=null;nearBoard=null;nearBench=false;place(CINEMA.w,4.6);}}
+    nearDoor=null;if(DOORS.length&&!nearN&&!nearBoard&&!nearBench&&!nearRace&&!nearFilm){let bd=2.1;for(const d of DOORS){if(Math.abs(d.w.x-pl.x)>3||Math.abs(d.w.y-pl.y)>3||Math.abs(d.w.z-pl.z)>3)continue;const dist=d.w.distanceTo(pl);if(dist<bd&&fwd.dot(d.inw)>.35){bd=dist;nearDoor=d;}}if(nearDoor)place(nearDoor.w,2.4);} /* right at the door and facing the house: nothing pops up while walking down the street */
     nearSpidey=false;if(SPIDEY.npc&&!fight.on){const d=SPIDEY.w.distanceTo(pl);if(d<3.2&&!nearN&&!nearBench&&!nearRace&&!nearFilm){nearSpidey=true;nearBoard=null;place(SPIDEY.w,2.6);}}
     if(ROOM.spawn&&Math.acos(clamp(up.dot(ROOM_N),-1,1))*R<5.5){inRoom=true;if(!nearN&&!nearBoard&&!nearBench&&!nearRace){const ba=$('#ba');ba.style.left=(W/2)+'px';ba.style.top=Math.max(40,H*.16)+'px';}}}
-  const shown=ride.on?'ride':sitting?'sit':nearBench?'bench':nearRace?'race':nearFilm?'film':nearSpidey?'spidey':nearBoard?'board':nearN?nearN:inRoom?'room':null;
+  const shown=ride.on?'ride':sitting?'sit':nearBench?'bench':nearRace?'race':nearFilm?'film':nearDoor?'door'+nearDoor.key:nearSpidey?'spidey':nearBoard?'board':nearN?nearN:inRoom?'room':null;
   if(shown!==shownN){shownN=shown;const pr=$('#prompt'),ba=$('#ba');
     if(nearN){ba.textContent='Talk to '+nearN.name;ba.classList.remove('off');nearN.paused=true;}
     else if(nearBench){ba.textContent='Sit and watch the sunset';ba.classList.remove('off');}
     else if(nearRace){ba.textContent='Start the race';ba.classList.remove('off');}
     else if(nearFilm){ba.textContent='Watch a film';ba.classList.remove('off');}
+    else if(nearDoor){ba.textContent=nearDoor.act.label;ba.classList.remove('off');}
     else if(nearSpidey){ba.textContent=webUnlocked?'Fight Spider-Bot again':'Fight the Spider-Bot';ba.classList.remove('off');}
     else if(nearBoard){ba.textContent=nearBoard.kind==='scooter'?'Ride the scooter':'Ride the skateboard';ba.classList.remove('off');}
     else if(inRoom){ba.textContent='Back to town';ba.classList.remove('off');}
@@ -1411,6 +1422,7 @@ if(isTouch)$('#hint').textContent='drag the stick to move · drag the view to lo
 const KEYS={ArrowUp:'u',w:'u',W:'u',ArrowDown:'d',s:'d',S:'d',ArrowLeft:'l',a:'l',A:'l',ArrowRight:'r',d:'r',D:'r'};
 window.addEventListener('keydown',e=>{if(isTouch&&!(e.target&&/^(INPUT|TEXTAREA)$/.test(e.target.tagName||''))&&/^(ArrowUp|ArrowDown|ArrowLeft|ArrowRight|w|a|s|d)$/i.test(e.key))setTouch(false,true);
   if(e.target&&/^(INPUT|TEXTAREA)$/.test(e.target.tagName||'')&&e.key!=='Escape')return; /* typing in a box (a name for the leaderboard, a question) is never read as game keys */
+  if(houseOn){if(e.key==='Escape')closeHouse();return;}
   if(filmOn){if(e.key==='Escape')closeFilm();return;}if(!$('#raceend').hidden&&e.key==='Escape'){$('#raceend').hidden=true;return;}
   if(e.metaKey||e.ctrlKey||e.altKey)return;if(e.key==='Shift'){hold.shift=true;return;}
   if(talking){if(e.key==='Escape')endTalk();else if((e.key==='Enter'||e.key===' ')&&document.activeElement!==q){nextChunk();e.preventDefault();}return;}
@@ -1425,7 +1437,7 @@ window.addEventListener('keydown',e=>{if(isTouch&&!(e.target&&/^(INPUT|TEXTAREA)
 });
 window.addEventListener('keyup',e=>{if(KEYS[e.key])hold[KEYS[e.key]]=false;if(e.key==='m'||e.key==='M')hold.m=false;if(e.key==='Shift')hold.shift=false;});
 window.addEventListener('blur',()=>{for(const k in hold)hold[k]=false;drag=null;});
-game.addEventListener('wheel',e=>{if(e.target.closest&&e.target.closest('#stops,#raceend,#film'))return;if(talking||sitting)return;e.preventDefault();const k=e.deltaMode===1?16:e.deltaMode===2?200:1;pendingMove=clamp(pendingMove+e.deltaY*k*.02,-30,30);autoTarget=null;firstMove();},{passive:false});
+game.addEventListener('wheel',e=>{if(e.target.closest&&e.target.closest('#stops,#raceend,#film,#house'))return;if(talking||sitting)return;e.preventDefault();const k=e.deltaMode===1?16:e.deltaMode===2?200:1;pendingMove=clamp(pendingMove+e.deltaY*k*.02,-30,30);autoTarget=null;firstMove();},{passive:false});
 let drag=null;
 canvas.addEventListener('touchstart',()=>{if(!isTouch)setTouch(true,true);},{passive:true});
 canvas.addEventListener('pointerdown',e=>{if(talking)return;drag={id:e.pointerId,x:e.clientX,y:e.clientY};canvas.classList.add('drag');try{canvas.setPointerCapture(e.pointerId)}catch(_){}});
@@ -1452,7 +1464,7 @@ game.addEventListener('pointerdown',()=>game.focus());game.focus();
 window.__loadErrs=[];window.addEventListener('unhandledrejection',e=>{const t=String(e.reason&&e.reason.stack||e.reason);window.__loadErrs.push(t);console.warn('load error:',t);});/* iPad Safari zooms on a fast double tap or when two thumbs land at once (it reads them as a pinch): both are stopped here, since there is no way back from a zoomed game */
 document.addEventListener('gesturestart',e=>e.preventDefault());document.addEventListener('gesturechange',e=>e.preventDefault());
 document.addEventListener('touchmove',e=>{if(e.touches.length>1)e.preventDefault();},{passive:false});
-{let lastTap=0;document.addEventListener('touchend',e=>{const now=performance.now();if(now-lastTap<350&&!e.target.closest('input,textarea,#stops,#chat,#film'))e.preventDefault();lastTap=now;},{passive:false});}
+{let lastTap=0;document.addEventListener('touchend',e=>{const now=performance.now();if(now-lastTap<350&&!e.target.closest('input,textarea,#stops,#chat,#film,#house'))e.preventDefault();lastTap=now;},{passive:false});}
 let titleGone=false;setTimeout(()=>{if(!kidModel)player.group.visible=true;for(const n of npcs)if(!n.model)n.rig.group.visible=true;},30000); /* only if a model never arrives does the stand-in step in */const fpsEl=location.search.includes('fps')?Object.assign(document.body.appendChild(document.createElement('div')),{style:'position:fixed;left:8px;bottom:8px;z-index:30;font:14px monospace;background:rgba(0,0,0,.5);color:#fff;padding:2px 6px;border-radius:4px'}):null;
 /* All game audio goes through Web Audio gain nodes: iPhones ignore an <audio> element's volume, so a loop
    'silenced' with volume 0 would play at full blast. Gains work everywhere; elements are the fallback. */
@@ -1490,11 +1502,11 @@ for(let i=0;i<11;i++){const b=document.createElement('i');b.className='bub';cons
 function toggleStops(show){const s=$('#stops');const vis=show==null?s.hidden:show;s.hidden=!vis;$('#menubtn').setAttribute('aria-expanded',String(vis));}
 $('#menubtn').addEventListener('click',e=>{e.stopPropagation();toggleStops();});
 function webBtn(){const b=window.__webBtn;if(!b)return;b.hidden=!webUnlocked;b.querySelector('span').textContent=websOn?'Spider webs: on — switch off':'Spider webs: off — switch on';}
-$('#stops').addEventListener('click',e=>{const wbt=e.target.closest('[data-webs]');if(wbt){websOn=!websOn;try{localStorage.setItem('planet-webs-on',websOn?'1':'0');}catch(_){}webBtn();showTrick(websOn?'Webs on':'Webs off');return;}const qb=e.target.closest('[data-q]');if(qb){try{localStorage.setItem('planet-quality',LITE?'full':'lite');}catch(_){}location.reload();return;}const cbtn=e.target.closest('[data-ctl]');if(cbtn){setTouch(!isTouch,true);toggleStops(false);return;}const pb=e.target.closest('[data-place]');if(pb){if(pb.dataset.place==='skateSpawn'){spawnPark();toggleStops(false);return;}if(pb.dataset.place==='race'){startRace();return;}if(pb.dataset.place==='board'){openRaceBoard(null);toggleStops(false);return;}if(pb.dataset.place==='afk'){enterRoom();return;}if(pb.dataset.place==='spidey'&&SPIDEY.spot){if(sitting)standUp();if(ride.on)stopRide();goTo({n:SPIDEY.spot.n});firstMove();toggleStops(false);return;}
+$('#stops').addEventListener('click',e=>{const wbt=e.target.closest('[data-webs]');if(wbt){websOn=!websOn;try{localStorage.setItem('planet-webs-on',websOn?'1':'0');}catch(_){}webBtn();showTrick(websOn?'Webs on':'Webs off');return;}const qb=e.target.closest('[data-q]');if(qb){try{localStorage.setItem('planet-quality',LITE?'full':'lite');}catch(_){}location.reload();return;}const cbtn=e.target.closest('[data-ctl]');if(cbtn){setTouch(!isTouch,true);toggleStops(false);return;}const pb=e.target.closest('[data-place]');if(pb){if(pb.dataset.place==='skateSpawn'){spawnPark();toggleStops(false);return;}if(pb.dataset.place==='race'){startRace();return;}if(pb.dataset.place==='board'){openRaceBoard(null);toggleStops(false);return;}if(pb.dataset.place==='afk'){enterRoom();return;}if(pb.dataset.place==='fruit'||pb.dataset.place==='wash'){let bd=null,bv=-2;for(const d of DOORS){if(d.act.kind!==pb.dataset.place)continue;const k=d.n.dot(up);if(k>bv){bv=k;bd=d;}}if(bd){if(sitting)standUp();if(ride.on)stopRide();goTo({n:bd.n});firstMove();}toggleStops(false);return;} /* walk to the nearest stall or laundrette */if(pb.dataset.place==='spidey'&&SPIDEY.spot){if(sitting)standUp();if(ride.on)stopRide();goTo({n:SPIDEY.spot.n});firstMove();toggleStops(false);return;}
     if(pb.dataset.place==='sunsetSpawn'&&BENCH){if(sitting)standUp();if(ride.on)stopRide();autoTarget=null;autoRoute=[];up.copy(BENCH.n).addScaledVector(BENCH.face,-2.2/R).normalize();fwd.copy(BENCH.face);orthonormalize();v=0;camInit=false;firstMove();toggleStops(false);return;} /* straight to the sand behind the bench, facing the sea */const pl=PLACES[pb.dataset.place];if(pl){if(sitting)standUp();goTo(pl);firstMove();toggleStops(false);}return;}
   const b=e.target.closest('[data-go]');if(!b)return;const n=npcs.find(x=>x.id===b.dataset.go);if(sitting)standUp();goTo({n:npcPos(n)},n);firstMove();toggleStops(false);});
 (function placesMenu(){const h=document.createElement('h2');h.textContent='Places';$('#stops').appendChild(h);
-  for(const [k,t,sub] of [['sunset','The sunset bench','down the hill, by the sea'],['skate','Skate park','off the main street'],['cinema','Beach cinema','a screen on the sand'],['skateSpawn','Spawn at the skate park','jump straight there'],['sunsetSpawn','Spawn at the sunset bench','jump straight there'],['race','Skate park race','a ring course out at sea, against the clock'],['board','Race leaderboard','the fastest laps'],['afk','Take a break (AFK)','a quiet room to wait in'],['spidey','Spider-Man','by the skate park']]){const b=document.createElement('button');b.type='button';b.dataset.place=k;b.innerHTML='<i></i>'+t+'<small>'+sub+'</small>';$('#stops').appendChild(b);}
+  for(const [k,t,sub] of [['sunset','The sunset bench','down the hill, by the sea'],['skate','Skate park','off the main street'],['cinema','Beach cinema','a screen on the sand'],['skateSpawn','Spawn at the skate park','jump straight there'],['sunsetSpawn','Spawn at the sunset bench','jump straight there'],['race','Skate park race','a ring course out at sea, against the clock'],['board','Race leaderboard','the fastest laps'],['afk','Take a break (AFK)','a quiet room to wait in'],['fruit','Juicy Slice','the fruit stall game: walk up and play'],['wash','Sort the Wash','the laundrette game'],['spidey','Spider-Man','by the skate park']]){const b=document.createElement('button');b.type='button';b.dataset.place=k;b.innerHTML='<i></i>'+t+'<small>'+sub+'</small>';$('#stops').appendChild(b);}
   const wb=document.createElement('button');wb.type='button';wb.dataset.webs='1';wb.hidden=!webUnlocked;wb.innerHTML='<i></i><span></span><small>jump while running to swing</small>';$('#stops').appendChild(wb);window.__webBtn=wb;webBtn();
   const qb=document.createElement('button');qb.type='button';qb.dataset.q='1';qb.innerHTML='<i></i>'+(LITE?'Graphics: lite — switch to full':'Graphics: full — switch to lite')+'<small>'+(LITE?'sharper, but heavier on phones and tablets':'lighter models, smoother on phones and tablets')+'</small>';$('#stops').appendChild(qb);
   const cb=document.createElement('button');cb.type='button';cb.dataset.ctl='1';cb.innerHTML='<i></i>'+(isTouch?'Switch to keyboard controls':'Switch to touch controls')+'<small>if the wrong ones came up</small>';$('#stops').appendChild(cb);})();
@@ -1690,6 +1702,90 @@ setTimeout(async()=>{boothDraw((await loadBoard()).top);},2500);
 /* ---------- the break room ---------- */
 let roomBack=null;function enterRoom(){if(!ROOM.spawn)return;if(sitting)standUp();if(ride.on)stopRide();if(talking)endTalk();if(race.phase!=='idle')quitRace();autoTarget=null;autoRoute=[];autoFace=null;roomBack={up:up.clone(),fwd:fwd.clone()};up.copy(ROOM.spawn);fwd.copy(ROOM.face);orthonormalize();v=0;pendingMove=0;camInit=false;firstMove();toggleStops(false);}
 function leaveRoom(){if(roomBack){up.copy(roomBack.up);fwd.copy(roomBack.fwd);roomBack=null;}else{up.copy(START_N);fwd.set(-Math.sin(START_LON),0,Math.cos(START_LON));}orthonormalize();v=0;pendingMove=0;camInit=false;}
+/* =====================================================================
+   HOUSES: walk right up to a front door and the button offers a way in. The fruit stalls hold a slicing game, the
+   laundrette a sorting game; every other house opens one page of understand-veganism.com (the site's own words).
+   ===================================================================== */
+const SITE='https://understand-veganism.com/';
+const HOUSE_ACTS=(()=>{const page=(title,url)=>({kind:'page',title,url,label:'Enter · '+title});const fruit={kind:'fruit',title:'Juicy Slice',label:'Play Juicy Slice'};
+  return {'1v2':{kind:'wash',title:'Sort the Wash',label:'Play Sort the Wash'},'16':fruit,'17':fruit,'18':fruit,
+    '3':page('Vegan quiz','quiz/'),'4':page('Check your framing','check/'),'5':page('Key quotes','quotes/'),'6':page('The definition','definition/'),'7':page('Leslie Cross: the letters','lesliecross/'),
+    '8':page('The welfare trap','welfare/'),'9':page('Symptoms','symptoms/'),'10':page('A vegan world','a-vegan-world/'),'11':page('Lab flesh','lab-flesh/'),'12':page('60-second explainers','explainers/'),
+    '13':page('The ‘dogmatic’ vegan','dogmatic-vegan/'),'14':page('Single-issue campaigns','sic/'),'15':page('Timeline','timeline/'),'19':page('Key quotes','quotes/'),'20':page('Leslie Cross: the letters','lesliecross/'),
+    '21':page('60-second explainers','explainers/'),'22':page('Vegan chatbot','chat/'),'23':page('The definition','definition/'),'24':page('Vegan quiz','quiz/'),'25':page('The welfare trap','welfare/'),'26':page('Timeline','timeline/')};})();
+let houseOn=false,houseStop=null;
+function tone(f0,f1,dur,type,vol){if(!musicOn)return;const c=ensureCtx();if(!c)return;try{const o=c.createOscillator(),g=c.createGain();o.type=type||'triangle';o.frequency.setValueAtTime(f0,c.currentTime);o.frequency.exponentialRampToValueAtTime(Math.max(30,f1),c.currentTime+dur);g.gain.setValueAtTime(vol||.12,c.currentTime);g.gain.exponentialRampToValueAtTime(.001,c.currentTime+dur);o.connect(g);g.connect(c.destination);o.start();o.stop(c.currentTime+dur+.02);}catch(_){}}
+function enterHouse(act){if(houseOn||!act)return;houseOn=true;paused=true;for(const k in hold)hold[k]=false;v=0;pendingMove=0;autoTarget=null;autoRoute=[];$('#house-t').textContent=act.title;const body=$('#house-body');body.innerHTML='';$('#house').hidden=false;
+  if(act.kind==='page'){const f=document.createElement('iframe');f.title=act.title;f.src=SITE+act.url;f.allow='autoplay; fullscreen';body.appendChild(f);houseStop=null;}
+  else if(act.kind==='fruit')houseStop=fruitGame(body);else if(act.kind==='wash')houseStop=washGame(body);}
+function closeHouse(){if(!houseOn)return;if(houseStop){try{houseStop();}catch(_){}}houseStop=null;$('#house-body').innerHTML='';$('#house').hidden=true;houseOn=false;paused=false;shownN=undefined;game.focus();}
+$('#house-x').addEventListener('click',closeHouse);
+window.__enterHouse=k=>enterHouse(HOUSE_ACTS[k]);window.__doors=()=>DOORS;
+
+/* ---- Juicy Slice: fruit is thrown up from the bottom; swipe (or hold the mouse button and swipe) to cut it. Three misses and it is over. ---- */
+function fruitGame(root){const cv=document.createElement('canvas');cv.style.cssText='display:block;width:100%;height:100%;touch-action:none;cursor:crosshair';root.appendChild(cv);const g=cv.getContext('2d');
+  let W_=1,H_=1,dpr=1,raf=0,last=performance.now(),state='ready',score=0,lives=3,best=0,t=0,nextWave=0,flash=0,shake=0,overAt=0,combo={n:0,t:0,id:0},swipe=0,msg=null;try{best=+localStorage.getItem('planet-fruit-best')||0;}catch(_){}
+  const KINDS=[['🍎','#d8402f'],['🍊','#f28c28'],['🍉','#e8495a'],['🍌','#f2d24b'],['🍓','#e03a4e'],['🍍','#f0c53a'],['🥝','#8cbf3f'],['🍑','#f59a7a'],['🍐','#c6d64a'],['🥭','#f5a623'],['🍋','#f4e04d'],['🥥','#f3efe4']];
+  const sprites={};const sprite=ch=>{if(sprites[ch])return sprites[ch];const c=document.createElement('canvas');c.width=c.height=160;const x=c.getContext('2d');x.font='128px "Apple Color Emoji","Segoe UI Emoji","Noto Color Emoji",sans-serif';x.textAlign='center';x.textBaseline='middle';x.fillText(ch,80,88);return sprites[ch]=c;};
+  let fruits=[],halves=[],drops=[],splats=[],trail=[];
+  const fit=()=>{dpr=Math.min(devicePixelRatio||1,2);W_=Math.max(1,root.clientWidth);H_=Math.max(1,root.clientHeight);cv.width=W_*dpr;cv.height=H_*dpr;};fit();addEventListener('resize',fit);
+  const rad=()=>clamp(Math.min(W_,H_)*.085,30,64),G=()=>H_*1.25;
+  const start=()=>{state='play';score=0;lives=3;t=0;nextWave=.5;fruits=[];halves=[];drops=[];splats=[];msg=null;};
+  const launch=bomb=>{const r=rad()*(bomb?.9:.85+Math.random()*.35),x=W_*(.12+Math.random()*.76),peak=H_*(.55+Math.random()*.3),vy=-Math.sqrt(2*G()*peak);const k=KINDS[Math.floor(Math.random()*KINDS.length)];
+    fruits.push({x,y:H_+r,vx:(W_/2-x)*(.25+Math.random()*.5)+(Math.random()-.5)*W_*.12,vy,r,rot:Math.random()*6.28,vr:(Math.random()-.5)*5,ch:bomb?'💣':k[0],col:k[1],bomb});};
+  const cut=(f,ang)=>{if(f.bomb){lives--;flash=1;shake=.5;tone(160,40,.5,'sawtooth',.2);for(let i=0;i<26;i++){const a=Math.random()*6.28,s=120+Math.random()*420;drops.push({x:f.x,y:f.y,vx:Math.cos(a)*s,vy:Math.sin(a)*s,r:3+Math.random()*5,col:i%2?'#26333a':'#f28c28',life:.7});}if(lives<=0)over();return;}
+    score++;tone(1100+Math.random()*300,280,.11,'triangle',.1);const nx=-Math.sin(ang),ny=Math.cos(ang);
+    for(const sd of [1,-1])halves.push({x:f.x,y:f.y,vx:f.vx+nx*sd*(90+Math.random()*80),vy:f.vy*.6+ny*sd*90-60,a:ang,ro:f.rot-ang,va:sd*(1.5+Math.random()*2.5),r:f.r,ch:f.ch,sd});
+    for(let i=0;i<14;i++){const a=Math.random()*6.28,s=60+Math.random()*320;drops.push({x:f.x,y:f.y,vx:Math.cos(a)*s,vy:Math.sin(a)*s-80,r:2+Math.random()*4,col:f.col,life:.55+Math.random()*.3});}
+    splats.push({x:f.x,y:f.y,r:f.r*(.8+Math.random()*.4),col:f.col,life:2.6,blobs:Array.from({length:6},()=>[(Math.random()-.5)*1.6,(Math.random()-.5)*1.6,.25+Math.random()*.45])});
+    if(combo.id===swipe&&t-combo.t<.35)combo.n++;else{combo.n=1;combo.id=swipe;}combo.t=t;if(combo.n>=3){score+=combo.n;msg={text:combo.n+' fruit combo!  +'+combo.n,x:f.x,y:f.y,life:1.1};}};
+  const over=()=>{state='over';overAt=performance.now();if(score>best){best=score;try{localStorage.setItem('planet-fruit-best',String(best));}catch(_){}}};
+  let down=false,px=0,py=0;const pos=e=>{const b=cv.getBoundingClientRect();return [e.clientX-b.left,e.clientY-b.top];};
+  const onDown=e=>{e.preventDefault();unlockAudio();const [x,y]=pos(e);down=true;px=x;py=y;swipe++;trail=[{x,y,t:performance.now()}];if(state==='ready')start();else if(state==='over'&&performance.now()-overAt>700)start();try{cv.setPointerCapture(e.pointerId);}catch(_){}};
+  const onMove=e=>{if(!down)return;const [x,y]=pos(e);const dx=x-px,dy=y-py;if(dx*dx+dy*dy<9)return;trail.push({x,y,t:performance.now()});if(trail.length>24)trail.shift();
+    if(state==='play'){const L2=dx*dx+dy*dy,ang=Math.atan2(dy,dx);for(const f of fruits){if(f.cut)continue;const u=clamp(((f.x-px)*dx+(f.y-py)*dy)/L2,0,1),cx=px+dx*u-f.x,cy=py+dy*u-f.y;if(cx*cx+cy*cy<f.r*f.r*.8){f.cut=true;cut(f,ang);}}fruits=fruits.filter(f=>!f.cut);}px=x;py=y;};
+  const onUp=()=>{down=false;};cv.addEventListener('pointerdown',onDown);cv.addEventListener('pointermove',onMove);cv.addEventListener('pointerup',onUp);cv.addEventListener('pointercancel',onUp);
+  const text=(s,x,y,size,col,al)=>{g.font='700 '+size+'px "Patrick Hand","Segoe Print",cursive';g.textAlign=al||'center';g.textBaseline='middle';g.lineWidth=Math.max(3,size*.14);g.strokeStyle='rgba(20,26,32,.85)';g.lineJoin='round';g.strokeText(s,x,y);g.fillStyle=col||'#f3efe4';g.fillText(s,x,y);};
+  const frame=now=>{raf=requestAnimationFrame(frame);const dt=Math.min(.04,(now-last)/1000);last=now;
+    if(state==='play'){t+=dt;nextWave-=dt;if(nextWave<=0){const n=1+Math.floor(Math.random()*Math.min(4,1+t/14));for(let i=0;i<n;i++)launch(Math.random()<Math.min(.2,.05+t*.0025));nextWave=Math.max(.7,1.6-t*.012);}
+      for(const f of fruits){f.vy+=G()*dt;f.x+=f.vx*dt;f.y+=f.vy*dt;f.rot+=f.vr*dt;if(f.y>H_+f.r*1.5&&f.vy>0){f.cut=true;if(!f.bomb){lives--;tone(220,110,.25,'square',.08);if(lives<=0)over();}}}fruits=fruits.filter(f=>!f.cut);}
+    for(const h of halves){h.vy+=G()*dt;h.x+=h.vx*dt;h.y+=h.vy*dt;h.a+=h.va*dt;}halves=halves.filter(h=>h.y<H_+120);
+    for(const d of drops){d.vy+=G()*.8*dt;d.x+=d.vx*dt;d.y+=d.vy*dt;d.life-=dt;}drops=drops.filter(d=>d.life>0);for(const s of splats)s.life-=dt;splats=splats.filter(s=>s.life>0);
+    flash=Math.max(0,flash-dt*2.2);shake=Math.max(0,shake-dt);if(msg){msg.life-=dt;msg.y-=30*dt;if(msg.life<=0)msg=null;}
+    g.setTransform(dpr,0,0,dpr,0,0);const bgd=g.createLinearGradient(0,0,0,H_);bgd.addColorStop(0,'#6b4a2a');bgd.addColorStop(1,'#3e2a17');g.fillStyle=bgd;g.fillRect(0,0,W_,H_);
+    g.strokeStyle='rgba(0,0,0,.18)';g.lineWidth=2;const pw=Math.max(70,W_/9);for(let x=pw;x<W_;x+=pw){g.beginPath();g.moveTo(x,0);g.lineTo(x,H_);g.stroke();}
+    if(shake>0)g.translate((Math.random()-.5)*shake*26,(Math.random()-.5)*shake*26);
+    for(const s of splats){g.globalAlpha=Math.min(.5,s.life*.35);g.fillStyle=s.col;for(const [bx,by,br] of s.blobs){g.beginPath();g.arc(s.x+bx*s.r,s.y+by*s.r,br*s.r,0,6.28);g.fill();}}g.globalAlpha=1;
+    for(const h of halves){g.save();g.translate(h.x,h.y);g.rotate(h.a);g.beginPath();g.rect(-h.r*1.3,h.sd>0?0:-h.r*1.3,h.r*2.6,h.r*1.3);g.clip();g.rotate(h.ro);g.drawImage(sprite(h.ch),-h.r*1.25,-h.r*1.25,h.r*2.5,h.r*2.5);g.restore();}
+    for(const f of fruits){g.save();g.translate(f.x,f.y);g.rotate(f.rot);g.drawImage(sprite(f.ch),-f.r*1.25,-f.r*1.25,f.r*2.5,f.r*2.5);g.restore();}
+    for(const d of drops){g.globalAlpha=Math.min(1,d.life*2.5);g.fillStyle=d.col;g.beginPath();g.arc(d.x,d.y,d.r,0,6.28);g.fill();}g.globalAlpha=1;
+    const tn=performance.now();trail=trail.filter(p=>tn-p.t<170);if(trail.length>1){g.lineCap='round';g.lineJoin='round';for(let i=1;i<trail.length;i++){const k=i/trail.length;g.strokeStyle='rgba(255,255,255,'+(.25+.7*k)+')';g.lineWidth=2+9*k;g.beginPath();g.moveTo(trail[i-1].x,trail[i-1].y);g.lineTo(trail[i].x,trail[i].y);g.stroke();}}
+    const fs=clamp(W_*.05,20,34);text(String(score),18,28,fs*1.5,'#f4c945','left');text('best '+best,18,28+fs*1.4,fs*.7,'#f3efe4','left');text('❤'.repeat(Math.max(0,lives))+'·'.repeat(Math.max(0,3-lives)),W_-16,28,fs*1.1,'#e8495a','right');
+    if(msg)text(msg.text,clamp(msg.x,120,W_-120),msg.y,fs,'#f4c945');
+    if(flash>0){g.fillStyle='rgba(255,255,255,'+flash*.8+')';g.fillRect(-40,-40,W_+80,H_+80);}
+    if(state==='ready'){text('Juicy Slice',W_/2,H_*.34,fs*2.1,'#f4c945');text(isTouch?'swipe across the fruit to slice it':'hold the mouse button and swipe across the fruit',W_/2,H_*.34+fs*2.2,fs*.85);text('leave the bombs alone · three misses and you are out',W_/2,H_*.34+fs*3.5,fs*.75,'#8fc7c2');text(isTouch?'tap to start':'click to start',W_/2,H_*.34+fs*5.6,fs*1.1,'#f3efe4');}
+    if(state==='over'){g.fillStyle='rgba(18,24,30,.6)';g.fillRect(-40,-40,W_+80,H_+80);text('Out of lives',W_/2,H_*.32,fs*1.8,'#f4c945');text('you sliced '+score,W_/2,H_*.32+fs*2.3,fs*1.2);text(score>=best&&score>0?'a new best!':'best '+best,W_/2,H_*.32+fs*3.8,fs*.9,'#8fc7c2');text(isTouch?'tap to play again':'click to play again',W_/2,H_*.32+fs*5.8,fs);}};
+  raf=requestAnimationFrame(frame);return ()=>{cancelAnimationFrame(raf);removeEventListener('resize',fit);};}
+
+/* ---- Sort the Wash: each garment goes in one of two baskets, by what it is made of. Drag it, tap a basket, or use the arrow keys. ---- */
+function washGame(root){const A='a',P='p';const ALL=[['🧶','Wool jumper',A,'Wool is a sheep’s fleece.'],['👢','Leather boots',A,'Leather is an animal’s skin.'],['🧣','Silk scarf',A,'Silk is spun by silkworms.'],['🧥','Down jacket',A,'Down is the feathers of ducks and geese.'],['🧤','Fur-lined gloves',A,'Fur is an animal’s skin and hair.'],['🧥','Cashmere cardigan',A,'Cashmere is the hair of goats.'],['👞','Suede shoes',A,'Suede is an animal’s skin.'],['🎩','Felted wool hat',A,'Wool felt is sheep’s fleece.'],['🧦','Angora socks',A,'Angora is the hair of rabbits.'],['👜','Snakeskin bag',A,'It is the skin of a snake.'],
+    ['👕','Cotton T-shirt',P,'Cotton grows on a plant.'],['👔','Linen shirt',P,'Linen is made from flax, a plant.'],['👖','Denim jeans',P,'Denim is woven cotton.'],['🧦','Bamboo socks',P,'Made from bamboo.'],['👟','Canvas shoes',P,'Canvas is cotton or hemp.'],['🧢','Hemp cap',P,'Hemp is a plant.'],['🧥','Polyester fleece',P,'Polyester is a synthetic fibre.'],['👛','Cork purse',P,'Cork is the bark of the cork oak.'],['🥾','Rubber wellies',P,'Rubber is tree sap or synthetic.'],['🧣','Acrylic scarf',P,'Acrylic is a synthetic fibre.']];
+  const el=document.createElement('div');el.className='wash';el.innerHTML='<div class="wtop"><span class="wprog"></span><span class="wscore"></span></div><div class="wmid"><div class="wcard"><div class="wemo"></div><div class="wname"></div></div><p class="wfact"></p></div><div class="wbins"><button type="button" data-b="a"><i>🐑</i><b>From an animal</b></button><button type="button" data-b="p"><i>🌱</i><b>Animal-free</b></button></div>';root.appendChild(el);
+  const q=s=>el.querySelector(s),card=q('.wcard');let items=[],i=0,score=0,t0=0,busy=false,done=false,best=null;try{best=JSON.parse(localStorage.getItem('planet-wash-best')||'null');}catch(_){}
+  const deal=()=>{const sh=a=>a.map(x=>[Math.random(),x]).sort((p,r)=>p[0]-r[0]).map(x=>x[1]);items=sh([...sh(ALL.filter(x=>x[2]===A)).slice(0,6),...sh(ALL.filter(x=>x[2]===P)).slice(0,6)]);i=0;score=0;t0=performance.now();done=false;busy=false;el.classList.remove('over');show();};
+  const show=()=>{const it=items[i];q('.wprog').textContent=(i+1)+' / '+items.length;q('.wscore').textContent='✔ '+score;q('.wemo').textContent=it[0];q('.wname').textContent=it[1];q('.wfact').textContent='';card.style.transition='none';card.style.transform='';card.style.opacity='1';card.className='wcard';};
+  const choose=b=>{if(busy||done)return;busy=true;const it=items[i],ok=it[2]===b;if(ok){score++;tone(660,990,.12,'triangle',.1);}else tone(200,120,.25,'square',.08);q('.wscore').textContent='✔ '+score;q('.wfact').textContent=(ok?'Yes. ':'Not quite. ')+it[3];card.classList.add(ok?'ok':'no');
+    card.style.transition='transform .35s ease-in,opacity .35s';card.style.transform='translate('+(b===A?-1:1)*Math.min(260,root.clientWidth*.4)+'px,120px) rotate('+(b===A?-14:14)+'deg) scale(.6)';card.style.opacity='0';
+    setTimeout(()=>{i++;if(i>=items.length)finish();else{busy=false;show();}},ok?650:1500);};
+  const finish=()=>{done=true;const secs=Math.round((performance.now()-t0)/1000);const better=!best||score>best.s||(score===best.s&&secs<best.t);if(better){best={s:score,t:secs};try{localStorage.setItem('planet-wash-best',JSON.stringify(best));}catch(_){}}
+    el.classList.add('over');q('.wemo').textContent=score===items.length?'🧺✨':'🧺';q('.wname').textContent=score+' / '+items.length+' in '+secs+' s';q('.wprog').textContent='';q('.wfact').innerHTML=(better?'A new best. ':'Best: '+best.s+' / '+items.length+' in '+best.t+' s. ')+'<br><em>Veganism is the principle that other animals are not ours to use.</em><br><button type="button" class="ink wagain">Play again</button>';card.style.transition='none';card.style.transform='';card.style.opacity='1';card.className='wcard';q('.wagain').addEventListener('click',deal);};
+  el.querySelectorAll('[data-b]').forEach(b=>b.addEventListener('click',()=>choose(b.dataset.b)));
+  let drag=null;card.addEventListener('pointerdown',e=>{if(busy||done)return;unlockAudio();drag={x:e.clientX,id:e.pointerId};card.style.transition='none';try{card.setPointerCapture(e.pointerId);}catch(_){}});
+  card.addEventListener('pointermove',e=>{if(!drag||e.pointerId!==drag.id)return;const dx=e.clientX-drag.x;card.style.transform='translateX('+dx+'px) rotate('+dx*.05+'deg)';});
+  const rel=e=>{if(!drag)return;const dx=e.clientX-drag.x;drag=null;if(Math.abs(dx)>70)choose(dx<0?A:P);else{card.style.transition='transform .2s';card.style.transform='';}};card.addEventListener('pointerup',rel);card.addEventListener('pointercancel',rel);
+  const key=e=>{if(e.key==='ArrowLeft'||e.key==='a'||e.key==='A'){choose(A);e.preventDefault();}else if(e.key==='ArrowRight'||e.key==='d'||e.key==='D'){choose(P);e.preventDefault();}else if((e.key==='Enter'||e.key===' ')&&done){deal();e.preventDefault();}};addEventListener('keydown',key);
+  deal();return ()=>removeEventListener('keydown',key);}
+
 /* ---------- the beach cinema ---------- */
 /* choosing a film cuts to the kid sitting on a log in front of the screen; the film itself is a YouTube frame pinned,
    in perspective, onto the screen in the 3D world (a CSS homography re-laid every frame), so the beach carries on around it */
@@ -1712,7 +1808,7 @@ function cineLayout(){if(!cine.on||!cine.el)return;const P=[];for(const c of cin
   cine.el.style.transform='matrix3d('+[t[0],t[3],0,t[6],t[1],t[4],0,t[7],0,0,1,0,t[2],t[5],0,t[8]].join(',')+')';cine.el.style.visibility='visible';}
 function closeFilm(){filmOn=false;paused=false;$('#film-frame').innerHTML='';$('#film').hidden=true;if(cine.on)standUp();game.focus();}
 $('#film-x').addEventListener('click',closeFilm);$('#film').addEventListener('click',e=>{if(e.target===$('#film'))closeFilm();});
-function action(){unlockAudio();if(ride.on){stopRide();return;}if(sitting){standUp();return;}if(nearBench&&!talking){sitDown();return;}if(nearRace&&!talking){startRace();return;}if(nearFilm&&!talking){openFilm();return;}if(nearSpidey&&!talking){startFight();return;}if(nearBoard&&!talking){startRide();return;}if(nearN&&!talking){startTalk(nearN);return;}if(inRoom&&!talking)leaveRoom();}
+function action(){unlockAudio();if(ride.on){stopRide();return;}if(sitting){standUp();return;}if(nearBench&&!talking){sitDown();return;}if(nearRace&&!talking){startRace();return;}if(nearFilm&&!talking){openFilm();return;}if(nearDoor&&!talking){enterHouse(nearDoor.act);return;}if(nearSpidey&&!talking){startFight();return;}if(nearBoard&&!talking){startRide();return;}if(nearN&&!talking){startTalk(nearN);return;}if(inRoom&&!talking)leaveRoom();}
 /* sitting on the bench: the kid is set on the seat facing the sea and his legs are bent after the animation
    has run; the sun goes down, the stars come out for half a minute, then it brightens again */
 let sitting=false,nearBench=false,nightT=null,night=0;const sitOrbit={yaw:0,pitch:0}; /* while seated the controls swing the camera round him instead */const _sq=new THREE.Quaternion(),_sx=new THREE.Vector3(1,0,0);
