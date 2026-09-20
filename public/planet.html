@@ -401,11 +401,11 @@ const PARK_SINK={d:3.2,w:3.4}; /* the park is sunk into the ground: this deep, w
 function parkOut(n){const [dx,dz]=parkXZ(n);return Math.hypot(Math.max(0,Math.abs(dx)-PARK_EXT.hx),Math.max(0,Math.abs(dz)-PARK_EXT.hz));}
 /* the main street clips the park's south-west corner: there the pit gives way, so the street and its pavement stay on level
    ground and the bank starts beyond them (PARK_GUARD = the main street's samples near the park, set once the street exists) */
-let PARK_GUARD=null;const GUARD0=4.7,GUARDW=3;
-function guardDist(n){if(!PARK_GUARD||n.dot(PARK_GUARD.c)<PARK_GUARD.cos)return 1e9;let bd=-2,best=null;for(const sm of PARK_GUARD.s){const d=n.dot(sm.n);if(d>bd){bd=d;best=sm;}}if(!best)return 1e9;return Math.hypot(n.dot(best.side)*R,Math.max(0,Math.abs(n.dot(best.t)*R)-.5));}
+let PARK_GUARD=null;const GUARDW=3; /* each guard sample carries g0: its street's pavement edge plus a margin */
+function guardDist(n){if(!PARK_GUARD||n.dot(PARK_GUARD.c)<PARK_GUARD.cos)return 1e9;let bd=-2,best=null;for(const sm of PARK_GUARD.s){const d=n.dot(sm.n);if(d>bd){bd=d;best=sm;}}if(!best)return 1e9;return Math.hypot(n.dot(best.side)*R,Math.max(0,Math.abs(n.dot(best.t)*R)-.5))-best.g0;} /* metres beyond that street's pavement (negative = on the street) */
 /* under the park skirt (apron and the foot of the bank) the coarse ground mesh is dropped out of the way, so its big triangles never poke through the skirt */
 function skirtDrop(n){const [dx,dz]=parkXZ(n);if(Math.abs(dx)>PARK_EXT.hx+4||Math.abs(dz)>PARK_EXT.hz+4)return 0;return parkOutE(n)<PARK_SINK.w-1.5?.4:0;} /* under the park model too: its own floor covers the ground, and the slimmer lite floor used to let green show through */
-function parkOutE(n){const o=parkOut(n);if(o>=PARK_SINK.w)return o;const d=guardDist(n);return d>=GUARD0+GUARDW?o:Math.max(o,PARK_SINK.w*(1-clamp((d-GUARD0)/GUARDW,0,1)));}
+function parkOutE(n){const o=parkOut(n);if(o>=PARK_SINK.w)return o;const d=guardDist(n);return d>=GUARDW?o:Math.max(o,PARK_SINK.w*(1-clamp(d/GUARDW,0,1)));}
 /* the wings: west = a quarter-pipe wall, a bowl and a flat rail; east = a stair set with a handrail, a long ledge and a pyramid */
 const WQP={x:-42,r:4.6,z0:-8,z1:8},WBOWL={x:-30,z:7,r:5,d:2.4},WRAIL={x0:-33,x1:-24,z:-15,h:1.0},
       STAIR={x0:26,x1:34,z0:-4,z1:4,h:1.6,steps:5,run:.85},ELEDGE={x0:26,x1:36,z:-13,h:.6,w:.7},PYR={x:29,z:12,half:3,top:1.4,h:1.2};
@@ -521,7 +521,6 @@ const colliders=[];let skyDome=null,nightDome=null,SUNSET=null;const PLACES={};
   const loopPts=(f,n)=>Array.from({length:n},(_,i)=>{const lon=i/n*Math.PI*2;return [lon,f(lon)];});
   const MAIN=addRoad('main',loopPts(mainLat,24),true,3.7,'road',.06);
   START_N=sphere(START_LON,mainLat(START_LON));
-  {const gs=MAIN.samples.filter(sm=>parkOut(sm.n)<16);if(gs.length){const c=new THREE.Vector3();for(const sm of gs)c.add(sm.n);c.normalize();let mn=1;for(const sm of gs)mn=Math.min(mn,c.dot(sm.n));PARK_GUARD={s:gs,c,cos:Math.cos(Math.acos(mn)+10/R)};}}
   const RING=addRoad('ring',loopPts(ringLat,20),true,3.0,'road',.06);
   const upperLat=lon=>1.0+.04*Math.sin(3*lon+.6)+.3*smooth(1.75,1.2,Math.abs(lon-PLAZA.lon)); // a third, tighter street up the hill, bowing over the park
   const UPPER=addRoad('upper',loopPts(upperLat,20),true,2.7,'road',.06);
@@ -539,6 +538,8 @@ const colliders=[];let skyDome=null,nightDome=null,SUNSET=null;const PLACES={};
   addRoad('skate',[[3.5,mainLat(3.5)],[PLAZA.lon,PLAZA.lat-(PLAZA.hz+.5)/R]],false,2.8,'road',.07);
   addRoad('beach',[[1.3,mainLat(1.3)],[1.36,-.12],[1.26,-.23],[1.32,-.325]],false,2.2,'path',.03);
   addRoad('race',[[0,-14],[9,-12],[15,-5],[13,5],[6,11],[0,5],[-6,12],[-14,7],[-16,-3],[-10,-12]].map(([x,z])=>lonLatOf(islePt(x,z))),true,3.2,'track',.06); /* the isle's ring course, a closed loop in island coordinates */
+  {const gs=[];for(const r of ROADS){if(r.kind!=='road'||r.name==='skate')continue;const g0=r.kerb+2.15+.45;for(const sm of r.samples)if(parkOut(sm.n)<14)gs.push({n:sm.n,t:sm.t,side:sm.side,g0});} /* every street that passes close to the park (not the skate road, which is meant to run down the bank) */
+    if(gs.length){const c=new THREE.Vector3();for(const sm of gs)c.add(sm.n);c.normalize();let mn=1;for(const sm of gs)mn=Math.min(mn,c.dot(sm.n));PARK_GUARD={s:gs,c,cos:Math.cos(Math.acos(mn)+10/R)};}}
   window.__roads={MAIN,RING,UPPER,mainLat,ringLat,upperLat};
   ZONES.push({n:sphere(1.32,-.36),r:9});ZONES.push({n:ROOM_N,r:9});ZONES.push({n:sphere(1.62,-.335),r:7});ZONES.push({n:sphere(1.07,-.335),r:7}); /* the beach, the break room, and the sand either side of the bench for the cinema */
   /* ground texture: grass, a sandy shore, foam at the waterline, the concrete plaza */
@@ -561,8 +562,9 @@ const colliders=[];let skyDome=null,nightDome=null,SUNSET=null;const PLACES={};
      the outline is exact and crisp (the ground mesh is too coarse for the bank and its texture is in lon/lat) */
   (function parkSkirt(){const w=PARK_SINK.w,RIM=.75,X=PARK_EXT.hx+w+2,Z=PARK_EXT.hz+w+2;const CW=1600,CH=Math.round(CW*Z/X);
     const cv=document.createElement('canvas');cv.width=CW;cv.height=CH;const g2=cv.getContext('2d');const im=g2.createImageData(CW,CH);const D=im.data;
-    let gb=null;if(PARK_GUARD){gb=[1e9,-1e9,1e9,-1e9];for(const sm of PARK_GUARD.s){const [gx,gz]=parkXZ(sm.n);gb[0]=Math.min(gb[0],gx);gb[1]=Math.max(gb[1],gx);gb[2]=Math.min(gb[2],gz);gb[3]=Math.max(gb[3],gz);}gb[0]-=16;gb[1]+=16;gb[2]-=16;gb[3]+=16;}
-    const outAt=(x,z)=>{let o=Math.hypot(Math.max(0,Math.abs(x)-PARK_EXT.hx),Math.max(0,Math.abs(z)-PARK_EXT.hz));if(gb&&x>gb[0]&&x<gb[1]&&z>gb[2]&&z<gb[3]){const n=parkPt(x,z);if(o<w)o=parkOutE(n);if(o>=w&&guardDist(n)<GUARD0)o=99; /* the paved rim gives way to the main street's own pavement */}return o;};
+    const GN=Math.ceil(2*X),GM=Math.ceil(2*Z),gmap=new Uint8Array(GN*GM);if(PARK_GUARD){for(let b=0;b<GM;b++)for(let a=0;a<GN;a++)if(guardDist(parkPt(-X+a+.5,-Z+b+.5))<GUARDW+5){for(let q=-1;q<=1;q++)for(let p_=-1;p_<=1;p_++){const aa=a+p_,bb=b+q;if(aa>=0&&bb>=0&&aa<GN&&bb<GM)gmap[bb*GN+aa]=1;}}}
+    const nearGuard=(x,z)=>{const a=Math.floor(x+X),b=Math.floor(z+Z);return a>=0&&b>=0&&a<GN&&b<GM&&gmap[b*GN+a]===1;};
+    const outAt=(x,z)=>{let o=Math.hypot(Math.max(0,Math.abs(x)-PARK_EXT.hx),Math.max(0,Math.abs(z)-PARK_EXT.hz));if(nearGuard(x,z)){const n=parkPt(x,z);if(o<w)o=parkOutE(n);if(o>=w&&guardDist(n)<0)o=99; /* the paved rim gives way to the main street's own pavement */}return o;};
     for(let j=0;j<CH;j++){const z=Z-(j+.5)/CH*2*Z;for(let i=0;i<CW;i++){const x=-X+(i+.5)/CW*2*X;const o=outAt(x,z);let c;
         if(o<=0)c=Math.hypot(x-WBOWL.x,z-WBOWL.z)<WBOWL.r?[174,179,175]:[196,200,196];else if(o<.22)c=[146,153,150];else if(o<w)c=[156,184,124];else if(o<w+RIM)c=[201,204,195];else c=null;
         const k=(j*CW+i)*4;if(c){D[k]=c[0];D[k+1]=c[1];D[k+2]=c[2];D[k+3]=255;}else{D[k]=156;D[k+1]=184;D[k+2]=124;D[k+3]=0;}}}
