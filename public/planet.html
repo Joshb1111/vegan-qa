@@ -298,7 +298,7 @@ shadowCap.receiveShadow=true;shadowCap.userData.skipInk=true;shadowCap.userData.
 const _se=new THREE.Vector3(),_sn=new THREE.Vector3(),_sd=new THREE.Vector3(),_sm=new THREE.Matrix4();
 function updateSky(up){if(!skyDome)return;_se.set(0,1,0);if(Math.abs(up.y)>.98)_se.set(1,0,0);_se.addScaledVector(up,-_se.dot(up)).normalize();_sn.crossVectors(_se,up);_sm.makeBasis(_se,up,_sn);skyDome.quaternion.setFromRotationMatrix(_sm);if(nightDome)nightDome.quaternion.copy(skyDome.quaternion);}
 function updateShadowRig(pos,up,q){_se.set(-up.z,0,up.x).normalize();_sn.crossVectors(_se,up).normalize();
-  {const pa=shadowCap.geometry.attributes.position,na=shadowCap.geometry.attributes.normal;let k=0;for(let j=0;j<=SHN;j++)for(let i=0;i<=SHN;i++){const dx=(i/SHN-.5)*2*SHW,dz=(j/SHN-.5)*2*SHW;_sv.copy(up).addScaledVector(_se,dx/R).addScaledVector(_sn,dz/R).normalize();const h=gAt(_sv)+.09;pa.setXYZ(k,_sv.x*h,_sv.y*h,_sv.z*h);na.setXYZ(k,_sv.x,_sv.y,_sv.z);k++;}pa.needsUpdate=true;na.needsUpdate=true;} /* just above roads and the sand strip, so shadows land on them too */
+  {const pa=shadowCap.geometry.attributes.position,na=shadowCap.geometry.attributes.normal;let k=0;for(let j=0;j<=SHN;j++)for(let i=0;i<=SHN;i++){const dx=(i/SHN-.5)*2*SHW,dz=(j/SHN-.5)*2*SHW;_sv.copy(up).addScaledVector(_se,dx/R).addScaledVector(_sn,dz/R).normalize();const h=gAt(_sv)+.125;pa.setXYZ(k,_sv.x*h,_sv.y*h,_sv.z*h);na.setXYZ(k,_sv.x,_sv.y,_sv.z);k++;}pa.needsUpdate=true;na.needsUpdate=true;} /* just above roads and the sand strip, so shadows land on them too */
   _sd.copy(up).multiplyScalar(1.6).addScaledVector(_se,.7).addScaledVector(_sn,.5).normalize();
   sunL.position.copy(pos).addScaledVector(_sd,18);sunL.target.position.copy(pos);sunL.target.updateMatrixWorld();}
 let W=0,H=0;
@@ -531,11 +531,11 @@ const colliders=[];let skyDome=null,nightDome=null,SUNSET=null;const PLACES={};
   const ll=v=>lonLatOf(v);const out=(sm,toward,d)=>{const sg=Math.sign(toward.clone().sub(sm.n).dot(sm.side))||1;return _q.copy(sm.n).addScaledVector(sm.side,sg*d/R).normalize().clone();};
   function joinRoad(name,H0,n0,H1,n1,mid,halfW){const a=nearS(H0,n0),b=nearS(H1,n1);const span=a.n.distanceTo(b.n)*R,d=Math.min(6,span*.3);const pts=[ll(a.n),ll(out(a,b.n,d))];if(mid)pts.push(mid);pts.push(ll(out(b,a.n,d)),ll(b.n));
     for(let k=1;k<pts.length;k++){let dl=pts[k][0]-pts[k-1][0];while(dl>Math.PI){pts[k][0]-=2*Math.PI;dl-=2*Math.PI;}while(dl<-Math.PI){pts[k][0]+=2*Math.PI;dl+=2*Math.PI;}}
-    const r=addRoad(name,pts,false,halfW,'road',.07);r.host0=H0;r.host1=H1;return r;}
+    const r=addRoad(name,pts,false,halfW,'road',.085);r.host0=H0;r.host1=H1;return r;}
   [0.1,2.15,5.85].forEach((a,i)=>{const n0=sphere(a,ringLat(a));joinRoad('link'+i,RING,n0,UPPER,nearS(UPPER,nearS(RING,n0).n).n,null,2.7);}); /* straight across to the nearest point of the upper road */
   [[0.85,0.95,.06],[2.55,2.3,-.02],[4.35,4.5,.05],[1.3,1.32,.02],[5.85,5.85,-.03],[0.1,0.1,.03]].forEach(([a,b,k],i)=>joinRoad('side'+i,MAIN,sphere(a,mainLat(a)),RING,sphere(b,ringLat(b)),[(a+b)/2+k,(mainLat(a)+ringLat(b))/2],2.8));
   [[1.75,1.85],[5.2,5.12]].forEach(([a,b],i)=>addRoad('alley'+i,[[a,mainLat(a)],[a+.02,mainLat(a)+.13],[b-.03,mainLat(a)+.3],[b,ringLat(b)]],false,1.5,'alley',.08));
-  addRoad('skate',[[3.5,mainLat(3.5)],[PLAZA.lon,PLAZA.lat-(PLAZA.hz+.5)/R]],false,2.8,'road',.07);
+  addRoad('skate',[[3.5,mainLat(3.5)],[PLAZA.lon,PLAZA.lat-(PLAZA.hz+.5)/R]],false,2.8,'road',.085);
   addRoad('beach',[[1.3,mainLat(1.3)],[1.36,-.12],[1.26,-.23],[1.32,-.325]],false,2.2,'path',.03);
   addRoad('race',[[0,-14],[9,-12],[15,-5],[13,5],[6,11],[0,5],[-6,12],[-14,7],[-16,-3],[-10,-12]].map(([x,z])=>lonLatOf(islePt(x,z))),true,3.2,'track',.06); /* the isle's ring course, a closed loop in island coordinates */
   {const gs=[];for(const r of ROADS){if(r.kind!=='road'||r.name==='skate')continue;const g0=r.kerb+2.15+.45;for(const sm of r.samples)if(parkOut(sm.n)<14)gs.push({n:sm.n,t:sm.t,side:sm.side,g0});} /* every street that passes close to the park (not the skate road, which is meant to run down the bank) */
@@ -611,14 +611,17 @@ const colliders=[];let skyDome=null,nightDome=null,SUNSET=null;const PLACES={};
     let pk=k0,pd=dm;for(let k=k0+1;k<=k0+170;k++){const d=dist(k);if(d>=lim)return at(pk)+(at(k)-at(pk))*(lim-pd)/Math.max(1e-6,d-pd);pk=k;pd=d;}return atEnd?road.L-road.trim1:road.trim0;}
   function endRows(road,offs,lim0,lim1){ /* rows for an open road: a clipped row at each joined end, the plain samples between */
     const S=road.samples;let sLo=road.trim0,sHi=road.L-road.trim1,r0=null,r1=null;const H0=road.host0||MAINR,H1=road.host1||(road.trim1>0?RINGR:null);
-    if(road.kind!=='path'){r0=offs.map(o=>clipS(road,H0,o,false,lim0(H0)));sLo=Math.max(...r0)+.25;if(H1){r1=offs.map(o=>clipS(road,H1,o,true,lim1(H1)));sHi=Math.min(...r1)-.25;}}
-    if(offs.length===7){road.cut0=r0;road.cut1=r1;window.__allRoads=ROADS;}const rows=[];if(r0)rows.push({cut:r0});for(const sm of S)if(sm.s>=sLo&&sm.s<=sHi)rows.push({sm});if(r1)rows.push({cut:r1});return rows;}
+    if(road.kind!=='path'){r0=offs.map(o=>clipS(road,H0,o,false,lim0(H0,o)));sLo=Math.max(...r0)+.25;if(H1){r1=offs.map(o=>clipS(road,H1,o,true,lim1(H1,o)));sHi=Math.min(...r1)-.25;}}
+    if(offs.length>=7){road.cut0=r0;road.cut1=r1;window.__allRoads=ROADS;}const rows=[];if(r0)rows.push({cut:r0});for(const sm of S)if(sm.s>=sLo&&sm.s<=sHi)rows.push({sm});if(r1)rows.push({cut:r1});return rows;}
   const rowPoint=(road,row,j,o)=>{const sm=row.cut?atSx(road,row.cut[j]):row.sm;return {sm,pt:_q.copy(sm.n).addScaledVector(sm.side,o/R).normalize()};};
-  for(const road of ROADS){const S=road.samples,M=6,hw=road.halfW,N=S.length;const texLen=road.closed?road.L/Math.round(road.L/19.6):19.6;const pos=[],uv=[],idx=[];
-    const offs=Array.from({length:M+1},(_,j)=>hw*(1-2*j/M));
-    const rowList=road.closed?[...S.map(sm=>({sm})),{sm:S[0],wrap:true}]:endRows(road,offs,H=>H.kerb+.02,H=>H.kerb+.02);const rows=rowList.length;
+  for(const road of ROADS){const S=road.samples,hw=road.halfW,N=S.length,kb=road.kerb;const texLen=road.closed?road.L/Math.round(road.L/19.6):19.6;const pos=[],uv=[],idx=[];
+    /* a joining street has a column either side of each kerb line: its asphalt runs to the host's asphalt, but its kerb and verge stop at the OUTER edge
+       of the host's verge, so the host's kerb band carries on unbroken up to the mouth and the two kerbs meet in a square corner instead of overlapping */
+    const stepped=!road.closed&&road.kind==='road';const offs=stepped?[hw,(hw+kb)/2,kb+.002,kb,kb/2,0,-kb/2,-kb,-kb-.002,-(hw+kb)/2,-hw]:Array.from({length:7},(_,j)=>hw*(1-2*j/6));const M=offs.length-1;
+    const lim=(H,o)=>stepped&&Math.abs(o)>kb+.001?H.halfW-.02:H.kerb+.02;
+    const rowList=road.closed?[...S.map(sm=>({sm})),{sm:S[0],wrap:true}]:endRows(road,offs,lim,lim);const rows=rowList.length;
     for(let i=0;i<rows;i++){const row=rowList[i];
-      for(let j=0;j<=M;j++){const {sm,pt}=rowPoint(road,row,j,offs[j]);const s_=row.wrap?road.L:sm.s;const h=hAt(pt)+road.lift;pos.push(pt.x*h,pt.y*h,pt.z*h);uv.push(s_/texLen,1-j/M);}}
+      for(let j=0;j<=M;j++){const {sm,pt}=rowPoint(road,row,j,offs[j]);const s_=row.wrap?road.L:sm.s;const h=hAt(pt)+road.lift;pos.push(pt.x*h,pt.y*h,pt.z*h);uv.push(s_/texLen,(offs[j]/hw+1)/2);}}
     for(let i=0;i<rows-1;i++)for(let j=0;j<M;j++){const a=i*(M+1)+j,b=a+1,c=a+(M+1),d=c+1;idx.push(a,b,c,b,d,c);}
     const rg=new THREE.BufferGeometry();rg.setAttribute('position',new THREE.Float32BufferAttribute(pos,3));rg.setAttribute('uv',new THREE.Float32BufferAttribute(uv,2));rg.setIndex(idx);rg.computeVertexNormals();
     if(road.kind==='path')continue;const rm=new THREE.Mesh(rg,road.kind==='road'?(road.closed?roadMat:sideMat):road.kind==='track'?trackMat:alleyMat);scene.add(rm);if(road.kind==='track'){rm.visible=false;window.__raceTrack=rm;} /* race courses only appear while you are racing */
@@ -633,7 +636,7 @@ const colliders=[];let skyDome=null,nightDome=null,SUNSET=null;const PLACES={};
   const matFor=r=>r.kind==='road'?roadMat:alleyMat;
   function mouth(r,atEnd){const host=atEnd?(r.host1||RINGR):(r.host0||MAINR);const w=(r.kind==='road'?r.kerb:r.halfW)-.03;const lims=[host.kerb-1.3,host.kerb-.6,host.kerb+.02,host.kerb+.5],cols=[w,w/3,-w/3,-w];const pos=[],uv=[],idx=[];
     /* rows run along the host's kerb band (each column clipped to the same distance from the host's centre line), so the patch is the junction's true shape however the street comes in */
-    lims.forEach((lim,i)=>{cols.forEach((o,jj)=>{const s_=clipS(r,host,o,atEnd,Math.max(.3,lim));const sm=atSx(r,s_);const pt=_q.copy(sm.n).addScaledVector(sm.side,o/R).normalize();const h=hAt(pt)+host.lift;pos.push(pt.x*h,pt.y*h,pt.z*h);uv.push(s_/19.6,.30+.14*jj/3);});});
+    lims.forEach((lim,i)=>{cols.forEach((o,jj)=>{const s_=clipS(r,host,o,atEnd,Math.max(.3,lim));const sm=atSx(r,s_);const pt=_q.copy(sm.n).addScaledVector(sm.side,o/R).normalize();const h=hAt(pt)+r.lift+.02;pos.push(pt.x*h,pt.y*h,pt.z*h);uv.push(s_/19.6,.30+.14*jj/3);});});
     for(let i=0;i<lims.length-1;i++)for(let jj=0;jj<3;jj++){const a=i*4+jj,b=a+1,c=a+4,d=c+1;idx.push(a,b,c,b,d,c);}
     const g2=new THREE.BufferGeometry();g2.setAttribute('position',new THREE.Float32BufferAttribute(pos,3));g2.setAttribute('uv',new THREE.Float32BufferAttribute(uv,2));g2.setIndex(idx);g2.computeVertexNormals();
     const m2=new THREE.Mesh(g2,mouthMat);scene.add(m2);} /* inked like the roads it bridges, so the ink pass sees one continuous surface and draws no box round the patch */
@@ -1093,7 +1096,7 @@ function groundFix(holder,root){holder.updateMatrixWorld(true);let minY=Infinity
       if(pool[0].dmin<Math.PI/4)pool=cand.sort((a,b)=>b.dmin-a.dmin); /* unless that would put one within 45° of itself */
       slotType[i]=pool[0].t;});
     window.__town={modelSlots,propSlots,slotType};
-    BUILDINGS.forEach((file,bi)=>loader.load(file,g=>{toonify(g.scene,true);fit(g.scene,9);const bbF=new THREE.Box3().setFromObject(g.scene);const key=(file.match(/building(\w+?)\.glb/)||[])[1];const act=HOUSE_ACTS[key]; /* every copy of this building gets a front door just outside its façade (+Z) */
+    BUILDINGS.forEach((file,bi)=>loader.load(file,g=>{toonify(g.scene,true);if(LITE)g.scene.traverse(m=>{if(m.isMesh)m.material.side=THREE.DoubleSide;}); /* the slimmed models' open sheets (roofs, awnings, thin walls) can end up facing inwards; drawn one-sided they vanished and the building looked wrecked */fit(g.scene,9);const bbF=new THREE.Box3().setFromObject(g.scene);const key=(file.match(/building(\w+?)\.glb/)||[])[1];const act=HOUSE_ACTS[key]; /* every copy of this building gets a front door just outside its façade (+Z) */
       modelSlots.forEach((sl,i)=>{if(slotType[i]!==bi)return;const inst=new THREE.Group();inst.add(g.scene.clone());inst.scale.setScalar(Math.min(1,Math.max(.72,(sl.w||9)/8.6)));placeOnGround(inst,sl.lon,sl.lat,sl.yaw);colliders.push(inst);if(act){inst.updateMatrixWorld(true);const dn=inst.localToWorld(new THREE.Vector3(0,0,bbF.max.z+.55)).normalize();const cn=inst.localToWorld(new THREE.Vector3(0,0,0)).normalize();DOORS.push({n:dn,w:dn.clone().multiplyScalar(gAt(dn)),inw:cn.sub(dn).normalize(),act,key});}});sceneDirty=true;},undefined,e=>console.warn('building not loaded',file,e)));
     // the skate park: Josh's model, scaled to the plaza and set flat on its platform
     loader.load('assets/skatepark.glb?v=3',g=>{toonify(g.scene);const bb=new THREE.Box3().setFromObject(g.scene);const sc=(PLAZA.r*2*.96)/Math.max(bb.max.x-bb.min.x,bb.max.z-bb.min.z),sy=sc*.75;
