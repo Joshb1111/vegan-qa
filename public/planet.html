@@ -316,13 +316,13 @@ const inkPass=new THREE.ShaderMaterial({uniforms:{tColor:{value:rt.texture},tDep
   float noise(vec2 p){vec2 i=floor(p),f=fract(p);f=f*f*(3.-2.*f);return mix(mix(hash(i),hash(i+vec2(1,0)),f.x),mix(hash(i+vec2(0,1)),hash(i+vec2(1,1)),f.x),f.y);}
   void main(){vec2 px=1./res;vec2 sp=vUv*res;
     vec2 wob=(vec2(noise(sp/9.),noise(sp/9.+31.7))-.5)*0.8*px;vec2 u=vUv+wob;
-    float d0=lin(texture2D(tDepth,u).x);vec4 nt=texture2D(tNormal,u);vec3 n0=nt.xyz*2.-1.;float soft=nt.a<.75?1.:0.; /* a character */
+    float d0=lin(texture2D(tDepth,u).x);vec4 nt=texture2D(tNormal,u);vec3 n0=nt.xyz*2.-1.;float soft=nt.a<.75?1.:0.; /* a character */float road=(nt.a>=.75&&nt.a<.95)?1.:0.; /* road surface: asphalt, junction patches, corner pieces */
     float e=0.;
     // depth: second derivative, so flat surfaces at grazing angles stay clean and only real steps draw a line
     vec2 ox=vec2(1.3,0.)*px,oy=vec2(0.,1.3)*px;
     float dl=lin(texture2D(tDepth,u-ox).x),dr=lin(texture2D(tDepth,u+ox).x),du=lin(texture2D(tDepth,u-oy).x),dd=lin(texture2D(tDepth,u+oy).x);
     if(d0<far*.9){float k=mix(22.,1.6,soft);e=max(e,abs(dl+dr-2.*d0)/max(d0,1.)*k);e=max(e,abs(du+dd-2.*d0)/max(d0,1.)*k);}
-    for(int i=0;i<4;i++){vec2 o=(i==0?ox:i==1?-ox:i==2?oy:-oy);vec3 n=texture2D(tNormal,u+o).xyz*2.-1.;e=max(e,(1.-dot(n0,n))*mix(2.2,0.,soft));} /* characters: no normal-break lines at all (inner layers poking through a Tripo character's clothes made black specks); their outline comes from depth */
+    for(int i=0;i<4;i++){vec2 o=(i==0?ox:i==1?-ox:i==2?oy:-oy);vec4 nq=texture2D(tNormal,u+o);vec3 n=nq.xyz*2.-1.;e=max(e,(1.-dot(n0,n))*mix(2.2,0.,soft));road*=(nq.a>=.75&&nq.a<.95)?1.:0.;}e*=1.-road; /* where road meets road (a patch lying on the asphalt) no line is drawn: the layers are millimetres apart and used to sketch boxes on the street */ /* characters: no normal-break lines at all (inner layers poking through a Tripo character's clothes made black specks); their outline comes from depth */
     float line=smoothstep(.3,.8,e);
     line*=mix(.85,1.,noise(sp/13.));
     vec3 col=texture2D(tColor,vUv).rgb;
@@ -335,7 +335,7 @@ window.__ink=inkPass;const quadScene=new THREE.Scene();quadScene.add(new THREE.M
 function resize(){W=game.clientWidth;H=game.clientHeight;const eff=DPR*(introRes?INTRO_SCALE:1);renderer.setPixelRatio(eff);renderer.setSize(W,H,false);camera.aspect=W/H;camera.updateProjectionMatrix();const rw=Math.round(W*eff),rh=Math.round(H*eff);rt.setSize(rw,rh);rtN.setSize(rw,rh);inkPass.uniforms.res.value.set(rw,rh);}
 window.addEventListener('resize',resize);resize();
 let skyCol=scene.background;const dayBg=skyCol,introBg=new THREE.Color(0x5abfb2),normalBg=new THREE.Color(0x8080ff); // background 'normal' faces the camera so the sky stays line-free
-let meshList=[],sceneDirty=true;const nmPlain=new THREE.MeshNormalMaterial(),nmSkin=new THREE.MeshNormalMaterial({skinning:true,opacity:.5,side:THREE.DoubleSide});
+let meshList=[],sceneDirty=true;const nmPlain=new THREE.MeshNormalMaterial(),nmRoad=new THREE.MeshNormalMaterial({opacity:.85,side:THREE.DoubleSide}),nmSkin=new THREE.MeshNormalMaterial({skinning:true,opacity:.5,side:THREE.DoubleSide});
 const nmFlat=new THREE.MeshBasicMaterial({color:0x8080ff}),nmFlatSkin=new THREE.MeshBasicMaterial({color:0x8080ff,skinning:true,opacity:.5,side:THREE.DoubleSide}); /* characters are drawn double-sided: decimated Tripo characters carry a scatter of flipped triangles, which back-face culling turned into pinholes (and the ink pass into black specks) */ // 'facing the camera': no interior lines, silhouette only
 let cullList=[],farState=null;const _cn=new THREE.Vector3(),_on=new THREE.Vector3(),_ws=new THREE.Vector3(),_cb=new THREE.Box3();
 function refreshMeshes(){meshList=[];cullList=[];scene.traverse(o=>{if(o.isMesh&&!o.userData.skipInk)meshList.push(o);});
@@ -346,7 +346,7 @@ function refreshMeshes(){meshList=[];cullList=[];scene.traverse(o=>{if(o.isMesh&
 function cullHorizon(){_cn.copy(camera.position);const camH=_cn.length()-R;_cn.normalize();const lim=Math.acos(R/(R+Math.max(.3,camH)));const far=camH>30;if(far!==farState){farState=far;for(const o of cullList)for(const m of o.userData.smallParts)m.visible=!far;}for(const o of cullList){_on.copy(o.position).normalize();o.visible=_on.dot(_cn)>Math.cos(lim+o.userData.hAng)&&!(far&&o.userData.hTop<2.4);}} /* from the globe view the small props are too tiny to see, so they are skipped */
 const hideInNormals=[];
 function renderInk(){if(sceneDirty)refreshMeshes();cullHorizon();renderer.shadowMap.needsUpdate=true;renderer.setRenderTarget(rt);renderer.render(scene,camera);shadowCap.visible=false;for(const o of hideInNormals)o.visible=false;
-  if(sceneDirty)refreshMeshes();for(const m of meshList){m.userData.mat=m.material;m.material=m.userData.noInk?(m.isSkinnedMesh?nmFlatSkin:nmFlat):(m.isSkinnedMesh?nmSkin:nmPlain);}
+  if(sceneDirty)refreshMeshes();for(const m of meshList){m.userData.mat=m.material;m.material=m.userData.roadInk?nmRoad:m.userData.noInk?(m.isSkinnedMesh?nmFlatSkin:nmFlat):(m.isSkinnedMesh?nmSkin:nmPlain);}
   scene.background=normalBg;renderer.setRenderTarget(rtN);renderer.render(scene,camera);
   for(const m of meshList)m.material=m.userData.mat;shadowCap.visible=true;for(const o of hideInNormals)o.visible=true;scene.background=skyCol;renderer.setRenderTarget(null);renderer.render(quadScene,quadCam);}
 
@@ -609,22 +609,35 @@ const colliders=[];let skyDome=null,nightDome=null,SUNSET=null;const PLACES={};
   function clipS(road,H,o,atEnd,lim){const at=k=>atEnd?road.L-k*.1:k*.1;const dist=k=>{const sm=atSx(road,at(k));return hostDist(H,_qc.copy(sm.n).addScaledVector(sm.side,o/R).normalize());};
     let k0=0,dm=1e9;for(let k=-60;k<=60;k+=2){const d=dist(k);if(d<dm){dm=d;k0=k;}} /* where this column comes closest to the host's centre line */
     let pk=k0,pd=dm;for(let k=k0+1;k<=k0+170;k++){const d=dist(k);if(d>=lim)return at(pk)+(at(k)-at(pk))*(lim-pd)/Math.max(1e-6,d-pd);pk=k;pd=d;}return atEnd?road.L-road.trim1:road.trim0;}
-  function endRows(road,offs,lim0,lim1){ /* rows for an open road: a clipped row at each joined end, the plain samples between */
+  function endRows(road,offs,lim0,lim1,fix){ /* rows for an open road: a clipped row at each joined end, the plain samples between */
     const S=road.samples;let sLo=road.trim0,sHi=road.L-road.trim1,r0=null,r1=null;const H0=road.host0||MAINR,H1=road.host1||(road.trim1>0?RINGR:null);
-    if(road.kind!=='path'){r0=offs.map(o=>clipS(road,H0,o,false,lim0(H0,o)));sLo=Math.max(...r0)+.25;if(H1){r1=offs.map(o=>clipS(road,H1,o,true,lim1(H1,o)));sHi=Math.min(...r1)-.25;}}
-    if(offs.length>=7){road.cut0=r0;road.cut1=r1;window.__allRoads=ROADS;}const rows=[];if(r0)rows.push({cut:r0});for(const sm of S)if(sm.s>=sLo&&sm.s<=sHi)rows.push({sm});if(r1)rows.push({cut:r1});return rows;}
+    if(road.kind!=='path'){const cut=(H,o,atEnd,lim)=>{const f=fix?fix(H,o,atEnd):null;return f!==null&&f!==undefined?f:clipS(road,H,o,atEnd,lim(H,o));};r0=offs.map(o=>cut(H0,o,false,lim0));sLo=Math.max(...r0)+.25;if(H1){r1=offs.map(o=>cut(H1,o,true,lim1));sHi=Math.min(...r1)-.25;}}
+    if(offs.length>=7){road.cut0=r0;road.cut1=r1;window.__allRoads=ROADS;}const rows=[];const mids=S.filter(sm=>sm.s>=sLo&&sm.s<=sHi);
+    /* between a clipped end and the first plain row the columns differ in length by metres: lay rows every .8 m there too, so the ribbon follows the ground instead of bridging it (ground and the host's verge showed through the long flat quads) */
+    const fan=(cutRow,sEdge)=>{const span=Math.max(...cutRow.map(c=>Math.abs(sEdge-c)));const n=Math.max(1,Math.ceil(span/.8));const out=[];for(let k=0;k<n;k++)out.push({cut:cutRow.map(c=>c+(sEdge-c)*k/n)});return out;};
+    if(r0)rows.push(...fan(r0,mids.length?mids[0].s:sLo));for(const sm of mids)rows.push({sm});if(r1)rows.push(...fan(r1,mids.length?mids[mids.length-1].s:sHi).reverse());return rows;}
   const rowPoint=(road,row,j,o)=>{const sm=row.cut?atSx(road,row.cut[j]):row.sm;return {sm,pt:_q.copy(sm.n).addScaledVector(sm.side,o/R).normalize()};};
+  /* a junction corner: the kerb sweeps round in an arc (radius RAD) from the host's kerb line into the street's.
+     P = where the two kerb lines cross; Tu, Tv = where the arc leaves each line; C = the arc's centre, in the corner of the block */
+  const RAD=2.3,corners=new Map();window.__corners=corners;
+  function cornerGeom(road,H,atEnd,sg){const key=road.name+atEnd+sg;if(corners.has(key))return corners.get(key);const kb=road.kerb;
+    const sK=clipS(road,H,sg*kb,atEnd,H.kerb+.02),smK=atSx(road,sK);const P=smK.n.clone().addScaledVector(smK.side,sg*kb/R).normalize();const v=smK.t.clone().multiplyScalar(atEnd?-1:1);
+    let hs=null,bd=-2;for(const sm of H.samples){const d=P.dot(sm.n);if(d>bd){bd=d;hs=sm;}}const sgH=Math.sign(P.dot(hs.side))||1;const dirH=Math.sign(P.clone().sub(smK.n).dot(hs.t))||1;const u=hs.t.clone().multiplyScalar(dirH);
+    const th=Math.acos(clamp(u.dot(v),-1,1));const t=clamp(RAD/Math.tan(th/2),1.3,4.5);const sH=hs.s+P.clone().sub(hs.n).dot(hs.t)*R+dirH*t;const smU=atS(H,sH);const Tu=smU.n.clone().addScaledVector(smU.side,sgH*H.kerb/R).normalize();
+    const sT=sK+(atEnd?-t:t),smT=atSx(road,sT);const Tv=smT.n.clone().addScaledVector(smT.side,sg*kb/R).normalize();
+    const C=Tu.clone().addScaledVector(smU.side,sgH*RAD/R).add(Tv.clone().addScaledVector(smT.side,sg*RAD/R)).normalize();
+    const g={P,Tu,Tv,C,sT,sK,wH:H.halfW-H.kerb,wS:road.halfW-kb,nu:smU.side.clone().multiplyScalar(sgH),nv:smT.side.clone().multiplyScalar(sg)};corners.set(key,g);return g;}
   for(const road of ROADS){const S=road.samples,hw=road.halfW,N=S.length,kb=road.kerb;const texLen=road.closed?road.L/Math.round(road.L/19.6):19.6;const pos=[],uv=[],idx=[];
     /* a joining street has a column either side of each kerb line: its asphalt runs to the host's asphalt, but its kerb and verge stop at the OUTER edge
        of the host's verge, so the host's kerb band carries on unbroken up to the mouth and the two kerbs meet in a square corner instead of overlapping */
     const stepped=!road.closed&&road.kind==='road';const offs=stepped?[hw,(hw+kb)/2,kb+.002,kb,kb/2,0,-kb/2,-kb,-kb-.002,-(hw+kb)/2,-hw]:Array.from({length:7},(_,j)=>hw*(1-2*j/6));const M=offs.length-1;
     const lim=(H,o)=>stepped&&Math.abs(o)>kb+.001?H.halfW-.02:H.kerb+.02;
-    const rowList=road.closed?[...S.map(sm=>({sm})),{sm:S[0],wrap:true}]:endRows(road,offs,lim,lim);const rows=rowList.length;
+    const rowList=road.closed?[...S.map(sm=>({sm})),{sm:S[0],wrap:true}]:endRows(road,offs,lim,lim,stepped?(H,o,atEnd)=>Math.abs(o)>kb+.001?cornerGeom(road,H,atEnd,Math.sign(o)).sT:null:null); /* the street's own kerb and verge end where the corner's curve begins */const rows=rowList.length;
     for(let i=0;i<rows;i++){const row=rowList[i];
       for(let j=0;j<=M;j++){const {sm,pt}=rowPoint(road,row,j,offs[j]);const s_=row.wrap?road.L:sm.s;const h=hAt(pt)+road.lift;pos.push(pt.x*h,pt.y*h,pt.z*h);uv.push(s_/texLen,(offs[j]/hw+1)/2);}}
     for(let i=0;i<rows-1;i++)for(let j=0;j<M;j++){const a=i*(M+1)+j,b=a+1,c=a+(M+1),d=c+1;idx.push(a,b,c,b,d,c);}
     const rg=new THREE.BufferGeometry();rg.setAttribute('position',new THREE.Float32BufferAttribute(pos,3));rg.setAttribute('uv',new THREE.Float32BufferAttribute(uv,2));rg.setIndex(idx);rg.computeVertexNormals();
-    if(road.kind==='path')continue;const rm=new THREE.Mesh(rg,road.kind==='road'?(road.closed?roadMat:sideMat):road.kind==='track'?trackMat:alleyMat);scene.add(rm);if(road.kind==='track'){rm.visible=false;window.__raceTrack=rm;} /* race courses only appear while you are racing */
+    if(road.kind==='path')continue;const rm=new THREE.Mesh(rg,road.kind==='road'?(road.closed?roadMat:sideMat):road.kind==='track'?trackMat:alleyMat);rm.userData.roadInk=true;scene.add(rm);if(road.kind==='track'){rm.visible=false;window.__raceTrack=rm;} /* race courses only appear while you are racing */
     if(road.kind==='road'){ /* a paved strip either side, from the kerb line to where the plots begin */
       for(const sd of [1,-1]){const pp=[],pi=[];const a0=road.kerb+.02,a1=road.kerb+2.15;const PC=5,po=Array.from({length:PC},(_,j)=>sd*(a0+(a1-a0)*j/(PC-1))); /* five columns, not two: on ground that dips across the street a two-point strip rode above the road's verge and showed through it in blocky steps */
         const pRows=road.closed?rowList:endRows(road,po,H=>H.kerb+2.1,H=>H.kerb+2.1); /* a side street's pavement butts into the far edge of the host's pavement */
@@ -636,11 +649,23 @@ const colliders=[];let skyDome=null,nightDome=null,SUNSET=null;const PLACES={};
   const matFor=r=>r.kind==='road'?roadMat:alleyMat;
   function mouth(r,atEnd){const host=atEnd?(r.host1||RINGR):(r.host0||MAINR);const w=(r.kind==='road'?r.kerb:r.halfW)-.03;const lims=[host.kerb-1.3,host.kerb-.6,host.kerb+.02,host.kerb+.5],cols=[w,w/3,-w/3,-w];const pos=[],uv=[],idx=[];
     /* rows run along the host's kerb band (each column clipped to the same distance from the host's centre line), so the patch is the junction's true shape however the street comes in */
-    lims.forEach((lim,i)=>{cols.forEach((o,jj)=>{const s_=clipS(r,host,o,atEnd,Math.max(.3,lim));const sm=atSx(r,s_);const pt=_q.copy(sm.n).addScaledVector(sm.side,o/R).normalize();const h=hAt(pt)+r.lift+.02;pos.push(pt.x*h,pt.y*h,pt.z*h);uv.push(s_/19.6,.30+.14*jj/3);});});
+    lims.forEach((lim,i)=>{cols.forEach((o,jj)=>{const s_=clipS(r,host,o,atEnd,Math.max(.3,lim));const sm=atSx(r,s_);const pt=_q.copy(sm.n).addScaledVector(sm.side,o/R).normalize();const h=hAt(pt)+r.lift+.004;pos.push(pt.x*h,pt.y*h,pt.z*h);uv.push(s_/19.6,.30+.14*jj/3);});});
     for(let i=0;i<lims.length-1;i++)for(let jj=0;jj<3;jj++){const a=i*4+jj,b=a+1,c=a+4,d=c+1;idx.push(a,b,c,b,d,c);}
     const g2=new THREE.BufferGeometry();g2.setAttribute('position',new THREE.Float32BufferAttribute(pos,3));g2.setAttribute('uv',new THREE.Float32BufferAttribute(uv,2));g2.setIndex(idx);g2.computeVertexNormals();
-    const m2=new THREE.Mesh(g2,mouthMat);scene.add(m2);} /* inked like the roads it bridges, so the ink pass sees one continuous surface and draws no box round the patch */
+    const m2=new THREE.Mesh(g2,mouthMat);m2.userData.roadInk=true;scene.add(m2);} /* inked like the roads it bridges, so the ink pass sees one continuous surface and draws no box round the patch */
   for(const r of ROADS){if(r.closed||r.kind==='path')continue;mouth(r,false);if(r.trim1>0)mouth(r,true);}
+  /* the curved corner pieces: an asphalt ear outside the arc, the kerb-and-verge band round the arc (cut from the road picture), and a wedge of pavement inside it */
+  {const bandMat=new THREE.MeshBasicMaterial({map:roadTex,side:THREE.DoubleSide,polygonOffset:true,polygonOffsetFactor:-6,polygonOffsetUnits:-6}),earMat=new THREE.MeshBasicMaterial({map:roadTex,side:THREE.DoubleSide,polygonOffset:true,polygonOffsetFactor:-5,polygonOffsetUnits:-5}); /* a few millimetres proud, ordered by polygon offset: bigger steps drew ink lines across the asphalt */const NA=10;const bp=[],bu=[],bi=[],ep=[],eu=[],ei=[],pp=[],pi=[];const _a0=new THREE.Vector3(),_a1=new THREE.Vector3(),_d=new THREE.Vector3();
+    const put=(arr,pt,lift)=>{const h=hAt(pt)+lift;arr.push(pt.x*h,pt.y*h,pt.z*h);};
+    for(const r of ROADS){if(r.closed||r.kind!=='road')continue;for(const atEnd of [false,true]){const H=atEnd?(r.host1||(r.trim1>0?RINGR:null)):(r.host0||MAINR);if(!H)continue;for(const sg of [1,-1]){const c=cornerGeom(r,H,atEnd,sg);
+          _a0.copy(c.Tu).sub(c.C).multiplyScalar(R);_a1.copy(c.Tv).sub(c.C).multiplyScalar(R);const r0_=_a0.length(),r1_=_a1.length();_a0.normalize();_a1.normalize();const ang=Math.acos(clamp(_a0.dot(_a1),-1,1));if(!(ang>.2))continue;
+          const b0=bp.length/3,e0=ep.length/3,p0=pp.length/3;put(ep,c.P,r.lift+.007);eu.push(0,.37);put(pp,c.C,r.lift+.002);let al=0;
+          for(let k=0;k<=NA;k++){const f=k/NA;_d.copy(_a0).multiplyScalar(Math.sin((1-f)*ang)/Math.sin(ang)).addScaledVector(_a1,Math.sin(f*ang)/Math.sin(ang));const rk=r0_+(r1_-r0_)*f,wk=Math.min(rk-.2,c.wH+(c.wS-c.wH)*f);
+            const outer=c.C.clone().addScaledVector(_d,rk/R).normalize();const nn=c.nu.clone().multiplyScalar(1-f).addScaledVector(c.nv,f).normalize();const inner=outer.clone().addScaledVector(nn,wk/R).normalize(); /* the band's two ends are exactly the host's and the street's own cross-sections, so it joins both without a gap */if(k>0)al+=rk*ang/NA;
+            put(bp,outer,r.lift+.01);bu.push(al/19.6,.782);put(bp,inner,r.lift+.01);bu.push(al/19.6,1);put(ep,outer,r.lift+.007);eu.push(al/19.6,.40);put(pp,inner,r.lift+.002);
+            if(k>0){const a=b0+(k-1)*2;bi.push(a,a+1,a+2,a+1,a+3,a+2);ei.push(e0,e0+k,e0+k+1);pi.push(p0,p0+k,p0+k+1);}}}}}
+    const mk=(pos,uv,idx,mat,noInk)=>{const g=new THREE.BufferGeometry();g.setAttribute('position',new THREE.Float32BufferAttribute(pos,3));if(uv)g.setAttribute('uv',new THREE.Float32BufferAttribute(uv,2));g.setIndex(idx);g.computeVertexNormals();const m=new THREE.Mesh(g,mat);if(noInk)m.userData.noInk=true;else m.userData.roadInk=true;scene.add(m);};
+    if(bi.length){mk(ep,eu,ei,earMat);mk(bp,bu,bi,bandMat);mk(pp,null,pi,pavementMat,true);}}
   /* zebra crossings: white bars laid across the road, just inside each junction and now and then along the loops */
   const zebraMat=new THREE.MeshBasicMaterial({color:0xf4f2ea,side:THREE.DoubleSide,polygonOffset:true,polygonOffsetFactor:-5,polygonOffsetUnits:-5});const zpos=[],zidx=[],znrm=[];
   function zebra(road,s_){const sm=atS(road,s_);const hw=road.halfW*.9,bw=.5,SEG=4;for(let o=-hw+bw/2;o<=hw-bw/2+.01;o+=bw*2){const k0=zpos.length/3;
@@ -1085,6 +1110,10 @@ function groundFix(holder,root){holder.updateMatrixWorld(true);let minY=Infinity
     const asDrawn=t=>{if(t){t.encoding=THREE.LinearEncoding;t.anisotropy=8;t.minFilter=THREE.LinearMipmapLinearFilter;t.needsUpdate=true;}return t;}; /* the texture's colours are the drawing: no gamma decode */
     const toonify=(root,sharp)=>root.traverse(m=>{if(m.isMesh){const old=m.material;asDrawn(old.map);const pure=/concept/i.test(old.name||'');m.material=flatMat(old.map,old.color,sharp||pure,pure);m.userData.noInk=true;}});
     const fit=(root,height)=>{const bb=new THREE.Box3().setFromObject(root);const sc=height/(bb.max.y-bb.min.y);root.scale.setScalar(sc);root.position.y=-bb.min.y*sc;root.position.x=-(bb.min.x+bb.max.x)/2*sc;root.position.z=-(bb.min.z+bb.max.z)/2*sc;};
+    /* the part of a model that stands on the ground (awnings and eaves may overhang a street; the base may not) */
+    const groundFoot=(root,bb)=>{root.updateMatrixWorld(true);const v=new THREE.Vector3(),pts=[];root.traverse(m=>{if(!m.isMesh)return;const pa=m.geometry.attributes.position;for(let i=0;i<pa.count;i++){v.set(pa.getX(i),pa.getY(i),pa.getZ(i)).applyMatrix4(m.matrixWorld);if(v.y<bb.min.y+.3)pts.push([v.x,v.z]);}});const step=Math.max(1,Math.floor(pts.length/220));return pts.filter((_,k)=>k%step===0);}; /* real base vertices, not a bounding box: a box overstates round or ragged bases */
+    const asphaltPoke=(inst,pts)=>{inst.updateMatrixWorld(true);let worst=0,mv=null;const v=new THREE.Vector3();for(const [x,z] of pts){const n=inst.localToWorld(v.set(x,0,z)).normalize();
+        for(const r of ROADS){if(r.kind!=='road')continue;let best=null,bd=.9996;for(const sm of r.samples){const d=n.dot(sm.n);if(d>bd){bd=d;best=sm;}}if(!best)continue;const lat=n.dot(best.side)*R;const need=r.kerb-.1-Math.abs(lat);if(need>worst&&Math.abs(n.dot(best.t)*R)<1){worst=need;mv=best.side.clone().multiplyScalar((Math.sign(lat)||1)*(need+.3));}}}return worst>.05?mv:null;};
     // Josh's buildings: slots rotate through the list, so each one appears several times around the planet
     const BUILDINGS=['assets/building1v2.glb?v=2','assets/building3.glb?v=2','assets/building4.glb?v=2','assets/building6.glb?v=2','assets/building5.glb?v=2','assets/building7.glb?v=2','assets/building8.glb?v=2','assets/building9.glb?v=2','assets/building10.glb?v=2','assets/building11.glb?v=2','assets/building12.glb?v=2','assets/building13.glb?v=2','assets/building14.glb?v=2','assets/building15.glb?v=2','assets/building16.glb?v=2','assets/building17.glb?v=3','assets/building18.glb','assets/building19.glb?v=2','assets/building20.glb?v=2','assets/building21.glb?v=2','assets/building22.glb?v=2','assets/building23.glb?v=2','assets/building24.glb?v=2','assets/building25.glb?v=2','assets/building26.glb?v=2']; // 8–14 are Josh's Tripo builds of the town pack (corner house, townhouse, convenience shop, garage house, cafe, storefront, two-storey)
     /* Spread the types out: walk the slots and give each one the building whose nearest copy so far is
@@ -1096,8 +1125,9 @@ function groundFix(holder,root){holder.updateMatrixWorld(true);let minY=Infinity
       if(pool[0].dmin<Math.PI/4)pool=cand.sort((a,b)=>b.dmin-a.dmin); /* unless that would put one within 45° of itself */
       slotType[i]=pool[0].t;});
     window.__town={modelSlots,propSlots,slotType};
-    BUILDINGS.forEach((file,bi)=>loader.load(file,g=>{toonify(g.scene,true);if(LITE)g.scene.traverse(m=>{if(m.isMesh)m.material.side=THREE.DoubleSide;}); /* the slimmed models' open sheets (roofs, awnings, thin walls) can end up facing inwards; drawn one-sided they vanished and the building looked wrecked */fit(g.scene,9);const bbF=new THREE.Box3().setFromObject(g.scene);const key=(file.match(/building(\w+?)\.glb/)||[])[1];const act=HOUSE_ACTS[key]; /* every copy of this building gets a front door just outside its façade (+Z) */
-      modelSlots.forEach((sl,i)=>{if(slotType[i]!==bi)return;const inst=new THREE.Group();inst.add(g.scene.clone());inst.scale.setScalar(Math.min(1,Math.max(.72,(sl.w||9)/8.6)));placeOnGround(inst,sl.lon,sl.lat,sl.yaw);colliders.push(inst);if(act){inst.updateMatrixWorld(true);const dn=inst.localToWorld(new THREE.Vector3(0,0,bbF.max.z+.55)).normalize();const cn=inst.localToWorld(new THREE.Vector3(0,0,0)).normalize();DOORS.push({n:dn,w:dn.clone().multiplyScalar(gAt(dn)),inw:cn.sub(dn).normalize(),act,key});}});sceneDirty=true;},undefined,e=>console.warn('building not loaded',file,e)));
+    BUILDINGS.forEach((file,bi)=>loader.load(file,g=>{toonify(g.scene,true);if(LITE)g.scene.traverse(m=>{if(m.isMesh)m.material.side=THREE.DoubleSide;}); /* the slimmed models' open sheets (roofs, awnings, thin walls) can end up facing inwards; drawn one-sided they vanished and the building looked wrecked */fit(g.scene,9);const bbF=new THREE.Box3().setFromObject(g.scene);const foot=groundFoot(g.scene,bbF);const key=(file.match(/building(\w+?)\.glb/)||[])[1];const act=HOUSE_ACTS[key]; /* every copy of this building gets a front door just outside its façade (+Z) */
+      modelSlots.forEach((sl,i)=>{if(slotType[i]!==bi)return;const inst=new THREE.Group();inst.add(g.scene.clone());{const fx=foot.length?Math.max(...foot.map(q=>q[0]))-Math.min(...foot.map(q=>q[0])):bbF.max.x-bbF.min.x,fz=foot.length?Math.max(...foot.map(q=>q[1]))-Math.min(...foot.map(q=>q[1])):bbF.max.z-bbF.min.z;(window.__foots=window.__foots||{})[key]=[+fx.toFixed(1),+fz.toFixed(1)];
+        inst.scale.setScalar(Math.max(.5,Math.min(1,Math.max(.72,(sl.w||9)/8.6),((sl.w||9)+1.5)/fx,7.2/fz)));} /* a wide, low model scaled to the common height came out far bigger than its plot and sat across the street: its base must fit the plot's width and the depth between street and back */placeOnGround(inst,sl.lon,sl.lat,sl.yaw);for(let pass=0;pass<2;pass++){const mv=asphaltPoke(inst,foot);if(!mv)break;const n2=inst.position.clone().normalize().addScaledVector(mv,1/R).normalize();(window.__slid=window.__slid||[]).push({d:+mv.length().toFixed(2),n:n2.toArray(),key});const [l2,a2]=lonLatOf(n2);placeOnGround(inst,l2,a2,sl.yaw);} /* a base that reaches onto a street's asphalt (corner plots) slides off it */colliders.push(inst);if(act){inst.updateMatrixWorld(true);const dn=inst.localToWorld(new THREE.Vector3(0,0,bbF.max.z+.55)).normalize();const cn=inst.localToWorld(new THREE.Vector3(0,0,0)).normalize();DOORS.push({n:dn,w:dn.clone().multiplyScalar(gAt(dn)),inw:cn.sub(dn).normalize(),act,key});}});sceneDirty=true;},undefined,e=>console.warn('building not loaded',file,e)));
     // the skate park: Josh's model, scaled to the plaza and set flat on its platform
     loader.load('assets/skatepark.glb?v=3',g=>{toonify(g.scene);const bb=new THREE.Box3().setFromObject(g.scene);const sc=(PLAZA.r*2*.96)/Math.max(bb.max.x-bb.min.x,bb.max.z-bb.min.z),sy=sc*.75;
       g.scene.scale.set(sc,sy,sc);g.scene.position.set(-(bb.min.x+bb.max.x)/2*sc,-bb.min.y*sy,-(bb.min.z+bb.max.z)/2*sc);
