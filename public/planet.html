@@ -58,7 +58,8 @@ body.touch .tpad{margin-left:auto}
 #gfxbtn{position:absolute;top:calc(max(14px,env(safe-area-inset-top)) + 248px);right:14px;width:52px;height:52px;appearance:none;cursor:pointer;padding:0;font-family:var(--hand);font-size:15px;line-height:1.05}#gfxbtn b{display:block;font-size:20px;font-weight:normal}
 #gfx{position:absolute;top:calc(max(14px,env(safe-area-inset-top)) + 248px);right:76px;z-index:8;display:flex;flex-direction:column;gap:6px;width:min(250px,calc(100vw - 100px));padding:8px;background:var(--cream);border:3px solid #26333a;border-radius:14px;font-family:var(--hand)}#gfx[hidden]{display:none}
 #gfx button{font-family:var(--hand);font-size:19px;text-align:left;padding:6px 10px;border:2px solid #26333a;border-radius:10px;background:#fffdf6;cursor:pointer;color:#26333a}#gfx button small{display:block;font-size:14px;color:#5f6d72}#gfx button.on{background:#f4c945}
-#online{position:absolute;top:calc(max(14px,env(safe-area-inset-top)) + 308px);right:14px;min-width:52px;text-align:center;font-family:var(--hand);font-size:16px;color:var(--cream);background:rgba(29,42,58,.78);border-radius:10px;padding:2px 6px}#online[hidden]{display:none}
+#voicebtn{position:absolute;top:calc(max(14px,env(safe-area-inset-top)) + 310px);right:14px;width:52px;height:52px;appearance:none;cursor:pointer;padding:0;font-size:24px;line-height:1;opacity:.55}#voicebtn.on{opacity:1;background:#f4c945}
+#online{position:absolute;top:calc(max(14px,env(safe-area-inset-top)) + 370px);right:14px;min-width:52px;text-align:center;font-family:var(--hand);font-size:16px;color:var(--cream);background:rgba(29,42,58,.78);border-radius:10px;padding:2px 6px}#online[hidden]{display:none}
 #look{position:absolute;top:calc(max(14px,env(safe-area-inset-top)) + 62px);right:76px;z-index:8;width:min(310px,calc(100vw - 100px));padding:12px 14px;font-family:var(--hand);font-size:19px;background:var(--cream)}#look[hidden]{display:none}
 #look .lname{display:flex;align-items:center;gap:8px;margin-bottom:8px}#look .lname input{flex:1;min-width:0;font-family:var(--hand);font-size:18px;padding:4px 8px;border:2px solid #26333a;border-radius:8px;background:#fff}
 #look .lrow{display:flex;align-items:center;gap:8px;margin:6px 0}#look .lrow span{width:56px;flex:none}#look .lrow div{display:flex;flex-wrap:wrap;gap:6px}
@@ -194,6 +195,7 @@ body.intro #game{background:#5abfb2}
   <button id="emotebtn" class="ink" type="button" aria-label="Emotes">😊</button>
   <div id="emotes" hidden></div>
   <button id="gfxbtn" class="ink" type="button" aria-label="Graphics quality"></button>
+  <button id="voicebtn" class="ink" type="button" aria-label="Voice chat" aria-pressed="false">🎤</button>
   <div id="gfx" hidden></div>
   <span id="online" hidden></span>
   <div id="look" class="ink" hidden></div>
@@ -1930,7 +1932,7 @@ const _mu=new THREE.Vector3(),_mf=new THREE.Vector3(),_mr=new THREE.Vector3(),_m
 function mpUpdate(dt){if(!MP.others.size)return;wearMine();const now=Date.now()+MP.offset-MP.DELAY;const list=[...MP.others.values()].sort((a,b)=>{const la=a.snaps[a.snaps.length-1],lb=b.snaps[b.snaps.length-1];return (lb?lb.up.dot(up):-2)-(la?la.up.dot(up):-2);});
   list.forEach((o,rank)=>{const S=o.snaps;if(!S.length)return;if(rank>=10){if(o.av)o.av.holder.visible=false;return;} /* the ten nearest are drawn */
     if(!o.av){o.av=mpAvatar(o);if(!o.av)return;}const av=o.av;
-    if(o.name!==o.wantName){o.name=o.wantName;if(av.label.material.map)av.label.material.map.dispose();av.label.material.map=mpLabel(o.name);av.label.material.needsUpdate=true;}
+    {const shown=o.wantName+(VOICE.members.has(o.id)?' 🎤':'');if(o.name!==shown){o.name=shown;if(av.label.material.map)av.label.material.map.dispose();av.label.material.map=mpLabel(shown);av.label.material.needsUpdate=true;}}
     if(o.look!==o.wantLook&&wearLook(av.root,o.wantLook))o.look=o.wantLook;if(!av.emote)av.emote=emoteSprite(av.holder,2.95);if(o.emoteNew){o.emoteNew=false;emoteShow(av.emote,o.emote);}emoteTick(av.emote);
     let a=S[0],b=S[0];for(let i=S.length-1;i>=0;i--){if(S[i].t<=now){a=S[i];b=S[Math.min(i+1,S.length-1)];break;}}
     const k=b.t>a.t?clamp((now-a.t)/(b.t-a.t),0,1.25):0;_mu.copy(a.up).lerp(b.up,k).normalize();_mf.copy(a.fwd).lerp(b.fwd,Math.min(1,k));_mf.addScaledVector(_mu,-_mf.dot(_mu));if(_mf.lengthSq()<1e-6)_mf.copy(a.fwd);_mf.normalize();
@@ -2033,6 +2035,40 @@ $('#dash-again').addEventListener('click',()=>{const rid=dash.rid;dash.phase='id
 $('#pick-solo').addEventListener('click',()=>{$('#racepick').hidden=true;startRace();});$('#pick-dash').addEventListener('click',joinDash);$('#pick-x').addEventListener('click',()=>{$('#racepick').hidden=true;game.focus();});
 window.__dash=dash;window.__DASH=DASH;window.__joinDash=joinDash;
 
+/* ---- voice: open to players near each other, but OFF until you turn it on. Audio goes straight between browsers (WebRTC);
+   the Ably link only introduces them. Loudness falls with distance: full within 6 m, silent beyond 25 m. ---- */
+const VOICE={on:false,stream:null,ch:null,peers:new Map(),members:new Set(),timer:0,NEAR:28,FAR:38};
+const voiceDist=id=>{const o=MP.others.get(id);if(!o||!o.snaps.length)return 1e9;return Math.acos(clamp(o.snaps[o.snaps.length-1].up.dot(up),-1,1))*R;};
+function voiceUI(){const b=$('#voicebtn');b.classList.toggle('on',VOICE.on);b.setAttribute('aria-pressed',VOICE.on?'true':'false');b.title=VOICE.on?'Voice is on: players near you can hear you':'Voice is off';}
+function voiceSend(to,type,payload){if(VOICE.ch)VOICE.ch.publish('sig',{to,type,payload}).catch(()=>{});}
+function voiceDrop(id){const p=VOICE.peers.get(id);if(!p)return;try{p.pc.close();}catch(_){}if(p.el){p.el.srcObject=null;p.el.remove();}try{if(p.src)p.src.disconnect();if(p.gain)p.gain.disconnect();}catch(_){}VOICE.peers.delete(id);}
+function voicePeer(id){let p=VOICE.peers.get(id);if(p)return p;const pc=new RTCPeerConnection({iceServers:[{urls:'stun:stun.l.google.com:19302'},{urls:'stun:stun1.l.google.com:19302'}]});p={pc,el:null,gain:null,src:null,queue:[],ready:false};VOICE.peers.set(id,p);
+  for(const t of VOICE.stream.getTracks())pc.addTrack(t,VOICE.stream);
+  pc.onicecandidate=e=>{if(e.candidate)voiceSend(id,'ice',e.candidate.toJSON?e.candidate.toJSON():e.candidate);};
+  pc.ontrack=e=>{const st=e.streams[0];if(!st||p.el)return;const el=document.createElement('audio');el.autoplay=true;el.playsInline=true;el.srcObject=st;el.muted=true;document.body.appendChild(el);p.el=el; /* muted element keeps the stream flowing; the sound itself goes through a gain node so distance can set its level (iOS ignores element volume) */
+    const c=ensureCtx();if(c){try{if(c.state==='suspended')c.resume();p.src=c.createMediaStreamSource(st);p.gain=c.createGain();p.gain.gain.value=0;p.src.connect(p.gain);p.gain.connect(c.destination);}catch(_){el.muted=false;}}else el.muted=false;};
+  pc.onconnectionstatechange=()=>{if(['failed','closed'].includes(pc.connectionState))voiceDrop(id);};
+  if(MP.id<id){pc.createOffer().then(o=>pc.setLocalDescription(o)).then(()=>voiceSend(id,'offer',pc.localDescription)).catch(()=>voiceDrop(id));} /* the lower id calls, the other answers */
+  return p;}
+async function voiceSignal(msg){const d=msg.data||{},from=String(msg.clientId||'');if(!VOICE.on||d.to!==MP.id||!from||from===MP.id)return;if(!VOICE.members.has(from)&&d.type==='offer')VOICE.members.add(from);if(voiceDist(from)>VOICE.FAR&&d.type==='offer')return;
+  const p=voicePeer(from),pc=p.pc;try{
+    if(d.type==='offer'){await pc.setRemoteDescription(d.payload);p.ready=true;const a=await pc.createAnswer();await pc.setLocalDescription(a);voiceSend(from,'answer',pc.localDescription);}
+    else if(d.type==='answer'){await pc.setRemoteDescription(d.payload);p.ready=true;}
+    else if(d.type==='ice'){if(p.ready)await pc.addIceCandidate(d.payload);else p.queue.push(d.payload);}
+    if(p.ready&&p.queue.length){for(const c of p.queue.splice(0))await pc.addIceCandidate(c).catch(()=>{});}}catch(_){}}
+function voiceSync(){if(!VOICE.on)return;for(const id of VOICE.members){if(id===MP.id)continue;const d=voiceDist(id);if(d<VOICE.NEAR&&VOICE.peers.size<6)voicePeer(id);}
+  for(const [id,p] of VOICE.peers){const d=voiceDist(id);if(!VOICE.members.has(id)||d>VOICE.FAR){voiceDrop(id);continue;}if(p.gain){const g=Math.pow(clamp((25-d)/19,0,1),1.5);p.gain.gain.value+=(g-p.gain.gain.value)*.4;}}}
+async function voiceOnAsk(){if(VOICE.on){voiceOff();return;}if(!LIVE.on||!LIVE.rt){showTrick('Voice needs the live link: try again in a moment');return;}
+  let ok=false;try{ok=localStorage.getItem('planet-voice-ok')==='1';}catch(_){}
+  if(!ok){if(!confirm('Voice chat is open: any player standing near you in the world can hear you, and you can hear them.\n\nIt stays off unless you turn it on, and this button turns it off again.\n\nTurn voice on?'))return;try{localStorage.setItem('planet-voice-ok','1');}catch(_){}}
+  if(!navigator.mediaDevices||!window.RTCPeerConnection){showTrick('This browser cannot do voice chat');return;}
+  try{VOICE.stream=await navigator.mediaDevices.getUserMedia({audio:{echoCancellation:true,noiseSuppression:true,autoGainControl:true}});}catch(_){showTrick('The microphone was not allowed');return;}
+  unlockAudio();VOICE.on=true;const ch=LIVE.rt.channels.get('planet:voice');VOICE.ch=ch;ch.subscribe('sig',voiceSignal);
+  const refresh=()=>ch.presence.get().then(m=>{VOICE.members=new Set(m.map(x=>x.clientId));}).catch(()=>{});ch.presence.subscribe(refresh);await ch.presence.enter({}).catch(()=>{});refresh();
+  clearInterval(VOICE.timer);VOICE.timer=setInterval(voiceSync,250);voiceUI();showTrick('Voice on');}
+function voiceOff(){if(!VOICE.on)return;VOICE.on=false;clearInterval(VOICE.timer);for(const id of [...VOICE.peers.keys()])voiceDrop(id);if(VOICE.stream){for(const t of VOICE.stream.getTracks())t.stop();VOICE.stream=null;}
+  if(VOICE.ch){try{VOICE.ch.presence.leave();VOICE.ch.presence.unsubscribe();VOICE.ch.unsubscribe('sig',voiceSignal);}catch(_){}VOICE.ch=null;}VOICE.members=new Set();voiceUI();showTrick('Voice off');}
+$('#voicebtn').addEventListener('click',e=>{e.stopPropagation();voiceOnAsk();});addEventListener('pagehide',()=>{if(VOICE.on)voiceOff();});voiceUI();window.__voice=VOICE;
 /* ---- the graphics button: high / medium / low, remembered on the device; changing it reloads the game ---- */
 (function gfxUI(){const names={full:'High',lite:'Med',min:'Low'},btn=$('#gfxbtn'),tray=$('#gfx');btn.innerHTML='<b>'+names[QUALITY]+'</b>gfx';
   tray.innerHTML=[['full','High','sharpest; computers and new phones'],['lite','Medium','slimmer models; most phones'],['min','Low','small textures; tablets and older devices']].map(([q,t,sub])=>'<button type="button" data-g="'+q+'"'+(q===QUALITY?' class="on"':'')+'>'+t+'<small>'+sub+'</small></button>').join('');
