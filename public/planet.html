@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,viewport-fit=cover,user-scalable=no">
-<title>The Planet — Understand Veganism</title>
+<title>The Planet</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Patrick+Hand&family=Karla:wght@400;700&family=Rubik+Mono+One&display=swap">
 <style>
@@ -55,7 +55,10 @@ body.touch .tpad{margin-left:auto}
 #menubtn{position:absolute;top:max(14px,env(safe-area-inset-top));right:14px;width:52px;height:52px;appearance:none;cursor:pointer;padding:0;display:grid;place-items:center}
 #menubtn svg{width:30px;height:30px}
 #lookbtn{position:absolute;top:calc(max(14px,env(safe-area-inset-top)) + 124px);right:14px;width:52px;height:52px;appearance:none;cursor:pointer;padding:0;font-size:24px;line-height:1}
-#online{position:absolute;top:calc(max(14px,env(safe-area-inset-top)) + 246px);right:14px;min-width:52px;text-align:center;font-family:var(--hand);font-size:16px;color:var(--cream);background:rgba(29,42,58,.78);border-radius:10px;padding:2px 6px}#online[hidden]{display:none}
+#gfxbtn{position:absolute;top:calc(max(14px,env(safe-area-inset-top)) + 248px);right:14px;width:52px;height:52px;appearance:none;cursor:pointer;padding:0;font-family:var(--hand);font-size:15px;line-height:1.05}#gfxbtn b{display:block;font-size:20px;font-weight:normal}
+#gfx{position:absolute;top:calc(max(14px,env(safe-area-inset-top)) + 248px);right:76px;z-index:8;display:flex;flex-direction:column;gap:6px;width:min(250px,calc(100vw - 100px));padding:8px;background:var(--cream);border:3px solid #26333a;border-radius:14px;font-family:var(--hand)}#gfx[hidden]{display:none}
+#gfx button{font-family:var(--hand);font-size:19px;text-align:left;padding:6px 10px;border:2px solid #26333a;border-radius:10px;background:#fffdf6;cursor:pointer;color:#26333a}#gfx button small{display:block;font-size:14px;color:#5f6d72}#gfx button.on{background:#f4c945}
+#online{position:absolute;top:calc(max(14px,env(safe-area-inset-top)) + 308px);right:14px;min-width:52px;text-align:center;font-family:var(--hand);font-size:16px;color:var(--cream);background:rgba(29,42,58,.78);border-radius:10px;padding:2px 6px}#online[hidden]{display:none}
 #look{position:absolute;top:calc(max(14px,env(safe-area-inset-top)) + 62px);right:76px;z-index:8;width:min(310px,calc(100vw - 100px));padding:12px 14px;font-family:var(--hand);font-size:19px;background:var(--cream)}#look[hidden]{display:none}
 #look .lname{display:flex;align-items:center;gap:8px;margin-bottom:8px}#look .lname input{flex:1;min-width:0;font-family:var(--hand);font-size:18px;padding:4px 8px;border:2px solid #26333a;border-radius:8px;background:#fff}
 #look .lrow{display:flex;align-items:center;gap:8px;margin:6px 0}#look .lrow span{width:56px;flex:none}#look .lrow div{display:flex;flex-wrap:wrap;gap:6px}
@@ -190,6 +193,8 @@ body.intro #game{background:#5abfb2}
   <button id="lookbtn" class="ink" type="button" aria-label="Change your outfit">👕</button>
   <button id="emotebtn" class="ink" type="button" aria-label="Emotes">😊</button>
   <div id="emotes" hidden></div>
+  <button id="gfxbtn" class="ink" type="button" aria-label="Graphics quality"></button>
+  <div id="gfx" hidden></div>
   <span id="online" hidden></span>
   <div id="look" class="ink" hidden></div>
   <div id="score" class="ink" hidden>0</div>
@@ -231,7 +236,7 @@ body.intro #game{background:#5abfb2}
 <div id="sbN" class="sb" hidden></div>
 <div id="sbMe" class="sb me" hidden></div>
 <div id="title" aria-label="Start">
-  <h1 class="big"><span>Understand</span><span>Veganism</span></h1>
+  <div></div><!-- no title: Josh wants the opening clean, just the planet and the button -->
   <div></div>
   <div class="tfoot"><button id="enter" class="enter" type="button">enter</button><p id="title-p">a small town on a small planet · walk up to anyone and ask them a question</p></div>
 </div>
@@ -520,8 +525,16 @@ const colliders=[];let skyDome=null,nightDome=null,SUNSET=null;const PLACES={};
   const RING=addRoad('ring',loopPts(ringLat,20),true,3.0,'road',.06);
   const upperLat=lon=>1.0+.04*Math.sin(3*lon+.6)+.3*smooth(1.75,1.2,Math.abs(lon-PLAZA.lon)); // a third, tighter street up the hill, bowing over the park
   const UPPER=addRoad('upper',loopPts(upperLat,20),true,2.7,'road',.06);
-  [0.1,2.15,5.85].forEach((a,i)=>{const r=addRoad('link'+i,[[a,ringLat(a)],[a+.03,(ringLat(a)+upperLat(a))/2],[a+.06,upperLat(a+.06)]],false,2.7,'road',.07);r.host0=RING;r.host1=UPPER;});
-  [[0.85,0.95,.06],[2.55,2.45,-.05],[4.35,4.5,.05],[1.3,1.32,.02],[5.85,5.85,-.03],[0.1,0.1,.03]].forEach(([a,b,k],i)=>addRoad('side'+i,[[a,mainLat(a)],[(a+b)/2+k,(mainLat(a)+ringLat(b))/2],[b,ringLat(b)]],false,2.8,'road',.07));
+  /* a street starts and ends exactly ON the road it joins, and sets off / arrives square to it: both are measured from the host's real
+     centre line (its spline strays from the lat formula where the ring swings round the park, which left streets meeting it at a
+     shallow angle, their verges overlapping for metres) */
+  const nearS=(H,n)=>{let best=null,bd=-2;for(const sm of H.samples){const d=n.dot(sm.n);if(d>bd){bd=d;best=sm;}}return best;};
+  const ll=v=>lonLatOf(v);const out=(sm,toward,d)=>{const sg=Math.sign(toward.clone().sub(sm.n).dot(sm.side))||1;return _q.copy(sm.n).addScaledVector(sm.side,sg*d/R).normalize().clone();};
+  function joinRoad(name,H0,n0,H1,n1,mid,halfW){const a=nearS(H0,n0),b=nearS(H1,n1);const span=a.n.distanceTo(b.n)*R,d=Math.min(6,span*.3);const pts=[ll(a.n),ll(out(a,b.n,d))];if(mid)pts.push(mid);pts.push(ll(out(b,a.n,d)),ll(b.n));
+    for(let k=1;k<pts.length;k++){let dl=pts[k][0]-pts[k-1][0];while(dl>Math.PI){pts[k][0]-=2*Math.PI;dl-=2*Math.PI;}while(dl<-Math.PI){pts[k][0]+=2*Math.PI;dl+=2*Math.PI;}}
+    const r=addRoad(name,pts,false,halfW,'road',.07);r.host0=H0;r.host1=H1;return r;}
+  [0.1,2.15,5.85].forEach((a,i)=>{const n0=sphere(a,ringLat(a));joinRoad('link'+i,RING,n0,UPPER,nearS(UPPER,nearS(RING,n0).n).n,null,2.7);}); /* straight across to the nearest point of the upper road */
+  [[0.85,0.95,.06],[2.55,2.3,-.02],[4.35,4.5,.05],[1.3,1.32,.02],[5.85,5.85,-.03],[0.1,0.1,.03]].forEach(([a,b,k],i)=>joinRoad('side'+i,MAIN,sphere(a,mainLat(a)),RING,sphere(b,ringLat(b)),[(a+b)/2+k,(mainLat(a)+ringLat(b))/2],2.8));
   [[1.75,1.85],[5.2,5.12]].forEach(([a,b],i)=>addRoad('alley'+i,[[a,mainLat(a)],[a+.02,mainLat(a)+.13],[b-.03,mainLat(a)+.3],[b,ringLat(b)]],false,1.5,'alley',.08));
   addRoad('skate',[[3.5,mainLat(3.5)],[PLAZA.lon,PLAZA.lat-(PLAZA.hz+.5)/R]],false,2.8,'road',.07);
   addRoad('beach',[[1.3,mainLat(1.3)],[1.36,-.12],[1.26,-.23],[1.32,-.325]],false,2.2,'path',.03);
@@ -597,7 +610,7 @@ const colliders=[];let skyDome=null,nightDome=null,SUNSET=null;const PLACES={};
   function endRows(road,offs,lim0,lim1){ /* rows for an open road: a clipped row at each joined end, the plain samples between */
     const S=road.samples;let sLo=road.trim0,sHi=road.L-road.trim1,r0=null,r1=null;const H0=road.host0||MAINR,H1=road.host1||(road.trim1>0?RINGR:null);
     if(road.kind!=='path'){r0=offs.map(o=>clipS(road,H0,o,false,lim0(H0)));sLo=Math.max(...r0)+.25;if(H1){r1=offs.map(o=>clipS(road,H1,o,true,lim1(H1)));sHi=Math.min(...r1)-.25;}}
-    const rows=[];if(r0)rows.push({cut:r0});for(const sm of S)if(sm.s>=sLo&&sm.s<=sHi)rows.push({sm});if(r1)rows.push({cut:r1});return rows;}
+    if(offs.length>3){road.cut0=r0;road.cut1=r1;window.__allRoads=ROADS;}const rows=[];if(r0)rows.push({cut:r0});for(const sm of S)if(sm.s>=sLo&&sm.s<=sHi)rows.push({sm});if(r1)rows.push({cut:r1});return rows;}
   const rowPoint=(road,row,j,o)=>{const sm=row.cut?atSx(road,row.cut[j]):row.sm;return {sm,pt:_q.copy(sm.n).addScaledVector(sm.side,o/R).normalize()};};
   for(const road of ROADS){const S=road.samples,M=6,hw=road.halfW,N=S.length;const texLen=road.closed?road.L/Math.round(road.L/19.6):19.6;const pos=[],uv=[],idx=[];
     const offs=Array.from({length:M+1},(_,j)=>hw*(1-2*j/M));
@@ -616,9 +629,10 @@ const colliders=[];let skyDome=null,nightDome=null,SUNSET=null;const PLACES={};
         const pm=new THREE.Mesh(pg,pavementMat);pm.userData.noInk=true;scene.add(pm);}}}
   /* junction mouths: a strip of plain asphalt from the host road's kerb line out past its verge, as wide as the side road's asphalt */
   const matFor=r=>r.kind==='road'?roadMat:alleyMat;
-  function mouth(r,atEnd){const host=atEnd?(r.host1||RINGR):(r.host0||MAINR);const sm=atS(r,atEnd?r.L:0);const dir=sm.t.clone().multiplyScalar(atEnd?-1:1);const w=(r.kind==='road'?r.kerb:r.halfW)-.03,rows=6;const reach=o=>{const c=clipS(r,host,o,atEnd,host.kerb+.02);return atEnd?r.L-c:c;};const a1=Math.max(reach(w),reach(-w))+.4,a0=Math.min(reach(w),reach(-w))-(host.kerb*.3+.6);const pos=[],uv=[],idx=[];
-    for(let i=0;i<=rows;i++){const a=a0+(a1-a0)*i/rows;for(let j=0;j<=1;j++){const o=w*(1-2*j);const pt=_q.copy(sm.n).addScaledVector(dir,a/R).addScaledVector(sm.side,o/R).normalize();const h=hAt(pt)+host.lift;pos.push(pt.x*h,pt.y*h,pt.z*h);uv.push(a/19.6,.30+.14*(1-j));}} /* a plain lane of asphalt from the road picture, no dashes */
-    for(let i=0;i<rows;i++){const a=i*2,b=a+1,c=a+2,d=a+3;idx.push(a,b,c,b,d,c);}
+  function mouth(r,atEnd){const host=atEnd?(r.host1||RINGR):(r.host0||MAINR);const w=(r.kind==='road'?r.kerb:r.halfW)-.03;const lims=[host.kerb-1.3,host.kerb-.6,host.kerb+.02,host.kerb+.5],cols=[w,w/3,-w/3,-w];const pos=[],uv=[],idx=[];
+    /* rows run along the host's kerb band (each column clipped to the same distance from the host's centre line), so the patch is the junction's true shape however the street comes in */
+    lims.forEach((lim,i)=>{cols.forEach((o,jj)=>{const s_=clipS(r,host,o,atEnd,Math.max(.3,lim));const sm=atSx(r,s_);const pt=_q.copy(sm.n).addScaledVector(sm.side,o/R).normalize();const h=hAt(pt)+host.lift;pos.push(pt.x*h,pt.y*h,pt.z*h);uv.push(s_/19.6,.30+.14*jj/3);});});
+    for(let i=0;i<lims.length-1;i++)for(let jj=0;jj<3;jj++){const a=i*4+jj,b=a+1,c=a+4,d=c+1;idx.push(a,b,c,b,d,c);}
     const g2=new THREE.BufferGeometry();g2.setAttribute('position',new THREE.Float32BufferAttribute(pos,3));g2.setAttribute('uv',new THREE.Float32BufferAttribute(uv,2));g2.setIndex(idx);g2.computeVertexNormals();
     const m2=new THREE.Mesh(g2,mouthMat);scene.add(m2);} /* inked like the roads it bridges, so the ink pass sees one continuous surface and draws no box round the patch */
   for(const r of ROADS){if(r.closed||r.kind==='path')continue;mouth(r,false);if(r.trim1>0)mouth(r,true);}
@@ -627,7 +641,7 @@ const colliders=[];let skyDome=null,nightDome=null,SUNSET=null;const PLACES={};
   function zebra(road,s_){const sm=atS(road,s_);const hw=road.halfW*.9,bw=.5,SEG=4;for(let o=-hw+bw/2;o<=hw-bw/2+.01;o+=bw*2){const k0=zpos.length/3;
       for(let i=0;i<=SEG;i++){const a=-1.1+2.2*i/SEG;for(const b of [o-bw/2,o+bw/2]){const pt=_q.copy(sm.n).addScaledVector(sm.t,a/R).addScaledVector(sm.side,b/R).normalize();const h=hAt(pt)+road.lift+.006;zpos.push(pt.x*h,pt.y*h,pt.z*h);znrm.push(pt.x,pt.y,pt.z);}}
       for(let i=0;i<SEG;i++){const k=k0+i*2;zidx.push(k,k+1,k+2,k+1,k+3,k+2);}}} /* each bar is a short strip of quads so it follows the hills without creasing */
-  for(const r of ROADS){if(r.kind!=='road')continue;if(r.closed){for(let s_=12+rnd()*20;s_<r.L-8;s_+=60+rnd()*30)zebra(r,s_);}else if(/^side/.test(r.name))zebra(r,r.trim0+2.4);}
+  /* (Josh: no zebra crossings; the rnd() calls stay so the rest of the town keeps its layout) */for(const r of ROADS){if(r.kind!=='road')continue;if(r.closed){for(let s_=12+rnd()*20;s_<r.L-8;s_+=60+rnd()*30){}}}
   {const zg=new THREE.BufferGeometry();zg.setAttribute('position',new THREE.Float32BufferAttribute(zpos,3));zg.setAttribute('normal',new THREE.Float32BufferAttribute(znrm,3));zg.setIndex(zidx); /* sphere normals, so the ink pass sees no crease along each bar's diagonal */const zm=new THREE.Mesh(zg,zebraMat);zm.userData.noInk=true;scene.add(zm);}
   /* the shore: Josh's painted beach and shallows laid as a ribbon round the whole coast, its foam line on the real waterline;
      over the sand it hugs the ground, over the sea it floats just above the toon water and fades into it */
@@ -1984,6 +1998,11 @@ $('#dash-again').addEventListener('click',()=>{const rid=dash.rid;dash.phase='id
 $('#pick-solo').addEventListener('click',()=>{$('#racepick').hidden=true;startRace();});$('#pick-dash').addEventListener('click',joinDash);$('#pick-x').addEventListener('click',()=>{$('#racepick').hidden=true;game.focus();});
 window.__dash=dash;window.__DASH=DASH;window.__joinDash=joinDash;
 
+/* ---- the graphics button: high / medium / low, remembered on the device; changing it reloads the game ---- */
+(function gfxUI(){const names={full:'High',lite:'Med',min:'Low'},btn=$('#gfxbtn'),tray=$('#gfx');btn.innerHTML='<b>'+names[QUALITY]+'</b>gfx';
+  tray.innerHTML=[['full','High','sharpest; computers and new phones'],['lite','Medium','slimmer models; most phones'],['min','Low','small textures; tablets and older devices']].map(([q,t,sub])=>'<button type="button" data-g="'+q+'"'+(q===QUALITY?' class="on"':'')+'>'+t+'<small>'+sub+'</small></button>').join('');
+  btn.addEventListener('click',e=>{e.stopPropagation();tray.hidden=!tray.hidden;$('#emotes').hidden=true;$('#look').hidden=true;});
+  tray.addEventListener('click',e=>{const b=e.target.closest('[data-g]');if(!b)return;if(b.dataset.g===QUALITY){tray.hidden=true;return;}try{localStorage.setItem('planet-quality',b.dataset.g);}catch(_){}location.reload();});})();
 /* ---- emotes: a fixed set of pictures that pop up over your head; no free text, so nothing unsuitable can be said ---- */
 const EMOTES=['👋','❤️','😂','👍','🎉','😮','🛹','🌱'];const myEmote={i:-1,seq:0,until:0};const emoteTex=[];
 function emoteTexture(i){if(emoteTex[i])return emoteTex[i];const c=document.createElement('canvas');c.width=c.height=128;const g=c.getContext('2d');g.fillStyle='#fffdf6';g.strokeStyle='#26333a';g.lineWidth=5;g.beginPath();g.arc(64,56,50,0,6.283);g.fill();g.stroke();g.beginPath();g.moveTo(50,100);g.lineTo(64,124);g.lineTo(78,100);g.closePath();g.fill();g.stroke();g.fillStyle='#fffdf6';g.fillRect(48,92,32,12);
@@ -1992,7 +2011,7 @@ function emoteSprite(parent,y){const s=new THREE.Sprite(new THREE.SpriteMaterial
 function emoteShow(sp,i){sp.material.map=emoteTexture(i);sp.material.needsUpdate=true;sp.userData.t0=performance.now();sp.visible=true;}
 function emoteTick(sp){if(!sp||!sp.visible)return;const t=(performance.now()-sp.userData.t0)/1000;if(t>3.6){sp.visible=false;return;}const k=t<.25?1.25*Math.sin(t/.25*Math.PI*.6)/Math.sin(Math.PI*.6):t>3.2?Math.max(0,(3.6-t)/.4):1;sp.scale.setScalar(.95*k+.0001);}
 let mySprite=null;function doEmote(i){if(!kidModel)return;if(!mySprite)mySprite=emoteSprite(kidModel,2.55);emoteShow(mySprite,i);myEmote.i=i;myEmote.seq=(myEmote.seq%900)+1;myEmote.until=Date.now()+5000;tone(700,1000,.1,'triangle',.06);$('#emotes').hidden=true;if(MP.alone===false)mpTick();}
-(function emoteUI(){const tray=$('#emotes');tray.innerHTML=EMOTES.map((e,i)=>'<button type="button" data-e="'+i+'">'+e+'</button>').join('');$('#emotebtn').addEventListener('click',ev=>{ev.stopPropagation();tray.hidden=!tray.hidden;$('#look').hidden=true;});tray.addEventListener('click',ev=>{const b=ev.target.closest('[data-e]');if(b){doEmote(+b.dataset.e);game.focus();}});})();
+(function emoteUI(){const tray=$('#emotes');tray.innerHTML=EMOTES.map((e,i)=>'<button type="button" data-e="'+i+'">'+e+'</button>').join('');$('#emotebtn').addEventListener('click',ev=>{ev.stopPropagation();tray.hidden=!tray.hidden;$('#look').hidden=true;$('#gfx').hidden=true;});tray.addEventListener('click',ev=>{const b=ev.target.closest('[data-e]');if(b){doEmote(+b.dataset.e);game.focus();}});})();
 
 /* ---------- the beach cinema ---------- */
 /* choosing a film cuts to the kid sitting on a log in front of the screen; the film itself is a YouTube frame pinned,
