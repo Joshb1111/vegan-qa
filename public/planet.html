@@ -54,6 +54,12 @@ body.touch .tpad{margin-left:auto}
 @media (hover:hover) and (pointer:fine){.dpad .dir{opacity:.75}}
 #menubtn{position:absolute;top:max(14px,env(safe-area-inset-top));right:14px;width:52px;height:52px;appearance:none;cursor:pointer;padding:0;display:grid;place-items:center}
 #menubtn svg{width:30px;height:30px}
+#lookbtn{position:absolute;top:calc(max(14px,env(safe-area-inset-top)) + 124px);right:14px;width:52px;height:52px;appearance:none;cursor:pointer;padding:0;font-size:24px;line-height:1}
+#online{position:absolute;top:calc(max(14px,env(safe-area-inset-top)) + 184px);right:14px;min-width:52px;text-align:center;font-family:var(--hand);font-size:16px;color:var(--cream);background:rgba(29,42,58,.78);border-radius:10px;padding:2px 6px}#online[hidden]{display:none}
+#look{position:absolute;top:calc(max(14px,env(safe-area-inset-top)) + 62px);right:76px;z-index:8;width:min(310px,calc(100vw - 100px));padding:12px 14px;font-family:var(--hand);font-size:19px;background:var(--cream)}#look[hidden]{display:none}
+#look .lname{display:flex;align-items:center;gap:8px;margin-bottom:8px}#look .lname input{flex:1;min-width:0;font-family:var(--hand);font-size:18px;padding:4px 8px;border:2px solid #26333a;border-radius:8px;background:#fff}
+#look .lrow{display:flex;align-items:center;gap:8px;margin:6px 0}#look .lrow span{width:56px;flex:none}#look .lrow div{display:flex;flex-wrap:wrap;gap:6px}
+#look .sw{width:30px;height:30px;border-radius:50%;border:2px solid #26333a;cursor:pointer;padding:0;font-size:16px;line-height:1;color:#26333a}#look .sw.on{outline:3px solid #f28c28;outline-offset:1px}#look .ldone{margin-top:8px;font-family:var(--hand);font-size:18px;padding:4px 16px;cursor:pointer;background:#f4c945}
 #musicbtn{position:absolute;top:calc(max(14px,env(safe-area-inset-top)) + 62px);right:14px;width:52px;height:52px;appearance:none;cursor:pointer;padding:0;font-size:24px;line-height:1}
 #musicbtn[aria-pressed=false]{background:var(--cream2);color:var(--muted);text-decoration:line-through}
 #ba{position:fixed;left:0;top:0;transform:translate(-50%,-50%);z-index:5;margin:0;min-width:0;height:auto;padding:6px 16px 4px;font-size:21px;white-space:nowrap}
@@ -176,6 +182,9 @@ body.intro #game{background:#5abfb2}
   <div id="prompt" class="off ink"><b></b><span></span></div>
   <button id="menubtn" class="ink" type="button" aria-label="People" aria-expanded="false"><svg viewBox="0 0 30 30" fill="none" stroke="#26333a" stroke-width="2.6" stroke-linecap="round"><path d="M9 8h15M9 15h15M9 22h15"/><circle cx="4.5" cy="8" r="1.4" fill="#26333a"/><circle cx="4.5" cy="15" r="1.4" fill="#26333a"/><circle cx="4.5" cy="22" r="1.4" fill="#26333a"/></svg></button>
   <button id="musicbtn" class="ink" type="button" aria-label="Music" aria-pressed="true">♪</button>
+  <button id="lookbtn" class="ink" type="button" aria-label="Change your outfit">👕</button>
+  <span id="online" hidden></span>
+  <div id="look" class="ink" hidden></div>
   <div id="score" class="ink" hidden>0</div>
   <div id="trickname"></div>
   <div id="balance" hidden><b></b><i></i></div>
@@ -1410,7 +1419,7 @@ function update(dt){
 }
 let last=performance.now();
 let fpsN=0,fpsT=0,skipN=0;function frame(now){if(intro&&LITE&&((++skipN)&1)){requestAnimationFrame(frame);return;} /* the title globe draws every other frame on phones */const dt=Math.min(.25,(now-last)/1000)*(window.__dtScale??1);last=now;if(!paused){let acc=dt;while(acc>1e-4){const h=Math.min(.05,acc);update(h);fightUpdate(h);acc-=h;}} /* a slow phone gets several small steps, so the world and the run keep real time instead of slowing down */
-  raceUpdate(dt);webUpdate(dt);
+  raceUpdate(dt);webUpdate(dt);try{mpUpdate(dt);if(myLookWorn===null&&kidModel&&lookKey(myLook)!=='0.0.0.0')wearMine();}catch(e){if(!window.__mpErr){window.__mpErr=e;console.warn('multiplayer',e);}} /* the other players must never be able to stop the game */
   if(fpsEl){fpsN++;if(now-fpsT>500){fpsEl.textContent=Math.round(fpsN*1000/(now-fpsT))+' fps';fpsN=0;fpsT=now;}}
   if(mixer)mixer.update(dt);applySit();applyRide();applyJump();applyWeb();for(const m of mixers)m.update(dt);updateBirds(dt,now/1000);if(window.__water&&window.__water.userData.sh)window.__water.userData.sh.uniforms.uT.value=now/1000;if(window.__shore&&window.__shore.material.userData.sh)window.__shore.material.userData.sh.uniforms.uT.value=now/1000;renderInk();requestAnimationFrame(frame);}
 requestAnimationFrame(frame);
@@ -1785,6 +1794,82 @@ function washGame(root){const A='a',P='p';const ALL=[['🧶','Wool jumper',A,'Wo
   const rel=e=>{if(!drag)return;const dx=e.clientX-drag.x;drag=null;if(Math.abs(dx)>70)choose(dx<0?A:P);else{card.style.transition='transform .2s';card.style.transform='';}};card.addEventListener('pointerup',rel);card.addEventListener('pointercancel',rel);
   const key=e=>{if(e.key==='ArrowLeft'||e.key==='a'||e.key==='A'){choose(A);e.preventDefault();}else if(e.key==='ArrowRight'||e.key==='d'||e.key==='D'){choose(P);e.preventDefault();}else if((e.key==='Enter'||e.key===' ')&&done){deal();e.preventDefault();}};addEventListener('keydown',key);
   deal();return ()=>removeEventListener('keydown',key);}
+
+/* =====================================================================
+   OTHER PLAYERS + OUTFITS. Everyone in the world posts where they are about twice a second (api/world.js) and gets
+   everyone else back; the others are drawn as copies of the kid, moved smoothly between the positions received.
+   The outfit button recolours hair, jacket, shorts and shoes, so players can be told apart.
+   ===================================================================== */
+const LOOK_OPTS={h:['','#6b3f1d','#d9a441','#c0392b','#7b4fbf','#2e86c1','#e9e9e9','#ff7eb6'],j:['','#2e6fb5','#3d9a5b','#f4c945','#7b4fbf','#2f3b44','#f28c28','#ff7eb6','#f3efe4'],s:['','#2f3b44','#2e6fb5','#8a5a2b','#f3efe4','#3d9a5b'],f:['','#2e6fb5','#2f3b44','#f4c945','#3d9a5b','#f3efe4']};
+const LOOK_NAMES={h:'Hair',j:'Jacket',s:'Shorts',f:'Shoes'};
+let myLook={h:0,j:0,s:0,f:0},myName='';try{const l=JSON.parse(localStorage.getItem('planet-look')||'null');if(l)for(const k in myLook)myLook[k]=clamp(l[k]|0,0,LOOK_OPTS[k].length-1);myName=localStorage.getItem('planet-name')||'';}catch(_){}
+const lookKey=l=>[l.h,l.j,l.s,l.f].join('.');const parseLook=k=>{const a=String(k||'').split('.').map(x=>x|0);const o={h:a[0]||0,j:a[1]||0,s:a[2]||0,f:a[3]||0};for(const q in o)o[q]=clamp(o[q],0,LOOK_OPTS[q].length-1);return o;};
+const kidSkin={ready:false,S:0,base:null,zone:null,orig:null,cache:new Map()};
+const kidMesh=root=>{let m=null;root.traverse(o=>{if(o.isSkinnedMesh&&!m)m=o;});return m;};
+function kidSkinInit(){if(kidSkin.ready||!kidModel)return kidSkin.ready;const mesh=kidMesh(kidModel);if(!mesh||!mesh.material.map||!mesh.material.map.image)return false;const img=mesh.material.map.image,S=LITE?512:1024;
+  const c=document.createElement('canvas');c.width=c.height=S;const g=c.getContext('2d');try{g.drawImage(img,0,0,S,S);kidSkin.base=g.getImageData(0,0,S,S);}catch(_){return false;}
+  /* zones, painted triangle by triangle into the atlas: 1 head, 2 feet, 3 body, 4 face (eyes and mouth keep their colours) */
+  const geo=mesh.geometry,P=geo.attributes.position,UV=geo.attributes.uv,SI=geo.attributes.skinIndex,SW=geo.attributes.skinWeight,ix=geo.index,bones=mesh.skeleton.bones;
+  const zoneOf=vi=>{let bw=-1,bi=0;for(let k=0;k<4;k++){const w=SW.array[vi*SW.itemSize+k];if(w>bw){bw=w;bi=SI.array[vi*SI.itemSize+k];}}const n=bones[bi]?bones[bi].name:'';return /^Head/i.test(n)?1:/Foot|Toe/i.test(n)?2:3;};
+  const vz=new Uint8Array(P.count);let hb=[1e9,-1e9,1e9,-1e9,1e9,-1e9];for(let i=0;i<P.count;i++){vz[i]=zoneOf(i);if(vz[i]===1){const x=P.getX(i),y=P.getY(i),z=P.getZ(i);hb=[Math.min(hb[0],x),Math.max(hb[1],x),Math.min(hb[2],y),Math.max(hb[3],y),Math.min(hb[4],z),Math.max(hb[5],z)];}}
+  const xc=(hb[0]+hb[1])/2,fw=(hb[1]-hb[0])*.3,fy=hb[2]+(hb[3]-hb[2])*.56,fz=hb[4]+(hb[5]-hb[4])*.5;
+  const zc=document.createElement('canvas');zc.width=zc.height=S;const zg=zc.getContext('2d');zg.fillStyle='#000';zg.fillRect(0,0,S,S);const n=ix?ix.count:P.count;
+  for(let t=0;t<n;t+=3){const a=ix?ix.getX(t):t,b=ix?ix.getX(t+1):t+1,d=ix?ix.getX(t+2):t+2;let z=vz[a]===vz[b]||vz[a]===vz[d]?vz[a]:vz[b];
+    if(z===1){const cx=(P.getX(a)+P.getX(b)+P.getX(d))/3,cy=(P.getY(a)+P.getY(b)+P.getY(d))/3,cz=(P.getZ(a)+P.getZ(b)+P.getZ(d))/3;if(Math.abs(cx-xc)<fw&&cy<fy&&cz>fz)z=4;}
+    zg.fillStyle=zg.strokeStyle='rgb('+z*50+',0,0)';zg.lineWidth=2;zg.beginPath();zg.moveTo(UV.getX(a)*S,UV.getY(a)*S);zg.lineTo(UV.getX(b)*S,UV.getY(b)*S);zg.lineTo(UV.getX(d)*S,UV.getY(d)*S);zg.closePath();zg.fill();zg.stroke();}
+  kidSkin.zone=zg.getImageData(0,0,S,S).data;kidSkin.S=S;kidSkin.orig=mesh.material.map;kidSkin.ready=true;return true;}
+function lookTexture(key){if(key==='0.0.0.0'||!kidSkinInit())return kidSkin.orig;if(kidSkin.cache.has(key))return kidSkin.cache.get(key);const L=parseLook(key),S=kidSkin.S,src=kidSkin.base.data,Z=kidSkin.zone;
+  const c=document.createElement('canvas');c.width=c.height=S;const g=c.getContext('2d');const out=g.createImageData(S,S),D=out.data;const rgb=h=>h?[parseInt(h.slice(1,3),16),parseInt(h.slice(3,5),16),parseInt(h.slice(5,7),16)]:null;
+  const T={h:rgb(LOOK_OPTS.h[L.h]),j:rgb(LOOK_OPTS.j[L.j]),s:rgb(LOOK_OPTS.s[L.s]),f:rgb(LOOK_OPTS.f[L.f])};
+  for(let i=0;i<S*S*4;i+=4){const r=src[i],gg=src[i+1],b=src[i+2];D[i]=r;D[i+1]=gg;D[i+2]=b;D[i+3]=255;const z=Math.round(Z[i]/50);if(!z||z===4)continue;
+    const mx=Math.max(r,gg,b),mn=Math.min(r,gg,b),v=mx/255,s=mx?1-mn/mx:0;let hue=0;if(mx!==mn){const d=mx-mn;hue=mx===r?((gg-b)/d+6)%6:mx===gg?(b-r)/d+2:(r-gg)/d+4;hue*=60;}
+    let t=null,ref=1;if(z===1&&T.h&&v<.34&&s<.5){t=T.h;ref=.2;}else if((hue<22||hue>338)&&s>.42&&v>.18){if(z===3&&T.j){t=T.j;ref=.72;}else if(z===2&&T.f){t=T.f;ref=.72;}}else if(z===3&&T.s&&hue>40&&hue<100&&s>.12&&s<.62&&v>.18&&v<.8){t=T.s;ref=.52;}
+    if(t){const k=clamp(v/ref,.35,1.35);D[i]=Math.min(255,t[0]*k);D[i+1]=Math.min(255,t[1]*k);D[i+2]=Math.min(255,t[2]*k);}}
+  g.putImageData(out,0,0);const tx=new THREE.CanvasTexture(c);tx.flipY=false;tx.encoding=THREE.LinearEncoding;tx.anisotropy=4;kidSkin.cache.set(key,tx);if(kidSkin.cache.size>14){const k0=kidSkin.cache.keys().next().value;if(k0!==lookKey(myLook)){kidSkin.cache.get(k0).dispose();kidSkin.cache.delete(k0);}}return tx;}
+function wearLook(root,key){const m=kidMesh(root);if(!m)return false;const tx=lookTexture(key);if(!tx)return false;if(m.material.map!==tx){m.material.map=tx;m.material.needsUpdate=true;}return true;}
+let myLookWorn=null;function wearMine(){const k=lookKey(myLook);if(myLookWorn===k||!kidModel)return;if(wearLook(kidModel,k))myLookWorn=k;}
+/* the outfit panel */
+(function lookUI(){const panel=$('#look');const draw=()=>{let h='<label class="lname">Name <input id="look-name" type="text" maxlength="16" placeholder="shown above your head" value="'+myName.replace(/"/g,'&quot;')+'"></label>';
+    for(const k of ['h','j','s','f']){h+='<div class="lrow"><span>'+LOOK_NAMES[k]+'</span><div>';LOOK_OPTS[k].forEach((c,i)=>{h+='<button type="button" data-k="'+k+'" data-i="'+i+'" class="sw'+(myLook[k]===i?' on':'')+'" style="background:'+(c||'#fffdf6')+'">'+(c?'':'×')+'</button>';});h+='</div></div>';}
+    panel.innerHTML=h+'<button type="button" class="ink ldone">Done</button>';};
+  $('#lookbtn').addEventListener('click',e=>{e.stopPropagation();panel.hidden=!panel.hidden;if(!panel.hidden)draw();});
+  panel.addEventListener('click',e=>{const b=e.target.closest('.sw');if(b){myLook[b.dataset.k]=+b.dataset.i;try{localStorage.setItem('planet-look',JSON.stringify(myLook));}catch(_){}draw();wearMine();return;}if(e.target.closest('.ldone')){panel.hidden=true;game.focus();}});
+  panel.addEventListener('input',e=>{if(e.target.id==='look-name'){myName=e.target.value.replace(/[^\w \-'.]/g,'').slice(0,16);try{localStorage.setItem('planet-name',myName);}catch(_){}}});})();
+
+/* the others */
+const MP={id:(()=>{let s='';try{s=sessionStorage.getItem('planet-pid')||'';}catch(_){}if(!/^[a-z0-9]{12}$/.test(s)){s='';for(let i=0;i<12;i++)s+='abcdefghijklmnopqrstuvwxyz0123456789'[Math.floor(Math.random()*36)];try{sessionStorage.setItem('planet-pid',s);}catch(_){}}return s;})(),others:new Map(),offset:0,timer:0,alone:true,fails:0,FAST:550,SLOW:2600,DELAY:900};
+function mpState(){const mode=(ride.on?(ride.veh==='scooter'?2:1):0)|(sitting?4:0)|((fight.on||intro)?8:0);return [up.x,up.y,up.z,fwd.x,fwd.y,fwd.z,Math.abs(v)<.05?0:v,mode];}
+async function mpTick(){clearTimeout(MP.timer);const again=ms=>{MP.timer=setTimeout(mpTick,ms);};if(!titleGone||document.hidden||window.__noMP){again(1500);return;}
+  try{const r=await fetch('/api/world',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({id:MP.id,s:mpState(),n:myName,k:lookKey(myLook)})});if(!r.ok)throw 0;const j=await r.json();MP.fails=0;MP.offset=j.now-Date.now();const seen=new Set();
+    for(const p of j.players||[]){seen.add(p.id);let o=MP.others.get(p.id);if(!o){o={id:p.id,snaps:[],av:null,name:null,look:null};MP.others.set(p.id,o);}
+      const last=o.snaps[o.snaps.length-1];if(!last||p.t>last.t){o.snaps.push({t:p.t,up:new THREE.Vector3(p.s[0],p.s[1],p.s[2]).normalize(),fwd:new THREE.Vector3(p.s[3],p.s[4],p.s[5]).normalize(),v:p.s[6],mode:p.s[7]|0});if(o.snaps.length>8)o.snaps.shift();}o.wantName=p.n||'Visitor';o.wantLook=p.k||'0.0.0.0';}
+    for(const [id,o] of MP.others)if(!seen.has(id)){mpDrop(o);MP.others.delete(id);}
+    MP.alone=MP.others.size===0;const chip=$('#online');chip.hidden=MP.alone;if(!MP.alone)chip.textContent=(MP.others.size+1)+' here';again(MP.alone?MP.SLOW:MP.FAST);}
+  catch(_){MP.fails++;again(Math.min(20000,2000*MP.fails));}}
+function mpDrop(o){if(o.av){scene.remove(o.av.holder);const i=mixers.indexOf(o.av.mixer);if(i>=0)mixers.splice(i,1);if(o.av.label.material.map)o.av.label.material.map.dispose();o.av=null;sceneDirty=true;}}
+function mpLabel(text){const c=document.createElement('canvas');c.width=256;c.height=64;const g=c.getContext('2d');g.font='700 34px "Patrick Hand","Segoe Print",cursive';g.textAlign='center';g.textBaseline='middle';g.lineWidth=7;g.lineJoin='round';g.strokeStyle='rgba(29,42,58,.9)';g.strokeText(text,128,34);g.fillStyle='#f3efe4';g.fillText(text,128,34);return new THREE.CanvasTexture(c);}
+function mpAvatar(o){if(!kidModel||!THREE.SkeletonUtils||!clips.walk)return null;const src=kidModel.userData.root;const root=THREE.SkeletonUtils.clone(src);root.traverse(m=>{if(m.isMesh){m.material=m.material.clone();m.material.map=kidSkin.orig||m.material.map;m.frustumCulled=false;m.castShadow=true;}});
+  const holder=new THREE.Group();holder.add(root);holder.userData.noCull=true;const mixer=new THREE.AnimationMixer(root);const act={};for(const k of ['idle','walk','run']){if(!clips[k])continue;act[k]=mixer.clipAction(clips[k].getClip());if(k==='idle')act[k].setLoop(THREE.LoopPingPong,Infinity);act[k].play();act[k].setEffectiveWeight(k==='idle'?1:0);}
+  const label=new THREE.Sprite(new THREE.SpriteMaterial({map:null,depthWrite:false,transparent:true}));label.scale.set(1.7,.425,1);label.position.set(0,2.25,0);label.userData.noInk=true;label.userData.skipInk=true;holder.add(label);hideInNormals.push(label);
+  const deck=new THREE.Mesh(new THREE.BoxGeometry(.28,.05,.95),toon(0x2f3b44));deck.position.y=.09;deck.visible=false;holder.add(deck);
+  scene.add(holder);mixers.push(mixer);sceneDirty=true;return {holder,root,mixer,act,label,deck,w:{walk:0,run:0},shown:false};}
+const _mu=new THREE.Vector3(),_mf=new THREE.Vector3(),_mr=new THREE.Vector3(),_mm4=new THREE.Matrix4();
+function mpUpdate(dt){if(!MP.others.size)return;wearMine();const now=Date.now()+MP.offset-MP.DELAY;const list=[...MP.others.values()].sort((a,b)=>{const la=a.snaps[a.snaps.length-1],lb=b.snaps[b.snaps.length-1];return (lb?lb.up.dot(up):-2)-(la?la.up.dot(up):-2);});
+  list.forEach((o,rank)=>{const S=o.snaps;if(!S.length)return;if(rank>=10){if(o.av)o.av.holder.visible=false;return;} /* the ten nearest are drawn */
+    if(!o.av){o.av=mpAvatar(o);if(!o.av)return;}const av=o.av;
+    if(o.name!==o.wantName){o.name=o.wantName;if(av.label.material.map)av.label.material.map.dispose();av.label.material.map=mpLabel(o.name);av.label.material.needsUpdate=true;}
+    if(o.look!==o.wantLook&&wearLook(av.root,o.wantLook))o.look=o.wantLook;
+    let a=S[0],b=S[0];for(let i=S.length-1;i>=0;i--){if(S[i].t<=now){a=S[i];b=S[Math.min(i+1,S.length-1)];break;}}
+    const k=b.t>a.t?clamp((now-a.t)/(b.t-a.t),0,1.25):0;_mu.copy(a.up).lerp(b.up,k).normalize();_mf.copy(a.fwd).lerp(b.fwd,Math.min(1,k));_mf.addScaledVector(_mu,-_mf.dot(_mu));if(_mf.lengthSq()<1e-6)_mf.copy(a.fwd);_mf.normalize();
+    const jump=a.up.distanceTo(b.up)*R>14; /* a teleport (spawn buttons, the race): cut, do not glide across the planet */if(jump){_mu.copy(b.up);_mf.copy(b.fwd);}
+    const mode=(k>.5?b:a).mode;av.holder.visible=!(mode&8);_mr.crossVectors(_mf,_mu).normalize();_mm4.makeBasis(_mr,_mu,_mf.clone().negate());av.holder.quaternion.setFromRotationMatrix(_mm4);av.holder.position.copy(_mu).multiplyScalar(gAt(_mu)+((mode&3)?.1:0)-((mode&4)?.26:0));
+    const moving=b.t>a.t&&!jump?a.up.distanceTo(b.up)*R/((b.t-a.t)/1000):0;const sp=(mode&3)?0:Math.max(moving,Math.abs(k>.5?b.v:a.v)>.1&&moving>.2?Math.abs(b.v):0);const stale=now-S[S.length-1].t>1500;const spd=stale?0:sp;
+    const wantRun=spd>3.4?1:0,wantWalk=spd>.25&&!wantRun?1:0;av.w.walk+=(wantWalk-av.w.walk)*Math.min(1,dt*7);av.w.run+=(wantRun-av.w.run)*Math.min(1,dt*7);
+    if(av.act.walk){av.act.walk.setEffectiveWeight(av.w.walk);av.act.walk.setEffectiveTimeScale(clamp(spd/(clips.walkSpeed||1.4),.6,2));}if(av.act.run){av.act.run.setEffectiveWeight(av.w.run);av.act.run.setEffectiveTimeScale(clamp(spd/(clips.runSpeed||4),.6,1.6));}if(av.act.idle)av.act.idle.setEffectiveWeight(Math.max(0,1-av.w.walk-av.w.run));
+    av.deck.visible=!!(mode&3);});}
+addEventListener('pagehide',()=>{try{navigator.sendBeacon('/api/world',new Blob([JSON.stringify({id:MP.id,s:[0,1,0,1,0,0,0,8],bye:1})],{type:'application/json'}));}catch(_){}});
+document.addEventListener('visibilitychange',()=>{if(!document.hidden)mpTick();});mpTick();
+window.__mp=MP;window.__setLook=l=>{Object.assign(myLook,l);wearMine();};
 
 /* ---------- the beach cinema ---------- */
 /* choosing a film cuts to the kid sitting on a log in front of the screen; the film itself is a YouTube frame pinned,
