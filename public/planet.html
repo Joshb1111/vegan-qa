@@ -122,7 +122,7 @@ body.fighting #hint,body.fighting #menubtn,body.fighting #musicbtn,body.fighting
 .wash .wcard{background:#fffdf6;border:3px solid #26333a;border-radius:18px;box-shadow:0 6px 0 rgba(38,51,58,.25);padding:18px 30px 14px;min-width:210px;cursor:grab;touch-action:none}.wash .wcard.ok{border-color:#3d9a5b}.wash .wcard.no{border-color:#d8402f}
 .wash .wemo{font-size:84px;line-height:1.1}.wash .wname{font-size:28px}.wash .wfact{margin:0;min-height:2.6em;font-size:21px;max-width:520px}.wash .wfact em{display:inline-block;margin:8px 0;font-size:19px}.wash .wagain{font-family:var(--hand);font-size:22px;padding:8px 20px;cursor:pointer;background:#f4c945}
 .wash .wbins{display:flex;gap:12px;padding:12px;flex:none}.wash .wbins button{flex:1;font-family:var(--hand);font-size:22px;padding:14px 8px 12px;border:3px solid #26333a;border-radius:16px;background:#f3efe4;cursor:pointer;color:#26333a}.wash .wbins button i{display:block;font-style:normal;font-size:38px}.wash .wbins button b{font-weight:400}.wash.over .wbins{visibility:hidden}
-#cinescreen{position:fixed;left:0;top:0;transform-origin:0 0;border:0;background:#000;z-index:4}
+#cinescreen{position:fixed;left:0;top:0;transform-origin:0 0;border:0;background:#000;z-index:4;object-fit:contain}
 #film-frame:empty{display:none}#film-frame iframe{display:block;border:0;background:#000;margin:0 auto;max-width:100%}
 #film .note{margin:0;font-family:var(--hand);color:var(--muted);font-size:16px}
 #title .bub{position:absolute;bottom:-40px;border:2px solid rgba(38,51,58,.5);border-radius:50%;animation:bubrise linear infinite;pointer-events:none}
@@ -745,7 +745,7 @@ let CINEMA=null,nearRace=false,nearFilm=false,inRoom=false,filmOn=false;
 /* Spider-Man: he waits by the skate park; beat his double in the arena and you can web-swing round town */
 const SPIDEY={model:null,clips:{},npc:null,spot:null,w:null,arena:null};const DOORS=[];let nearDoor=null;let nearSpidey=false,webUnlocked=false;try{webUnlocked=localStorage.getItem('planet-webs')==='1';}catch(_){}
 let websOn=true;try{websOn=localStorage.getItem('planet-webs-on')!=='0';}catch(_){}
-const fight={on:false,p:null,ai:null,t:0,end:0,dir:1,cool:0,aiCool:0,aiT:0,hud:null,ready:0};const web={on:false,t:0,dur:0,a:new THREE.Vector3(),b:new THREE.Vector3(),ctl:new THREE.Vector3(),line:null,anchor:new THREE.Vector3(),cool:0};const FILMS=[['What is veganism?','15 min','kq9a_6-eagA',16/9],['Who are animals?','3 min','XLUO1ZBhqew',9/16],['What is vegan?','1 min','_iePD_XhUx8',9/16]];
+const fight={on:false,p:null,ai:null,t:0,end:0,dir:1,cool:0,aiCool:0,aiT:0,hud:null,ready:0};const web={on:false,t:0,dur:0,a:new THREE.Vector3(),b:new THREE.Vector3(),ctl:new THREE.Vector3(),line:null,anchor:new THREE.Vector3(),cool:0};const FILMS=[['What is veganism?','15 min','kq9a_6-eagA',16/9],['Correct the relationship between humans and other animals','3 min','https://pub-773cd539628f450faa7973af5d97c67b.r2.dev/Correct%20the%20relationship%20between%20humans%20and%20other%20animals.%23veganism%20%23vegan%20%23endanimalexploitatio.mp4',9/16],['What is vegan?','2 min','https://pub-773cd539628f450faa7973af5d97c67b.r2.dev/2min_animation.mp4',16/9]]; /* an id is a YouTube video; a full address is Josh's own mp4 */
 /* the kick scooter: Josh's model split into the bars (stem, fork, front wheel) and the deck, so the deck can whip round the stem */
 const SCOOT={model:null,lift:.1,yawOff:-Math.PI/2,axP:new THREE.Vector3(),axD:new THREE.Vector3(0,1,0),ride:new THREE.Group(),
   make(){const g=new THREE.Group();if(SCOOT.model)g.add(SCOOT.model.clone());else{const d=box(1.1,.05,.16,0x2b2e31);d.position.y=.1;d.name='deck';g.add(d);const st=cyl(.03,.03,1.1,P.grey2,6);st.position.set(-.5,.6,0);st.name='bars';g.add(st);}return g;},
@@ -2001,8 +2001,9 @@ function playFilm(i){const [t,d,id,ar]=FILMS[i];if(!CINEMA||!CINEMA.scr)return;c
   const SW=6.4,SH=3.5;let fw=SW,fh=SW/ar;if(fh>SH){fh=SH;fw=SH*ar;} /* the film letterboxed onto the 6.4 x 3.5 m screen */
   const scr=CINEMA.scr;scr.updateMatrixWorld(true);cine.quad=[[-fw/2,fh/2],[fw/2,fh/2],[-fw/2,-fh/2],[fw/2,-fh/2]].map(([x,y])=>new THREE.Vector3(x,y,.02).applyMatrix4(scr.matrixWorld));
   scr.material.color.set(0x05070a);cine.h=ar<1?640:405;cine.w=Math.round(cine.h*ar);
-  const f=document.createElement('iframe');f.id='cinescreen';f.allow='autoplay; fullscreen; picture-in-picture';f.allowFullscreen=true;f.title=t;f.width=cine.w;f.height=cine.h;f.style.visibility='hidden';
-  f.src='https://www.youtube-nocookie.com/embed/'+id+'?autoplay=1&rel=0&playsinline=1';document.body.appendChild(f);cine.el=f;cine.on=true;
+  const own=/^https?:/.test(id);const f=document.createElement(own?'video':'iframe');f.id='cinescreen';f.title=t;f.width=cine.w;f.height=cine.h;f.style.visibility='hidden';
+  if(own){f.controls=true;f.autoplay=true;f.playsInline=true;f.setAttribute('playsinline','');f.preload='auto';f.src=id;f.addEventListener('ended',()=>{if(cine.on)standUp();});const pr=f.play();if(pr&&pr.catch)pr.catch(()=>{});}
+  else{f.allow='autoplay; fullscreen; picture-in-picture';f.allowFullscreen=true;f.src='https://www.youtube-nocookie.com/embed/'+id+'?autoplay=1&rel=0&playsinline=1';}document.body.appendChild(f);cine.el=f;cine.on=true;
   const ba=$('#ba');ba.textContent='Stand up';ba.classList.remove('off');}
 function cineStop(){if(cine.el){cine.el.remove();cine.el=null;}if(cine.on&&CINEMA&&CINEMA.scr)CINEMA.scr.material.color.set(0xffffff);cine.on=false;}
 const _adj=m=>[m[4]*m[8]-m[5]*m[7],m[2]*m[7]-m[1]*m[8],m[1]*m[5]-m[2]*m[4],m[5]*m[6]-m[3]*m[8],m[0]*m[8]-m[2]*m[6],m[2]*m[3]-m[0]*m[5],m[3]*m[7]-m[4]*m[6],m[1]*m[6]-m[0]*m[7],m[0]*m[4]-m[1]*m[3]];
