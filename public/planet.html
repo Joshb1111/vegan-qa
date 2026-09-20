@@ -958,7 +958,7 @@ function townAlong(road,o){o=o||{};const kerb=road.kerb;const end=Math.min(road.
      const lg=box(ELEDGE.x1-ELEDGE.x0,ELEDGE.h,ELEDGE.w,0xbfc3c0);const [,ll,la]=pt((ELEDGE.x0+ELEDGE.x1)/2,ELEDGE.z);placeOn(lg,ll,la,yawFor(ll,la,north));bendPark(lg);colliders.push(lg);
      const py=funBox(PYR.top*2,PYR.half*2,PYR.h);const [,pl_,pa_]=pt(PYR.x,PYR.z);placeOn(py,pl_,pa_,yawFor(pl_,pa_,north));bendPark(py);colliders.push(py);}
     const [,sl,sa]=pt(-9.5,-19.5);npcSpots.push({lon:sl,lat:sa,face:north,fixed:'Sam'});
-    {const sp=parkPt(-5.5,-30.9);const [pl,pa]=lonLatOf(sp);SPIDEY.spot={n:sp.clone(),lon:pl,lat:pa,yaw:yawFor(pl,pa,north.clone().negate())}; /* facing the street, not the park */SPIDEY.w=sp.clone().multiplyScalar(gAt(sp));} /* Spider-Man stands at the edge of the main street's asphalt, by the park entrance (he used to be back on the grass) */
+    {const sp=(()=>{const g=parkPt(13,-30.9);const M=ROADS[0];let best=null,bd=-2;for(const sm of M.samples){const d=g.dot(sm.n);if(d>bd){bd=d;best=sm;}}return best.n.clone().addScaledVector(best.side,(Math.sign(PARK.C.dot(best.side))||1)*1.8/R).normalize();})();const [pl,pa]=lonLatOf(sp); /* about 16 m along the street from the spawn, past the park turning, so his prompt is not the first thing you see */SPIDEY.spot={n:sp.clone(),lon:pl,lat:pa,yaw:yawFor(pl,pa,north.clone().negate())}; /* facing the street, not the park */SPIDEY.w=sp.clone().multiplyScalar(gAt(sp));} /* Spider-Man stands at the edge of the main street's asphalt, by the park entrance (he used to be back on the grass) */
     { /* the fight arena: a round mat out on the race isle, away from the track */
       const an=islePt(0,-2);const [al,aa]=lonLatOf(an);const mat=new THREE.Mesh(new THREE.CylinderGeometry(7,7,.6,40),toon(0x8d5a4a));mat.position.y=.1;const mg=new THREE.Group();mg.add(mat);const ring=new THREE.Mesh(new THREE.TorusGeometry(7,.12,8,48),toon(P.cream));ring.rotation.x=Math.PI/2;ring.position.y=.42;mg.add(ring);placeOn(mg,al,aa,0);bendPark(mg);
       const {east:ae,north:anr}=frameAt(al,aa);SPIDEY.arena={n:an.clone(),east:ae,sx:ae.clone().negate(),north:anr,r:6.4}; /* sx: screen-right as the fight camera sees it */
@@ -1491,7 +1491,7 @@ function update(dt){
     else if(nearRace){ba.textContent='Race';ba.classList.remove('off');}
     else if(nearFilm){ba.textContent='Watch a film';ba.classList.remove('off');}
     else if(nearDoor){ba.textContent=nearDoor.act.label;ba.classList.remove('off');}
-    else if(nearSpidey){ba.textContent=webUnlocked?'Fight Spider-Bot again':'Fight the Spider-Bot';ba.classList.remove('off');}
+    else if(nearSpidey){ba.textContent='1v1 Spider-Man';ba.classList.remove('off');}
     else if(nearBoard){ba.textContent=nearBoard.kind==='scooter'?'Ride the scooter':'Ride the skateboard';ba.classList.remove('off');}
     else if(inRoom){ba.textContent='Back to town';ba.classList.remove('off');}
     else if(!sitting&&!ride.on){pr.classList.add('off');ba.classList.add('off');}}
