@@ -1429,7 +1429,7 @@ function update(dt){
 }
 let last=performance.now();
 let fpsN=0,fpsT=0,skipN=0;function frame(now){if(intro&&LITE&&((++skipN)&1)){requestAnimationFrame(frame);return;} /* the title globe draws every other frame on phones */const dt=Math.min(.25,(now-last)/1000)*(window.__dtScale??1);last=now;if(!paused){let acc=dt;while(acc>1e-4){const h=Math.min(.05,acc);update(h);fightUpdate(h);acc-=h;}} /* a slow phone gets several small steps, so the world and the run keep real time instead of slowing down */
-  raceUpdate(dt);dashUpdate(dt);webUpdate(dt);emoteTick(mySprite);try{mpUpdate(dt);if(myLookWorn===null&&kidModel&&lookKey(myLook)!=='0.0.0.0')wearMine();}catch(e){if(!window.__mpErr){window.__mpErr=e;console.warn('multiplayer',e);}} /* the other players must never be able to stop the game */
+  raceUpdate(dt);dashUpdate(dt);webUpdate(dt);emoteTick(mySprite);try{liveSend();mpUpdate(dt);if(myLookWorn===null&&kidModel&&lookKey(myLook)!=='0.0.0.0')wearMine();}catch(e){if(!window.__mpErr){window.__mpErr=e;console.warn('multiplayer',e);}} /* the other players must never be able to stop the game */
   if(fpsEl){fpsN++;if(now-fpsT>500){fpsEl.textContent=Math.round(fpsN*1000/(now-fpsT))+' fps';fpsN=0;fpsT=now;}}
   if(mixer)mixer.update(dt);applySit();applyRide();applyJump();applyWeb();for(const m of mixers)m.update(dt);updateBirds(dt,now/1000);if(window.__water&&window.__water.userData.sh)window.__water.userData.sh.uniforms.uT.value=now/1000;if(window.__shore&&window.__shore.material.userData.sh)window.__shore.material.userData.sh.uniforms.uT.value=now/1000;renderInk();requestAnimationFrame(frame);}
 requestAnimationFrame(frame);
@@ -1849,7 +1849,7 @@ let myLookWorn=null;function wearMine(){const k=lookKey(myLook);if(myLookWorn===
 /* the others */
 const MP={id:(()=>{let s='';try{s=sessionStorage.getItem('planet-pid')||'';}catch(_){}if(!/^[a-z0-9]{12}$/.test(s)){s='';for(let i=0;i<12;i++)s+='abcdefghijklmnopqrstuvwxyz0123456789'[Math.floor(Math.random()*36)];try{sessionStorage.setItem('planet-pid',s);}catch(_){}}return s;})(),others:new Map(),offset:0,timer:0,alone:true,fails:0,FAST:550,SLOW:2600,DELAY:900};
 function mpState(){const mode=(ride.on?(ride.veh==='scooter'?2:1):0)|(sitting?4:0)|((fight.on||intro)?8:0);return [up.x,up.y,up.z,fwd.x,fwd.y,fwd.z,Math.abs(v)<.05?0:v,mode];}
-async function mpTick(){clearTimeout(MP.timer);const again=ms=>{MP.timer=setTimeout(mpTick,ms);};if(!titleGone||document.hidden||window.__noMP){again(1500);return;}
+async function mpTick(){clearTimeout(MP.timer);const again=ms=>{MP.timer=setTimeout(mpTick,ms);};if(!titleGone||document.hidden||window.__noMP){again(1500);return;}liveStart();if(LIVE.on){again(4000);return;} /* the fast link is carrying the players */
   try{const r=await fetch('/api/world',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({id:MP.id,s:mpState(),n:myName,k:lookKey(myLook)+(Date.now()<myEmote.until?':'+myEmote.i+'-'+myEmote.seq:'')})});if(!r.ok)throw 0;const j=await r.json();MP.fails=0;MP.offset=j.now-Date.now();const seen=new Set();
     for(const p of j.players||[]){seen.add(p.id);let o=MP.others.get(p.id);if(!o){o={id:p.id,snaps:[],av:null,name:null,look:null};MP.others.set(p.id,o);}
       const last=o.snaps[o.snaps.length-1];if(!last||p.t>last.t){o.snaps.push({t:p.t,up:new THREE.Vector3(p.s[0],p.s[1],p.s[2]).normalize(),fwd:new THREE.Vector3(p.s[3],p.s[4],p.s[5]).normalize(),v:p.s[6],mode:p.s[7]|0});if(o.snaps.length>8)o.snaps.shift();}o.wantName=p.n||'Visitor';const kk=String(p.k||'0.0.0.0').split(':');o.wantLook=kk[0]||'0.0.0.0';if(kk[1]){const em=kk[1].split('-');if(o.emSeq!==kk[1]){o.emSeq=kk[1];o.emote=clamp(em[0]|0,0,EMOTES.length-1);o.emoteNew=true;}}}
@@ -1877,6 +1877,24 @@ function mpUpdate(dt){if(!MP.others.size)return;wearMine();const now=Date.now()+
     const wantRun=spd>3.4?1:0,wantWalk=spd>.25&&!wantRun?1:0;av.w.walk+=(wantWalk-av.w.walk)*Math.min(1,dt*7);av.w.run+=(wantRun-av.w.run)*Math.min(1,dt*7);
     if(av.act.walk){av.act.walk.setEffectiveWeight(av.w.walk);av.act.walk.setEffectiveTimeScale(clamp(spd/(clips.walkSpeed||1.4),.6,2));}if(av.act.run){av.act.run.setEffectiveWeight(av.w.run);av.act.run.setEffectiveTimeScale(clamp(spd/(clips.runSpeed||4),.6,1.6));}if(av.act.idle)av.act.idle.setEffectiveWeight(Math.max(0,1-av.w.walk-av.w.run));
     av.deck.visible=!!(mode&3);});}
+/* ---- the fast link: Ably. Positions go out about seven times a second, only while someone else is in the world
+   (presence says who is here). If it cannot connect, the slower polling above carries on instead. ---- */
+const LIVE={on:false,rt:null,ch:null,others:0,lastSend:0,lastKey:'',lastMoveAt:0};
+function mpTakeState(pid,s,n,k,t){if(pid===MP.id||!Array.isArray(s)||s.length<8||s.some(x=>typeof x!=='number'||!isFinite(x)))return;let o=MP.others.get(pid);if(!o){if(MP.others.size>=40)return;o={id:pid,snaps:[],av:null,name:null,look:null};MP.others.set(pid,o);}
+  const last=o.snaps[o.snaps.length-1];if(last&&t<=last.t)t=last.t+1;o.snaps.push({t,up:new THREE.Vector3(s[0],s[1],s[2]).normalize(),fwd:new THREE.Vector3(s[3],s[4],s[5]).normalize(),v:s[6],mode:s[7]|0});if(o.snaps.length>12)o.snaps.shift();o.seenAt=Date.now();
+  o.wantName=String(n||'').replace(/[^\w \-'.]/g,'').trim().slice(0,16)||'Visitor';const kk=String(k||'0.0.0.0').replace(/[^0-9.:-]/g,'').slice(0,40).split(':');o.wantLook=kk[0]||'0.0.0.0';if(kk[1]&&o.emSeq!==kk[1]){o.emSeq=kk[1];o.emote=clamp(kk[1].split('-')[0]|0,0,EMOTES.length-1);o.emoteNew=true;}}
+function mpChip(){MP.alone=MP.others.size===0;const chip=$('#online');chip.hidden=MP.alone;if(!MP.alone)chip.textContent=(MP.others.size+1)+' here';}
+function liveStart(){if(LIVE.rt||window.__noLive)return;const sc=document.createElement('script');sc.src='https://cdn.jsdelivr.net/npm/ably@2/build/ably.min.js';sc.onerror=()=>{};
+  sc.onload=()=>{try{const rt=new Ably.Realtime({authUrl:'/api/ably-token',authParams:{clientId:MP.id},clientId:MP.id,echoMessages:false,transportParams:{heartbeatInterval:15000}});LIVE.rt=rt;const ch=rt.channels.get('planet:world');LIVE.ch=ch;
+      const count=()=>ch.presence.get().then(m=>{LIVE.others=m.filter(x=>x.clientId!==MP.id).length;}).catch(()=>{});
+      ch.subscribe('s',msg=>{const d=msg.data||{};mpTakeState(String(msg.clientId||''),d.s,d.n,d.k,Date.now()+MP.offset);mpChip();});
+      ch.presence.subscribe(['enter','leave','present'],m=>{count();if(m.action==='leave'){const o=MP.others.get(m.clientId);if(o){mpDrop(o);MP.others.delete(m.clientId);mpChip();}}else LIVE.lastSend=0; /* someone arrived: say where we are straight away */});
+      rt.connection.on('connected',()=>{LIVE.on=true;MP.DELAY=190;ch.presence.enter({}).then(count).catch(()=>{});});rt.connection.on(['disconnected','suspended','failed','closed'],()=>{LIVE.on=false;MP.DELAY=900;});}catch(_){LIVE.rt=null;}};document.head.appendChild(sc);}
+function liveSend(){if(!LIVE.on||!LIVE.ch||!titleGone||document.hidden)return;const now=performance.now();if(LIVE.others<1&&MP.others.size<1)return;const s=mpState(),key=s.map(x=>x.toFixed(3)).join(',')+lookKey(myLook)+myEmote.seq;const changed=key!==LIVE.lastKey;if(changed)LIVE.lastMoveAt=now;
+  const gap=changed||now-LIVE.lastMoveAt<400?140:1500;if(now-LIVE.lastSend<gap)return;LIVE.lastSend=now;LIVE.lastKey=key;LIVE.ch.publish('s',{s:s.map(x=>Math.round(x*10000)/10000),n:myName,k:lookKey(myLook)+(Date.now()<myEmote.until?':'+myEmote.i+'-'+myEmote.seq:'')}).catch(()=>{});}
+function liveSweep(){if(!LIVE.on)return;const t=Date.now();for(const [id,o] of MP.others)if(t-(o.seenAt||0)>7000){mpDrop(o);MP.others.delete(id);mpChip();}}
+setInterval(liveSweep,2000);addEventListener('pagehide',()=>{try{if(LIVE.rt)LIVE.rt.close();}catch(_){}});
+window.__live=LIVE;
 addEventListener('pagehide',()=>{try{navigator.sendBeacon('/api/world',new Blob([JSON.stringify({id:MP.id,s:[0,1,0,1,0,0,0,8],bye:1})],{type:'application/json'}));}catch(_){}});
 document.addEventListener('visibilitychange',()=>{if(!document.hidden)mpTick();});mpTick();
 window.__mp=MP;window.__setLook=l=>{Object.assign(myLook,l);wearMine();};
