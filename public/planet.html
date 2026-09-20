@@ -564,7 +564,7 @@ const colliders=[];let skyDome=null,nightDome=null,SUNSET=null;const PLACES={};
     const cv=document.createElement('canvas');cv.width=CW;cv.height=CH;const g2=cv.getContext('2d');const im=g2.createImageData(CW,CH);const D=im.data;
     const GN=Math.ceil(2*X),GM=Math.ceil(2*Z),gmap=new Uint8Array(GN*GM);if(PARK_GUARD){for(let b=0;b<GM;b++)for(let a=0;a<GN;a++)if(guardDist(parkPt(-X+a+.5,-Z+b+.5))<GUARDW+5){for(let q=-1;q<=1;q++)for(let p_=-1;p_<=1;p_++){const aa=a+p_,bb=b+q;if(aa>=0&&bb>=0&&aa<GN&&bb<GM)gmap[bb*GN+aa]=1;}}}
     const nearGuard=(x,z)=>{const a=Math.floor(x+X),b=Math.floor(z+Z);return a>=0&&b>=0&&a<GN&&b<GM&&gmap[b*GN+a]===1;};
-    const outAt=(x,z)=>{let o=Math.hypot(Math.max(0,Math.abs(x)-PARK_EXT.hx),Math.max(0,Math.abs(z)-PARK_EXT.hz));if(nearGuard(x,z)){const n=parkPt(x,z);if(o<w)o=parkOutE(n);if(o>=w&&guardDist(n)<0)o=99; /* the paved rim gives way to the main street's own pavement */}return o;};
+    const outAt=(x,z)=>{let o=Math.hypot(Math.max(0,Math.abs(x)-PARK_EXT.hx),Math.max(0,Math.abs(z)-PARK_EXT.hz));if(nearGuard(x,z)){const n=parkPt(x,z);const gd=guardDist(n);if(gd<.15)o=99; /* on a street or its pavement: the skirt paints nothing there */else if(o<w)o=parkOutE(n); /* the paved rim gives way to the main street's own pavement */}return o;};
     for(let j=0;j<CH;j++){const z=Z-(j+.5)/CH*2*Z;for(let i=0;i<CW;i++){const x=-X+(i+.5)/CW*2*X;const o=outAt(x,z);let c;
         if(o<=0)c=Math.hypot(x-WBOWL.x,z-WBOWL.z)<WBOWL.r?[174,179,175]:[196,200,196];else if(o<.22)c=[146,153,150];else if(o<w)c=[156,184,124];else if(o<w+RIM)c=[201,204,195];else c=null;
         const k=(j*CW+i)*4;if(c){D[k]=c[0];D[k+1]=c[1];D[k+2]=c[2];D[k+3]=255;}else{D[k]=156;D[k+1]=184;D[k+2]=124;D[k+3]=0;}}}
@@ -612,7 +612,7 @@ const colliders=[];let skyDome=null,nightDome=null,SUNSET=null;const PLACES={};
   function endRows(road,offs,lim0,lim1){ /* rows for an open road: a clipped row at each joined end, the plain samples between */
     const S=road.samples;let sLo=road.trim0,sHi=road.L-road.trim1,r0=null,r1=null;const H0=road.host0||MAINR,H1=road.host1||(road.trim1>0?RINGR:null);
     if(road.kind!=='path'){r0=offs.map(o=>clipS(road,H0,o,false,lim0(H0)));sLo=Math.max(...r0)+.25;if(H1){r1=offs.map(o=>clipS(road,H1,o,true,lim1(H1)));sHi=Math.min(...r1)-.25;}}
-    if(offs.length>3){road.cut0=r0;road.cut1=r1;window.__allRoads=ROADS;}const rows=[];if(r0)rows.push({cut:r0});for(const sm of S)if(sm.s>=sLo&&sm.s<=sHi)rows.push({sm});if(r1)rows.push({cut:r1});return rows;}
+    if(offs.length===7){road.cut0=r0;road.cut1=r1;window.__allRoads=ROADS;}const rows=[];if(r0)rows.push({cut:r0});for(const sm of S)if(sm.s>=sLo&&sm.s<=sHi)rows.push({sm});if(r1)rows.push({cut:r1});return rows;}
   const rowPoint=(road,row,j,o)=>{const sm=row.cut?atSx(road,row.cut[j]):row.sm;return {sm,pt:_q.copy(sm.n).addScaledVector(sm.side,o/R).normalize()};};
   for(const road of ROADS){const S=road.samples,M=6,hw=road.halfW,N=S.length;const texLen=road.closed?road.L/Math.round(road.L/19.6):19.6;const pos=[],uv=[],idx=[];
     const offs=Array.from({length:M+1},(_,j)=>hw*(1-2*j/M));
@@ -623,10 +623,10 @@ const colliders=[];let skyDome=null,nightDome=null,SUNSET=null;const PLACES={};
     const rg=new THREE.BufferGeometry();rg.setAttribute('position',new THREE.Float32BufferAttribute(pos,3));rg.setAttribute('uv',new THREE.Float32BufferAttribute(uv,2));rg.setIndex(idx);rg.computeVertexNormals();
     if(road.kind==='path')continue;const rm=new THREE.Mesh(rg,road.kind==='road'?(road.closed?roadMat:sideMat):road.kind==='track'?trackMat:alleyMat);scene.add(rm);if(road.kind==='track'){rm.visible=false;window.__raceTrack=rm;} /* race courses only appear while you are racing */
     if(road.kind==='road'){ /* a paved strip either side, from the kerb line to where the plots begin */
-      for(const sd of [1,-1]){const pp=[],pi=[];const a0=road.kerb+.02,a1=road.kerb+2.15;const po=[sd*a0,sd*a1];
+      for(const sd of [1,-1]){const pp=[],pi=[];const a0=road.kerb+.02,a1=road.kerb+2.15;const PC=5,po=Array.from({length:PC},(_,j)=>sd*(a0+(a1-a0)*j/(PC-1))); /* five columns, not two: on ground that dips across the street a two-point strip rode above the road's verge and showed through it in blocky steps */
         const pRows=road.closed?rowList:endRows(road,po,H=>H.kerb+2.1,H=>H.kerb+2.1); /* a side street's pavement butts into the far edge of the host's pavement */
-        for(let i=0;i<pRows.length;i++){for(let j=0;j<2;j++){const {pt}=rowPoint(road,pRows[i],j,po[j]);const h=hAt(pt)+road.lift-.01;pp.push(pt.x*h,pt.y*h,pt.z*h);}}
-        for(let i=0;i<pRows.length-1;i++){const a=i*2,b=a+1,c=a+2,d=c+1;pi.push(a,b,c,b,d,c);}
+        for(let i=0;i<pRows.length;i++){for(let j=0;j<PC;j++){const {pt}=rowPoint(road,pRows[i],j,po[j]);const h=hAt(pt)+road.lift-.01;pp.push(pt.x*h,pt.y*h,pt.z*h);}}
+        for(let i=0;i<pRows.length-1;i++)for(let j=0;j<PC-1;j++){const a=i*PC+j,b=a+1,c=a+PC,d=c+1;pi.push(a,b,c,b,d,c);}
         const pg=new THREE.BufferGeometry();pg.setAttribute('position',new THREE.Float32BufferAttribute(pp,3));pg.setIndex(pi);pg.computeVertexNormals();
         const pm=new THREE.Mesh(pg,pavementMat);pm.userData.noInk=true;scene.add(pm);}}}
   /* junction mouths: a strip of plain asphalt from the host road's kerb line out past its verge, as wide as the side road's asphalt */
