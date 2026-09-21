@@ -108,6 +108,7 @@ body.fighting #hint,body.fighting #menubtn,body.fighting #musicbtn,body.fighting
 #racepick,#dashend{position:fixed;left:50%;top:50%;transform:translate(-50%,-50%);z-index:24;width:min(360px,92vw);padding:14px 16px;font-family:var(--hand);background:var(--cream);display:flex;flex-direction:column;gap:10px}#racepick[hidden],#dashend[hidden]{display:none}
 #racepick h2,#dashend h2{margin:0;font-size:28px;font-weight:normal}#racepick .ink,#dashend .ink{font-family:var(--hand);font-size:22px;padding:10px 12px;cursor:pointer;background:#f4c945;color:#26333a;text-align:left}#racepick .ink small{display:block;font-size:16px;color:#5f6d72}#pick-x{appearance:none;border:0;background:none;font-family:var(--hand);font-size:18px;color:var(--red);text-decoration:underline;cursor:pointer}
 #dashend ol{list-style:none;margin:0;padding:0;font-size:22px}#dashend li{display:flex;justify-content:space-between;padding:3px 0;border-bottom:1px dashed #c9ccc3}#dashend li.me{color:#c8402f}#dashend b{font-weight:normal;font-variant-numeric:tabular-nums}#dashend .row{display:flex;gap:8px}#dashend .row .ink{flex:1;text-align:center;font-size:19px}#dash-go{color:#2e6fb5!important}
+.icn img{width:38px;height:38px;display:block;margin:auto;pointer-events:none}#emotes button img{width:38px;height:38px;display:block;margin:auto;pointer-events:none}
 #emotebtn{position:absolute;top:calc(max(14px,env(safe-area-inset-top)) + 186px);right:14px;width:52px;height:52px;appearance:none;cursor:pointer;padding:0;font-size:24px;line-height:1}
 #emotes{position:absolute;top:calc(max(14px,env(safe-area-inset-top)) + 186px);right:76px;z-index:8;display:flex;flex-wrap:wrap;gap:6px;max-width:min(250px,calc(100vw - 100px));padding:8px;background:var(--cream);border:3px solid #26333a;border-radius:14px}#emotes[hidden]{display:none}#emotes button{width:48px;height:48px;font-size:26px;border:2px solid #26333a;border-radius:12px;background:#fffdf6;cursor:pointer;padding:0}
 #racehud{position:fixed;left:50%;top:max(14px,env(safe-area-inset-top));transform:translateX(-50%);z-index:5;display:flex;align-items:baseline;gap:12px;padding:6px 14px;font-family:var(--hand)}
@@ -193,11 +194,11 @@ body.intro #game{background:#5abfb2}
   <div id="prompt" class="off ink"><b></b><span></span></div>
   <button id="menubtn" class="ink" type="button" aria-label="People" aria-expanded="false"><svg viewBox="0 0 30 30" fill="none" stroke="#26333a" stroke-width="2.6" stroke-linecap="round"><path d="M9 8h15M9 15h15M9 22h15"/><circle cx="4.5" cy="8" r="1.4" fill="#26333a"/><circle cx="4.5" cy="15" r="1.4" fill="#26333a"/><circle cx="4.5" cy="22" r="1.4" fill="#26333a"/></svg></button>
   <button id="musicbtn" class="ink" type="button" aria-label="Music" aria-pressed="true">♪</button>
-  <button id="lookbtn" class="ink" type="button" aria-label="Change your outfit">👕</button>
-  <button id="emotebtn" class="ink" type="button" aria-label="Emotes">😊</button>
+  <button id="lookbtn" class="ink icn" type="button" aria-label="Change your outfit"><img src="assets/icons/shirt.png" alt=""></button>
+  <button id="emotebtn" class="ink icn" type="button" aria-label="Emotes"><img src="assets/icons/smile.png" alt=""></button>
   <div id="emotes" hidden></div>
   <button id="gfxbtn" class="ink" type="button" aria-label="Graphics quality"></button>
-  <button id="voicebtn" class="ink" type="button" aria-label="Voice chat" aria-pressed="false">🎤</button>
+  <button id="voicebtn" class="ink icn" type="button" aria-label="Voice chat" aria-pressed="false"><img src="assets/icons/mic.png" alt=""></button>
   <div id="gfx" hidden></div>
   <span id="online" hidden></span>
   <div id="look" class="ink" hidden></div>
@@ -1499,7 +1500,7 @@ function update(dt){
 }
 let last=performance.now();
 let fpsN=0,fpsT=0,skipN=0;function frame(now){if(intro&&LITE&&((++skipN)&1)){requestAnimationFrame(frame);return;} /* the title globe draws every other frame on phones */const dt=Math.min(.25,(now-last)/1000)*(window.__dtScale??1);last=now;if(!paused){let acc=dt;while(acc>1e-4){const h=Math.min(.05,acc);update(h);fightUpdate(h);acc-=h;}} /* a slow phone gets several small steps, so the world and the run keep real time instead of slowing down */
-  raceUpdate(dt);dashUpdate(dt);webUpdate(dt);emoteTick(mySprite);try{liveSend();mpUpdate(dt);if(myLookWorn===null&&kidModel&&lookKey(myLook)!=='0.0.0.0')wearMine();}catch(e){if(!window.__mpErr){window.__mpErr=e;console.warn('multiplayer',e);}} /* the other players must never be able to stop the game */
+  raceUpdate(dt);dashUpdate(dt);webUpdate(dt);emoteTick(mySprite);try{liveSend();mpUpdate(dt);if(myLookWorn===null&&kidModel&&!plainLook(lookKey(myLook)))wearMine();}catch(e){if(!window.__mpErr){window.__mpErr=e;console.warn('multiplayer',e);}} /* the other players must never be able to stop the game */
   if(fpsEl){fpsN++;if(now-fpsT>500){fpsEl.textContent=Math.round(fpsN*1000/(now-fpsT))+' fps';fpsN=0;fpsT=now;}}
   if(mixer)mixer.update(dt);applySit();applyRide();applyJump();applyWeb();for(const m of mixers)m.update(dt);updateBirds(dt,now/1000);if(window.__water&&window.__water.userData.sh)window.__water.userData.sh.uniforms.uT.value=now/1000;if(window.__shore&&window.__shore.material.userData.sh)window.__shore.material.userData.sh.uniforms.uT.value=now/1000;renderInk();requestAnimationFrame(frame);}
 requestAnimationFrame(frame);
@@ -1904,10 +1905,10 @@ function washGame(root){const A='a',P='p';const ALL=[['🧶','Wool jumper',A,'Wo
    everyone else back; the others are drawn as copies of the kid, moved smoothly between the positions received.
    The outfit button recolours hair, jacket, shorts and shoes, so players can be told apart.
    ===================================================================== */
-const LOOK_OPTS={h:['','#6b3f1d','#d9a441','#c0392b','#7b4fbf','#2e86c1','#e9e9e9','#ff7eb6'],j:['','#2e6fb5','#3d9a5b','#f4c945','#7b4fbf','#2f3b44','#f28c28','#ff7eb6','#f3efe4'],s:['','#2f3b44','#2e6fb5','#8a5a2b','#f3efe4','#3d9a5b'],f:['','#2e6fb5','#2f3b44','#f4c945','#3d9a5b','#f3efe4']};
-const LOOK_NAMES={h:'Hair',j:'Jacket',s:'Shorts',f:'Shoes'};
-let myLook={h:0,j:0,s:0,f:0},myName='';try{const l=JSON.parse(localStorage.getItem('planet-look')||'null');if(l)for(const k in myLook)myLook[k]=clamp(l[k]|0,0,LOOK_OPTS[k].length-1);myName=localStorage.getItem('planet-name')||'';}catch(_){}
-const lookKey=l=>[l.h,l.j,l.s,l.f].join('.');const parseLook=k=>{const a=String(k||'').split('.').map(x=>x|0);const o={h:a[0]||0,j:a[1]||0,s:a[2]||0,f:a[3]||0};for(const q in o)o[q]=clamp(o[q],0,LOOK_OPTS[q].length-1);return o;};
+const LOOK_OPTS={k:['','#f7dcc6','#e3b088','#c98f62','#9c6540','#6f4529','#4b2e1c'],h:['','#6b3f1d','#d9a441','#c0392b','#7b4fbf','#2e86c1','#e9e9e9','#ff7eb6'],j:['','#2e6fb5','#3d9a5b','#f4c945','#7b4fbf','#2f3b44','#f28c28','#ff7eb6','#f3efe4'],s:['','#2f3b44','#2e6fb5','#8a5a2b','#f3efe4','#3d9a5b'],f:['','#2e6fb5','#2f3b44','#f4c945','#3d9a5b','#f3efe4']};
+const LOOK_NAMES={k:'Skin',h:'Hair',j:'Jacket',s:'Shorts',f:'Shoes'};const plainLook=key=>/^0(\.0)*$/.test(String(key||'0'));
+let myLook={h:0,j:0,s:0,f:0,k:0},myName='';try{const l=JSON.parse(localStorage.getItem('planet-look')||'null');if(l)for(const k in myLook)myLook[k]=clamp(l[k]|0,0,LOOK_OPTS[k].length-1);myName=localStorage.getItem('planet-name')||'';}catch(_){}
+const lookKey=l=>[l.h,l.j,l.s,l.f,l.k||0].join('.');const parseLook=k=>{const a=String(k||'').split('.').map(x=>x|0);const o={h:a[0]||0,j:a[1]||0,s:a[2]||0,f:a[3]||0,k:a[4]||0};for(const q in o)o[q]=clamp(o[q],0,LOOK_OPTS[q].length-1);return o;};
 const kidSkin={ready:false,S:0,base:null,zone:null,orig:null,cache:new Map()};
 const kidMesh=root=>{let m=null;root.traverse(o=>{if(o.isSkinnedMesh&&!m)m=o;});return m;};
 function kidSkinInit(){if(kidSkin.ready||!kidModel)return kidSkin.ready;const mesh=kidMesh(kidModel);if(!mesh||!mesh.material.map||!mesh.material.map.image)return false;const img=mesh.material.map.image,S=LITE?512:1024;
@@ -1922,19 +1923,21 @@ function kidSkinInit(){if(kidSkin.ready||!kidModel)return kidSkin.ready;const me
     if(z===1){const cx=(P.getX(a)+P.getX(b)+P.getX(d))/3,cy=(P.getY(a)+P.getY(b)+P.getY(d))/3,cz=(P.getZ(a)+P.getZ(b)+P.getZ(d))/3;if(Math.abs(cx-xc)<fw&&cy<fy&&cz>fz)z=4;}
     zg.fillStyle=zg.strokeStyle='rgb('+z*50+',0,0)';zg.lineWidth=2;zg.beginPath();zg.moveTo(UV.getX(a)*S,UV.getY(a)*S);zg.lineTo(UV.getX(b)*S,UV.getY(b)*S);zg.lineTo(UV.getX(d)*S,UV.getY(d)*S);zg.closePath();zg.fill();zg.stroke();}
   kidSkin.zone=zg.getImageData(0,0,S,S).data;kidSkin.S=S;kidSkin.orig=mesh.material.map;kidSkin.ready=true;return true;}
-function lookTexture(key){if(key==='0.0.0.0'||!kidSkinInit())return kidSkin.orig;if(kidSkin.cache.has(key))return kidSkin.cache.get(key);const L=parseLook(key),S=kidSkin.S,src=kidSkin.base.data,Z=kidSkin.zone;
+function lookTexture(key){if(plainLook(key)||!kidSkinInit())return kidSkin.orig;if(kidSkin.cache.has(key))return kidSkin.cache.get(key);const L=parseLook(key),S=kidSkin.S,src=kidSkin.base.data,Z=kidSkin.zone;
   const c=document.createElement('canvas');c.width=c.height=S;const g=c.getContext('2d');const out=g.createImageData(S,S),D=out.data;const rgb=h=>h?[parseInt(h.slice(1,3),16),parseInt(h.slice(3,5),16),parseInt(h.slice(5,7),16)]:null;
-  const T={h:rgb(LOOK_OPTS.h[L.h]),j:rgb(LOOK_OPTS.j[L.j]),s:rgb(LOOK_OPTS.s[L.s]),f:rgb(LOOK_OPTS.f[L.f])};
-  for(let i=0;i<S*S*4;i+=4){const r=src[i],gg=src[i+1],b=src[i+2];D[i]=r;D[i+1]=gg;D[i+2]=b;D[i+3]=255;const z=Math.round(Z[i]/50);if(!z||z===4)continue;
+  const T={h:rgb(LOOK_OPTS.h[L.h]),j:rgb(LOOK_OPTS.j[L.j]),s:rgb(LOOK_OPTS.s[L.s]),f:rgb(LOOK_OPTS.f[L.f]),k:rgb(LOOK_OPTS.k[L.k])};
+  for(let i=0;i<S*S*4;i+=4){const r=src[i],gg=src[i+1],b=src[i+2];D[i]=r;D[i+1]=gg;D[i+2]=b;D[i+3]=255;const z=Math.round(Z[i]/50);if(!z)continue;
     const mx=Math.max(r,gg,b),mn=Math.min(r,gg,b),v=mx/255,s=mx?1-mn/mx:0;let hue=0;if(mx!==mn){const d=mx-mn;hue=mx===r?((gg-b)/d+6)%6:mx===gg?(b-r)/d+2:(r-gg)/d+4;hue*=60;}
-    let t=null,ref=1;if(z===1&&T.h&&v<.34&&s<.5){t=T.h;ref=.2;}else if((hue<22||hue>338)&&s>.42&&v>.18){if(z===3&&T.j){t=T.j;ref=.72;}else if(z===2&&T.f){t=T.f;ref=.72;}}else if(z===3&&T.s&&hue>40&&hue<100&&s>.12&&s<.62&&v>.18&&v<.8){t=T.s;ref=.52;}
+    let t=null,ref=1;if(T.k&&hue>8&&hue<40&&s>.16&&s<.62&&v>.5){t=T.k;ref=.95;} /* skin: the warm, light, softly saturated pixels anywhere on him, face included (eyes, brows and mouth are darker or redder, so they keep their colours) */
+    else if(z===4){} /* nothing else changes on the face */
+    else if(z===1&&T.h&&v<.34&&s<.5){t=T.h;ref=.2;}else if((hue<22||hue>338)&&s>.42&&v>.18){if(z===3&&T.j){t=T.j;ref=.72;}else if(z===2&&T.f){t=T.f;ref=.72;}}else if(z===3&&T.s&&hue>40&&hue<100&&s>.12&&s<.62&&v>.18&&v<.8){t=T.s;ref=.52;}
     if(t){const k=clamp(v/ref,.35,1.35);D[i]=Math.min(255,t[0]*k);D[i+1]=Math.min(255,t[1]*k);D[i+2]=Math.min(255,t[2]*k);}}
   g.putImageData(out,0,0);const tx=new THREE.CanvasTexture(c);tx.flipY=false;tx.encoding=THREE.LinearEncoding;tx.anisotropy=4;kidSkin.cache.set(key,tx);if(kidSkin.cache.size>14){const k0=kidSkin.cache.keys().next().value;if(k0!==lookKey(myLook)){kidSkin.cache.get(k0).dispose();kidSkin.cache.delete(k0);}}return tx;}
 function wearLook(root,key){const m=kidMesh(root);if(!m)return false;const tx=lookTexture(key);if(!tx)return false;if(m.material.map!==tx){m.material.map=tx;m.material.needsUpdate=true;}return true;}
 let myLookWorn=null;function wearMine(){const k=lookKey(myLook);if(myLookWorn===k||!kidModel)return;if(wearLook(kidModel,k))myLookWorn=k;}
 /* the outfit panel */
 (function lookUI(){const panel=$('#look');const draw=()=>{let h='<label class="lname">Name <input id="look-name" type="text" maxlength="16" placeholder="shown above your head" value="'+myName.replace(/"/g,'&quot;')+'"></label>';
-    for(const k of ['h','j','s','f']){h+='<div class="lrow"><span>'+LOOK_NAMES[k]+'</span><div>';LOOK_OPTS[k].forEach((c,i)=>{h+='<button type="button" data-k="'+k+'" data-i="'+i+'" class="sw'+(myLook[k]===i?' on':'')+'" style="background:'+(c||'#fffdf6')+'">'+(c?'':'×')+'</button>';});h+='</div></div>';}
+    for(const k of ['k','h','j','s','f']){h+='<div class="lrow"><span>'+LOOK_NAMES[k]+'</span><div>';LOOK_OPTS[k].forEach((c,i)=>{h+='<button type="button" data-k="'+k+'" data-i="'+i+'" class="sw'+(myLook[k]===i?' on':'')+'" style="background:'+(c||'#fffdf6')+'">'+(c?'':'×')+'</button>';});h+='</div></div>';}
     panel.innerHTML=h+'<button type="button" class="ink ldone">Done</button>';};
   $('#lookbtn').addEventListener('click',e=>{e.stopPropagation();panel.hidden=!panel.hidden;if(!panel.hidden)draw();});
   panel.addEventListener('click',e=>{const b=e.target.closest('.sw');if(b){myLook[b.dataset.k]=+b.dataset.i;try{localStorage.setItem('planet-look',JSON.stringify(myLook));}catch(_){}draw();wearMine();return;}if(e.target.closest('.ldone')){panel.hidden=true;game.focus();}});
@@ -2121,14 +2124,14 @@ $('#voicebtn').addEventListener('click',e=>{e.stopPropagation();voiceOnAsk();});
   btn.addEventListener('click',e=>{e.stopPropagation();tray.hidden=!tray.hidden;$('#emotes').hidden=true;$('#look').hidden=true;});
   tray.addEventListener('click',e=>{const b=e.target.closest('[data-g]');if(!b)return;if(b.dataset.g===QUALITY){tray.hidden=true;return;}try{localStorage.setItem('planet-quality',b.dataset.g);}catch(_){}location.reload();});})();
 /* ---- emotes: a fixed set of pictures that pop up over your head; no free text, so nothing unsuitable can be said ---- */
-const EMOTES=['👋','❤️','😂','👍','🎉','😮','🛹','🌱'];const myEmote={i:-1,seq:0,until:0};const emoteTex=[];
+const EMOTES=['👋','❤️','😂','👍','🎉','😮','🛹','🙂'],EMOTE_ICON=['wave','heart','laugh','thumb','party','wow','skate','smile'],EMOTE_IMG=EMOTE_ICON.map((n,i)=>{const im=new Image();im.onload=()=>{if(emoteTex[i]){emoteTex[i].dispose();emoteTex[i]=null;}};im.src='assets/icons/'+n+'.png';return im;}); /* Josh's drawn icons; the emoji is only the fallback until a picture has loaded */const myEmote={i:-1,seq:0,until:0};const emoteTex=[];
 function emoteTexture(i){if(emoteTex[i])return emoteTex[i];const c=document.createElement('canvas');c.width=c.height=128;const g=c.getContext('2d');g.fillStyle='#fffdf6';g.strokeStyle='#26333a';g.lineWidth=5;g.beginPath();g.arc(64,56,50,0,6.283);g.fill();g.stroke();g.beginPath();g.moveTo(50,100);g.lineTo(64,124);g.lineTo(78,100);g.closePath();g.fill();g.stroke();g.fillStyle='#fffdf6';g.fillRect(48,92,32,12);
-  g.font='62px "Apple Color Emoji","Segoe UI Emoji","Noto Color Emoji",sans-serif';g.textAlign='center';g.textBaseline='middle';g.fillText(EMOTES[i],64,60);return emoteTex[i]=new THREE.CanvasTexture(c);}
+  const im=EMOTE_IMG[i];if(im&&im.complete&&im.naturalWidth){g.drawImage(im,24,16,80,80);}else{g.font='62px "Apple Color Emoji","Segoe UI Emoji","Noto Color Emoji",sans-serif';g.textAlign='center';g.textBaseline='middle';g.fillText(EMOTES[i],64,60);}return emoteTex[i]=new THREE.CanvasTexture(c);}
 function emoteSprite(parent,y){const s=new THREE.Sprite(new THREE.SpriteMaterial({map:null,depthWrite:false,transparent:true}));s.position.set(0,y,0);s.visible=false;s.userData.noInk=true;s.userData.skipInk=true;s.userData.t0=0;parent.add(s);hideInNormals.push(s);return s;}
 function emoteShow(sp,i){sp.material.map=emoteTexture(i);sp.material.needsUpdate=true;sp.userData.t0=performance.now();sp.visible=true;}
 function emoteTick(sp){if(!sp||!sp.visible)return;const t=(performance.now()-sp.userData.t0)/1000;if(t>3.6){sp.visible=false;return;}const k=t<.25?1.25*Math.sin(t/.25*Math.PI*.6)/Math.sin(Math.PI*.6):t>3.2?Math.max(0,(3.6-t)/.4):1;sp.scale.setScalar(.95*k+.0001);}
 let mySprite=null;function doEmote(i){if(!kidModel)return;if(!mySprite)mySprite=emoteSprite(kidModel,2.55);emoteShow(mySprite,i);myEmote.i=i;myEmote.seq=(myEmote.seq%900)+1;myEmote.until=Date.now()+5000;tone(700,1000,.1,'triangle',.06);$('#emotes').hidden=true;if(MP.alone===false)mpTick();}
-(function emoteUI(){const tray=$('#emotes');tray.innerHTML=EMOTES.map((e,i)=>'<button type="button" data-e="'+i+'">'+e+'</button>').join('');$('#emotebtn').addEventListener('click',ev=>{ev.stopPropagation();tray.hidden=!tray.hidden;$('#look').hidden=true;$('#gfx').hidden=true;});tray.addEventListener('click',ev=>{const b=ev.target.closest('[data-e]');if(b){doEmote(+b.dataset.e);game.focus();}});})();
+(function emoteUI(){const tray=$('#emotes');tray.innerHTML=EMOTES.map((e,i)=>'<button type="button" data-e="'+i+'" aria-label="'+EMOTE_ICON[i]+'"><img src="assets/icons/'+EMOTE_ICON[i]+'.png" alt="'+e+'"></button>').join('');$('#emotebtn').addEventListener('click',ev=>{ev.stopPropagation();tray.hidden=!tray.hidden;$('#look').hidden=true;$('#gfx').hidden=true;});tray.addEventListener('click',ev=>{const b=ev.target.closest('[data-e]');if(b){doEmote(+b.dataset.e);game.focus();}});})();
 
 /* ---------- the beach cinema ---------- */
 /* choosing a film cuts to the kid sitting on a log in front of the screen; the film itself is a YouTube frame pinned,
