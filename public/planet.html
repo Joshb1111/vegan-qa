@@ -277,7 +277,7 @@ const COARSE=matchMedia('(pointer:coarse)').matches&&!matchMedia('(any-hover:hov
 const QUALITY=(()=>{const q=location.search;if(/[?&]full\b/.test(q))return 'full';if(/[?&]min\b/.test(q))return 'min';if(/[?&]lite\b/.test(q))return 'lite';try{const p=localStorage.getItem('planet-quality');if(p==='full'||p==='lite'||p==='min')return p;}catch(_){}
   if(!COARSE)return 'full';const ipad=/iPad/.test(navigator.userAgent)||(/Macintosh/.test(navigator.userAgent)&&navigator.maxTouchPoints>1);return ipad?'min':'lite';})();
 const LITE=QUALITY!=='full',MIN=QUALITY==='min';
-const LITE_SET=new Set('spidey building1v2 building3 building4 building5 building6 building7 building8 building9 building10 building11 building12 building13 building14 building15 building16 building17 building18 building19 building20 building21 building22 building23 building24 building25 building26 npc1 npc2 npc3 npc4 npc5 npc6 npc7 kid scooter skatepark'.split(' '));
+const LITE_SET=new Set('lighthouse spidey building1v2 building3 building4 building5 building6 building7 building8 building9 building10 building11 building12 building13 building14 building15 building16 building17 building18 building19 building20 building21 building22 building23 building24 building25 building26 npc1 npc2 npc3 npc4 npc5 npc6 npc7 kid scooter skatepark'.split(' '));
 function A(url){if(!LITE)return url;const m=url.match(/^assets\/([A-Za-z0-9_]+)\.glb(\?.*)?$/);return m&&LITE_SET.has(m[1])?'assets/lite/'+m[1]+'.glb?lv=2':url;} /* lv: bump when the lite set is rebuilt, so phones drop their cached copies */
 function texCap(url){const n=(url.match(/([A-Za-z0-9_]+)\.glb/)||[])[1]||'';if(!LITE)return 0;if(/^skatepark/.test(n))return 1024;if(MIN)return /^kid/.test(n)?1024:/^(building|npc|spidey|scooter)/.test(n)?512:256;return LITE_SET.has(n)?0:512;} /* 0 = leave alone */
 function capTextures(g,max){if(!max||!g||!g.scene)return;const seen=new Set();g.scene.traverse(m=>{const mats=m.material?(Array.isArray(m.material)?m.material:[m.material]):[];for(const mt of mats){for(const k of ['normalMap','roughnessMap','metalnessMap','aoMap','emissiveMap']){if(mt[k]){mt[k].dispose();mt[k]=null;}} /* never drawn: the game repaints every model with a flat material */
@@ -396,6 +396,7 @@ const parkPt=(dx,dz)=>new THREE.Vector3().copy(PARK.C).addScaledVector(PARK.east
 /* the race isle: a flat island out in the southern sea, reached only by the race button; and the break room, a little house near the top of the world */
 const ISLE={lon:3.5,lat:-1.12,r:22};const ISLE_N=sphere(ISLE.lon,ISLE.lat);const ISLE_F=(()=>{const {east,north}=frameAt(ISLE.lon,ISLE.lat);return {east,north};})();
 const islePt=(dx,dz)=>new THREE.Vector3().copy(ISLE_N).addScaledVector(ISLE_F.east,dx/R).addScaledVector(ISLE_F.north,dz/R).normalize();
+const LH={lon:1.02,lat:-1.2,r:7};const LH_N=sphere(LH.lon,LH.lat);function lhOut(n){const k=n.dot(LH_N);if(k<.9)return 1e9;return Math.max(0,Math.acos(clamp(k,-1,1))*R-LH.r);} /* the lighthouse rock, 42 m out from the beach */
 function isleOut(n){const k=n.dot(ISLE_N);if(k<.3)return 1e9;return Math.max(0,Math.acos(clamp(k,-1,1))*R-ISLE.r);}
 const ROOM={lon:.6,lat:1.5};const ROOM_N=sphere(ROOM.lon,ROOM.lat);
 /* the skate park model (assets/skatepark.glb) laid out in plaza units, east/north of the centre; measured from the model:
@@ -443,7 +444,8 @@ function hills(n){const lat=Math.asin(clamp(n.y,-1,1)),lon=Math.atan2(n.z,n.x);
   h*=smooth(-.3,-.12,lat);const o=parkOut(n);if(o<14)h*=smooth(3,14,o);return h;}
 function terrainBase(n){const lat=Math.asin(clamp(n.y,-1,1));let h=-3.2*smooth(-.2,-.46,lat)+hills(n);
   {const o=parkOutE(n);if(o<PARK_SINK.w)h-=PARK_SINK.d*(1-smooth(0,PARK_SINK.w,o));} /* the skate park's pit, flat across the whole park, banked at the rim */
-  {const o=isleOut(n);if(o<6)h+=4.1*(1-smooth(0,6,o));} /* the race isle: a flat top a little above the sea, with a sandy bank all round */
+  {const o=isleOut(n);if(o<6)h+=4.1*(1-smooth(0,6,o));}
+  {const o=lhOut(n);if(o<5)h+=4.5*(1-smooth(0,5,o));} /* the lighthouse rock: a low flat top, shelving into the sea */ /* the race isle: a flat top a little above the sea, with a sandy bank all round */
   {const k=n.dot(ROOM_N);if(k>.95){const d=Math.acos(clamp(k,-1,1))*R;if(d<10){if(ROOM.lvl==null)ROOM.lvl=hills(ROOM_N);const t=1-smooth(5,10,d);h=h*(1-t)+ROOM.lvl*t;}}} /* level ground under the break room */
   return h;}
 /* the ground mesh: the base terrain, dipped under the park's bowl and tucked just under its floor */
@@ -548,7 +550,7 @@ const colliders=[];let skyDome=null,nightDome=null,SUNSET=null;const PLACES={};
   {const gs=[];for(const r of ROADS){if(r.kind!=='road'||r.name==='skate')continue;const g0=r.kerb+2.15+.45;for(const sm of r.samples)if(parkOut(sm.n)<14)gs.push({n:sm.n,t:sm.t,side:sm.side,g0});} /* every street that passes close to the park (not the skate road, which is meant to run down the bank) */
     if(gs.length){const c=new THREE.Vector3();for(const sm of gs)c.add(sm.n);c.normalize();let mn=1;for(const sm of gs)mn=Math.min(mn,c.dot(sm.n));PARK_GUARD={s:gs,c,cos:Math.cos(Math.acos(mn)+10/R)};}}
   window.__roads={MAIN,RING,UPPER,mainLat,ringLat,upperLat};
-  ZONES.push({n:sphere(1.32,-.36),r:9});ZONES.push({n:ROOM_N,r:9});ZONES.push({n:sphere(1.62,-.335),r:7});ZONES.push({n:sphere(1.07,-.335),r:7}); /* the beach, the break room, and the sand either side of the bench for the cinema */
+  ZONES.push({n:sphere(1.32,-.36),r:9});ZONES.push({n:ROOM_N,r:9});ZONES.push({n:LH_N,r:13});ZONES.push({n:sphere(1.62,-.335),r:7});ZONES.push({n:sphere(1.07,-.335),r:7}); /* the beach, the break room, and the sand either side of the bench for the cinema */
   /* ground texture: grass, a sandy shore, foam at the waterline, the concrete plaza */
   const cv=document.createElement('canvas');cv.width=2048;cv.height=1024;const g=cv.getContext('2d');
   const cy=lat=>(Math.PI/2-lat)/Math.PI*1024,cx=lon=>(((Math.PI-lon)/(Math.PI*2))%1+1)%1*2048;
@@ -560,6 +562,7 @@ const colliders=[];let skyDome=null,nightDome=null,SUNSET=null;const PLACES={};
   g.fillStyle='#b9c7a0';g.fillRect(0,cy(-.5),2048,1024-cy(-.5)); // sea bed (under the water)
   g.fillStyle='rgba(255,255,255,.75)';for(let x=0;x<2048;x+=14){g.fillRect(x,cy(-.371),9,3);} // foam
   {const w=17*6.52/Math.cos(PLAZA.lat),hh=15*6.52;g.fillStyle='#c4c8c4';for(const off of [-2048,0,2048])g.fillRect(cx(PLAZA.lon)-w+off,cy(PLAZA.lat)-hh,2*w,2*hh);} // concrete under the middle of the park model only; the park's true outline is drawn by the skirt below
+  {const k=6.52/Math.cos(LH.lat);for(const off of [-2048,0,2048]){for(const [rr,col] of [[LH.r+5,'#8f9388'],[LH.r+1.5,'#a3a79b']]){g.fillStyle=col;g.beginPath();g.ellipse(cx(LH.lon)+off,cy(LH.lat),rr*k,rr*6.52,0,0,Math.PI*2);g.fill();}}} /* bare rock under the lighthouse */
   {const k=6.52/Math.cos(ISLE.lat);for(const off of [-2048,0,2048]){for(const [rr,col] of [[ISLE.r+5,'#e9dcb0'],[ISLE.r+.5,'#9cb87c']]){g.fillStyle=col;g.beginPath();g.ellipse(cx(ISLE.lon)+off,cy(ISLE.lat),rr*k,rr*6.52,0,0,Math.PI*2);g.fill();}}} /* the race isle: grass with a sandy rim */
   const tex=new THREE.CanvasTexture(cv);tex.anisotropy=8;
   const geo=new THREE.SphereGeometry(R,256,160);const pa=geo.attributes.position;
@@ -794,7 +797,9 @@ let BENCH=null,SKATE_SPOT=null,BOARD=null,BOARD_MODEL=null,parkModel=null;
 const race={phase:'idle',t:0,count:0,next:0,rings:[],road:null,startN:null,startFwd:null,finC:null,finT:null,mats:null,booth:null};const _rp=new THREE.Vector3(),_rd=new THREE.Vector3();
 let CINEMA=null,nearRace=false,nearFilm=false,inRoom=false,filmOn=false;
 /* Spider-Man: he waits by the skate park; beat his double in the arena and you can web-swing round town */
-const SPIDEY={model:null,clips:{},npc:null,spot:null,w:null,arena:null};const DOORS=[];let nearDoor=null;let nearSpidey=false,webUnlocked=false;try{webUnlocked=localStorage.getItem('planet-webs')==='1';}catch(_){}
+const SPIDEY={model:null,clips:{},npc:null,spot:null,w:null,arena:null};const WINGS={has:false,on:true,item:null,itemN:null,pack:null,L:null,Rt:null,told:false};try{WINGS.has=localStorage.getItem('planet-wings')==='1';WINGS.on=localStorage.getItem('planet-wings-on')!=='0';}catch(_){}
+const fly={on:false,h:0,vh:0,holdT:0,k:0}; /* (declared up here because the menu, built early, shows the wings switch) */
+const DOORS=[];let nearDoor=null;let nearSpidey=false,webUnlocked=false;try{webUnlocked=localStorage.getItem('planet-webs')==='1';}catch(_){}
 let websOn=true;try{websOn=localStorage.getItem('planet-webs-on')!=='0';}catch(_){}
 const fight={on:false,p:null,ai:null,t:0,end:0,dir:1,cool:0,aiCool:0,aiT:0,hud:null,ready:0};const web={on:false,t:0,dur:0,a:new THREE.Vector3(),b:new THREE.Vector3(),ctl:new THREE.Vector3(),line:null,anchor:new THREE.Vector3(),cool:0};const FILMS=[['What is veganism?','15 min','kq9a_6-eagA',16/9],['Correct the relationship between humans and other animals','3 min','https://pub-773cd539628f450faa7973af5d97c67b.r2.dev/Correct%20the%20relationship%20between%20humans%20and%20other%20animals.%23veganism%20%23vegan%20%23endanimalexploitatio.mp4',9/16],['What is vegan?','2 min','https://pub-773cd539628f450faa7973af5d97c67b.r2.dev/2min_animation.mp4',16/9]]; /* an id is a YouTube video; a full address is Josh's own mp4 */
 /* the kick scooter: Josh's model split into the bars (stem, fork, front wheel) and the deck, so the deck can whip round the stem */
@@ -1139,6 +1144,10 @@ function groundFix(holder,root){holder.updateMatrixWorld(true);let minY=Infinity
     BUILDINGS.forEach((file,bi)=>loader.load(file,g=>{toonify(g.scene,true);if(LITE)g.scene.traverse(m=>{if(m.isMesh)m.material.side=THREE.DoubleSide;}); /* the slimmed models' open sheets (roofs, awnings, thin walls) can end up facing inwards; drawn one-sided they vanished and the building looked wrecked */fit(g.scene,9);const bbF=new THREE.Box3().setFromObject(g.scene);const foot=groundFoot(g.scene,bbF);const key=(file.match(/building(\w+?)\.glb/)||[])[1];const act=HOUSE_ACTS[key]; /* every copy of this building gets a front door just outside its façade (+Z) */
       modelSlots.forEach((sl,i)=>{if(slotType[i]!==bi)return;const inst=new THREE.Group();inst.add(g.scene.clone());{const fx=foot.length?Math.max(...foot.map(q=>q[0]))-Math.min(...foot.map(q=>q[0])):bbF.max.x-bbF.min.x,fz=foot.length?Math.max(...foot.map(q=>q[1]))-Math.min(...foot.map(q=>q[1])):bbF.max.z-bbF.min.z;(window.__foots=window.__foots||{})[key]=[+fx.toFixed(1),+fz.toFixed(1)];
         inst.scale.setScalar(Math.max(.5,Math.min(1,Math.max(.72,(sl.w||9)/8.6),((sl.w||9)+1.5)/fx,7.2/fz)));} /* a wide, low model scaled to the common height came out far bigger than its plot and sat across the street: its base must fit the plot's width and the depth between street and back */placeOnGround(inst,sl.lon,sl.lat,sl.yaw);for(let pass=0;pass<2;pass++){const mv=asphaltPoke(inst,foot);if(!mv)break;const n2=inst.position.clone().normalize().addScaledVector(mv,1/R).normalize();(window.__slid=window.__slid||[]).push({d:+mv.length().toFixed(2),n:n2.toArray(),key});const [l2,a2]=lonLatOf(n2);placeOnGround(inst,l2,a2,sl.yaw);} /* a base that reaches onto a street's asphalt (corner plots) slides off it */colliders.push(inst);if(act){inst.updateMatrixWorld(true);const dn=inst.localToWorld(new THREE.Vector3(0,0,bbF.max.z+.55)).normalize();const cn=inst.localToWorld(new THREE.Vector3(0,0,0)).normalize();DOORS.push({n:dn,w:dn.clone().multiplyScalar(gAt(dn)),inw:cn.sub(dn).normalize(),act,key});}});sceneDirty=true;},undefined,e=>console.warn('building not loaded',file,e)));
+    /* the ruined lighthouse, out on its rock (slimmed from Josh's 65 MB original to under 2 MB) */
+    loader.load('assets/lighthouse.glb',g=>{toonify(g.scene,true);if(LITE)g.scene.traverse(m=>{if(m.isMesh)m.material.side=THREE.DoubleSide;});fit(g.scene,14);const inst=new THREE.Group();inst.add(g.scene);const {north}=frameAt(LH.lon,LH.lat);placeOnGround(inst,LH.lon,LH.lat,yawFor(LH.lon,LH.lat,north));colliders.push(inst);
+      const lamp=new THREE.Mesh(new THREE.SphereGeometry(.5,14,10),new THREE.MeshBasicMaterial({color:0xffe9a6}));lamp.userData.noInk=true;lamp.position.y=12.6;inst.add(lamp);sceneDirty=true;},undefined,e=>console.warn('lighthouse not loaded',e));
+    wingsBuild();
     // the skate park: Josh's model, scaled to the plaza and set flat on its platform
     loader.load('assets/skatepark.glb?v=3',g=>{toonify(g.scene);const bb=new THREE.Box3().setFromObject(g.scene);const sc=(PLAZA.r*2*.96)/Math.max(bb.max.x-bb.min.x,bb.max.z-bb.min.z),sy=sc*.75;
       g.scene.scale.set(sc,sy,sc);g.scene.position.set(-(bb.min.x+bb.max.x)/2*sc,-bb.min.y*sy,-(bb.min.z+bb.max.z)/2*sc);
@@ -1305,7 +1314,7 @@ function turn(a){if(!a)return;const q=new THREE.Quaternion().setFromAxisAngle(up
 const _sa=new THREE.Vector3(),_sb=new THREE.Vector3(),_sc=new THREE.Vector3();
 function slide(dir,dist){_sa.copy(dir).addScaledVector(up,-dir.dot(up));if(_sa.lengthSq()<1e-8)return;_sa.normalize();const axis=_sb.crossVectors(up,_sa).normalize();const q=new THREE.Quaternion().setFromAxisAngle(axis,dist/R);up.applyQuaternion(q).normalize();fwd.applyQuaternion(q);orthonormalize();}
 let autoStuck=0,wallHit=false;
-function resolveSolids(){if(sitting)return; /* seated on a bench or a log: he is meant to be inside its footprint */const PR=.42;const p=_sc.copy(up).multiplyScalar(R);wallHit=false;
+function resolveSolids(){if(sitting||fly.h>15)return; /* above the rooftops nothing is in the way */ /* seated on a bench or a log: he is meant to be inside its footprint */const PR=.42;const p=_sc.copy(up).multiplyScalar(R);wallHit=false;
   for(let pass=0;pass<2;pass++)for(const s of solids){if(Math.abs(s.c.x-p.x)>16||Math.abs(s.c.y-p.y)>16||Math.abs(s.c.z-p.z)>16)continue;
     const d=_sa.copy(p).sub(s.c);
     if(s.r!==undefined){d.addScaledVector(up,-d.dot(up));const L=d.length();const pen=s.r+PR-L;if(pen>0&&L>1e-4){slide(_sb.copy(d).multiplyScalar(1/L),pen);p.copy(up).multiplyScalar(R);wallHit=true;}continue;}
@@ -1355,7 +1364,7 @@ function update(dt){
   if(autoFace){const f=autoFace.clone().addScaledVector(up,-autoFace.dot(up)).normalize();const ang=Math.atan2(f.dot(right),f.dot(fwd));if(Math.abs(ang)<.04)autoFace=null;else tn=clamp(-ang*4,-1,1);}
   if(ride.on){if(ride.grind){v=Math.max(Math.abs(v),3.5);}else{const target=fw>0?MAXV*1.8*(dash.phase==='run'?1.12:1)*(dash.boostT>0?1.7:1):0;if(fw>0)v+=(target-v)*(1-Math.exp(-1.6*dt));else if(fw<0)v*=Math.exp(-2.5*dt);else v*=Math.exp(-.3*dt);if(v<.03)v=0;}}
   else if(fight.on||web.on){v=0;fw=0;tn=0;}
-  else{const sprint=(hold.shift||joy.sprint)?1.6:1;const target=fw>0?MAXV*sprint:fw<0?-MAXV*.5:0;v+=(target-v)*(1-Math.exp(-8*dt)); /* Shift (or the stick at full stretch) runs faster */if(!fw&&Math.abs(v)<.05)v=0;}
+  else{const sprint=fly.on?2.5:(hold.shift||joy.sprint)?1.6:1;const target=fw>0?MAXV*sprint:fw<0?-MAXV*.5:0;v+=(target-v)*(1-Math.exp(-8*dt)); /* Shift (or the stick at full stretch) runs faster */if(!fw&&Math.abs(v)<.05)v=0;}
   turn(ride.grind||(ride.on&&ride.air>0&&dash.phase!=='run')||ride.bail>0||ride.manualOn?0:tn*TURN*(ride.on?(ride.air>0?.6:.8):1)*dt); /* in the Downhill Dash you can steer in the air, to line up a landing or a boost pad */
   let step=v*(ride.air>0&&ride.spin?dt*Math.abs(Math.cos(Math.PI*clamp(ride.airT/ride.airDur,0,1))):dt); /* in a launch he slows to a stop at the top, then comes back down the same line */
   const drain=pendingMove*(1-Math.exp(-7*dt));pendingMove-=drain;if(Math.abs(pendingMove)<.02)pendingMove=0;
@@ -1388,7 +1397,7 @@ function update(dt){
   const speed=Math.abs(step/Math.max(dt,1e-4));
   if(autoTarget){autoStuck=speed<.5?autoStuck+dt:0;if(autoStuck>2.5){autoTarget=null;autoRoute=[];autoStuck=0;}}
   // player pose
-  _m.makeBasis(right,up,fwd.clone().negate());player.group.quaternion.setFromRotationMatrix(_m);player.group.position.copy(up).multiplyScalar(gAt(up)+(ride.grind&&ride.grind.g.hOff?ride.grind.g.hOff:0));updateShadowRig(player.group.position,up,player.group.quaternion);updateSky(up);
+  _m.makeBasis(right,up,fwd.clone().negate());player.group.quaternion.setFromRotationMatrix(_m);player.group.position.copy(up).multiplyScalar(gAt(up)+fly.h+(ride.grind&&ride.grind.g.hOff?ride.grind.g.hOff:0));updateShadowRig(player.group.position,up,player.group.quaternion);updateSky(up);
   player.pose(speed,dt,speed>3?'run':'walk');
   if(kidModel){kidModel.quaternion.copy(player.group.quaternion);kidModel.position.copy(player.group.position);if(sitting)kidModel.position.addScaledVector(up,-(window.__sitDrop??(cine.on?.25:.26)));
     if(ride.on){const a=ride.air>0?Math.sin(Math.PI*clamp(ride.airT/ride.airDur,0,1))*ride.air:0;const lean=-tn*.22*(ride.grind||ride.manualOn?0:1);
@@ -1405,7 +1414,7 @@ function update(dt){
       if(ride.bail>0){bd.position.addScaledVector(fwd,1.2).addScaledVector(up,-.05);}}
     if(kidModel.userData.groundAt&&performance.now()>kidModel.userData.groundAt){kidModel.userData.groundAt=0;groundFix(kidModel,kidModel.userData.root);}
     // gait: run is the default when moving; walk only when easing off; look-around when standing; a scratch now and then
-    const moving=speed>.3,running=speed>2.4&&clips.run;
+    const moving=speed>.3&&!fly.on,running=speed>2.4&&clips.run&&!fly.on;
     stepsTarget=(moving&&!jump.on&&!ride.on)?(running?STEP_VOL:STEP_VOL*.6):0;steps.playbackRate=running?(speed>MAXV*1.2?1.3:1):.78;
     gait.run+=((running?1:0)-gait.run)*Math.min(1,dt*6);gait.walk+=((moving&&!running?1:0)-gait.walk)*Math.min(1,dt*6);
     idleFor=moving?0:idleFor+dt;const now_=performance.now()/1000;
@@ -1457,8 +1466,8 @@ function update(dt){
     const camH=2.1+.3*camYaw+bell*6.5+rise+parkView*1.9+rim*5.5;
     if(sitting&&cine.on){const hf=2*Math.atan(Math.tan(camera.fov*Math.PI/360)*camera.aspect);const D=Math.max(9.5,3.8/Math.tan(hf/2));const cq=_q.copy(CINEMA.n).addScaledVector(CINEMA.face,D/R).normalize();desired=cq.clone().multiplyScalar(gAt(cq)+3.1+D*.06);look=CINEMA.n.clone().multiplyScalar(gAt(CINEMA.n)+1.9);} /* the cinema: square on to the screen, the kid on his log below it */
     else if(sitting){const sd=fwd.clone().multiplyScalar(Math.cos(sitOrbit.yaw)).addScaledVector(right,Math.sin(sitOrbit.yaw));desired=up.clone().multiplyScalar(hAt(up)+1.7+sitOrbit.pitch*2.2).addScaledVector(sd,-3.6);look=up.clone().multiplyScalar(hAt(up)+1.25).addScaledVector(fwd,7*Math.max(0,Math.cos(sitOrbit.yaw)));}
-    else{desired=up.clone().multiplyScalar(gAt(up)+camH).addScaledVector(dir,-camBack);
-    look=up.clone().multiplyScalar(gAt(up)+1.4-rim*1.6).addScaledVector(fwd,3.6*off*(1-bell)+rim*5);if(ride.air>0&&ride.spin)look.addScaledVector(up,ride.air*Math.sin(Math.PI*tA)*.6);}} // centred behind him while walking
+    else{desired=up.clone().multiplyScalar(gAt(up)+camH+fly.h*1.04+fly.k*2.2).addScaledVector(dir,-camBack*(1+fly.k*.6));
+    look=up.clone().multiplyScalar(gAt(up)+1.4-rim*1.6+fly.h*.72).addScaledVector(fwd,3.6*off*(1-bell)+rim*5+fly.h*.55);if(ride.air>0&&ride.spin)look.addScaledVector(up,ride.air*Math.sin(Math.PI*tA)*.6);}} // centred behind him while walking
   const eye=talking?look.clone():up.clone().multiplyScalar(gAt(up)+1.8);const ray=desired.clone().sub(eye);const len=ray.length();
   raycaster.set(eye,ray.normalize());raycaster.far=len;
   const hits=raycaster.intersectObjects(colliders,true);
@@ -1502,9 +1511,9 @@ function update(dt){
 }
 let last=performance.now();
 let fpsN=0,fpsT=0,skipN=0;function frame(now){if(intro&&LITE&&((++skipN)&1)){requestAnimationFrame(frame);return;} /* the title globe draws every other frame on phones */const dt=Math.min(.25,(now-last)/1000)*(window.__dtScale??1);last=now;if(!paused){let acc=dt;while(acc>1e-4){const h=Math.min(.05,acc);update(h);fightUpdate(h);acc-=h;}} /* a slow phone gets several small steps, so the world and the run keep real time instead of slowing down */
-  raceUpdate(dt);dashUpdate(dt);webUpdate(dt);emoteTick(mySprite);try{liveSend();mpUpdate(dt);if(myLookWorn===null&&kidModel&&!plainLook(lookKey(myLook)))wearMine();}catch(e){if(!window.__mpErr){window.__mpErr=e;console.warn('multiplayer',e);}} /* the other players must never be able to stop the game */
+  raceUpdate(dt);dashUpdate(dt);webUpdate(dt);flyUpdate(dt);emoteTick(mySprite);try{liveSend();mpUpdate(dt);if(myLookWorn===null&&kidModel&&!plainLook(lookKey(myLook)))wearMine();}catch(e){if(!window.__mpErr){window.__mpErr=e;console.warn('multiplayer',e);}} /* the other players must never be able to stop the game */
   if(fpsEl){fpsN++;if(now-fpsT>500){fpsEl.textContent=Math.round(fpsN*1000/(now-fpsT))+' fps';fpsN=0;fpsT=now;}}
-  if(mixer)mixer.update(dt);applySit();applyRide();applyJump();applyWeb();for(const m of mixers)m.update(dt);updateBirds(dt,now/1000);if(window.__water&&window.__water.userData.sh)window.__water.userData.sh.uniforms.uT.value=now/1000;if(window.__shore&&window.__shore.material.userData.sh)window.__shore.material.userData.sh.uniforms.uT.value=now/1000;renderInk();requestAnimationFrame(frame);}
+  if(mixer)mixer.update(dt);applySit();applyRide();applyJump();applyWeb();applyFly();for(const m of mixers)m.update(dt);updateBirds(dt,now/1000);if(window.__water&&window.__water.userData.sh)window.__water.userData.sh.uniforms.uT.value=now/1000;if(window.__shore&&window.__shore.material.userData.sh)window.__shore.material.userData.sh.uniforms.uT.value=now/1000;renderInk();requestAnimationFrame(frame);}
 requestAnimationFrame(frame);
 
 /* =====================================================================
@@ -1523,11 +1532,11 @@ window.addEventListener('keydown',e=>{if(isTouch&&!(e.target&&/^(INPUT|TEXTAREA)
   if(ride.on&&e.key==='Escape'){stopRide();return;}
   if(KEYS[e.key]){hold[KEYS[e.key]]=true;e.preventDefault();return;}
   if(fight.on){if(e.key==='Escape'){endFight(false);return;}const k=e.key.toLowerCase();if(k===' '){fightJump(fight.p);e.preventDefault();}else if(k==='f'||k==='j')fightAttack(fight.p,'punch');else if(k==='g'||k==='k')fightAttack(fight.p,'kick');else if(k==='h'||k==='l')fightAttack(fight.p,'special');if(KEYS[e.key])hold[KEYS[e.key]]=true;return;}
-  if(e.key===' '){if(webUnlocked&&!ride.on&&!e.repeat){webStart();}if(!web.on)doJump();e.preventDefault();return;}
+  if(e.key===' '){hold.jump=true;if(webUnlocked&&!ride.on&&!e.repeat&&!(WINGS.has&&WINGS.on)){webStart();}if(!web.on&&!e.repeat&&!fly.on)doJump();e.preventDefault();return;} /* with the wings on, Space held is flight, so the web swing stands down */
   if(ride.on){const k=e.key.toLowerCase();if(k==='f'){doTrick('kickflip');return;}if(k==='g'){doTrick('heelflip');return;}if(k==='v'){doTrick('shoveit');return;}if(k==='m'){hold.m=true;doTrick('manual');return;}}
   if(e.key==='e'||e.key==='E'||e.key==='Enter'){action();e.preventDefault();}
 });
-window.addEventListener('keyup',e=>{if(KEYS[e.key])hold[KEYS[e.key]]=false;if(e.key==='m'||e.key==='M')hold.m=false;if(e.key==='Shift')hold.shift=false;});
+window.addEventListener('keyup',e=>{if(e.key===' ')hold.jump=false;if(KEYS[e.key])hold[KEYS[e.key]]=false;if(e.key==='m'||e.key==='M')hold.m=false;if(e.key==='Shift')hold.shift=false;});
 window.addEventListener('blur',()=>{for(const k in hold)hold[k]=false;drag=null;});
 game.addEventListener('wheel',e=>{if(e.target.closest&&e.target.closest('#stops,#raceend,#film,#house'))return;if(talking||sitting)return;e.preventDefault();const k=e.deltaMode===1?16:e.deltaMode===2?200:1;pendingMove=clamp(pendingMove+e.deltaY*k*.02,-30,30);autoTarget=null;firstMove();},{passive:false});
 let drag=null;
@@ -1551,7 +1560,7 @@ $$('.dpad .dir').forEach(el=>{const key=el.dataset.k;
   const off=e=>{if(e.pointerId!==joy.id)return;joy.on=false;joy.x=0;joy.y=0;kn.style.transform='';};
   ['pointerup','pointercancel','lostpointercapture'].forEach(ev=>el.addEventListener(ev,off));el.addEventListener('contextmenu',e=>e.preventDefault());
   if(isTouch){document.body.classList.add('touch');el.hidden=false;$('#jumpbtn').hidden=false;}
-  $('#jumpbtn').addEventListener('pointerdown',e=>{e.preventDefault();unlockAudio();if(webUnlocked&&!ride.on)webStart();if(!web.on)doJump();});$('#jumpbtn').addEventListener('contextmenu',e=>e.preventDefault());})();
+  $('#jumpbtn').addEventListener('pointerdown',e=>{e.preventDefault();unlockAudio();hold.jump=true;try{e.currentTarget.setPointerCapture(e.pointerId);}catch(_){}if(webUnlocked&&!ride.on&&!(WINGS.has&&WINGS.on))webStart();if(!web.on&&!fly.on)doJump();});['pointerup','pointercancel'].forEach(ev=>$('#jumpbtn').addEventListener(ev,()=>{hold.jump=false;}));$('#jumpbtn').addEventListener('contextmenu',e=>e.preventDefault());})();
 document.querySelectorAll('#tricks [data-t]').forEach(el=>{const t=el.dataset.t;const on=e=>{e.preventDefault();unlockAudio();firstMove();if(t==='manual'){hold.m=true;doTrick('manual');}else if(t==='ollie')doJump();else doTrick(t);};
   const off=()=>{if(t==='manual')hold.m=false;};el.addEventListener('pointerdown',on);['pointerup','pointercancel','lostpointercapture'].forEach(ev=>el.addEventListener(ev,off));el.addEventListener('contextmenu',e=>e.preventDefault());});
 $('#ba').addEventListener('click',()=>action());
@@ -1597,12 +1606,13 @@ for(let i=0;i<11;i++){const b=document.createElement('i');b.className='bub';cons
 function toggleStops(show){const s=$('#stops');const vis=show==null?s.hidden:show;s.hidden=!vis;$('#menubtn').setAttribute('aria-expanded',String(vis));}
 $('#menubtn').addEventListener('click',e=>{e.stopPropagation();toggleStops();});
 function webBtn(){const b=window.__webBtn;if(!b)return;b.hidden=!webUnlocked;b.querySelector('span').textContent=websOn?'Spider webs: on — switch off':'Spider webs: off — switch on';}
-$('#stops').addEventListener('click',e=>{const wbt=e.target.closest('[data-webs]');if(wbt){websOn=!websOn;try{localStorage.setItem('planet-webs-on',websOn?'1':'0');}catch(_){}webBtn();showTrick(websOn?'Webs on':'Webs off');return;}const qb=e.target.closest('[data-q]');if(qb){try{localStorage.setItem('planet-quality',qb.dataset.q);}catch(_){}location.reload();return;}const cbtn=e.target.closest('[data-ctl]');if(cbtn){setTouch(!isTouch,true);toggleStops(false);return;}const pb=e.target.closest('[data-place]');if(pb){if(pb.dataset.place==='skateSpawn'){spawnPark();toggleStops(false);return;}if(pb.dataset.place==='race'){startRace();return;}if(pb.dataset.place==='dash'){joinDash();return;}if(pb.dataset.place==='board'){openRaceBoard(null);toggleStops(false);return;}if(pb.dataset.place==='afk'){enterRoom();return;}if(pb.dataset.place==='fruit'||pb.dataset.place==='wash'){let bd=null,bv=-2;for(const d of DOORS){if(d.act.kind!==pb.dataset.place)continue;const k=d.n.dot(up);if(k>bv){bv=k;bd=d;}}if(bd){if(sitting)standUp();if(ride.on)stopRide();goTo({n:bd.n});firstMove();}toggleStops(false);return;} /* walk to the nearest stall or laundrette */if(pb.dataset.place==='spidey'&&SPIDEY.spot){if(sitting)standUp();if(ride.on)stopRide();goTo({n:SPIDEY.spot.n});firstMove();toggleStops(false);return;}
+$('#stops').addEventListener('click',e=>{const wgt=e.target.closest('[data-wings]');if(wgt){WINGS.on=!WINGS.on;try{localStorage.setItem('planet-wings-on',WINGS.on?'1':'0');}catch(_){}wingsBtn();showTrick(WINGS.on?'Wings on':'Wings off');return;}const wbt=e.target.closest('[data-webs]');if(wbt){websOn=!websOn;try{localStorage.setItem('planet-webs-on',websOn?'1':'0');}catch(_){}webBtn();showTrick(websOn?'Webs on':'Webs off');return;}const qb=e.target.closest('[data-q]');if(qb){try{localStorage.setItem('planet-quality',qb.dataset.q);}catch(_){}location.reload();return;}const cbtn=e.target.closest('[data-ctl]');if(cbtn){setTouch(!isTouch,true);toggleStops(false);return;}const pb=e.target.closest('[data-place]');if(pb){if(pb.dataset.place==='skateSpawn'){spawnPark();toggleStops(false);return;}if(pb.dataset.place==='race'){startRace();return;}if(pb.dataset.place==='dash'){joinDash();return;}if(pb.dataset.place==='board'){openRaceBoard(null);toggleStops(false);return;}if(pb.dataset.place==='afk'){enterRoom();return;}if(pb.dataset.place==='fruit'||pb.dataset.place==='wash'){let bd=null,bv=-2;for(const d of DOORS){if(d.act.kind!==pb.dataset.place)continue;const k=d.n.dot(up);if(k>bv){bv=k;bd=d;}}if(bd){if(sitting)standUp();if(ride.on)stopRide();goTo({n:bd.n});firstMove();}toggleStops(false);return;} /* walk to the nearest stall or laundrette */if(pb.dataset.place==='spidey'&&SPIDEY.spot){if(sitting)standUp();if(ride.on)stopRide();goTo({n:SPIDEY.spot.n});firstMove();toggleStops(false);return;}
     if(pb.dataset.place==='sunsetSpawn'&&BENCH){if(sitting)standUp();if(ride.on)stopRide();autoTarget=null;autoRoute=[];up.copy(BENCH.n).addScaledVector(BENCH.face,-2.2/R).normalize();fwd.copy(BENCH.face);orthonormalize();v=0;camInit=false;firstMove();toggleStops(false);return;} /* straight to the sand behind the bench, facing the sea */const pl=PLACES[pb.dataset.place];if(pl){if(sitting)standUp();goTo(pl);firstMove();toggleStops(false);}return;}
   const b=e.target.closest('[data-go]');if(!b)return;const n=npcs.find(x=>x.id===b.dataset.go);if(sitting)standUp();goTo({n:npcPos(n)},n);firstMove();toggleStops(false);});
 (function placesMenu(){const h=document.createElement('h2');h.textContent='Places';$('#stops').appendChild(h);
   for(const [k,t,sub] of [['sunset','The sunset bench','down the hill, by the sea'],['skate','Skate park','off the main street'],['cinema','Beach cinema','a screen on the sand'],['skateSpawn','Spawn at the skate park','jump straight there'],['sunsetSpawn','Spawn at the sunset bench','jump straight there'],['race','Skate park race','a ring course out at sea, against the clock'],['dash','Multiplayer race','Downhill Dash: up to five racers, ramps and boosts'],['board','Race leaderboard','the fastest laps'],['afk','Take a break (AFK)','a quiet room to wait in'],['fruit','Juicy Slice','the fruit stall game: walk up and play'],['wash','Sort the Wash','the laundrette game'],['spidey','Spider-Man','by the skate park']]){const b=document.createElement('button');b.type='button';b.dataset.place=k;b.innerHTML='<i></i>'+t+'<small>'+sub+'</small>';$('#stops').appendChild(b);}
   const wb=document.createElement('button');wb.type='button';wb.dataset.webs='1';wb.hidden=!webUnlocked;wb.innerHTML='<i></i><span></span><small>jump while running to swing</small>';$('#stops').appendChild(wb);window.__webBtn=wb;webBtn();
+  const gb=document.createElement('button');gb.type='button';gb.dataset.wings='1';gb.hidden=!WINGS.has;gb.innerHTML='<i></i><span></span><small>hold Jump to fly, let go to glide down</small>';$('#stops').appendChild(gb);window.__wingBtn=gb;wingsBtn();
   for(const [q,t,sub] of [['full','Graphics: high','sharpest; for computers and new phones'],['lite','Graphics: medium','slimmer models; for most phones'],['min','Graphics: low','small textures; for tablets and older devices']]){if(q===QUALITY)continue;const qb=document.createElement('button');qb.type='button';qb.dataset.q=q;qb.innerHTML='<i></i>'+t+'<small>'+sub+' (now: '+({full:'high',lite:'medium',min:'low'})[QUALITY]+')</small>';$('#stops').appendChild(qb);}
   const cb=document.createElement('button');cb.type='button';cb.dataset.ctl='1';cb.innerHTML='<i></i>'+(isTouch?'Switch to keyboard controls':'Switch to touch controls')+'<small>if the wrong ones came up</small>';$('#stops').appendChild(cb);})();
 document.addEventListener('pointerdown',e=>{if(!e.target.closest('#stops,#menubtn'))toggleStops(false);});
@@ -1950,7 +1960,7 @@ let myLookWorn=null;function wearMine(){const k=lookKey(myLook);if(myLookWorn===
 
 /* the others */
 const MP={id:(()=>{let s='';try{s=sessionStorage.getItem('planet-pid')||'';}catch(_){}if(!/^[a-z0-9]{12}$/.test(s)){s='';for(let i=0;i<12;i++)s+='abcdefghijklmnopqrstuvwxyz0123456789'[Math.floor(Math.random()*36)];try{sessionStorage.setItem('planet-pid',s);}catch(_){}}return s;})(),others:new Map(),offset:0,timer:0,alone:true,fails:0,FAST:550,SLOW:2600,DELAY:900};
-function mpState(){const mode=(ride.on?(ride.veh==='scooter'?2:1):0)|(sitting?4:0)|((fight.on||intro)?8:0);return [up.x,up.y,up.z,fwd.x,fwd.y,fwd.z,Math.abs(v)<.05?0:v,mode];}
+function mpState(){const mode=((ride.on?(ride.veh==='scooter'?2:1):0)|(sitting?4:0)|((fight.on||intro)?8:0)|(WINGS.has&&WINGS.on?16:0)|(fly.on?32:0))+64*Math.round(clamp(fly.h,0,40)*2);return [up.x,up.y,up.z,fwd.x,fwd.y,fwd.z,Math.abs(v)<.05?0:v,mode];}
 async function mpTick(){clearTimeout(MP.timer);const again=ms=>{MP.timer=setTimeout(mpTick,ms);};if(!titleGone||document.hidden||window.__noMP){again(1500);return;}liveStart();if(LIVE.on){again(4000);return;} /* the fast link is carrying the players */
   try{const r=await fetch('/api/world',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({id:MP.id,s:mpState(),n:myName,k:lookKey(myLook)+(Date.now()<myEmote.until?':'+myEmote.i+'-'+myEmote.seq:'')})});if(!r.ok)throw 0;const j=await r.json();MP.fails=0;MP.offset=j.now-Date.now();const seen=new Set();
     for(const p of j.players||[]){seen.add(p.id);let o=MP.others.get(p.id);if(!o){o={id:p.id,snaps:[],av:null,name:null,look:null};MP.others.set(p.id,o);}
@@ -1974,8 +1984,8 @@ function mpUpdate(dt){if(!MP.others.size)return;wearMine();const now=Date.now()+
     let a=S[0],b=S[0];for(let i=S.length-1;i>=0;i--){if(S[i].t<=now){a=S[i];b=S[Math.min(i+1,S.length-1)];break;}}
     const k=b.t>a.t?clamp((now-a.t)/(b.t-a.t),0,1.25):0;_mu.copy(a.up).lerp(b.up,k).normalize();_mf.copy(a.fwd).lerp(b.fwd,Math.min(1,k));_mf.addScaledVector(_mu,-_mf.dot(_mu));if(_mf.lengthSq()<1e-6)_mf.copy(a.fwd);_mf.normalize();
     const jump=a.up.distanceTo(b.up)*R>14; /* a teleport (spawn buttons, the race): cut, do not glide across the planet */if(jump){_mu.copy(b.up);_mf.copy(b.fwd);}
-    const mode=(k>.5?b:a).mode;av.holder.visible=!(mode&8);_mr.crossVectors(_mf,_mu).normalize();_mm4.makeBasis(_mr,_mu,_mf.clone().negate());av.holder.quaternion.setFromRotationMatrix(_mm4);av.holder.position.copy(_mu).multiplyScalar(gAt(_mu)+((mode&3)?.1:0)-((mode&4)?.26:0));
-    const moving=b.t>a.t&&!jump?a.up.distanceTo(b.up)*R/((b.t-a.t)/1000):0;const sp=(mode&3)?0:Math.max(moving,Math.abs(k>.5?b.v:a.v)>.1&&moving>.2?Math.abs(b.v):0);const stale=now-S[S.length-1].t>1500;const spd=stale?0:sp;
+    const mode=(k>.5?b:a).mode;av.holder.visible=!(mode&8);_mr.crossVectors(_mf,_mu).normalize();_mm4.makeBasis(_mr,_mu,_mf.clone().negate());av.holder.quaternion.setFromRotationMatrix(_mm4);av.alt=(av.alt||0)+((Math.floor(mode/64)/2)-(av.alt||0))*Math.min(1,dt*6);av.holder.position.copy(_mu).multiplyScalar(gAt(_mu)+av.alt+((mode&3)?.1:0)-((mode&4)?.26:0));if(mode&16){if(!av.wings){const w=makeWings();w.g.position.set(0,1.18,.2);av.holder.add(w.g);av.wings=w;sceneDirty=true;}av.wings.g.visible=true;const a=Math.sin(performance.now()/1000*((mode&32)?7:1.5))*((mode&32)?.45:.04)+((mode&32)?.15:1.2);av.wings.L.rotation.y=a;av.wings.Rt.rotation.y=-a;av.wings.L.rotation.z=(mode&32)?-1.05:0;av.wings.Rt.rotation.z=(mode&32)?1.05:0;}else if(av.wings)av.wings.g.visible=false;if(mode&32){av.holder.rotateX(-1.05);av.holder.position.addScaledVector(_mu,.55);}
+    const moving=b.t>a.t&&!jump?a.up.distanceTo(b.up)*R/((b.t-a.t)/1000):0;const sp=(mode&35)?0:Math.max(moving,Math.abs(k>.5?b.v:a.v)>.1&&moving>.2?Math.abs(b.v):0);const stale=now-S[S.length-1].t>1500;const spd=stale?0:sp;
     const wantRun=spd>3.4?1:0,wantWalk=spd>.25&&!wantRun?1:0;av.w.walk+=(wantWalk-av.w.walk)*Math.min(1,dt*7);av.w.run+=(wantRun-av.w.run)*Math.min(1,dt*7);
     if(av.act.walk){av.act.walk.setEffectiveWeight(av.w.walk);av.act.walk.setEffectiveTimeScale(clamp(spd/(clips.walkSpeed||1.4),.6,2));}if(av.act.run){av.act.run.setEffectiveWeight(av.w.run);av.act.run.setEffectiveTimeScale(clamp(spd/(clips.runSpeed||4),.6,1.6));}if(av.act.idle)av.act.idle.setEffectiveWeight(Math.max(0,1-av.w.walk-av.w.run));
     av.deck.visible=!!(mode&3);});}
@@ -2139,6 +2149,31 @@ function emoteShow(sp,i){sp.material.map=emoteTexture(i);sp.material.needsUpdate
 function emoteTick(sp){if(!sp||!sp.visible)return;const t=(performance.now()-sp.userData.t0)/1000;if(t>3.6){sp.visible=false;return;}const k=t<.25?1.25*Math.sin(t/.25*Math.PI*.6)/Math.sin(Math.PI*.6):t>3.2?Math.max(0,(3.6-t)/.4):1;sp.scale.setScalar(.95*k+.0001);}
 let mySprite=null;function doEmote(i){if(!kidModel)return;if(!mySprite)mySprite=emoteSprite(kidModel,2.55);emoteShow(mySprite,i);myEmote.i=i;myEmote.seq=(myEmote.seq%900)+1;myEmote.until=Date.now()+5000;tone(700,1000,.1,'triangle',.06);$('#emotes').hidden=true;if(MP.alone===false)mpTick();}
 (function emoteUI(){const tray=$('#emotes');tray.innerHTML=EMOTES.map((e,i)=>'<button type="button" data-e="'+i+'" aria-label="'+EMOTE_ICON[i]+'"><img src="assets/icons/'+EMOTE_ICON[i]+'.png" alt="'+e+'"></button>').join('');$('#emotebtn').addEventListener('click',ev=>{ev.stopPropagation();tray.hidden=!tray.hidden;$('#look').hidden=true;$('#gfx').hidden=true;});tray.addEventListener('click',ev=>{const b=ev.target.closest('[data-e]');if(b){doEmote(+b.dataset.e);game.focus();}});})();
+
+/* =====================================================================
+   THE LIGHTHOUSE AND THE METAL WINGS. Josh's ruined lighthouse stands on a rock out at sea, its top just showing over the
+   horizon from the beach; you can wade out to it. Hidden behind it (on the side away from the beach) is a pair of
+   metal wings. Wearing them, hold Jump to take off and climb; let go to glide down.
+   ===================================================================== */
+function makeWings(){const g=new THREE.Group();const steel=toon(0xc3ced6),dark=toon(0x66757f),gold=toon(0xf4c945);
+  /* each wing: a jointed arm and seven long steel feathers fanned below it, swept back so they read from the side as well as from behind */
+  const wing=s=>{const w=new THREE.Group();const arm=new THREE.Mesh(new THREE.BoxGeometry(1.05,.07,.09),dark);arm.position.set(s*.52,0,0);w.add(arm);
+    for(let i=0;i<7;i++){const len=1.0-i*.085;const f=new THREE.Mesh(new THREE.BoxGeometry(.17,len,.04),i%2?steel:dark);f.position.set(s*(.1+i*.15),-len/2+.03,.01*i);f.rotation.z=s*(-.1-i*.12);w.add(f);}
+    const piv=new THREE.Group();piv.add(w);w.rotation.z=s*.3;piv.rotation.y=-s*.45;return piv;};
+  const L=wing(-1),Rt=wing(1);const hub=new THREE.Mesh(new THREE.CylinderGeometry(.11,.11,.08,12),gold);hub.rotation.x=Math.PI/2;g.add(hub);L.position.x=-.06;Rt.position.x=.06;g.add(L,Rt);g.traverse(m=>{if(m.isMesh)m.castShadow=true;});return {g,L,Rt};}
+function wingsWear(){if(!kidModel)return;if(!WINGS.pack){const w=makeWings();w.g.position.set(0,1.18,.2);kidModel.add(w.g);WINGS.pack=w.g;WINGS.L=w.L;WINGS.Rt=w.Rt;sceneDirty=true;}WINGS.pack.visible=WINGS.has&&WINGS.on;}
+function wingsBtn(){const b=window.__wingBtn;if(!b)return;b.hidden=!WINGS.has;b.querySelector('span').textContent=WINGS.on?'Metal wings: on — switch off':'Metal wings: off — switch on';}
+function wingsBuild(){const LHN=LH_N;const {north}=frameAt(LH.lon,LH.lat);const south=north.clone().negate();const n=_q.copy(LHN).addScaledVector(south,6.4/R).normalize().clone();WINGS.itemN=n;const w=makeWings();const it=new THREE.Group();w.g.scale.setScalar(1.5);w.g.position.y=1.25;it.add(w.g);
+  const ring=new THREE.Mesh(new THREE.TorusGeometry(.75,.035,8,36),new THREE.MeshBasicMaterial({color:0xf4c945}));ring.rotation.x=Math.PI/2;ring.position.y=.25;ring.userData.noInk=true;it.add(ring);const [l,a]=lonLatOf(n);placeOn(it,l,a,0);it.userData.noCull=true;it.visible=!WINGS.has;WINGS.item=it;WINGS.spin=w.g;}
+function flyUpdate(dt){const t=performance.now()/1000;if(WINGS.item&&WINGS.item.visible){WINGS.spin.rotation.y=t*1.4;WINGS.spin.position.y=1.25+.12*Math.sin(t*2);if(!intro&&WINGS.itemN.dot(up)>Math.cos(1.7/R)){WINGS.has=true;WINGS.on=true;WINGS.item.visible=false;try{localStorage.setItem('planet-wings','1');localStorage.setItem('planet-wings-on','1');}catch(_){}wingsBtn();sfx('land',.6);tone(520,1400,.5,'triangle',.1);showTrick('Metal wings!  <small>'+(isTouch?'hold Jump to fly':'hold Space to fly')+' · let go to glide down</small>');}}
+  if(WINGS.has&&kidModel&&(!WINGS.pack||WINGS.pack.visible!==(WINGS.on)))wingsWear();
+  const can=WINGS.has&&WINGS.on&&!ride.on&&!sitting&&!talking&&!fight.on&&!houseOn&&!web.on&&dash.phase==='idle'&&race.phase==='idle';
+  if(can&&hold.jump){fly.holdT+=dt;if(!fly.on&&fly.holdT>.2){fly.on=true;fly.vh=3.2;tone(300,700,.35,'sine',.07);}}else fly.holdT=0;
+  if(fly.on){if(!can){fly.vh=-6;}const want=can&&hold.jump?4.4:-1.7;fly.vh+=(want-fly.vh)*Math.min(1,dt*3);fly.h=clamp(fly.h+fly.vh*dt,0,36);if(fly.h<=0&&!(can&&hold.jump)){fly.on=false;fly.h=0;fly.vh=0;sfx('land',.4);}}
+  fly.k+=((fly.on?1:0)-fly.k)*Math.min(1,dt*5);
+  if(WINGS.L&&WINGS.pack&&WINGS.pack.visible){const fl=fly.on?(hold.jump?.55:.18):.04,sp=fly.on?(hold.jump?9:3):1.5;const a=Math.sin(t*sp)*fl;const sweep=.15+1.05*(1-fly.k);WINGS.L.rotation.y=sweep+a;WINGS.Rt.rotation.y=-sweep-a;const lift=(fly.on?1.05:0)*fly.k;WINGS.L.rotation.z=-lift;WINGS.Rt.rotation.z=lift;}} /* folded down the back on the ground, spread wide and beating in the air */
+function applyFly(){if(fly.k<.01||!kidModel)return;kidModel.rotateX(-1.05*fly.k);kidModel.position.addScaledVector(up,.55*fly.k);} /* leaning forward into the air, superhero style */
+window.__wings=WINGS;window.__fly=fly;window.__giveWings=()=>{WINGS.has=true;WINGS.on=true;wingsBtn();};
 
 /* ---------- the beach cinema ---------- */
 /* choosing a film cuts to the kid sitting on a log in front of the screen; the film itself is a YouTube frame pinned,
