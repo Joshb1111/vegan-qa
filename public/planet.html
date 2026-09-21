@@ -85,6 +85,7 @@ body.touch .tpad{margin-left:auto}
 #title .big{font-family:'Rubik Mono One',var(--hand);font-weight:normal;font-size:clamp(24px,7vw,72px);line-height:1.08;letter-spacing:.12em;text-transform:uppercase;color:#fff;text-align:center;margin:0;position:relative;z-index:2;-webkit-text-stroke:1.2px var(--ink);text-shadow:1px 1px 0 var(--ink),2px 2px 0 #3d5560,3px 3px 0 #3d5560,4px 4px 0 #3d5560,5px 5px 0 #3d5560,6px 6px 0 var(--ink),7px 7px 0 var(--ink)}
 #title .big span{display:block}
 #title .tfoot{position:relative;z-index:2;text-align:center}
+#title-gfx{margin-top:10px;display:flex;gap:6px;justify-content:center;align-items:center;font-family:var(--hand);font-size:17px;color:var(--ink)}#title-gfx span{opacity:.75;margin-right:4px}#title-gfx button{font-family:var(--hand);font-size:17px;padding:3px 12px;border:2px solid var(--ink);border-radius:9px;background:rgba(255,253,246,.8);color:var(--ink);cursor:pointer}#title-gfx button.on{background:#f4c945}
 #title .enter{font-family:'Rubik Mono One',var(--hand);font-size:clamp(20px,3.4vw,32px);letter-spacing:.06em;background:#f4c945;color:var(--ink);border:2.5px solid var(--ink);border-radius:7px;padding:12px 46px;box-shadow:0 7px 0 #c39a2c,0 9px 0 var(--ink);cursor:pointer;transition:transform .08s,box-shadow .08s;animation:enterbob 1.6s ease-in-out infinite}
 #title .enter:hover{filter:brightness(1.06)}
 #title .enter:active{transform:translateY(6px);box-shadow:0 1px 0 #c39a2c,0 3px 0 var(--ink)}
@@ -244,7 +245,7 @@ body.intro #game{background:#5abfb2}
 <div id="title" aria-label="Start">
   <div></div><!-- no title: Josh wants the opening clean, just the planet and the button -->
   <div></div>
-  <div class="tfoot"><button id="enter" class="enter" type="button">enter</button><p id="title-p">a small town on a small planet · walk up to anyone and ask them a question</p></div>
+  <div class="tfoot"><button id="enter" class="enter" type="button">enter</button><p id="title-p">a small town on a small planet · walk up to anyone and ask them a question</p><div id="title-gfx" aria-label="Graphics quality"><span>graphics</span><button type="button" data-tg="full">High</button><button type="button" data-tg="lite">Medium</button><button type="button" data-tg="min">Low</button></div></div>
 </div>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/DRACOLoader.js"></script>
@@ -903,14 +904,15 @@ function townAlong(road,o){o=o||{};const kerb=road.kerb;const end=Math.min(road.
     /* the beach cinema: a screen on the sand past Leslie, with log seats, showing the three films from the front page of the site */
     (function cinema(){const cn=_q.copy(bp).addScaledVector(end.side,-14/R).normalize().clone();const [cl,ca]=lonLatOf(cn);const face=end.side.clone();const yaw=yawFor(cl,ca,face); /* the screen faces back along the beach towards the bench */
       const sg=new THREE.Group();for(const x of [-3.3,3.3])sg.add(at(cyl(.09,.1,3.9,P.grey2,8),x,1.95,0));sg.add(at(box(6.9,4,.16,P.ink),0,2.45,0));
-      const cv3=document.createElement('canvas');cv3.width=620;cv3.height=340;const g3=cv3.getContext('2d');g3.fillStyle='#1d2a3a';g3.fillRect(0,0,620,340);g3.fillStyle='#f3efe4';g3.font='700 54px "Patrick Hand","Segoe Print",cursive';g3.textAlign='center';g3.fillText('BEACH CINEMA',310,86);g3.font='44px "Patrick Hand","Segoe Print",cursive';g3.fillStyle='#f4c945';g3.fillText('three short films',310,160);g3.fillText(FILMS.map(f=>f[1]).join('   ·   '),310,222);g3.fillStyle='#8fc7c2';g3.font='26px "Patrick Hand","Segoe Print",cursive';g3.fillText('walk up and press Watch',310,310);
+      const cv3=document.createElement('canvas');cv3.width=620;cv3.height=340;const g3=cv3.getContext('2d');g3.fillStyle='#1d2a3a';g3.fillRect(0,0,620,340);g3.fillStyle='#f3efe4';g3.font='700 54px "Patrick Hand","Segoe Print",cursive';g3.textAlign='center';g3.fillText('BEACH CINEMA',310,86);g3.font='44px "Patrick Hand","Segoe Print",cursive';g3.textBaseline='middle';FILMS.forEach((f,k)=>{const x=22+198*k,y=122,w=180,h=132;g3.fillStyle='#f4c945';g3.beginPath();g3.moveTo(x+16,y);g3.arcTo(x+w,y,x+w,y+h,16);g3.arcTo(x+w,y+h,x,y+h,16);g3.arcTo(x,y+h,x,y,16);g3.arcTo(x,y,x+w,y,16);g3.closePath();g3.fill();g3.fillStyle='#26333a';g3.font='700 50px "Patrick Hand","Segoe Print",cursive';g3.fillText(f[1],x+w/2,y+h/2-8);g3.font='24px "Patrick Hand","Segoe Print",cursive';g3.fillText('▶ play',x+w/2,y+h-26);});
+      g3.fillStyle='#8fc7c2';g3.font='26px "Patrick Hand","Segoe Print",cursive';g3.fillText('tap a film on the screen to watch it',310,300); /* each third of the screen is a button: see screenTap */
       const scr=new THREE.Mesh(new THREE.PlaneGeometry(6.4,3.5),new THREE.MeshBasicMaterial({map:new THREE.CanvasTexture(cv3)}));scr.userData.noInk=true;scr.position.set(0,2.45,.1);sg.add(scr);
       placeOnGround(sg,cl,ca,yaw);colliders.push(sg);
       /* two bean bags in front of the screen (the log seats are gone); the kid sits in the left one */
       const sideV=new THREE.Vector3().crossVectors(cn,face).normalize();const bagAt=x=>_q.copy(cn).addScaledVector(face,5.44/R).addScaledVector(sideV,x/R).normalize().clone();
-      for(const [x,c] of [[-1.15,P.red],[1.15,P.blue]]){const bp_=bagAt(x);const [ll,la]=lonLatOf(bp_);const bg=new THREE.Group();const seat=new THREE.Mesh(new THREE.SphereGeometry(.82,20,14),toon(c));seat.scale.set(1,.38,1);seat.position.y=.27;seat.castShadow=true;bg.add(seat);
+      for(const [x,c] of [[-1.75,P.red],[1.75,P.blue]]){ /* far enough apart to walk between them */const bp_=bagAt(x);const [ll,la]=lonLatOf(bp_);const bg=new THREE.Group();const seat=new THREE.Mesh(new THREE.SphereGeometry(.82,20,14),toon(c));seat.scale.set(1,.38,1);seat.position.y=.27;seat.castShadow=true;bg.add(seat);
         const back=new THREE.Mesh(new THREE.SphereGeometry(.55,16,12),toon(c));back.scale.set(1.15,.95,.6);back.position.set(0,.55,.5);back.castShadow=true;bg.add(back);placeOnGround(bg,ll,la,yaw);colliders.push(bg);}
-      CINEMA={n:cn,face,lon:cl,lat:ca,w:cn.clone().multiplyScalar(gAt(cn)),scr,seat:bagAt(-1.15).addScaledVector(face,-.1/R).normalize().clone()}; /* a little forward of the middle, so his knees clear the front of the bag */ /* seat: the left bean bag */PLACES.cinema={road:byName('beach'),s:byName('beach').L-1.5,then:_q.copy(cn).addScaledVector(face,4.5/R).normalize().clone()};})();
+      CINEMA={n:cn,face,lon:cl,lat:ca,w:cn.clone().multiplyScalar(gAt(cn)),scr,seat:bagAt(-1.75).addScaledVector(face,-.1/R).normalize().clone()}; /* a little forward of the middle, so his knees clear the front of the bag */ /* seat: the left bean bag */PLACES.cinema={road:byName('beach'),s:byName('beach').L-1.5,then:_q.copy(cn).addScaledVector(face,4.5/R).normalize().clone()};})();
     /* the break room: a small house up near the pole, with bean bags, a rug and a lamp; the door faces south */
     (function breakRoom(){const {east,north}=frameAt(ROOM.lon,ROOM.lat);const face=north.clone().negate();const W=12,D=11,H=3.2;
       const put=(obj,dx,dz,mode)=>{const p=_q.copy(ROOM_N).addScaledVector(east,dx/R).addScaledVector(face,dz/R).normalize();const [l,a]=lonLatOf(p);const yaw=yawFor(l,a,face);if(mode==='solid'){placeOnGround(obj,l,a,yaw);colliders.push(obj);}else{placeOn(obj,l,a,yaw);}return obj;}; /* 'solid' walls sink to the ground and block; everything else just stands at its spot */
@@ -1530,9 +1532,12 @@ window.addEventListener('blur',()=>{for(const k in hold)hold[k]=false;drag=null;
 game.addEventListener('wheel',e=>{if(e.target.closest&&e.target.closest('#stops,#raceend,#film,#house'))return;if(talking||sitting)return;e.preventDefault();const k=e.deltaMode===1?16:e.deltaMode===2?200:1;pendingMove=clamp(pendingMove+e.deltaY*k*.02,-30,30);autoTarget=null;firstMove();},{passive:false});
 let drag=null;
 canvas.addEventListener('touchstart',()=>{if(!isTouch)setTouch(true,true);},{passive:true});
-canvas.addEventListener('pointerdown',e=>{if(talking)return;drag={id:e.pointerId,x:e.clientX,y:e.clientY};canvas.classList.add('drag');try{canvas.setPointerCapture(e.pointerId)}catch(_){}});
+canvas.addEventListener('pointerdown',e=>{tap0={x:e.clientX,y:e.clientY,t:performance.now()};if(talking)return;drag={id:e.pointerId,x:e.clientX,y:e.clientY};canvas.classList.add('drag');try{canvas.setPointerCapture(e.pointerId)}catch(_){}});
 canvas.addEventListener('pointermove',e=>{if(!drag||e.pointerId!==drag.id)return;const dx=e.clientX-drag.x,dy=e.clientY-drag.y;drag.x=e.clientX;drag.y=e.clientY;if(sitting){sitOrbit.yaw-=dx*.006;sitOrbit.pitch=clamp(sitOrbit.pitch+dy*.004,-.25,.9);return;}if(dx){turn(-dx*.006);autoTarget=null;autoFace=null;}if(dy){pendingMove=clamp(pendingMove-dy*.05,-30,30);}if(dx||dy)firstMove();});
-const endDrag=e=>{if(drag&&e.pointerId===drag.id){drag=null;canvas.classList.remove('drag');}};
+let tap0=null;const _tapRay=new THREE.Raycaster(),_tapV=new THREE.Vector2();
+/* a quick tap (not a drag) on the cinema screen plays the film under your finger */
+function screenTap(x,y){if(!CINEMA||!CINEMA.scr||cine.on||filmOn||houseOn||talking||fight.on||intro)return;const b=canvas.getBoundingClientRect();_tapV.set((x-b.left)/b.width*2-1,-((y-b.top)/b.height*2-1));_tapRay.setFromCamera(_tapV,camera);const h=_tapRay.intersectObject(CINEMA.scr,false)[0];if(!h||h.distance>22||!h.uv)return;playFilm(clamp(Math.floor(h.uv.x*3),0,FILMS.length-1));}
+const endDrag=e=>{if(tap0&&e.type==='pointerup'&&performance.now()-tap0.t<450&&Math.hypot(e.clientX-tap0.x,e.clientY-tap0.y)<10)screenTap(e.clientX,e.clientY);tap0=null;if(drag&&e.pointerId===drag.id){drag=null;canvas.classList.remove('drag');}};
 ['pointerup','pointercancel'].forEach(ev=>canvas.addEventListener(ev,endDrag));
 let lastUpTap=0;
 $$('.dpad .dir').forEach(el=>{const key=el.dataset.k;
@@ -2118,6 +2123,8 @@ async function voiceOnAsk(){if(VOICE.on){voiceOff();return;}if(!LIVE.on||!LIVE.r
 function voiceOff(){if(!VOICE.on)return;VOICE.on=false;clearInterval(VOICE.timer);for(const id of [...VOICE.peers.keys()])voiceDrop(id);if(VOICE.stream){for(const t of VOICE.stream.getTracks())t.stop();VOICE.stream=null;}
   if(VOICE.ch){try{VOICE.ch.presence.leave();VOICE.ch.presence.unsubscribe();VOICE.ch.unsubscribe('sig',voiceSignal);}catch(_){}VOICE.ch=null;}VOICE.members=new Set();voiceUI();showTrick('Voice off');}
 $('#voicebtn').addEventListener('click',e=>{e.stopPropagation();voiceOnAsk();});addEventListener('pagehide',()=>{if(VOICE.on)voiceOff();});voiceUI();window.__voice=VOICE;
+/* the same choice on the opening screen, before Enter (an old tablet may need Low just to get in) */
+(function titleGfx(){const el=$('#title-gfx');if(!el)return;el.querySelectorAll('[data-tg]').forEach(b=>{b.classList.toggle('on',b.dataset.tg===QUALITY);b.addEventListener('click',e=>{e.stopPropagation();if(b.dataset.tg===QUALITY)return;try{localStorage.setItem('planet-quality',b.dataset.tg);}catch(_){}location.reload();});});})();
 /* ---- the graphics button: high / medium / low, remembered on the device; changing it reloads the game ---- */
 (function gfxUI(){const names={full:'High',lite:'Med',min:'Low'},btn=$('#gfxbtn'),tray=$('#gfx');btn.innerHTML='<b>'+names[QUALITY]+'</b>gfx';
   tray.innerHTML=[['full','High','sharpest; computers and new phones'],['lite','Medium','slimmer models; most phones'],['min','Low','small textures; tablets and older devices']].map(([q,t,sub])=>'<button type="button" data-g="'+q+'"'+(q===QUALITY?' class="on"':'')+'>'+t+'<small>'+sub+'</small></button>').join('');
