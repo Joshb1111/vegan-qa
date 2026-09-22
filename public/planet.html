@@ -2010,7 +2010,7 @@ function liveStart(){if(LIVE.rt||window.__noLive)return;const sc=document.create
 function liveSend(){if(!LIVE.on||!LIVE.ch||!titleGone||document.hidden)return;const now=performance.now();if(LIVE.others<1&&MP.others.size<1)return;const s=mpState(),key=s.map(x=>x.toFixed(3)).join(',')+lookKey(myLook)+myEmote.seq;const changed=key!==LIVE.lastKey;if(changed)LIVE.lastMoveAt=now;
   const gap=changed||now-LIVE.lastMoveAt<400?140:1500;if(now-LIVE.lastSend<gap)return;LIVE.lastSend=now;LIVE.lastKey=key;LIVE.ch.publish('s',{s:s.map(x=>Math.round(x*10000)/10000),n:myName,k:lookKey(myLook)+(Date.now()<myEmote.until?':'+myEmote.i+'-'+myEmote.seq:'')}).catch(()=>{});}
 function liveSweep(){if(!LIVE.on)return;const t=Date.now();for(const [id,o] of MP.others)if(t-(o.seenAt||0)>7000){mpDrop(o);MP.others.delete(id);mpChip();}}
-setInterval(liveSweep,2000);addEventListener('pagehide',()=>{try{if(LIVE.rt)LIVE.rt.close();}catch(_){}});
+setInterval(liveSweep,2000);addEventListener('pagehide',e=>{if(e.persisted)return; /* switching apps on a phone: keep the link and the voice call up */try{if(LIVE.rt)LIVE.rt.close();}catch(_){}});
 window.__live=LIVE;
 addEventListener('pagehide',()=>{try{navigator.sendBeacon('/api/world',new Blob([JSON.stringify({id:MP.id,s:[0,1,0,1,0,0,0,8],bye:1})],{type:'application/json'}));}catch(_){}});
 document.addEventListener('visibilitychange',()=>{if(!document.hidden)mpTick();});mpTick();
@@ -2156,8 +2156,7 @@ function voiceDrop(id){const p=VOICE.peers.get(id);if(!p)return;try{p.pc.close()
 function voicePeer(id){let p=VOICE.peers.get(id);if(p)return p;const pc=new RTCPeerConnection({iceServers:[{urls:'stun:stun.l.google.com:19302'},{urls:'stun:stun1.l.google.com:19302'}]});p={pc,el:null,gain:null,src:null,queue:[],ready:false};VOICE.peers.set(id,p);
   for(const t of VOICE.stream.getTracks())pc.addTrack(t,VOICE.stream);
   pc.onicecandidate=e=>{if(e.candidate)voiceSend(id,'ice',e.candidate.toJSON?e.candidate.toJSON():e.candidate);};
-  pc.ontrack=e=>{const st=e.streams[0];if(!st||p.el)return;const el=document.createElement('audio');el.autoplay=true;el.playsInline=true;el.srcObject=st;el.muted=true;document.body.appendChild(el);p.el=el; /* muted element keeps the stream flowing; the sound itself goes through a gain node so distance can set its level (iOS ignores element volume) */
-    const c=ensureCtx();if(c){try{if(c.state==='suspended')c.resume();p.src=c.createMediaStreamSource(st);p.gain=c.createGain();p.gain.gain.value=0;p.src.connect(p.gain);p.gain.connect(c.destination);}catch(_){el.muted=false;}}else el.muted=false;};
+  pc.ontrack=e=>{const st=e.streams[0];if(!st||p.el)return;const el=document.createElement('audio');el.autoplay=true;el.playsInline=true;el.setAttribute('playsinline','');el.srcObject=st;document.body.appendChild(el);p.el=el;const pr=el.play();if(pr&&pr.catch)pr.catch(()=>{});}; /* plain WebRTC audio: it keeps playing in a background tab or behind another app, where an AudioContext would be suspended */
   pc.onconnectionstatechange=()=>{if(['failed','closed'].includes(pc.connectionState))voiceDrop(id);};
   if(MP.id<id){pc.createOffer().then(o=>pc.setLocalDescription(o)).then(()=>voiceSend(id,'offer',pc.localDescription)).catch(()=>voiceDrop(id));} /* the lower id calls, the other answers */
   return p;}
@@ -2168,18 +2167,24 @@ async function voiceSignal(msg){const d=msg.data||{},from=String(msg.clientId||'
     else if(d.type==='ice'){if(p.ready)await pc.addIceCandidate(d.payload);else p.queue.push(d.payload);}
     if(p.ready&&p.queue.length){for(const c of p.queue.splice(0))await pc.addIceCandidate(c).catch(()=>{});}}catch(_){}}
 function voiceSync(){if(!VOICE.on)return;for(const id of VOICE.members){if(id===MP.id)continue;if(VOICE.peers.size<VOICE.MAX)voicePeer(id);}
-  for(const [id,p] of VOICE.peers){if(!VOICE.members.has(id)){voiceDrop(id);continue;}if(p.gain)p.gain.gain.value+=(1-p.gain.gain.value)*.4;}}
+  for(const [id,p] of VOICE.peers){if(!VOICE.members.has(id)){voiceDrop(id);continue;}if(p.el&&p.el.paused){const pr=p.el.play();if(pr&&pr.catch)pr.catch(()=>{});}}}
 async function voiceOnAsk(){if(VOICE.on){voiceOff();return;}if(!LIVE.on||!LIVE.rt){showTrick('Voice needs the live link: try again in a moment');return;}
   let ok=false;try{ok=localStorage.getItem('planet-voice-ok')==='1';}catch(_){}
   if(!ok){if(!confirm('Voice chat is open: every player in the world who has voice on can hear you, and you can hear them, wherever you are.\n\nIt stays off unless you turn it on, and this button turns it off again.\n\nTurn voice on?'))return;try{localStorage.setItem('planet-voice-ok','1');}catch(_){}}
   if(!navigator.mediaDevices||!window.RTCPeerConnection){showTrick('This browser cannot do voice chat');return;}
   try{VOICE.stream=await navigator.mediaDevices.getUserMedia({audio:{echoCancellation:true,noiseSuppression:true,autoGainControl:true}});}catch(_){showTrick('The microphone was not allowed');return;}
+  const tr0=VOICE.stream.getAudioTracks()[0];if(tr0)tr0.addEventListener('ended',()=>{if(VOICE.on&&!document.hidden)voiceResume();}); /* the system took the mic (a call, another app): get it back when we can */
   unlockAudio();VOICE.on=true;const ch=LIVE.rt.channels.get('planet:voice');VOICE.ch=ch;ch.subscribe('sig',voiceSignal);
   const refresh=()=>ch.presence.get().then(m=>{VOICE.members=new Set(m.map(x=>x.clientId));}).catch(()=>{});ch.presence.subscribe(refresh);await ch.presence.enter({}).catch(()=>{});refresh();
   clearInterval(VOICE.timer);VOICE.timer=setInterval(voiceSync,250);voiceUI();showTrick('Voice on');}
 function voiceOff(){if(!VOICE.on)return;VOICE.on=false;clearInterval(VOICE.timer);for(const id of [...VOICE.peers.keys()])voiceDrop(id);if(VOICE.stream){for(const t of VOICE.stream.getTracks())t.stop();VOICE.stream=null;}
   if(VOICE.ch){try{VOICE.ch.presence.leave();VOICE.ch.presence.unsubscribe();VOICE.ch.unsubscribe('sig',voiceSignal);}catch(_){}VOICE.ch=null;}VOICE.members=new Set();voiceUI();showTrick('Voice off');}
-$('#voicebtn').addEventListener('click',e=>{e.stopPropagation();voiceOnAsk();});addEventListener('pagehide',()=>{if(VOICE.on)voiceOff();});voiceUI();window.__voice=VOICE;
+$('#voicebtn').addEventListener('click',e=>{e.stopPropagation();voiceOnAsk();});voiceUI();
+/* voice stays on in a background tab or behind another app. When the page comes back, a microphone the system stopped is re-opened and swapped into every call */
+async function voiceResume(){if(!VOICE.on)return;const tr=VOICE.stream&&VOICE.stream.getAudioTracks()[0];if(tr&&tr.readyState==='live'&&tr.enabled)return;let st=null;try{st=await navigator.mediaDevices.getUserMedia({audio:{echoCancellation:true,noiseSuppression:true,autoGainControl:true}});}catch(_){return;}
+  if(VOICE.stream)for(const t of VOICE.stream.getTracks())t.stop();VOICE.stream=st;const nt=st.getAudioTracks()[0];for(const [,p] of VOICE.peers){for(const sn of p.pc.getSenders()){if(sn.track&&sn.track.kind==='audio')sn.replaceTrack(nt).catch(()=>{});}}}
+document.addEventListener('visibilitychange',()=>{if(!document.hidden){voiceResume();for(const [,p] of VOICE.peers)if(p.el){const pr=p.el.play();if(pr&&pr.catch)pr.catch(()=>{});}}});
+if(navigator.mediaDevices&&navigator.mediaDevices.addEventListener)navigator.mediaDevices.addEventListener('devicechange',()=>{if(!document.hidden)voiceResume();});window.__voice=VOICE;
 /* the same choice on the opening screen, before Enter (an old tablet may need Low just to get in) */
 (function titleGfx(){const el=$('#title-gfx');if(!el)return;el.querySelectorAll('[data-tg]').forEach(b=>{b.classList.toggle('on',b.dataset.tg===QUALITY);b.addEventListener('click',e=>{e.stopPropagation();if(b.dataset.tg===QUALITY)return;try{localStorage.setItem('planet-quality',b.dataset.tg);}catch(_){}location.reload();});});})();
 /* ---- the graphics button: high / medium / low, remembered on the device; changing it reloads the game ---- */
