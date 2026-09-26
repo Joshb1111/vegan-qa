@@ -128,6 +128,19 @@ body.fighting #hint,body.fighting #menubtn,body.fighting #musicbtn,body.fighting
 #house{position:fixed;inset:0;z-index:26;background:#1d2a3a;display:flex;flex-direction:column}
 #house .hbar{display:flex;align-items:center;gap:10px;padding:8px 12px;font-family:var(--hand);font-size:24px;color:var(--cream);flex:none}#house .hbar .sp{flex:1}#house .hbar button{font-family:var(--hand);font-size:19px;padding:5px 14px;cursor:pointer;color:#26333a;background:#f4c945}
 .fvs{position:absolute;left:50%;bottom:22px;transform:translateX(-50%);z-index:2;font-family:var(--hand);font-size:21px;padding:10px 18px;cursor:pointer;background:#f4c945;color:#26333a}.fvs[hidden]{display:none}
+#house .room{position:absolute;inset:0;overflow:hidden;font-family:var(--hand);color:var(--cream);background:linear-gradient(#3b4b5f,#2b3949 62%,#5b4636 62%,#463627)}
+#house .wall{position:absolute;left:0;right:0;top:0;height:62%;background:repeating-linear-gradient(90deg,rgba(255,255,255,.035) 0 2px,transparent 2px 46px)}
+#house .pic{position:absolute;top:9%;left:7%;width:72px;height:88px;border:6px solid #d8c9a6;background:#e7dfc8;display:grid;place-items:center;font-size:40px;box-shadow:0 6px 14px rgba(0,0,0,.35)}#house .pic.p2{left:auto;right:7%;top:13%}
+#house .tvwrap{position:absolute;left:50%;top:47%;transform:translate(-50%,-50%);width:min(760px,90vw,calc(125vh - 190px))}
+#house .tv{background:#1b1f23;border-radius:18px;padding:14px;box-shadow:0 18px 40px rgba(0,0,0,.5),inset 0 0 0 3px #30363c}
+#house .scr{aspect-ratio:16/9;background:radial-gradient(ellipse at center,#12262b,#08161a 75%);border-radius:8px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:12px;padding:18px;text-align:center;position:relative;overflow:hidden}
+#house .big{font-size:clamp(34px,7vw,80px);line-height:1;color:#f4c945;min-height:1em;text-shadow:0 0 18px rgba(244,201,69,.45)}#house .big.pop{animation:tvpop .16s ease-out}
+@keyframes tvpop{from{transform:scale(.82);opacity:.3}to{transform:scale(1);opacity:1}}
+#house .line{font-size:clamp(15px,2.3vw,25px);line-height:1.35;color:rgba(243,239,228,.35);max-width:94%}#house .line .said{color:rgba(243,239,228,.85)}#house .line .now{color:#f4c945}
+#house .scr .play{position:absolute;bottom:12px;font-family:var(--hand);font-size:24px;padding:8px 24px;background:#f4c945;color:#26333a;cursor:pointer}#house .scr .play[hidden]{display:none}
+#house .stand{width:26%;height:22px;margin:0 auto;background:linear-gradient(#2b3136,#171a1d);border-radius:0 0 12px 12px}
+#house .host{position:absolute;left:50%;transform:translateX(-50%);top:calc(47% + min(760px,90vw,calc(125vh - 190px))*.31 + 16px);font-size:23px;white-space:nowrap}#house .host .who{background:#f4c945;color:#26333a;padding:1px 10px;border-radius:12px;margin-right:6px}
+#house .tools{position:absolute;left:0;right:0;bottom:16px;display:flex;justify-content:center;gap:12px}#house .tools button{font-family:var(--hand);font-size:20px;padding:7px 18px;cursor:pointer;background:#fff;color:#26333a}#house .tools button[hidden]{display:none}
 #house-body{flex:1;min-height:0;position:relative;overflow:hidden}#house-body iframe{position:absolute;inset:0;width:100%;height:100%;border:0;background:#fff}
 #cinescreen{position:fixed;left:0;top:0;transform-origin:0 0;border:0;background:#000;z-index:4;object-fit:contain}
 #film-frame:empty{display:none}#film-frame iframe{display:block;border:0;background:#000;margin:0 auto;max-width:100%}
@@ -1068,6 +1081,7 @@ const outfits=()=>{const skin=pick([0xf2cfae,0xe0b48a,0xc68a5a,0x8d5a3b,0x6b4227
 const player=person({skin:0xf2cfae,hair:0x2a2430,top:P.red,bottom:0xb9a66e,legs:0xf2cfae,sock:P.cream,shoe:P.red,shoeCap:P.cream,skinLegs:true,cargo:true,collar:true,bag:true,hairStyle:'bob'});player.group.visible=false; /* the built-in stand-in stays hidden: Josh's kid model takes his place as soon as it loads */
 scene.add(player.group);
 /* ---------- the modelled character (Tripo GLB), with its own walk animation ---------- */
+const FIDGET=false; /* the stretch-and-scratch fidget is off for everyone: it read as the body stretching */
 let kidModel=null,mixer=null;const clips={};let gait={walk:0,run:0,fidget:0};const mixers=[];let jump={on:false,t:0,dur:0},idleFor=0,fidgetUntil=0,wasMoving=false,fidgetOK=false;const birdGroups=[];
 const _bv=new THREE.Vector3(),_bu=new THREE.Vector3(),_bf=new THREE.Vector3(),_bs=new THREE.Vector3(),_bm=new THREE.Matrix4();
 function updateBirds(dt,t){for(const g of birdGroups){g.th+=g.w*dt;const v=new THREE.Vector3().crossVectors(g.axis,g.u);
@@ -1172,7 +1186,8 @@ function groundFix(holder,root){holder.updateMatrixWorld(true);let minY=Infinity
       const lamp=new THREE.Mesh(new THREE.SphereGeometry(.5,14,10),new THREE.MeshBasicMaterial({color:0xffe9a6}));lamp.userData.noInk=true;lamp.position.y=9.4;inst.add(lamp);sceneDirty=true;},undefined,e=>console.warn('lighthouse not loaded',e));
     wingsBuild();
     // the skate park: Josh's model, scaled to the plaza and set flat on its platform
-    loader.load('assets/skatepark.glb?v=3',g=>{toonify(g.scene);const bb=new THREE.Box3().setFromObject(g.scene);const sc=(PLAZA.r*2*.96)/Math.max(bb.max.x-bb.min.x,bb.max.z-bb.min.z),sy=sc*.75;
+    const parkFile=(()=>{const m=location.search.match(/[?&]park=([\w.-]+)/);return m?'assets/'+m[1]+(m[1].endsWith('.glb')?'':'.glb'):'assets/skatepark.glb?v=3';})(); /* ?park=name.glb tries another park model in place (looks only; the physics keep the real park's height map) */
+    loader.load(parkFile,g=>{toonify(g.scene);const bb=new THREE.Box3().setFromObject(g.scene);const sc=(PLAZA.r*2*.96)/Math.max(bb.max.x-bb.min.x,bb.max.z-bb.min.z),sy=sc*.75;
       g.scene.scale.set(sc,sy,sc);g.scene.position.set(-(bb.min.x+bb.max.x)/2*sc,-bb.min.y*sy,-(bb.min.z+bb.max.z)/2*sc);
       const inst=new THREE.Group();inst.add(g.scene);placeOn(inst,PLAZA.lon,PLAZA.lat,0);inst.position.copy(PLAZA_N).multiplyScalar(R);inst.translateY(-.081*sy);inst.updateMatrixWorld(true);
       /* bend the park onto the planet: each vertex keeps its east/north offset and its height, but measured along the curved ground */
@@ -1187,10 +1202,11 @@ function groundFix(holder,root){holder.updateMatrixWorld(true);let minY=Infinity
     loader.load('assets/board.glb',g=>{const root=g.scene;toonify(root);const bb=new THREE.Box3().setFromObject(root);const sc=1.22/(bb.max.x-bb.min.x);root.scale.set(sc,sc,sc*1.4);root.position.set(-(bb.min.x+bb.max.x)/2*sc,-bb.min.y*sc,-(bb.min.z+bb.max.z)/2*sc);
       BOARD_MODEL=root;BOARD.lift=(bb.max.y-bb.min.y)*sc+.02;for(const o of [BOARD.ride,...BOARD.boards.filter(b=>b.kind!=='scooter').map(b=>b.prop)]){o.clear();o.add(root.clone());}sceneDirty=true;},undefined,e=>console.warn('board not loaded',e));
     /* pebbles: little stones over the sand and, smaller and sparser, over the grass; lumpy 80-triangle shapes, one instanced mesh each, so they cost almost nothing */
-    for(const [col,N,latMin,latMax,sMin,sMax,onGrass] of [[0x8d9296,700,-.352,-.256,.09,.21,false],[0xb0aba0,380,-.35,-.26,.07,.17,false],[0x7f8a86,1100,-.225,1.45,.06,.14,true]]){
+    const LES=(()=>{const br=ROADS.find(r=>r.name==='beach');if(!br)return null;const sm=atS(br,br.L-4);return sm.n.clone().addScaledVector(sm.side,-2.8/R).normalize();})(); /* where Leslie stands */
+    for(const [col,N,latMin,latMax,sMin,sMax,onGrass,near] of [[0x8d9296,175,-.352,-.256,.09,.21,false],[0xb0aba0,95,-.35,-.26,.07,.17,false],[0x8d9296,95,-.352,-.256,.09,.21,false,12],[0xb0aba0,50,-.35,-.26,.07,.17,false,12],[0x7f8a86,1100,-.225,1.45,.06,.14,true]]){ /* sand: a quarter of the old count over the whole beach, topped back up to the old density within 12 m of Leslie */
       const geo=new THREE.IcosahedronGeometry(.55,1);{const pa=geo.attributes.position;for(let i=0;i<pa.count;i++){const k=.78+Math.random()*.44;pa.setXYZ(i,pa.getX(i)*k,pa.getY(i)*.62*k,pa.getZ(i)*k);}geo.translate(0,-.12,0);geo.computeVertexNormals();}
       const NN=LITE?Math.round(N*.35):N;const im=new THREE.InstancedMesh(geo,toon(col),NN);const M=new THREE.Matrix4(),Bm=new THREE.Matrix4(),Q=new THREE.Quaternion(),Q2=new THREE.Quaternion(),S=new THREE.Vector3(),Pp=new THREE.Vector3(),X=new THREE.Vector3();let k=0;
-      for(let t=0;t<NN*8&&k<NN;t++){const lon=Math.random()*Math.PI*2,lat=latMin+Math.random()*(latMax-latMin);const n=sphere(lon,lat);if(blocked(n,onGrass?.9:.4))continue;if(BENCH&&Math.acos(clamp(n.dot(BENCH.n),-1,1))*R<1.6)continue;
+      for(let t=0;t<NN*(near?80:8)&&k<NN;t++){const lon=Math.random()*Math.PI*2,lat=latMin+Math.random()*(latMax-latMin);const n=sphere(lon,lat);if(blocked(n,onGrass?.9:.4))continue;if(near&&(!LES||Math.acos(clamp(n.dot(LES),-1,1))*R>near))continue;if(BENCH&&Math.acos(clamp(n.dot(BENCH.n),-1,1))*R<1.6)continue;
         const {north}=frameAt(lon,lat);const Z=north.clone().negate();X.crossVectors(n,Z);Bm.makeBasis(X,n,Z);Q.setFromRotationMatrix(Bm).multiply(Q2.setFromAxisAngle(_sy,Math.random()*Math.PI*2));const sc=(sMin+Math.random()*(sMax-sMin))*1.4;S.set(sc*(0.8+Math.random()*.5),sc,sc*(0.8+Math.random()*.5));Pp.copy(n).multiplyScalar(gAt(n)+.012);M.compose(Pp,Q,S);im.setMatrixAt(k++,M);}
       im.count=k;im.instanceMatrix.needsUpdate=true;im.frustumCulled=false;im.castShadow=!LITE;scene.add(im);sceneDirty=true;}
     loader.load('assets/scooter.glb',g=>{let mesh=null;g.scene.traverse(m=>{if(m.isMesh&&!mesh)mesh=m;});if(!mesh)return;toonify(g.scene);g.scene.updateMatrixWorld(true);
@@ -1443,7 +1459,7 @@ function update(dt){
     gait.run+=((running?1:0)-gait.run)*Math.min(1,dt*6);gait.walk+=((moving&&!running?1:0)-gait.walk)*Math.min(1,dt*6);
     idleFor=moving?0:idleFor+dt;const now_=performance.now()/1000;
     if(moving)wasMoving=true;else if(wasMoving){wasMoving=false;fidgetOK=Math.random()<.5;fidgetUntil=now_+22+Math.random()*10;} // he only stretches after standing about for a good while, and not every time
-    if(clips.fidget&&!moving&&!sitting&&!ride.on&&!talking&&fidgetOK&&now_>fidgetUntil){clips.fidget.reset().play();fidgetOK=false;}
+    if(FIDGET&&clips.fidget&&!moving&&!sitting&&!ride.on&&!talking&&fidgetOK&&now_>fidgetUntil){clips.fidget.reset().play();fidgetOK=false;}
     if(sitting&&clips.fidget&&clips.fidget.isRunning())clips.fidget.stop();
     const fidgeting=clips.fidget&&clips.fidget.isRunning()&&!moving&&!sitting;gait.fidget+=((fidgeting?1:0)-gait.fidget)*Math.min(1,dt*5);
     if(jump.on){jump.t+=dt;if(jump.t>=jump.dur)jump.on=false;kidModel.position.addScaledVector(up,Math.sin(Math.PI*clamp(jump.t/jump.dur,0,1))*.9);}
@@ -1471,7 +1487,7 @@ function update(dt){
       if(md.groundAt&&performance.now()>md.groundAt){md.groundAt=0;groundFix(md.holder,md.root);}
       const speaking=n===talking&&((voiceAudio&&!voiceAudio.paused)||(canSpeak&&speechSynthesis.speaking)||!sbN.hidden);
       md.w.walk+=((sp>.1?1:0)-md.w.walk)*Math.min(1,dt*6);md.w.talk+=((speaking&&sp<=.1&&md.act.talk&&md.act.talk!==md.act.idle?1:0)-md.w.talk)*Math.min(1,dt*4); /* only if this resident has a talking clip; otherwise the idle keeps driving the bones */
-      const tnow=performance.now()/1000;if(md.act.fidget&&md.act.fidget!==md.act.idle&&sp<=.1&&n!==talking&&tnow>md.fidgetAt){md.act.fidget.reset().play();md.fidgetAt=tnow+md.act.fidget.getClip().duration+120+Math.random()*180;} /* a fidget every few minutes, not every few seconds */
+      const tnow=performance.now()/1000;if(FIDGET&&md.act.fidget&&md.act.fidget!==md.act.idle&&sp<=.1&&n!==talking&&tnow>md.fidgetAt){md.act.fidget.reset().play();md.fidgetAt=tnow+md.act.fidget.getClip().duration+120+Math.random()*180;} /* a fidget every few minutes, not every few seconds */
       const fid=md.act.fidget&&md.act.fidget!==md.act.idle&&md.act.fidget.isRunning()&&sp<=.1&&n!==talking;md.w.fidget+=((fid?1:0)-md.w.fidget)*Math.min(1,dt*5);if(md.act.fidget&&md.act.fidget!==md.act.idle)md.act.fidget.setEffectiveWeight(md.w.fidget);
       if(md.act.walk){md.act.walk.setEffectiveWeight(md.w.walk);md.act.walk.setEffectiveTimeScale(clamp(sp/(md.walkSpeed||1)*.75,.5,2.5));}
       if(md.act.talk)md.act.talk.setEffectiveWeight(md.w.talk*(md.act.talk===md.act.idle?0:1));
@@ -1493,7 +1509,7 @@ function update(dt){
     else if(sitting){const sd=fwd.clone().multiplyScalar(Math.cos(sitOrbit.yaw)).addScaledVector(right,Math.sin(sitOrbit.yaw));desired=up.clone().multiplyScalar(hAt(up)+1.7+sitOrbit.pitch*2.2).addScaledVector(sd,-3.6);look=up.clone().multiplyScalar(hAt(up)+1.25).addScaledVector(fwd,7*Math.max(0,Math.cos(sitOrbit.yaw)));}
     else{const perched=!fly.on&&fly.h>.5?1:0;desired=up.clone().multiplyScalar(gAt(up)+camH+fly.h*1.04+fly.k*2.2+perched*2.6).addScaledVector(dir,-camBack*(1+fly.k*.6)*(perched?.55:1)); /* standing on a roof: the camera keeps above the roofline, close in */
     look=up.clone().multiplyScalar(gAt(up)+1.4-rim*1.6+fly.h*.86).addScaledVector(fwd,3.6*off*(1-bell)+rim*5+fly.h*.3);if(ride.air>0&&ride.spin)look.addScaledVector(up,ride.air*Math.sin(Math.PI*tA)*.6);}} // centred behind him while walking
-  const eye=talking?look.clone():up.clone().multiplyScalar(gAt(up)+1.8);const ray=desired.clone().sub(eye);const len=ray.length();
+  const eye=talking?look.clone():up.clone().multiplyScalar(gAt(up)+1.8+fly.h); /* from where he stands, roof or air: a ray from street level would hit the building he is standing on */const ray=desired.clone().sub(eye);const len=ray.length();
   raycaster.set(eye,ray.normalize());raycaster.far=len;
   const hits=raycaster.intersectObjects(colliders,true);
   if(hits.length){const d=Math.max(1.6,hits[0].distance-.4);desired.copy(eye).addScaledVector(ray,d);look.lerp(eye,1-d/len);}
@@ -1859,18 +1875,49 @@ function leaveRoom(){if(roomBack){up.copy(roomBack.up);fwd.copy(roomBack.fwd);ro
    laundrette a sorting game; every other house opens one page of understand-veganism.com (the site's own words).
    ===================================================================== */
 const SITE='https://understand-veganism.com/';
-const HOUSE_ACTS=(()=>{const page=(title,url)=>({kind:'page',title,url,label:'Enter · '+title});const fruit={kind:'fruit',title:'Juicy Slice',label:'Play Juicy Slice'};
-  return {'1v2':page('Key quotes','quotes/'),'16':fruit,'17':fruit,'18':fruit,
-    '3':page('Vegan quiz','quiz/'),'4':page('Check your framing','check/'),'5':page('Key quotes','quotes/'),'6':page('The definition','definition/'),'7':page('Leslie Cross: the letters','lesliecross/'),
-    '8':page('The welfare trap','welfare/'),'9':page('Symptoms','symptoms/'),'10':page('A vegan world','a-vegan-world/'),'11':page('Lab flesh','lab-flesh/'),'12':page('60-second explainers','explainers/'),
-    '13':page('The ‘dogmatic’ vegan','dogmatic-vegan/'),'14':page('Single-issue campaigns','sic/'),'15':page('Timeline','timeline/'),'19':page('Key quotes','quotes/'),'20':page('Leslie Cross: the letters','lesliecross/'),
-    '21':page('60-second explainers','explainers/'),'22':page('Vegan chatbot','chat/'),'23':page('The definition','definition/'),'24':page('Vegan quiz','quiz/'),'25':page('The welfare trap','welfare/'),'26':page('Timeline','timeline/')};})();
+const HOUSE_ACTS=(()=>{const page=(title,url,talk)=>({kind:talk?'talk':'page',title,url,talk,label:'Enter · '+title});const fruit={kind:'fruit',title:'Juicy Slice',label:'Play Juicy Slice'}; /* a talk: Kofi reads a short piece from that page on the room's screen first; the page itself is a button away */
+  return {'1v2':page('Key quotes','quotes/','quotes'),'16':fruit,'17':fruit,'18':fruit,
+    '3':page('Vegan quiz','quiz/'),'4':page('Check your framing','check/'),'5':page('Key quotes','quotes/','quotes'),'6':page('The definition','definition/','definition'),'7':page('Leslie Cross: the letters','lesliecross/','lesliecross'),
+    '8':page('The welfare trap','welfare/','welfare'),'9':page('Symptoms','symptoms/','symptoms'),'10':page('A vegan world','a-vegan-world/','a-vegan-world'),'11':page('Lab flesh','lab-flesh/','lab-flesh'),'12':page('60-second explainers','explainers/','explainers'),
+    '13':page('The ‘dogmatic’ vegan','dogmatic-vegan/','dogmatic-vegan'),'14':page('Single-issue campaigns','sic/','sic'),'15':page('Timeline','timeline/','timeline'),'19':page('Key quotes','quotes/','quotes'),'20':page('Leslie Cross: the letters','lesliecross/','lesliecross'),
+    '21':page('60-second explainers','explainers/','explainers'),'22':page('Vegan chatbot','chat/'),'23':page('The definition','definition/','definition'),'24':page('Vegan quiz','quiz/'),'25':page('The welfare trap','welfare/','welfare'),'26':page('Timeline','timeline/','timeline')};})();
 let houseOn=false,houseStop=null;
 function tone(f0,f1,dur,type,vol){if(!musicOn)return;const c=ensureCtx();if(!c)return;try{const o=c.createOscillator(),g=c.createGain();o.type=type||'triangle';o.frequency.setValueAtTime(f0,c.currentTime);o.frequency.exponentialRampToValueAtTime(Math.max(30,f1),c.currentTime+dur);g.gain.setValueAtTime(vol||.12,c.currentTime);g.gain.exponentialRampToValueAtTime(.001,c.currentTime+dur);o.connect(g);g.connect(c.destination);o.start();o.stop(c.currentTime+dur+.02);}catch(_){}}
 function enterHouse(act){if(houseOn||!act)return;houseOn=true;paused=true;for(const k in hold)hold[k]=false;v=0;pendingMove=0;autoTarget=null;autoRoute=[];$('#house-t').textContent=act.title;const body=$('#house-body');body.innerHTML='';$('#house').hidden=false;
-  if(act.kind==='page'){const f=document.createElement('iframe');f.title=act.title;f.src=SITE+act.url;f.allow='autoplay; fullscreen';body.appendChild(f);houseStop=null;}
+  const showPage=()=>{if(houseStop){try{houseStop();}catch(_){}}houseStop=null;body.innerHTML='';const f=document.createElement('iframe');f.title=act.title;f.src=SITE+act.url;f.allow='autoplay; fullscreen';body.appendChild(f);};
+  if(act.kind==='page')showPage();
+  else if(act.kind==='talk')houseStop=talkRoom(body,act,showPage);
   else if(act.kind==='fruit')houseStop=fruitGame(body);}
 function closeHouse(){if(!houseOn)return;if(houseStop){try{houseStop();}catch(_){}}houseStop=null;$('#house-body').innerHTML='';$('#house').hidden=true;houseOn=false;paused=false;shownN=undefined;game.focus();}
+/* A talk room: a lounge with a television. Kofi reads a short piece taken from the house's page, and the screen shows
+   each word as he says it. Audio and word timings come from /api/narrate (ElevenLabs, cached) or the baked copies in
+   assets/talks; without either, the browser's own voice reads it and the words follow its boundary events. */
+function talkRoom(body,act,showPage){const room=document.createElement('div');room.className='room';
+  room.innerHTML='<div class="wall"><div class="pic">🌱</div><div class="pic p2">🐄</div></div><div class="tvwrap"><div class="tv"><div class="scr"><div class="big">…</div><div class="line">Kofi is getting the tape ready</div><button class="play ink" type="button" hidden>▶ Play</button></div></div><div class="stand"></div></div><div class="host"><span class="who">Kofi</span> reads <b></b></div><div class="tools"><button class="again ink" type="button" hidden>Play again</button><button class="read ink" type="button">Read the full page</button></div>';
+  body.appendChild(room);room.querySelector('.host b').textContent=act.title;const big=room.querySelector('.big'),line=room.querySelector('.line'),play=room.querySelector('.play'),again=room.querySelector('.again'),read=room.querySelector('.read');
+  let alive=true,words=null,clock=null,raf=0,cur=-1,utter=null;
+  const clean=w=>w.replace(/^[("'“‘]+|[)"'”’.,;:!?]+$/g,'');
+  const show=i=>{if(!words||i===cur)return;cur=i;big.textContent=clean(words[i][0]);big.classList.remove('pop');void big.offsetWidth;big.classList.add('pop');
+    let a=i,b=i;while(a>0&&!/[.!?]["”’)]*$/.test(words[a-1][0]))a--;while(b<words.length-1&&!/[.!?]["”’)]*$/.test(words[b][0]))b++; /* the sentence he is in, what he has said so far lit */
+    line.innerHTML=words.slice(a,b+1).map((x,j)=>'<span class="'+(a+j<i?'said':a+j===i?'now':'')+'">'+x[0].replace(/[<>&]/g,'')+'</span>').join(' ');};
+  const done=()=>{if(!alive)return;cancelAnimationFrame(raf);big.textContent='';line.innerHTML='<span class="said">'+act.title+'</span>';again.hidden=false;};
+  const tick=()=>{if(!alive||!clock)return;const t=clock();let i=Math.max(0,cur);while(i<words.length-1&&words[i+1][1]<=t)i++;while(i>0&&words[i][1]>t)i--;if(t>=words[i][1]-.03)show(i);raf=requestAnimationFrame(tick);};
+  const byVoice=data=>{ /* ElevenLabs: the mp3 plus a start time per word; the shared audio element is the one iOS unlocked on the first tap */
+    words=data.words;stopSpeech();voiceAudio.src='data:audio/mpeg;base64,'+data.audio;voiceAudio.onended=done;clock=()=>voiceAudio.currentTime;cur=-1;
+    const go=()=>voiceAudio.play().then(()=>{play.hidden=true;again.hidden=true;cancelAnimationFrame(raf);raf=requestAnimationFrame(tick);}).catch(()=>{play.hidden=false;});
+    play.onclick=go;again.onclick=()=>{voiceAudio.currentTime=0;cur=-1;go();};go();};
+  const byBrowser=text=>{ /* no hosted voice: the browser reads it, and its boundary events light the words */
+    const ws=[];const re=/\S+/g;let m;while((m=re.exec(text)))ws.push([m[0],m.index]);words=ws.map(([w,i])=>[w,i,i]);
+    const start=()=>{if(!('speechSynthesis' in window)){clock=(()=>{const t0=performance.now();return()=>(performance.now()-t0)/1000;})();words=ws.map(([w],i)=>[w,i*.38,i*.38+.3]);raf=requestAnimationFrame(tick);setTimeout(done,ws.length*380+600);return;}
+      speechSynthesis.cancel();utter=new SpeechSynthesisUtterance(text);utter.rate=.95;utter.pitch=.9;const en=speechSynthesis.getVoices().find(v=>/en(-|_)(GB|UK)/i.test(v.lang))||null;if(en)utter.voice=en;
+      utter.onboundary=e=>{if(!alive)return;let i=0;while(i<ws.length-1&&ws[i+1][1]<=e.charIndex)i++;show(i);};utter.onend=done;utter.onerror=done;cur=-1;play.hidden=true;again.hidden=true;speechSynthesis.speak(utter);};
+    play.onclick=start;again.onclick=start;start();};
+  (async()=>{let data=null;try{const r=await fetch('assets/talks/'+act.talk+'.json');if(r.ok)data=await r.json();}catch(_){}
+    if(!data||!data.audio){try{const r=await fetch('/api/narrate?slug='+encodeURIComponent(act.talk));if(r.ok)data=await r.json();}catch(_){}}
+    if(!alive)return;if(!data||!data.text){big.textContent='';line.textContent='The tape is missing. Read the page instead.';return;}
+    if(data.audio&&data.words&&data.words.length)byVoice(data);else byBrowser(data.text);})();
+  read.onclick=()=>showPage();
+  return()=>{alive=false;cancelAnimationFrame(raf);try{voiceAudio.pause();voiceAudio.onended=null;}catch(_){}if(utter){try{speechSynthesis.cancel();}catch(_){}}};}
 $('#house-x').addEventListener('click',closeHouse);
 window.__enterHouse=k=>enterHouse(HOUSE_ACTS[k]);window.__doors=()=>DOORS;
 
@@ -2177,8 +2224,8 @@ let mySprite=null;function doEmote(i){if(!kidModel)return;if(!mySprite)mySprite=
 /* Josh's mechanical wings (assets/wings.glb: hub, wingL, wingR, split so each wing can fold and beat about the hub) */
 const WING_HUB=.058,WING_K=2.3;
 function wingsFromModel(){const t=WINGS.tpl;const g=new THREE.Group(),inner=new THREE.Group();inner.scale.setScalar(WING_K);g.add(inner);const part=(nm,px)=>{const src=t.getObjectByName(nm);const piv=new THREE.Group();piv.position.x=px;if(src){const m=src.clone();m.position.x-=px;piv.add(m);}inner.add(piv);return piv;};
-  part('hub',0);const L=part('wingL',-WING_HUB),Rt=part('wingR',WING_HUB);g.traverse(m=>{if(m.isMesh){m.castShadow=true;m.frustumCulled=false;}});return {g,L,Rt,model:true};}
-function wingAnim(w,flying,beating,k,t,sway){if(!w)return;sway=(sway||0)*(1-k);const sw=Math.sin(t*7.5)*sway,sw2=Math.sin(t*7.5+1.2)*sway; /* walking: a small sway with the stride, so the wings follow the body */if(w.model){const fold=1.2*(1-k);const b=flying?Math.sin(t*(beating?9:3))*(beating?.5:.16)+.18:0;const droop=.6*(1-k)+.05*sw2;w.L.rotation.set(droop,fold+b*k+.07*sw,-.12*k+.04*sw2);w.Rt.rotation.set(droop,-fold-b*k+.07*sw,.12*k+.04*sw2);} /* in flight he lies face down, so up and down in the world is in and out of his back: the beat turns about his spine axis, not across it */ /* folded back along the body on the ground; spread and beating in the air */
+  part('hub',0);const L=part('wingL',-WING_HUB),Rt=part('wingR',WING_HUB);g.traverse(m=>{if(m.isMesh){m.castShadow=true;m.frustumCulled=false;}});return {g,L,Rt,hub:inner,model:true};}
+function wingAnim(w,flying,beating,k,t,sway){if(!w)return;sway=(sway||0)*(1-k);const sw=Math.sin(t*7.5)*sway,sw2=Math.sin(t*7.5+1.2)*sway; /* walking: a small sway with the stride, so the wings follow the body */if(w.model){const fold=1.2*(1-k);const b=flying?Math.sin(t*(beating?9:3))*(beating?.5:.16)+.18:0;const droop=.6*(1-k)+.05*sw2;if(w.hub){w.hub.rotation.y=.11*sw;w.hub.rotation.z=.045*sw2;} /* the pack itself turns a touch with the shoulders, so it reads as strapped to him */w.L.rotation.set(droop,fold+b*k+.07*sw,-.12*k+.04*sw2);w.Rt.rotation.set(droop,-fold-b*k+.07*sw,.12*k+.04*sw2);} /* in flight he lies face down, so up and down in the world is in and out of his back: the beat turns about his spine axis, not across it */ /* folded back along the body on the ground; spread and beating in the air */
   else{const a=Math.sin(t*(flying?(beating?9:3):1.5))*(flying?(beating?.55:.18):.04);const sweep=.15+1.05*(1-k);w.L.rotation.y=sweep+a;w.Rt.rotation.y=-sweep-a;w.L.rotation.z=-1.05*k;w.Rt.rotation.z=1.05*k;}}
 function makeWings(){if(WINGS.tpl)return wingsFromModel();const g=new THREE.Group();const steel=toon(0xc3ced6),dark=toon(0x66757f),gold=toon(0xf4c945);
   /* each wing: a jointed arm and seven long steel feathers fanned below it, swept back so they read from the side as well as from behind */
@@ -2217,11 +2264,11 @@ const PROTEST=[];
   const texts=[['NO EXCUSE','FOR','ANIMAL USE'],null,['ANIMALS','ARE NOT','PROPERTY'],['ANIMALS','DO NOT','EXIST FOR','HUMANS'],['EVERY','ANIMAL IS','A SUBJECT','OF A LIFE']];
   spots.forEach(([ac,al,dir],i)=>{const n=_q.copy(C).addScaledVector(across,ac/R).addScaledVector(along,al/R).normalize().clone();const [l,a]=lonLatOf(n);const rig=person(outfits());placeOn(rig.group,l,a,yawFor(l,a,along.clone().multiplyScalar(-dir)));rig.group.visible=true;rig.group.userData.noCull=true;solidCircle(rig.group,.32); /* the rig's front is -Z, so the direction given is the one it turns its back on */
     const t=texts[i];let item;if(t){item=new THREE.Group();const back=box(.66,.86,.03,0xe9e4d8);item.add(back);const front=card(t,.62,.82,'#f7f4ee','#14181c',40);front.position.z=.02;item.add(front);}
-    else{item=new THREE.Group();const frame=box(1.08,.7,.05,0x1b1f23);item.add(frame);const scr=card(['THIS CHICK IS','SOMEONE'],1.0,.62,'#2c2417','#f3efe4',24,'🐥');scr.position.z=.03;item.add(scr);}
+    else{item=new THREE.Group();const frame=box(1.08,.7,.05,0x1b1f23);item.add(frame);const scr=card(['SOMEONE,','NOT SOMETHING'],1.0,.62,'#2c2417','#f3efe4',22,'🐄');scr.position.z=.03;item.add(scr);}
     item.position.set(0,1.12,-.36);item.rotation.y=Math.PI;rig.group.add(item);PROTEST.push(rig);});
-  const chalk=(text,al,w)=>{const cv=document.createElement('canvas');cv.width=1024;cv.height=200;const g=cv.getContext('2d');g.clearRect(0,0,1024,200);g.fillStyle='rgba(150,205,255,.92)';g.font='700 88px "Patrick Hand","Segoe Print",cursive';g.textAlign='center';g.textBaseline='middle';g.fillText(text,512,100);const m=new THREE.Mesh(new THREE.PlaneGeometry(w,w*200/1024),new THREE.MeshBasicMaterial({map:new THREE.CanvasTexture(cv),transparent:true,depthWrite:false,polygonOffset:true,polygonOffsetFactor:-8,polygonOffsetUnits:-8}));m.userData.noInk=true;m.rotation.set(-Math.PI/2,0,Math.PI);
-    const n=_q.copy(C).addScaledVector(along,al/R).normalize().clone();const [l,a]=lonLatOf(n);const g2=new THREE.Group();g2.add(m);placeOn(g2,l,a,yawFor(l,a,along.clone().negate()));g2.translateY(.05);g2.userData.noCull=true;}; /* chalked across the asphalt, read by whoever walks up the street towards them */
-  chalk('understand-veganism.com',3.4,5.6);chalk('Animals are not ours to us(e)',4.6,5.6);})();
+  const chalk=(text,al,w,dir=1)=>{const cv=document.createElement('canvas');cv.width=1024;cv.height=200;const g=cv.getContext('2d');const tex=new THREE.CanvasTexture(cv);const paint=()=>{g.clearRect(0,0,1024,200);g.fillStyle='rgba(150,205,255,.92)';g.font='700 88px "Patrick Hand","Segoe Print",cursive';g.textAlign='center';g.textBaseline='middle';g.fillText(text,512,100,960);tex.needsUpdate=true;};paint();if(document.fonts&&document.fonts.ready)document.fonts.ready.then(paint); /* painted again once the hand font is in: drawn in a fallback font the line ran off the plane; 960 caps the width either way */const geo=new THREE.PlaneGeometry(w,w*200/1024,28,4);{const pa=geo.attributes.position;for(let i=0;i<pa.count;i++){const x=pa.getX(i),y=pa.getY(i);pa.setZ(i,-(x*x+y*y)/(2*R));}geo.computeVertexNormals();} /* bent onto the planet: a flat plane this long sinks under the road at both ends and the writing was cut off */const m=new THREE.Mesh(geo,new THREE.MeshBasicMaterial({map:tex,transparent:true,depthWrite:false,polygonOffset:true,polygonOffsetFactor:-8,polygonOffsetUnits:-8}));m.userData.noInk=true;m.rotation.set(-Math.PI/2,0,Math.PI);
+    const n=_q.copy(C).addScaledVector(along,al/R).normalize().clone();const [l,a]=lonLatOf(n);const g2=new THREE.Group();g2.add(m);placeOn(g2,l,a,yawFor(l,a,along.clone().multiplyScalar(-dir)));g2.updateMatrixWorld(true);{const pa=geo.attributes.position,wp=new THREE.Vector3();for(let i=0;i<pa.count;i++){wp.set(pa.getX(i),pa.getY(i),pa.getZ(i)).applyMatrix4(m.matrixWorld);wp.normalize().multiplyScalar(gAt(wp)+.1);m.worldToLocal(wp);pa.setXYZ(i,wp.x,wp.y,wp.z);}pa.needsUpdate=true;geo.computeBoundingSphere();} /* every vertex laid on the ground it is over, 4 cm above the asphalt: the street runs across a hillside, so a flat plane sank under the road at one end and the line was cut off */g2.userData.noCull=true;}; /* chalked across the asphalt, read by whoever walks up the street towards them */
+  chalk('understand-veganism.com',3.4,5.6);chalk('Animals are not ours to us(e)',4.6,5.6);chalk('earthlingsexperience.com',-3.4,5.6,-1); /* and one on the far side, read by whoever comes down the street the other way */})();
 /* =====================================================================
    QUESTS. Every resident has one: go somewhere, take a photograph, and see what is written there. What you find is
    from understand-veganism.com (the definition page and Leslie Cross's founding letters).
