@@ -305,6 +305,8 @@ const scene=new THREE.Scene(); scene.background=new THREE.Color(P.sky);
 const camera=new THREE.PerspectiveCamera(64,1,0.3,900); scene.add(camera);
 const sun=new THREE.DirectionalLight(0xfff6e8,0.30); sun.position.set(4,7,3); camera.add(sun); sun.target.position.set(0,0,-10); camera.add(sun.target);
 scene.add(new THREE.AmbientLight(0xffffff,0.78));
+/* the painted look (2026-09-26): one sun direction shared by every painted material, and a switch for the whole pass (?look=0 shows the old flat look to compare) */
+const SUNU={value:new THREE.Vector3(0,1,0)},LOOKU={value:/[?&]look=0\b/.test(location.search)?0:1};window.SUNU=SUNU;window.LOOKU=LOOKU;
 /* Cast shadow for the main character. An unseen sun (zero intensity, so it changes no colours) follows the
    player and casts a shadow map onto a small curved patch of shadow-only ground that also follows them.
    The sun sits high and a little to the east/north of wherever the player stands, so the shadow always
@@ -320,7 +322,7 @@ const _se=new THREE.Vector3(),_sn=new THREE.Vector3(),_sd=new THREE.Vector3(),_s
 function updateSky(up){if(!skyDome)return;_se.set(0,1,0);if(Math.abs(up.y)>.98)_se.set(1,0,0);_se.addScaledVector(up,-_se.dot(up)).normalize();_sn.crossVectors(_se,up);_sm.makeBasis(_se,up,_sn);skyDome.quaternion.setFromRotationMatrix(_sm);if(nightDome)nightDome.quaternion.copy(skyDome.quaternion);}
 function updateShadowRig(pos,up,q){_se.set(-up.z,0,up.x).normalize();_sn.crossVectors(_se,up).normalize();
   {const pa=shadowCap.geometry.attributes.position,na=shadowCap.geometry.attributes.normal;let k=0;for(let j=0;j<=SHN;j++)for(let i=0;i<=SHN;i++){const dx=(i/SHN-.5)*2*SHW,dz=(j/SHN-.5)*2*SHW;_sv.copy(up).addScaledVector(_se,dx/R).addScaledVector(_sn,dz/R).normalize();const h=gAt(_sv)+.125;pa.setXYZ(k,_sv.x*h,_sv.y*h,_sv.z*h);na.setXYZ(k,_sv.x,_sv.y,_sv.z);k++;}pa.needsUpdate=true;na.needsUpdate=true;} /* just above roads and the sand strip, so shadows land on them too */
-  _sd.copy(up).multiplyScalar(1.6).addScaledVector(_se,.7).addScaledVector(_sn,.5).normalize();
+  _sd.copy(up).multiplyScalar(1.6).addScaledVector(_se,.7).addScaledVector(_sn,.5).normalize();SUNU.value.copy(_sd);
   sunL.position.copy(pos).addScaledVector(_sd,18);sunL.target.position.copy(pos);sunL.target.updateMatrixWorld();}
 let W=0,H=0;
 /* Ink pass: the scene is rendered to a colour+depth target and a normals target, then a full-screen
@@ -329,9 +331,9 @@ let W=0,H=0;
 const rt=new THREE.WebGLRenderTarget(2,2,{minFilter:THREE.LinearFilter,magFilter:THREE.LinearFilter});rt.depthTexture=new THREE.DepthTexture();rt.depthTexture.type=THREE.UnsignedIntType;
 const rtN=new THREE.WebGLRenderTarget(2,2,{minFilter:THREE.NearestFilter,magFilter:THREE.NearestFilter});
 const normalMat=new THREE.MeshNormalMaterial();
-const inkPass=new THREE.ShaderMaterial({uniforms:{tColor:{value:rt.texture},tDepth:{value:rt.depthTexture},tNormal:{value:rtN.texture},res:{value:new THREE.Vector2(2,2)},near:{value:camera.near},far:{value:camera.far},night:{value:0}},
+const inkPass=new THREE.ShaderMaterial({uniforms:{tColor:{value:rt.texture},tDepth:{value:rt.depthTexture},tNormal:{value:rtN.texture},res:{value:new THREE.Vector2(2,2)},near:{value:camera.near},far:{value:camera.far},night:{value:0},look:LOOKU},
   vertexShader:'varying vec2 vUv;void main(){vUv=uv;gl_Position=vec4(position.xy,0.,1.);}',
-  fragmentShader:`precision highp float;varying vec2 vUv;uniform sampler2D tColor,tDepth,tNormal;uniform vec2 res;uniform float near,far,night;
+  fragmentShader:`precision highp float;varying vec2 vUv;uniform sampler2D tColor,tDepth,tNormal;uniform vec2 res;uniform float near,far,night,look;
   float lin(float d){float z=d*2.-1.;return (2.*near*far)/(far+near-z*(far-near));}
   float hash(vec2 p){return fract(sin(dot(p,vec2(127.1,311.7)))*43758.5453);}
   float noise(vec2 p){vec2 i=floor(p),f=fract(p);f=f*f*(3.-2.*f);return mix(mix(hash(i),hash(i+vec2(1,0)),f.x),mix(hash(i+vec2(0,1)),hash(i+vec2(1,1)),f.x),f.y);}
@@ -346,10 +348,14 @@ const inkPass=new THREE.ShaderMaterial({uniforms:{tColor:{value:rt.texture},tDep
     for(int i=0;i<4;i++){vec2 o=(i==0?ox:i==1?-ox:i==2?oy:-oy);vec4 nq=texture2D(tNormal,u+o);vec3 n=nq.xyz*2.-1.;e=max(e,(1.-dot(n0,n))*mix(2.2,0.,soft));road*=(nq.a>=.75&&nq.a<.95)?1.:0.;}e*=1.-road; /* where road meets road (a patch lying on the asphalt) no line is drawn: the layers are millimetres apart and used to sketch boxes on the street */ /* characters: no normal-break lines at all (inner layers poking through a Tripo character's clothes made black specks); their outline comes from depth */
     float line=smoothstep(.3,.8,e);
     line*=mix(.85,1.,noise(sp/13.));
+    line*=mix(1.,mix(1.,.4,smoothstep(14.,55.,d0)),look); /* lines thin out with distance, like a painter's */
     vec3 col=texture2D(tColor,vUv).rgb;
     col+=(noise(sp/1.7)-.5)*.01;
     col*=vec3(1.0,.99,.965); /* a whisper of warmth, like paper */
-    col=mix(col,vec3(.16,.21,.26),line*.9);
+    if(look>0.){float L=dot(col,vec3(.299,.587,.114));col=mix(vec3(L),col,1.+.12*look);col*=mix(vec3(1.),mix(vec3(.95,.98,1.05),vec3(1.03,1.005,.96),smoothstep(.3,.85,L)),look); /* cool shade, warm light */
+      if(d0<far*.9)col=mix(col,vec3(.70,.83,.93),smoothstep(22.,110.,d0)*.2*look);} /* a little air between near and far */
+    vec3 inkC=mix(vec3(.16,.21,.26),col*.42+vec3(.03,.05,.08),.5*look); /* lines take a darker shade of what they edge instead of one ink everywhere */
+    col=mix(col,inkC,line*mix(.9,.8,look));
     float nf=night*(d0<300.?1.:.3);col=mix(col,col*vec3(.20,.26,.46)+vec3(.01,.02,.07),nf); // dusk to night; the sky keeps more of its own picture
     gl_FragColor=vec4(col,1.);}`});
 window.__ink=inkPass;const quadScene=new THREE.Scene();quadScene.add(new THREE.Mesh(new THREE.PlaneGeometry(2,2),inkPass));const quadCam=new THREE.OrthographicCamera(-1,1,1,-1,0,1);
@@ -367,7 +373,7 @@ function refreshMeshes(){meshList=[];cullList=[];scene.traverse(o=>{if(o.isMesh&
 function cullHorizon(){_cn.copy(camera.position);const camH=_cn.length()-R;_cn.normalize();const lim=Math.acos(R/(R+Math.max(.3,camH)));const far=camH>60;if(far!==farState){farState=far;for(const o of cullList)for(const m of o.userData.smallParts)m.visible=!far;}for(const o of cullList){_on.copy(o.position).normalize();o.visible=_on.dot(_cn)>Math.cos(lim+o.userData.hAng)&&!(far&&o.userData.hTop<2.4);}} /* from the globe view the small props are too tiny to see, so they are skipped */
 const hideInNormals=[];
 function renderInk(){if(sceneDirty)refreshMeshes();cullHorizon();renderer.shadowMap.needsUpdate=true;renderer.setRenderTarget(rt);renderer.render(scene,camera);shadowCap.visible=false;for(const o of hideInNormals)o.visible=false;
-  if(sceneDirty)refreshMeshes();for(const m of meshList){m.userData.mat=m.material;m.material=m.userData.roadInk?nmRoad:m.userData.noInk?(m.isSkinnedMesh?nmFlatSkin:nmFlat):(m.isSkinnedMesh?nmSkin:nmPlain);}
+  if(sceneDirty)refreshMeshes();for(const m of meshList){m.userData.mat=m.material;m.material=m.userData.inkMat?m.userData.inkMat:m.userData.roadInk?nmRoad:m.userData.noInk?(m.isSkinnedMesh?nmFlatSkin:nmFlat):(m.isSkinnedMesh?nmSkin:nmPlain);}
   scene.background=normalBg;renderer.setRenderTarget(rtN);renderer.render(scene,camera);
   for(const m of meshList)m.material=m.userData.mat;shadowCap.visible=true;for(const o of hideInNormals)o.visible=true;scene.background=skyCol;renderer.setRenderTarget(null);renderer.render(quadScene,quadCam);}
 
@@ -665,7 +671,7 @@ const colliders=[];let skyDome=null,nightDome=null,SUNSET=null;const PLACES={};
   for(const road of ROADS){const S=road.samples,hw=road.halfW,N=S.length,kb=road.kerb;const texLen=road.closed?road.L/Math.round(road.L/19.6):19.6;const pos=[],uv=[],idx=[];
     /* a joining street has a column either side of each kerb line: its asphalt runs to the host's asphalt, but its kerb and verge stop at the OUTER edge
        of the host's verge, so the host's kerb band carries on unbroken up to the mouth and the two kerbs meet in a square corner instead of overlapping */
-    const stepped=!road.closed&&road.kind==='road';const offs=stepped?[hw,(hw+kb)/2,kb+.002,kb,kb/2,0,-kb/2,-kb,-kb-.002,-(hw+kb)/2,-hw]:Array.from({length:7},(_,j)=>hw*(1-2*j/6));const M=offs.length-1;
+    const stepped=!road.closed&&road.kind==='road';const offs=stepped?[hw,(hw+kb)/2,kb+.002,kb,kb/2,0,-kb/2,-kb,-kb-.002,-(hw+kb)/2,-hw]:Array.from({length:13},(_,j)=>hw*(1-2*j/12));const M=offs.length-1; /* 13 columns (every .6 m on the main street): with 7, the ribbon bridged a bulge in the ground and the pavement beneath poked through its edge in a sawtooth */
     const lim=(H,o)=>stepped&&Math.abs(o)>kb+.001?H.halfW-.02:H.kerb+.02;
     const rowList=road.closed?[...S.map(sm=>({sm})),{sm:S[0],wrap:true}]:endRows(road,offs,lim,lim,stepped?(H,o,atEnd)=>Math.abs(o)>kb+.001?cornerGeom(road,H,atEnd,Math.sign(o)).sT:null:null); /* the street's own kerb and verge end where the corner's curve begins */const rows=rowList.length;
     for(let i=0;i<rows;i++){const row=rowList[i];
@@ -676,7 +682,7 @@ const colliders=[];let skyDome=null,nightDome=null,SUNSET=null;const PLACES={};
     if(road.kind==='road'){ /* a paved strip either side, from the kerb line to where the plots begin */
       for(const sd of [1,-1]){const pp=[],pi=[];const a0=road.kerb+.02,a1=road.kerb+2.15;const PC=5,po=Array.from({length:PC},(_,j)=>sd*(a0+(a1-a0)*j/(PC-1))); /* five columns, not two: on ground that dips across the street a two-point strip rode above the road's verge and showed through it in blocky steps */
         const pRows=road.closed?rowList:endRows(road,po,H=>H.kerb+2.1,H=>H.kerb+2.1); /* a side street's pavement butts into the far edge of the host's pavement */
-        for(let i=0;i<pRows.length;i++){for(let j=0;j<PC;j++){const {pt}=rowPoint(road,pRows[i],j,po[j]);const h=hAt(pt)+road.lift-.01;pp.push(pt.x*h,pt.y*h,pt.z*h);}}
+        for(let i=0;i<pRows.length;i++){for(let j=0;j<PC;j++){const {pt}=rowPoint(road,pRows[i],j,po[j]);const h=hAt(pt)+road.lift-.02;pp.push(pt.x*h,pt.y*h,pt.z*h);}}
         for(let i=0;i<pRows.length-1;i++)for(let j=0;j<PC-1;j++){const a=i*PC+j,b=a+1,c=a+PC,d=c+1;pi.push(a,b,c,b,d,c);}
         const pg=new THREE.BufferGeometry();pg.setAttribute('position',new THREE.Float32BufferAttribute(pp,3));pg.setIndex(pi);pg.computeVertexNormals();
         const pm=new THREE.Mesh(pg,pavementMat);pm.userData.noInk=true;scene.add(pm);}}}
@@ -1134,8 +1140,9 @@ function groundFix(holder,root){holder.updateMatrixWorld(true);let minY=Infinity
     const CARTOON={levels:6,poster:.3,edge0:.45,edge1:.95,ink:.45,sat:1.08,gain:1,lift:0};window.__cartoon=CARTOON;
     const flatMat=(map,color,sharp,pure)=>{const m=new THREE.MeshBasicMaterial({map:map||null,color:map?0xffffff:color});
       m.onBeforeCompile=sh=>{const im=map&&map.image;const w=(im&&(im.width||im.naturalWidth))||1024,h=(im&&(im.height||im.naturalHeight))||1024;
-        sh.uniforms.uTexel={value:sharp?new THREE.Vector2(0,0):new THREE.Vector2(1/w,1/h)};sh.uniforms.uLevels={value:CARTOON.levels};sh.uniforms.uPoster={value:pure?0:CARTOON.poster};sh.uniforms.uEdge={value:new THREE.Vector2(CARTOON.edge0,CARTOON.edge1)};sh.uniforms.uInk={value:CARTOON.ink};sh.uniforms.uSat={value:pure?1:CARTOON.sat};sh.uniforms.uGain={value:CARTOON.gain};sh.uniforms.uLift={value:CARTOON.lift};m.userData.sh=sh;if(pure)m.userData.pure=true;
-        sh.fragmentShader=sh.fragmentShader.replace('#include <common>','#include <common>\nuniform vec2 uTexel;uniform float uLevels,uPoster,uInk,uSat,uGain,uLift;uniform vec2 uEdge;')
+        sh.uniforms.uTexel={value:sharp?new THREE.Vector2(0,0):new THREE.Vector2(1/w,1/h)};sh.uniforms.uLevels={value:CARTOON.levels};sh.uniforms.uPoster={value:pure?0:CARTOON.poster};sh.uniforms.uEdge={value:new THREE.Vector2(CARTOON.edge0,CARTOON.edge1)};sh.uniforms.uInk={value:CARTOON.ink};sh.uniforms.uSat={value:pure?1:CARTOON.sat};sh.uniforms.uGain={value:CARTOON.gain};sh.uniforms.uLift={value:CARTOON.lift};sh.uniforms.uSun=SUNU;sh.uniforms.uLook=LOOKU;sh.uniforms.uSunK={value:pure?0:(m.userData.sunK??.85)};m.userData.sh=sh;if(pure)m.userData.pure=true;
+        sh.vertexShader='varying vec3 vWN;\n'+sh.vertexShader.replace('#include <begin_vertex>','#include <begin_vertex>\n#ifndef USE_SKINNING\nvec3 wn0=normal;\n#ifdef USE_INSTANCING\nwn0=mat3(instanceMatrix)*wn0;\n#endif\nvWN=normalize(mat3(modelMatrix)*wn0);\n#else\nvWN=vec3(0.);\n#endif'); /* world normal for the sun term; skinned characters keep their flat look */
+        sh.fragmentShader=sh.fragmentShader.replace('#include <common>','#include <common>\nuniform vec2 uTexel;uniform float uLevels,uPoster,uInk,uSat,uGain,uLift;uniform vec2 uEdge;uniform vec3 uSun;uniform float uLook,uSunK;varying vec3 vWN;')
           .replace('#include <map_fragment>',`#ifdef USE_MAP
           vec2 tx=uTexel*2.0;vec3 t0=texture2D(map,vUv).rgb;vec3 tl=texture2D(map,vUv-vec2(tx.x,0.)).rgb,tr=texture2D(map,vUv+vec2(tx.x,0.)).rgb,tu=texture2D(map,vUv+vec2(0.,tx.y)).rgb,td=texture2D(map,vUv-vec2(0.,tx.y)).rgb;
           vec3 tsm=(t0*2.0+tl+tr+tu+td)/6.0;float tEdge=length(tr-tl)+length(tu-td);float tInk=smoothstep(uEdge.x,uEdge.y,tEdge)*uInk;
@@ -1144,7 +1151,8 @@ function groundFix(holder,root){holder.updateMatrixWorld(true);let minY=Infinity
           .replace('#include <dithering_fragment>',`#include <dithering_fragment>
         vec3 c=gl_FragColor.rgb;
         float l=dot(c,vec3(.299,.587,.114));float lq=floor(l*uLevels+0.5)/uLevels;c=mix(c,c*(lq+0.02)/max(l,0.02),uPoster);c=mix(vec3(l),c,uSat);c=c*uGain+uLift;
-        gl_FragColor.rgb=clamp(c,0.0,1.0);`);};m.userData.cartoon=true;return m;};
+        gl_FragColor.rgb=clamp(c,0.0,1.0);
+        {float wl=length(vWN);if(wl>.5&&uSunK>0.){float nd=dot(vWN/wl,uSun);if(!gl_FrontFacing)nd=-nd;float lit=smoothstep(-.04,.16,nd);vec3 k=mix(vec3(.80,.86,1.0),vec3(1.05,1.02,.95),lit);gl_FragColor.rgb=clamp(gl_FragColor.rgb*mix(vec3(1.),k,uLook*uSunK),0.,1.);}} /* faces turned to the sun a touch warm, faces turned away cool: the light and shade of a painted background */`);};m.userData.cartoon=true;return m;};
     window.__setCartoon=o=>{Object.assign(CARTOON,o);scene.traverse(m=>{if(m.isMesh&&m.material&&m.material.userData.cartoon&&m.material.userData.sh&&!m.material.userData.pure){const u=m.material.userData.sh.uniforms;u.uLevels.value=CARTOON.levels;u.uPoster.value=CARTOON.poster;u.uEdge.value.set(CARTOON.edge0,CARTOON.edge1);u.uInk.value=CARTOON.ink;u.uSat.value=CARTOON.sat;u.uGain.value=CARTOON.gain;u.uLift.value=CARTOON.lift;}});sceneDirty=true;};
     const asDrawn=t=>{if(t){t.encoding=THREE.LinearEncoding;t.anisotropy=8;t.minFilter=THREE.LinearMipmapLinearFilter;t.needsUpdate=true;}return t;}; /* the texture's colours are the drawing: no gamma decode */
     const toonify=(root,sharp)=>root.traverse(m=>{if(m.isMesh){const old=m.material;asDrawn(old.map);const pure=/concept/i.test(old.name||'');m.material=flatMat(old.map,old.color,sharp||pure,pure);m.userData.noInk=true;}});
@@ -1178,7 +1186,7 @@ function groundFix(holder,root){holder.updateMatrixWorld(true);let minY=Infinity
         inst.scale.setScalar(Math.max(.5,Math.min(1,Math.max(.72,(sl.w||9)/8.6),((sl.w||9)+1.5)/fx,7.2/fz)));} /* a wide, low model scaled to the common height came out far bigger than its plot and sat across the street: its base must fit the plot's width and the depth between street and back */const nS0=solids.length;placeOnGround(inst,sl.lon,sl.lat,sl.yaw);for(let pass=0;pass<2;pass++){const mv=asphaltPoke(inst,foot);if(!mv)break;const n2=inst.position.clone().normalize().addScaledVector(mv,1/R).normalize();(window.__slid=window.__slid||[]).push({d:+mv.length().toFixed(2),n:n2.toArray(),key});const [l2,a2]=lonLatOf(n2);placeOnGround(inst,l2,a2,sl.yaw);} /* a base that reaches onto a street's asphalt (corner plots) slides off it */
         if(foot.length){solids.length=nS0;let x0=1e9,x1=-1e9,z0=1e9,z1=-1e9;for(const [x,z] of foot){x0=Math.min(x0,x);x1=Math.max(x1,x);z0=Math.min(z0,z);z1=Math.max(z1,z);}inst.updateMatrixWorld(true);const sc=inst.scale.x;const c=inst.localToWorld(new THREE.Vector3((x0+x1)/2,0,(z0+z1)/2));const X=new THREE.Vector3(1,0,0).applyQuaternion(inst.quaternion),Z=new THREE.Vector3(0,0,1).applyQuaternion(inst.quaternion);let hx=(x1-x0)/2*sc+.1,hz=(z1-z0)/2*sc+.1;
           const sd=clampSolid({c,X,Z,hx,hz});hx=sd.hx;hz=sd.hz;
-          solids.push({c,X,Z,hx,hz,top:(bbF.max.y-bbF.min.y)*sc-.25});} /* top: the roof, somewhere to land with the wings */ /* solid where the base stands, not the whole box, and never over the pavement */
+          solids.push({c,X,Z,hx,hz,top:(bbF.max.y-bbF.min.y)*sc-.25});(window.BLDGS=window.BLDGS||[]).push({inst,key,foot:[x0,x1,z0,z1],sc,y0:bbF.min.y,top:(bbF.max.y-bbF.min.y)*sc,shop:!!(act&&act.kind==='fruit'),door:!!act}); /* foot: the base's extent in the model's own units (inst.localToWorld places a point) */window.dispatchEvent(new Event('planet:bldg'));} /* top: the roof, somewhere to land with the wings */ /* solid where the base stands, not the whole box, and never over the pavement */
         colliders.push(inst);if(act){inst.updateMatrixWorld(true);const dn=inst.localToWorld(new THREE.Vector3(0,0,bbF.max.z+.55)).normalize();const cn=inst.localToWorld(new THREE.Vector3(0,0,0)).normalize();DOORS.push({n:dn,w:dn.clone().multiplyScalar(gAt(dn)),inw:cn.sub(dn).normalize(),act,key});}});sceneDirty=true;},undefined,e=>console.warn('building not loaded',file,e)));
     /* the ruined lighthouse, out on its rock (slimmed from Josh's 65 MB original to under 2 MB) */
     loader.load('assets/lighthouse.glb',g=>{toonify(g.scene,true);if(LITE)g.scene.traverse(m=>{if(m.isMesh)m.material.side=THREE.DoubleSide;});fit(g.scene,10.5);const inst=new THREE.Group();inst.add(g.scene);const {north}=frameAt(LH.lon,LH.lat);const nS=solids.length;placeOnGround(inst,LH.lon,LH.lat,yawFor(LH.lon,LH.lat,north));solids.length=nS; /* not the model's whole box (rocks, ruins and empty air: an invisible wall metres from anything) */
@@ -1233,7 +1241,7 @@ function groundFix(holder,root){holder.updateMatrixWorld(true);let minY=Infinity
       for(let i=0;i<POLES.length;i++){const a=top(POLES[i]);const near=POLES.map((q,j)=>[j,POLES[i].position.distanceTo(q.position)]).filter(([j,d])=>j!==i&&d>3&&d<30).sort((x,y)=>x[1]-y[1]).slice(0,2);
         for(const [j] of near){if(j<i)continue;const b=top(POLES[j]);const up=a.clone().add(b).normalize();for(const dy of [0,-.32]){const m=a.clone().lerp(b,.5).addScaledVector(up,dy-.55);pts.push(a.clone().addScaledVector(up,dy),m,m,b.clone().addScaledVector(up,dy));}}}
       if(!pts.length)return;const g=new THREE.BufferGeometry().setFromPoints(pts);const l=new THREE.LineSegments(g,new THREE.LineBasicMaterial({color:0x2a3a44}));l.userData.noInk=true;hideInNormals.push(l);scene.add(l);}
-    for(const kind in PROPS){const [file,hgt,cross]=PROPS[kind];loader.load(file,g=>{toonify(g.scene);fit(g.scene,hgt);for(const sl of propSlots){if(sl.kind!==kind)continue;const inst=new THREE.Group();inst.add(g.scene.clone());if(cross){const w=new THREE.Group();w.add(g.scene.clone());w.rotation.y=Math.PI/2;inst.add(w);}if(sl.k)inst.scale.setScalar(sl.k);inst.traverse(m=>{if(m.isMesh)m.castShadow=!LITE;});placeOn(inst,sl.lon,sl.lat,sl.yaw);settle(inst);if(kind.startsWith('rock')){inst.translateY(-(kind==='rock'?.3:.14)*hgt*(sl.k||1));inst.updateMatrixWorld(true);}else if(kind==='tree1'||kind==='tree2'||kind==='bush'||kind==='hedge'||kind.startsWith('grass')||kind==='clover'||kind==='sprout'){inst.translateY(-.06*(sl.k||1));inst.updateMatrixWorld(true);} /* rocks sit into the ground, so they never float on a slope */ if(kind==='upole')POLES.push(inst);if(sl.collide)colliders.push(inst);const SR={treeBig:.5,treeSmall:.4,tree1:.5,tree2:.5,bush:.6,hedge:.9*(sl.k||1),mailbox:.35,rock:.6*(sl.k||1),rock2:.9*(sl.k||1),rock3:.5*(sl.k||1),rock4:.55*(sl.k||1),rock5:.35*(sl.k||1),crate:.5,planter1:.5,planter2:.4,planter3:.5,planter4:.35,planter5:.35,planter6:.5,planter7:.4,planter8:.3,bench2:.6,upole:.22,postbox:.3,vend2:.7,busstop2:.2,cone1:.2,cone2:.2,mirror:.15,sign1:.12,sign2:.12,sign3:.12,bikerack:.6,acunit:.5,gate1:.9,gate2:.9,gate3:.9}[kind];if(SR)solidCircle(inst,SR);}sceneDirty=true;if(kind==='upole')stringWires();},undefined,e=>console.warn(kind,'not loaded',e));}
+    window.__POLES=POLES;for(const kind in PROPS){const [file,hgt,cross]=PROPS[kind];loader.load(file,g=>{toonify(g.scene);fit(g.scene,hgt);(window.__propLib=window.__propLib||{})[kind]=g.scene;window.dispatchEvent(new CustomEvent('planet:prop',{detail:kind}));for(const sl of propSlots){if(sl.kind!==kind)continue;const inst=new THREE.Group();inst.add(g.scene.clone());if(cross){const w=new THREE.Group();w.add(g.scene.clone());w.rotation.y=Math.PI/2;inst.add(w);}if(sl.k)inst.scale.setScalar(sl.k);inst.traverse(m=>{if(m.isMesh)m.castShadow=!LITE;});placeOn(inst,sl.lon,sl.lat,sl.yaw);settle(inst);if(kind.startsWith('rock')){inst.translateY(-(kind==='rock'?.3:.14)*hgt*(sl.k||1));inst.updateMatrixWorld(true);}else if(kind==='tree1'||kind==='tree2'||kind==='bush'||kind==='hedge'||kind.startsWith('grass')||kind==='clover'||kind==='sprout'){inst.translateY(-.06*(sl.k||1));inst.updateMatrixWorld(true);} /* rocks sit into the ground, so they never float on a slope */ if(kind==='upole')POLES.push(inst);if(sl.collide)colliders.push(inst);const SR={treeBig:.5,treeSmall:.4,tree1:.5,tree2:.5,bush:.6,hedge:.9*(sl.k||1),mailbox:.35,rock:.6*(sl.k||1),rock2:.9*(sl.k||1),rock3:.5*(sl.k||1),rock4:.55*(sl.k||1),rock5:.35*(sl.k||1),crate:.5,planter1:.5,planter2:.4,planter3:.5,planter4:.35,planter5:.35,planter6:.5,planter7:.4,planter8:.3,bench2:.6,upole:.22,postbox:.3,vend2:.7,busstop2:.2,cone1:.2,cone2:.2,mirror:.15,sign1:.12,sign2:.12,sign3:.12,bikerack:.6,acunit:.5,gate1:.9,gate2:.9,gate3:.9}[kind];if(SR)solidCircle(inst,SR);}sceneDirty=true;if(kind==='upole')stringWires();},undefined,e=>console.warn(kind,'not loaded',e));}
     // residents: Josh's four modelled characters, cloned with their skeletons
     const su=document.createElement('script');su.src='https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/utils/SkeletonUtils.js';
     su.onload=()=>{
@@ -1555,8 +1563,10 @@ let last=performance.now();
 let fpsN=0,fpsT=0,skipN=0;function frame(now){if(intro&&LITE&&((++skipN)&1)){requestAnimationFrame(frame);return;} /* the title globe draws every other frame on phones */const dt=Math.min(.25,(now-last)/1000)*(window.__dtScale??1);last=now;if(!paused){let acc=dt;while(acc>1e-4){const h=Math.min(.05,acc);update(h);fightUpdate(h);acc-=h;}} /* a slow phone gets several small steps, so the world and the run keep real time instead of slowing down */
   raceUpdate(dt);dashUpdate(dt);webUpdate(dt);flyUpdate(dt);emoteTick(mySprite);try{liveSend();mpUpdate(dt);if(myLookWorn===null&&kidModel&&!plainLook(lookKey(myLook)))wearMine();}catch(e){if(!window.__mpErr){window.__mpErr=e;console.warn('multiplayer',e);}} /* the other players must never be able to stop the game */
   if(fpsEl){fpsN++;if(now-fpsT>500){fpsEl.textContent=Math.round(fpsN*1000/(now-fpsT))+' fps';fpsN=0;fpsT=now;}}
-  if(mixer)mixer.update(dt);applySit();applyRide();applyJump();applyWeb();applyFly();for(const m of mixers)m.update(dt);updateBirds(dt,now/1000);if(window.__water&&window.__water.userData.sh)window.__water.userData.sh.uniforms.uT.value=now/1000;if(window.__shore&&window.__shore.material.userData.sh)window.__shore.material.userData.sh.uniforms.uT.value=now/1000;renderInk();requestAnimationFrame(frame);}
+  if(mixer)mixer.update(dt);applySit();applyRide();applyJump();applyWeb();applyFly();for(const m of mixers)m.update(dt);updateBirds(dt,now/1000);if(window.DRESS&&window.DRESS.frame)try{window.DRESS.frame(dt,now);}catch(e){if(!window.__dressErr){window.__dressErr=e;console.warn('dress',e);}}if(window.__water&&window.__water.userData.sh)window.__water.userData.sh.uniforms.uT.value=now/1000;if(window.__shore&&window.__shore.material.userData.sh)window.__shore.material.userData.sh.uniforms.uT.value=now/1000;renderInk();requestAnimationFrame(frame);}
 requestAnimationFrame(frame);
+/* what the dressing module (planet-dress.js) may use: the game's scope is closed, so it is handed over here */
+window.GAME={ROADS,gAt,R,MIN,LITE,solids,SUNU,LOOKU,scene,hideInNormals,atS,offsetFrom,lonLatOf,placeOn,settle,yawFor,renderer,DOORS,sphere,dirty(){sceneDirty=true;}};
 
 /* =====================================================================
    INPUT
@@ -2443,5 +2453,6 @@ async function ask(text){unlockAudio();
 $('#ask').addEventListener('submit',e=>{e.preventDefault();ask(q.value);});
 })();
 </script>
+<script src="planet-dress.js?v=1"></script>
 </body>
 </html>
