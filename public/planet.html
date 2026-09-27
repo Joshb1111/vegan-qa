@@ -462,26 +462,31 @@ function smooth(a,b,x){const t=clamp((x-a)/(b-a),0,1);return t*t*(3-2*t);}
 function hills(n){const lat=Math.asin(clamp(n.y,-1,1)),lon=Math.atan2(n.z,n.x);
   let h=.8*Math.sin(2*lon+.8)*Math.sin(3.1*lat+.4)+.6*Math.sin(4*lon+2.3)*Math.cos(5*lat-.6)+.45*Math.sin(7*lon-1.1)*Math.sin(2*lat+2);
   h*=smooth(-.3,-.12,lat);const o=parkOut(n);if(o<14)h*=smooth(3,14,o);return h;}
-/* ===== STREET 02, HILLSIDE STAIRS DISTRICT (27 Sep 2026) =====
+/* ===== STREET 02, HILLSIDE STAIRS DISTRICT (27 Sep 2026; one vertical journey) =====
    East of Street 01 the main street climbs a hill (s 242-262), runs along its top past the row of houses, and comes down
-   again (s 288-304). The hill's sea side is cut into levels: the row of houses stays at street level; behind them a garden
-   terrace (west), a sunken court in the gap between houses and a passage running east behind them; a sunken yard at the
-   east end below a tall wall; and a shore path along the top of the beach. Coordinates: s along the main street (from a
-   table of its longitudes) and d, metres south of its centre line. Street 01 (s <= 236) is untouched. */
+   again (s 288-304). One route leaves it: a stair drops between two houses (slot 1) to a middle lane behind them, the lane
+   runs east between the houses' back wall and a second row built on the lane's sea side, opens into a courtyard below the
+   tall wall, and a second stair (slot 2) drops from the courtyard's far corner to the coastal path along the sea wall.
+   West of the first stair the ground behind the houses is private gardens; east of the courtyard, the yard house's garden.
+   Coordinates: s along the main street (from a table of its longitudes) and d, metres south of its centre line.
+   Street 01 (s <= 236) is untouched. */
 const S2LON=[-1.7556,-1.5708,-1.3706,-1.1704,-0.9702,-0.77,-0.5852,-0.385,-0.1848],S2S=[230,240,250,260,270,280,290,300,310];
 function s2Coords(n,lat){const lon=Math.atan2(n.z,n.x);if(lon<-1.70||lon>-0.25)return null;let s=310;for(let i=0;i<8;i++){if(lon<=S2LON[i+1]){s=S2S[i]+(lon-S2LON[i])/(S2LON[i+1]-S2LON[i])*10;break;}}
   const ml=.07*Math.sin(3*lon+.4)+.03*Math.sin(5*lon+1.7),sl=.21*Math.cos(3*lon+.4)+.15*Math.cos(5*lon+1.7);return {s,d:(ml-lat)*R/Math.sqrt(1+sl*sl)};}
 const s2Hill=s=>3.4*smooth(242,262,s)*(1-smooth(288,304,s));
-const S2={court:[259.8,266.6],eastGap:289.5,behind:9.7,lp:12.4,beach:15.2,gardenDrop:.7,passDrop:1.6,passFall:.8,pad:-.4,lpH:-.5};
+const S2={back:9.1,lane:[262.5,285.5],laneOut:11.2,laneH:[1.1,.4],upTo:14.2,prom:16.2,promH:-1.2,promW:-.45,eastGap:287.4,tallWall:4.8,gardenDrop:.5,
+  slot1:[264.2,265.7,5.3],slot2:[294.35,295.85,10.9]};
+const s2Lane=s=>S2.laneH[0]+(S2.laneH[1]-S2.laneH[0])*smooth(266,284,s); /* the lane falls gently east; the courtyard is its last level */
+const s2Prom=s=>S2.promH+(S2.promW-S2.promH)*(1-smooth(250,262,s)); /* the coastal path: a sea wall in the east, onto the sand in the west */
 function street02Terrain(n,lat,h){const c=s2Coords(n,lat);if(!c)return h;const s=c.s,d=c.d;if(d<-24||d>18||s<238||s>309)return h;const H=s2Hill(s);
   if(d<=4.4)return h+H*(d>=0?1:1-smooth(9,22,-d)); /* the street, its pavements and the north side ride the hill */
-  const row=h+H;let t=row;
-  const east=smooth(S2.eastGap-.2,S2.eastGap+.2,s);
-  const cw=smooth(S2.court[0]-.4,S2.court[0],s)*(1-smooth(S2.court[1],S2.court[1]+.4,s));t-=S2.passDrop*smooth(4.5,5.0,d)*cw; /* the court: sunk 1.6 m behind a wall at the pavement's back; stair 1 comes down into it */
-  const bh=smooth(S2.behind-.5,S2.behind,d);if(bh>0){const g=h+H-S2.gardenDrop,pz=h+H-S2.passDrop-S2.passFall*smooth(262,288,s);const tb=g+(pz-g)*smooth(S2.court[0]-.4,S2.court[0],s);t+=(tb-t)*bh;} /* behind the houses: garden terrace, then the passage */
-  const lp=smooth(S2.lp-.5,S2.lp,d);if(lp>0)t+=(S2.lpH-t)*lp; /* the shore path */
-  if(east>0){const te=S2.pad+(row-S2.pad)*(1-smooth(4.4,4.8,d));const tE=d>S2.lp?S2.lpH:te;t+=(tE-t)*east;} /* the sunken yard below the east wall */
-  const bc=smooth(S2.beach,S2.beach+.7,d);t+=(h-t)*bc; /* then the beach as it was */
+  const row=h+H;let t=row; /* the street houses and their side gardens stand at street level */
+  const eg=smooth(S2.eastGap-.15,S2.eastGap+.15,s),back=S2.back+(S2.tallWall-S2.back)*eg; /* east of the gap the lower level runs right up to the tall wall under the street */
+  const up=smooth(back-.3,back,d);if(up>0){const U=(row-S2.gardenDrop)+(s2Lane(s)-(row-S2.gardenDrop))*smooth(S2.lane[0]-.3,S2.lane[0],s);t+=(U-t)*up;} /* behind the houses: gardens in the west, the lane, the courtyard */
+  {const sx=smooth(S2.slot1[0]-.15,S2.slot1[0],s)*(1-smooth(S2.slot1[1],S2.slot1[1]+.15,s));if(sx>0)t+=(s2Lane(s)-t)*sx*smooth(S2.slot1[2]-.2,S2.slot1[2],d);} /* stair 1's slot between the houses */
+  const pw=smooth(S2.upTo-.35,S2.upTo,d);if(pw>0)t+=(s2Prom(s)-t)*pw; /* the coastal path below the second row */
+  {const sx=smooth(S2.slot2[0]-.15,S2.slot2[0],s)*(1-smooth(S2.slot2[1],S2.slot2[1]+.15,s));if(sx>0)t+=(s2Prom(s)-t)*sx*smooth(S2.slot2[2]-.2,S2.slot2[2],d);} /* stair 2's slot out of the courtyard */
+  const bc=smooth(S2.prom-.3,S2.prom,d);t+=(h-t)*bc; /* then the beach, or the sea, as it was */
   const w=smooth(238.5,244,s)*(1-smooth(303,309,s));return h+(t-h)*w;}
 function terrainBase(n){const lat=Math.asin(clamp(n.y,-1,1));let h=-3.2*smooth(-.2,-.46,lat)+hills(n);
   {const o=parkOutE(n);if(o<PARK_SINK.w)h-=PARK_SINK.d*(1-smooth(0,PARK_SINK.w,o));} /* the skate park's pit, flat across the whole park, banked at the rim */
@@ -1588,7 +1593,7 @@ let fpsN=0,fpsT=0,skipN=0;function frame(now){if(intro&&LITE&&((++skipN)&1)){req
   if(mixer)mixer.update(dt);applySit();applyRide();applyJump();applyWeb();applyFly();for(const m of mixers)m.update(dt);updateBirds(dt,now/1000);if(window.DRESS&&window.DRESS.frame)try{window.DRESS.frame(dt,now);}catch(e){if(!window.__dressErr){window.__dressErr=e;console.warn('dress',e);}}if(window.__water&&window.__water.userData.sh)window.__water.userData.sh.uniforms.uT.value=now/1000;if(window.__shore&&window.__shore.material.userData.sh)window.__shore.material.userData.sh.uniforms.uT.value=now/1000;renderInk();requestAnimationFrame(frame);}
 requestAnimationFrame(frame);
 /* what the dressing module (planet-dress.js) may use: the game's scope is closed, so it is handed over here */
-window.GAME={groundMesh,S2,s2Coords,s2Hill,WALKS,ROADS,gAt,R,MIN,LITE,solids,SUNU,LOOKU,scene,hideInNormals,atS,offsetFrom,lonLatOf,placeOn,settle,yawFor,renderer,DOORS,sphere,dirty(){sceneDirty=true;}};
+window.GAME={groundMesh,S2,s2Coords,s2Hill,s2Lane,s2Prom,WALKS,ROADS,gAt,R,MIN,LITE,solids,SUNU,LOOKU,scene,hideInNormals,atS,offsetFrom,lonLatOf,placeOn,settle,yawFor,renderer,DOORS,sphere,dirty(){sceneDirty=true;}};
 
 /* =====================================================================
    INPUT
@@ -2475,6 +2480,6 @@ async function ask(text){unlockAudio();
 $('#ask').addEventListener('submit',e=>{e.preventDefault();ask(q.value);});
 })();
 </script>
-<script src="planet-dress.js?v=2"></script>
+<script src="planet-dress.js?v=3"></script>
 </body>
 </html>
