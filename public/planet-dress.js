@@ -489,7 +489,7 @@ function s2Ground(o){const gm=G.groundMesh;if(!gm)return 0;const pa=gm.geometry.
   for(let i=0;i<pa.count;i++){v.fromBufferAttribute(pa,i);const n=v.clone().normalize();const c=G.s2Coords(n,Math.asin(n.y));if(!c||c.s<o.s0+1.4||c.s>o.s1-1.4||c.d<o.d0+1.3||c.d>o.d1-1.3)continue;v.multiplyScalar((v.length()-5)/v.length()); /* well below every level: the steps are up to 4 m */pa.setXYZ(i,v.x,v.y,v.z);k++;}pa.needsUpdate=true;gm.geometry.computeBoundingSphere();
   {const sh=window.__shore;if(sh){const sp=sh.geometry.attributes.position;for(let i=0;i<sp.count;i++){v.fromBufferAttribute(sp,i).applyMatrix4(sh.matrixWorld);const n=v.clone().normalize();const c=G.s2Coords(n,Math.asin(n.y));if(!c||c.s<o.s0+.5||c.s>o.s1-.5||c.d<o.d0||c.d>o.shoreTo)continue;const r_=Math.min(v.length()-.6,gAt(n)-.5,R-2.0); /* below the lowest level: its big triangles span the walls */const w=v.clone().multiplyScalar(r_/v.length());sh.worldToLocal(w);sp.setXYZ(i,w.x,w.y,w.z);}sp.needsUpdate=true;sh.geometry.computeBoundingSphere();}} /* the sand strip along the waterline too, under every level and the coastal path */
   const STEP=.35,ns=Math.ceil((o.s1-o.s0)/STEP),nd=Math.ceil((o.d1-o.d0)/STEP);const P=new Float32Array((ns+1)*(nd+1)*3),UV=new Float32Array((ns+1)*(nd+1)*2),idx=[];
-  for(let i=0;i<=ns;i++)for(let j=0;j<=nd;j++){const s=o.s0+(o.s1-o.s0)*i/ns,d=o.d0+(o.d1-o.d0)*j/nd;const n=s2At(s,d);let h=gAt(n);for(const [a,b] of [[.3,0],[-.3,0],[0,.3],[0,-.3]])h=Math.min(h,gAt(s2At(s+a,d+b)));h+=.01;const q=(i*(nd+1)+j); /* the lowest ground nearby: the slopes between levels tuck in behind the wall faces instead of wedging out in front */P[q*3]=n.x*h;P[q*3+1]=n.y*h;P[q*3+2]=n.z*h;const lon=Math.atan2(n.z,n.x),lat=Math.asin(n.y);UV[q*2]=(((Math.PI-lon)/(2*Math.PI))%1+1)%1;UV[q*2+1]=.5+(d<o.grassTo?Math.max(lat,-.27):lat)/Math.PI;} /* the terraces take the grass colour; the ground texture turns to sand by latitude alone */
+  for(let i=0;i<=ns;i++)for(let j=0;j<=nd;j++){const s=o.s0+(o.s1-o.s0)*i/ns,d=o.d0+(o.d1-o.d0)*j/nd;const n=s2At(s,d);let h=gAt(n);for(const [a,b] of [[.3,0],[-.3,0],[0,.3],[0,-.3]])h=Math.min(h,gAt(s2At(s+a,d+b)));h+=.01;const q=(i*(nd+1)+j); /* the lowest ground nearby: the slopes between levels tuck in behind the wall faces instead of wedging out in front */P[q*3]=n.x*h;P[q*3+1]=n.y*h;P[q*3+2]=n.z*h;const lon=Math.atan2(n.z,n.x),lat=Math.asin(n.y);UV[q*2]=(((Math.PI-lon)/(2*Math.PI))%1+1)%1;UV[q*2+1]=.5+(d<o.grassTo?Math.max(lat,-.27):d>o.sandFrom?Math.min(lat,-.4):lat)/Math.PI; /* past the coastal path the patch is sand, never the grass band */} /* the terraces take the grass colour; the ground texture turns to sand by latitude alone */
   for(let i=0;i<ns;i++)for(let j=0;j<nd;j++){const a=i*(nd+1)+j,b=a+nd+1;idx.push(a,b,a+1,b,b+1,a+1);}
   const g=new T.BufferGeometry();g.setAttribute('position',new T.BufferAttribute(P,3));g.setAttribute('uv',new T.BufferAttribute(UV,2));g.setIndex(idx);g.computeVertexNormals();g.computeBoundingSphere();
   const mat=gm.material.clone();mat.side=T.DoubleSide;mat.polygonOffset=true;mat.polygonOffsetFactor=-1;mat.polygonOffsetUnits=-1;const m=new T.Mesh(g,mat);m.name='dress:s2-ground';m.receiveShadow=false;scene.add(m);G.dirty();return k;}
@@ -498,14 +498,15 @@ function s2Clear(o){const T_=window.__town;if(!T_)return 0;let k=0;
   scene.traverse(m=>{if(!m.isInstancedMesh||m.name.startsWith('dress')||m.geometry.type!=='IcosahedronGeometry'&&m.geometry.attributes.position.count>300)return;const M=new T.Matrix4(),p=new T.Vector3(),q=new T.Quaternion(),sc=new T.Vector3();let ch_=false;for(let i=0;i<m.count;i++){m.getMatrixAt(i,M);M.decompose(p,q,sc);if(sc.x===0)continue;const n=p.clone().normalize();const c=G.s2Coords(n,Math.asin(n.y));if(!c||c.s<o.s0||c.s>o.s1||c.d<4.5||c.d>o.d1)continue;sc.set(0,0,0);M.compose(p,q,sc);m.setMatrixAt(i,M);ch_=true;k++;}if(ch_)m.instanceMatrix.needsUpdate=true;}); /* the game's pebbles strewn over the old lawn */const kill=[];for(const p of T_.propSlots){const n=sphere(p.lon,p.lat);const c=G.s2Coords(n,Math.asin(n.y));if(!c||c.s<o.s0||c.s>o.s1||c.d<4.5||c.d>o.d1)continue;kill.push(n);}
   for(const n of kill){const P=n.clone().multiplyScalar(R);const keep=new Set((window.BLDGS||[]).map(b=>b.inst));for(const ch_ of [...scene.children]){if(!ch_.isGroup||ch_.name.startsWith('dress')||keep.has(ch_)||ch_.userData.s2)continue;const q=ch_.position.clone().normalize();if(q.dot(n)>Math.cos(.9/R)){scene.remove(ch_);k++;}}for(let i=solids.length-1;i>=0;i--){const so=solids[i];if(so.r===undefined)continue;const q=so.c.clone().normalize();if(q.dot(n)>Math.cos(.9/R))solids.splice(i,1);}}G.dirty();return k;}
 /* a house of the town, cloned onto Street 02: its footprint centred on (s,d), its front to the side of 'face' (-1: towards the street's centre line) */
-function s2House(key,s,d,face,sc,res){ /* face: +1/-1 fronts to +d/-d; 'w' fronts west, back along the street */const src=(window.BLDGS||[]).find(b=>b.key===key&&!b.inst.userData.s2);if(!src)return null;const g=src.inst.clone(true);g.userData.s2=true;const k=sc/src.sc;
+function s2House(key,s,d,face,sc,res,o){o=o||{}; /* face: +1/-1 fronts to +d/-d; 'w' fronts west, back along the street */const src=(window.BLDGS||[]).find(b=>b.key===key&&!b.inst.userData.s2);if(!src)return null;const g=src.inst.clone(true);g.userData.s2=true;const k=sc/src.sc;
   const sm=atS(MAIN,s);const n=s2At(s,d);const [lo,la]=lonLatOf(n);placeOn(g,lo,la,yawFor(lo,la,face==='w'?sm.t.clone().negate():sm.side.clone().multiplyScalar(face)));g.scale.copy(src.inst.scale).multiplyScalar(k);
-  const [x0,x1,z0,z1]=src.foot;let gmin=1e9;for(const [a,b] of [[x0,z0],[x1,z0],[x0,z1],[x1,z1],[(x0+x1)/2,(z0+z1)/2]].map(([a,b])=>[(a-(x0+x1)/2)*.72+(x0+x1)/2,(b-(z0+z1)/2)*.72+(z0+z1)/2])) /* inset: a corner over the wall's edge must not sink the house to the level below */{g.position.copy(n.clone().multiplyScalar(R));g.updateMatrixWorld(true);const q=g.localToWorld(V3(a,0,b)).normalize();gmin=Math.min(gmin,gAt(q));}
+  const [x0,x1,z0,z1]=src.foot;let gmin=1e9;for(const [a,b] of [[x0,z0],[x1,z0],[x0,z1],[x1,z1],[(x0+x1)/2,(z0+z1)/2]].map(([a,b])=>[(a-(x0+x1)/2)*.72+(x0+x1)/2,(b-(z0+z1)/2)*.72+(z0+z1)/2])) /* inset: a corner over the wall's edge must not sink the house to the level below */{g.position.copy(n.clone().multiplyScalar(R));g.updateMatrixWorld(true);const q=g.localToWorld(V3(a,0,b)).normalize();gmin=Math.min(gmin,gAt(q));}if(o.base!=null)gmin=R+o.base+.05;
   g.position.copy(n.clone().multiplyScalar(R));g.updateMatrixWorld(true);const c0=g.localToWorld(V3((x0+x1)/2,0,(z0+z1)/2)).normalize();const shift=n.clone().sub(c0);g.position.copy(n.clone().add(shift).normalize().multiplyScalar(gmin-.05));g.updateMatrixWorld(true);scene.add(g);
   const X=V3(1,0,0).applyQuaternion(g.quaternion),Z=V3(0,0,1).applyQuaternion(g.quaternion);const c=g.localToWorld(V3((x0+x1)/2,0,(z0+z1)/2));solids.push({c,X,Z,hx:(x1-x0)/2*sc,hz:(z1-z0)/2*sc,top:src.top*k});
+  if(o.plinth){const up=c.clone().normalize();let fl=1e9;for(const [a,b] of [[x0,z0],[x1,z0],[x0,z1],[x1,z1]])fl=Math.min(fl,gAt(g.localToWorld(V3(a,0,b)).normalize()));const hh=gmin-.05-fl+.3;const m=new T.Matrix4().makeBasis(X,up,Z);m.setPosition(up.clone().multiplyScalar(fl-.3+hh/2));kit(m).box((x1-x0)*sc+.3,hh,(z1-z0)*sc+.3,0x9c9a90,0,0,0);} /* a stone base down to the sea bed */
   if(res)(res.houses=res.houses||[]).push(key);return {g,w:(x1-x0)*sc,dp:(z1-z0)*sc,top:src.top*k};}
 function street02(o){const res={};const hsdW=()=>o.house[0]-2.05;const S=G.S2,Ln=G.s2Lane,Pr=G.s2Prom;window.DRESS.s2At=s2At;window.DRESS.hSD=hSD;
-  res.ground=s2Ground({s0:239,s1:307,d0:4.35,d1:17.5,grassTo:S.upTo,shoreTo:S.prom+.45});res.cleared=s2Clear({s0:241,s1:305,d1:16.6});for(const ms of [4000,12000,30000])setTimeout(()=>{res.cleared+=s2Clear({s0:241,s1:305,d1:16.6});},ms); /* props that load late */
+  res.ground=s2Ground({s0:239,s1:307,d0:4.35,d1:17.5,grassTo:S.upTo,sandFrom:S.prom-.1,shoreTo:S.prom+.45});res.cleared=s2Clear({s0:241,s1:305,d1:16.6});for(const ms of [4000,12000,30000])setTimeout(()=>{res.cleared+=s2Clear({s0:241,s1:305,d1:16.6});},ms); /* props that load late */
   const [a1,b1,t1]=S.slot1,[a2,b2,t2]=S.slot2,EG=S.eastGap,BK=S.back,UP=S.upTo,PR=S.prom,L0=S.lane[0],L1=S.lane[1],LO=S.laneOut;
   const line=(a,b,d,st)=>{const r=[];for(let s=a;s<b-.01;s+=st||1.2)r.push([s,d]);r.push([b,d]);return r;};const across=(s,d0,d1,st)=>{const r=[];for(let d=d0;d<d1-.01;d+=st||1.2)r.push([s,d]);r.push([s,d1]);return r;};
   /* ---- the back wall: the street houses stand on it, the lane runs at its foot (built in goes) ---- */
@@ -516,8 +517,15 @@ function street02(o){const res={};const hsdW=()=>o.house[0]-2.05;const S=G.S2,Ln
   s2Wall(across(EG,S.tallWall,BK),{across:true,low:1,tex:'concrete'});const eN=line(EG,301.3,S.tallWall);s2Wall(eN,{low:1,tex:'concrete',gutter:true}); /* the tall wall under the street at the east end */
   s2Wall(line(EG,299.8,S.tallWall,1),{low:1,tex:'concrete',capOnly:true,parapet:.95,thick:.22,solid:false,tint:0xe9e6de});{const t=[];for(const [ss] of line(299.8,301.3,4.62,.75))t.push({n:s2At(ss,4.62),h:hSD(ss,4.2)});s2Rail(t);}
   /* ---- stair 1: a slot between house 16's side garden and house 10 ---- */
-  const slotPts=s=>[[s,t1-.1],[s,6.4],[s,7.7],[s,BK]];s2Wall(slotPts(a1),{across:true,low:1,tex:'stone',pad:-.05});s2Wall(slotPts(a1),{across:true,low:1,tex:'block',capOnly:true,parapet:.42,thick:.2,solid:false});s2Wall(slotPts(b1),{across:true,low:-1,tex:'concrete',pad:-.05});
+  const slotPts=s=>[[s,t1-.1],[s,6.4],[s,7.7],[s,BK]];s2Wall(slotPts(a1),{across:true,low:1,tex:'stone',pad:-.05});s2Wall(slotPts(b1),{across:true,low:-1,tex:'concrete',pad:-.05});
   const f1=s2Flight([(a1+b1)/2,t1-.15],[(a1+b1)/2,BK+.35],1.38,{hT:hSD((a1+b1)/2,4.7),hB:hSD((a1+b1)/2,BK+.8)});res.f1=[+f1.hT.toFixed(2),+f1.hB.toFixed(2),f1.N];
+  /* ---- houses that make the path: stair 1 drops between two of them; the back gardens, the courtyard's sides, the far side of stair 2 and a house out on the sea wall are built on ---- */
+  res.hSlot=!!s2House('3',261.45,6.85,-1,.78,res); /* where the open side garden was: stair 1 now runs between this house and house 10 */
+  s2House('9',246.8,11.95,1,.6,res);s2House('19',254.2,11.95,1,.6,res); /* the back gardens' own houses, looking over the sea wall */
+  s2House('20',287.45,12.85,-1,.55,res); /* the lane squeezes past it into the courtyard; its door faces the lane */
+  s2House('4',298.1,12.35,1,.55,res); /* the far side of stair 2 */
+  s2House('17',270.2,18.3,-1,.5,res,{base:Pr(270.2)-.05,plinth:true}); /* out on the sea wall: the coastal path passes between it and the houses above */
+  shed(277.75,279.95,4.95,8.85,2.6,{door:'d0',window:'s1',roofTo:'d1',col:0xa9b3ad,roof:0x6f7c83}); /* a garage in the gap between two street houses */
   /* ---- the lane's west end: the private gardens' wall across it ---- */
   s2Wall(across(L0,BK,UP),{across:true,low:1,tex:'block'});
   /* ---- the second row, on the lane's sea side: two houses, walled gardens and sheds between them ---- */
@@ -529,8 +537,8 @@ function street02(o){const res={};const hsdW=()=>o.house[0]-2.05;const S=G.S2,Ln
   s2Wall(line(244,256,UP),{low:1,tex:'stone',gutter:true});s2Wall(line(256,L0,UP),{low:1,tex:'concrete',gutter:true,tint:0xe6e2d6});s2Wall(line(L0,274.6,UP),{low:1,tex:'stone',gutter:true});
   s2Wall(line(274.6,L1,UP),{low:1,tex:'concrete',gutter:true});s2Wall(line(L1,a2,UP),{low:1,tex:'stone',gutter:true,tint:0xe9e6dd});s2Wall(line(b2,302.5,UP),{low:1,tex:'concrete',gutter:true,tint:0xefece4});
   const cap=(a,b,tex,h)=>s2Wall(line(a,b,UP,1),{low:1,tex,capOnly:true,parapet:h,thick:.22,solid:false});
-  cap(L0,266.8,'block',.85);cap(274.5,278.45,'concrete',.8);cap(281.2,L1,'stone',.9);cap(L1,289.2,'stone',.75);
-  {const t=[];for(const [ss] of line(289.2,a2-.05,UP-.2,1))t.push({n:s2At(ss,UP-.2),h:hSD(ss,UP-.6)});s2Rail(t,null,{col:0x7f958d,h:.95,space:1.3,mid:true,r:.024});} /* the courtyard's sea view: a plain rail */
+  cap(L0,266.8,'block',.85);cap(274.5,278.45,'concrete',.8);cap(281.2,L1,'stone',.9);cap(291.6,a2,'stone',.3);
+  {const t=[];for(const [ss] of line(288.95,291.6,UP-.2,.9))t.push({n:s2At(ss,UP-.2),h:hSD(ss,UP-.6)});s2Rail(t,null,{col:0x7f958d,h:.95,space:1.3,mid:true,r:.024});} /* the courtyard's sea view: a plain rail */
   s2Fence(line(244.3,L0-.2,UP-.22,1.1),{h:1,base:(ss,dd)=>hSD(ss,dd-.3)});s2Fence(line(b2+.2,302.3,UP-.22,1.1),{h:1,base:(ss,dd)=>hSD(ss,dd-.3)});
   /* ---- stair 2: out of the courtyard's far corner, between its wall and the garden next door ---- */
   const slot2=s=>[[s,t2-.1],[s,12],[s,13.1],[s,UP]];s2Wall(slot2(a2),{across:true,low:1,tex:'stone',pad:-.05});s2Wall(slot2(a2),{across:true,low:1,tex:'stone',capOnly:true,parapet:.7,thick:.2,solid:false});s2Wall(slot2(b2),{across:true,low:-1,tex:'block',pad:-.05});
@@ -540,13 +548,15 @@ function street02(o){const res={};const hsdW=()=>o.house[0]-2.05;const S=G.S2,Ln
   /* ---- paving: laid in different goes ---- */
   const walks=G.WALKS.splice(0); /* paving follows the ground, not the stairs and landings laid over it */
   s2Pave(a1-.05,b1+.05,4.35,t1-.22,.04,'setts',0xf2efe8);
-  s2Pave(L0,268.4,BK,LO,.04,'setts',0xf2efe8);s2Pave(268.4,276,BK,LO,.04,'conc');s2Pave(276,281.5,BK,LO,.04,'pave',0xe6e2da);s2Pave(281.5,L1,BK,LO,.04,'conc',0xdcd8cf);s2Pave(266.8,274.5,LO,LO+.7,.04,'conc');s2Pave(278.5,281.2,LO,LO+.7,.04,'pave',0xe6e2da); /* up to the second row's doors */
+  s2Pave(L0,268.4,BK,LO,.04,'setts',0xf2efe8);s2Pave(268.4,276,BK,LO,.04,'conc');s2Pave(276,281.5,BK,LO,.04,'pave',0xe6e2da);s2Pave(281.5,L1,BK,LO,.04,'conc',0xdcd8cf);s2Pave(266.8,274.5,LO,LO+1.3,.04,'conc');s2Pave(278.5,281.2,LO,LO+1.3,.04,'pave',0xe6e2da); /* up to the second row's doors */
   s2Pave(L1,a2,BK,UP-.37,.04,'setts',0xe9e6dd);s2Pave(a2,b2,S.tallWall+4.3,t2-.22,.04,'setts',0xe9e6dd);s2Pave(EG,hsdW(),S.tallWall+.05,BK,.04,'setts',0xe9e6dd); /* the forecourt before the yard house's door */
   s2Pave(245,262,UP,PR-.36,.04,'conc');s2Pave(262,280,UP,PR-.36,.04,'pave',0xe8e4dc);s2Pave(280,303,UP,PR-.36,.04,'conc',0xe0dcd2); /* to the sea wall's back: past it the ground falls away and the paving would sag */
   G.WALKS.push(...walks);
   /* ---- the sea side of the coastal path: a sea wall and rail where the water is below, a curb where it is a step, open onto the sand in the west ---- */
-  const sea=[];for(let s=245;s<=303;s+=1.2){const drop=hSD(s,PR-.4)-hSD(s,PR+.6);const k=drop>1.1?'rail':drop>.45?'curb':'open';sea.push({s,k,n:s2At(s,PR-.2),h:hSD(s,PR-.4)});}
-  let run=[],kind=null;const flushR=k=>{if(run.length>1){if(k!=='open')s2Wall(run.map(q=>[q.s,PR]),{low:1,tex:k==='rail'?'stone':'concrete',solid:false});
+  const built=[[268.1,272.3],[283.3,288.3],[299.8,303.4]]; /* buildings stand on the sea edge there: they are the edge */
+  const sea=[];for(let s=245;s<=303;s+=1.2){const drop=hSD(s,PR-.4)-hSD(s,PR+.6);const k=built.some(([a,b])=>s>a&&s<b)?'built':drop>1.1?'rail':drop>.45?'curb':'open';sea.push({s,k,n:s2At(s,PR-.2),h:hSD(s,PR-.4)});}
+  let run=[],kind=null;const flushR=k=>{if(run.length>1&&k==='built'){for(let i=0;i<run.length-1;i++){const A=run[i].n,B_=run[i+1].n;const m=A.clone().add(B_).normalize();const X=B_.clone().sub(A);const len=X.length()*R;X.addScaledVector(m,-X.dot(m)).normalize();solids.push({c:m.clone().multiplyScalar(R),X,Z:new T.Vector3().crossVectors(X,m).normalize(),hx:len/2+.05,hz:.1,top:1});}} /* beside a building on the sea edge: nothing to see, but no stepping off into the water */
+    if(run.length>1&&k!=='built'){if(k!=='open')s2Wall(run.map(q=>[q.s,PR]),{low:1,tex:k==='rail'?'stone':'concrete',solid:false});
       if(k==='rail'){s2Rail(run);for(let i=0;i<run.length-1;i++){const A=run[i].n,B_=run[i+1].n;const m=A.clone().add(B_).normalize();const X=B_.clone().sub(A);const len=X.length()*R;X.addScaledVector(m,-X.dot(m)).normalize();solids.push({c:m.clone().multiplyScalar(R),X,Z:new T.Vector3().crossVectors(X,m).normalize(),hx:len/2,hz:.1,top:1});}}
       else if(k==='curb')s2Wall(run.map(q=>[q.s,PR-.1]),{low:1,tex:'concrete',free:true,h:.4,thick:.3});}};
   for(const q of sea){if(kind!==null&&q.k!==kind){const last=run[run.length-1];flushR(kind);run=[last];}kind=q.k;run.push(q);}flushR(kind);res.sea=sea.map(q=>q.k[0]).join('');
@@ -573,12 +583,14 @@ function mailbox(m){const k=kit(m);k.cyl(.035,.035,1.05,0x5a5f62,0,.52,0,6).box(
 /* ---------- Street 02 architecture: sheds, doorways, fences, and the marks of age on its walls ---------- */
 function sdBox(s0,s1,d0,d1){const sc=(s0+s1)/2,dc=(d0+d1)/2;const c=s2At(sc,dc);const a=s2At(s0,dc),b=s2At(s1,dc);const X=b.clone().sub(a);X.addScaledVector(c,-X.dot(c)).normalize();const Zp=s2At(sc,d1).sub(s2At(sc,d0));Zp.addScaledVector(c,-Zp.dot(c)).normalize();const Z=new T.Vector3().crossVectors(X,c).normalize();const zs=Math.sign(Z.dot(Zp))||1;
   let g=1e9;for(const [ss,dd] of [[s0,d0],[s1,d0],[s0,d1],[s1,d1],[sc,dc]])g=Math.min(g,hSD(ss,dd));const m=new T.Matrix4().makeBasis(X,c.clone(),Z);m.setPosition(c.clone().multiplyScalar(R+g));return {m,ls:s1-s0,ld:d1-d0,zs,g,c,X,Z};}
-function shed(s0,s1,d0,d1,h,o){o=o||{};const b=sdBox(s0,s1,d0,d1);const k=kit(b.m);const wc=o.col||rp([0xc9c1ad,0xa9b3ad,0xd4cbb8,0x9fa7a1,0xb9a88c]);k.box(b.ls,h+.2,b.ld,wc,0,(h-.2)/2,0);
+function shed(s0,s1,d0,d1,h,o){o=o||{};const b=sdBox(s0,s1,d0,d1);if(o.base!=null)b.m.setPosition(b.c.clone().multiplyScalar(R+o.base));const k=kit(b.m);if(o.plinth){let fl=1e9;for(const [ss,dd] of [[s0,d0],[s1,d0],[s0,d1],[s1,d1]])fl=Math.min(fl,hSD(ss,dd));const hh=o.base-fl+.3;k.box(b.ls+.3,hh,b.ld+.3,0x9c9a90,0,-hh/2+.02,0);}const wc=o.col||rp([0xc9c1ad,0xa9b3ad,0xd4cbb8,0x9fa7a1,0xb9a88c]);k.box(b.ls,h+.2,b.ld,wc,0,(h-.2)/2,0);
   const rc=o.roof||rp([0x6f7c83,0x8a5a44,0x5f6f78,0x7d6a55]),over=.2,tilt=.2;const toS=(o.roofTo||'d1')[0]==='s',sg=(o.roofTo||'d1')[1]==='1'?1:-1;
   const rx=toS?0:sg*b.zs*tilt,rz=toS?-sg*tilt:0;k.box(b.ls+over*2,.05,b.ld+over*2,rc,0,h+.1,0,0,rx,rz);for(let i=-2;i<=2;i++){if(toS)k.box(b.ls+over*2,.07,.035,0x3a3f42,0,h+.13,i*(b.ld/5),0,0,rz);else k.box(.035,.07,b.ld+over*2,0x3a3f42,i*(b.ls/5),h+.13,0,0,rx,0);}
   const face=(side,w,hh,col,y,off)=>{if(side[0]==='s'){const x=(side[1]==='1'?1:-1)*(b.ls/2+.02);k.box(.05,hh,w,col,x,y,off||0);}else{const z=(side[1]==='1'?1:-1)*b.zs*(b.ld/2+.02);k.box(w,hh,.05,col,off||0,y,z);}};
   if(o.door){face(o.door,.78,1.8,rp([0x6b4a2e,0x5a6a72,0x7a3f32]),.9,o.doorOff||0);face(o.door,.9,.06,0x3a3f42,1.84,o.doorOff||0);}if(o.window)face(o.window,.6,.45,0xdfe8e4,1.45,o.winOff||0);
   solids.push({c:b.c.clone().multiplyScalar(R),X:b.X,Z:b.Z,hx:b.ls/2,hz:b.ld/2,top:h});return b;}
+function meters(m){const k=kit(m);k.box(.28,.36,.12,0x9aa0a0,0,1.3,.06).box(.22,.3,.12,0x8f9699,.34,1.26,.06).box(.1,.08,.02,0xdfe8e4,0,1.36,.125).rod(V3(.17,0,.06),V3(.17,1.1,.06),.02,0x6d7478,4);}
+function storeDoor(s,d,h0,w){const m=frameSD(s,d,h0,0,1);const k=kit(m);k.box(w+.24,2.08,.1,0x6d7478,0,1.04,.02).box(w,1.86,.06,0xa9afb0,0,.93,.06);for(let y=.22;y<1.8;y+=.18)k.box(w,.02,.02,0x7f8688,0,y,.1);k.box(w+.6,.05,.55,0x5f6f78,0,2.18,.27,0,.14);} /* a storeroom or boat store cut into the wall */
 function doorway(s,d,fs,fd,h0,o){o=o||{};const m=frameSD(s,d,h0,fs,fd);const k=kit(m);k.box(1.02,2.08,.08,0x4a4f52,0,1.04,.02).box(.84,1.92,.06,rp([0x6b4a2e,0x8a6a48,0x55646b]),0,.98,.05).box(.05,.14,.05,0xc9b98a,.3,1,.1).box(1.25,.05,.6,0x6f7c83,0,2.25,.32,0,.16).box(1.1,.12,.42,0xb9b4a6,0,.06,.26);
   wallLamp(mul(m,mRot(.72,1.95,.02)));mailbox(mul(m,mRot(-.78,0,.35)));s2Quad(m,.28,.28,[.5+.004,.004,.75-.004,.496],-.72,1.55,.07);}
 function s2Fence(pts,o){o=o||{};const K=kit(new T.Matrix4());const col=o.col||rp([0x8a6f52,0x9a9285,0x7b6a58]);const tops=pts.map(([ss,dd])=>{const n=s2At(ss,dd);return {n,h:(o.base?o.base(ss,dd):gAt(n)-R)};});
@@ -598,17 +610,16 @@ function s2Dress(o){const S=G.S2,Ln=G.s2Lane;const [a1,b1,t1]=S.slot1,[a2,b2,t2]
   const t=s=>atS(MAIN,s).t.clone(),sd=s=>atS(MAIN,s).side.clone();
   /* ---- stair 1: the sign on the corner, the side garden's tree leaning over the slot, washing on its line ---- */
   {{const r0=hSD(a1-.3,4.3);const m=frameSD(a1-.32,4.58,r0,0,-1);const k=kit(m);k.cyl(.035,.035,1.9,0x8a8f90,0,.95,0,6);s2Quad(m,.62,.3,[.004,.754,.496,.996],0,1.72,.04);s2Quad(m,.62,.3,[.004,.754,.496,.996],0,1.72,-.04,Math.PI);solids.push({c:s2At(a1-.32,4.58).multiplyScalar(R),r:.1});}
-    s2Fence([[258.9,4.62],[260.1,4.62],[261.3,4.62],[262.5,4.62],[263.7,4.62],[a1-.55,4.62]],{h:1.0,col:0x9a9285});
-    shed(258.95,260.6,6.9,8.75,2.0,{door:'s1',roofTo:'d1',col:0xb9a88c,roof:0x6f7c83});paintedTree(s2At(263.2,7.6),rb(4.6,5.2),t(263),false);laundry(261.9,5.75,0,1,2.1);
-    for(const dd of [5.9,7.3])drape(a1+.02,dd,hSD(a1-.4,dd)+.42,1,0,rb(1,1.3)); /* the side garden spilling over the slot */
-    ivy(b1-.02,7.4,Ln(b1),1.8,-1,0);wallLamp(frameSD(b1-.02,8.5,Ln(b1)+1.85,-1,0));pots([[a1-.9,5.2],[a1-1.3,5.35]]);}
+    ivy(b1-.02,7.4,Ln(b1),1.8,-1,0);ivy(a1+.02,8.3,Ln(a1),1.4,1,0);wallLamp(frameSD(b1-.02,8.5,Ln(b1)+1.85,-1,0));meters(frameSD(a1+.03,8.05,1.62,1,0));
+    /* the stair's foot: a little dead-end landing with washing, a bike, the meters, a tap */
+    laundry(263.25,10.15,1,0,1.8);bike(s2At(L0+.45,10.7),sd(L0));meters(frameSD(263.9,BK+.03,Ln(263.9),0,1));tap(frameSD(L0+.05,9.6,null,1,0));pots([[a1-.2,9.45],[a1-.55,9.4,'box']]);}
   /* ---- the lane: the backs of the street houses above, the second row's fronts on the other side ---- */
   {{const gs=b1+.95,h=hSD(gs,10.1);const K=kit(new T.Matrix4());const a=s2At(gs,BK+.12),b=s2At(gs,LO-.02);const A=a.clone().multiplyScalar(R+h),B_=b.clone().multiplyScalar(R+h);K.rod(A,A.clone().addScaledVector(a,2.35),.07,0x6b4a2e,4).rod(B_,B_.clone().addScaledVector(b,2.35),.07,0x6b4a2e,4).rod(A.clone().addScaledVector(a,2.3),B_.clone().addScaledVector(b,2.3),.06,0x5a3e28,4);
       kit(frameSD(gs,(BK+LO)/2,h+2.4,1,0)).box(.34,.04,2.3,0x4a3a2c,0,0,0,0,0,.1);} /* a timber gateway into the lane at the stair's foot */
     s2Quad(frameSD(L0+1.1,BK+.03,hSD(L0+1.1,10)+1.45,0,1),.5,.24,[.5+.004,.754,1-.004,.996]); /* 私道 */
     for(let s=b1+2.2;s<L1-.5;s+=rb(4,6.5)){const top=hSD(s,BK-.4);const gl=hSD(s,10.1);if(ch(.6))acUnit(frameSD(s,BK-.05,top,0,1),0,.28,0,0);if(ch(.55)&&Math.abs(s-271.8)>1.5){const k=kit(frameSD(s+1.1,BK+.02,gl,0,1));const hh=top-gl+.4;k.cyl(.045,.045,hh,rp([0xd9d3c3,0x8f9a9e]),0,hh/2,.06,8);}
       if(ch(.55))drape(s+rb(-1,1),BK-.04,top+.02,0,1,rb(1.1,1.6));else if(Math.abs(s-271.8)>1.6)ivy(s,BK+.04,gl,rb(1.2,2),0,1);}
-    doorway(271.8,BK+.03,0,1,hSD(271.8,9.7));umbrella(frameSD(272.7,9.35,null,0,1));pots([[270.9,9.4],[273.3,9.45],[273.7,9.4]]); /* a door into the lower floor of the house above */
+    doorway(271.8,BK+.03,0,1,hSD(271.8,9.7));meters(frameSD(270.55,BK+.03,hSD(270.55,9.7),0,1));umbrella(frameSD(272.7,9.35,null,0,1));pots([[270.9,9.4],[273.3,9.45],[273.7,9.4]]); /* a door into the lower floor of the house above */
     wallLamp(frameSD(276.3,BK+.04,hSD(276.3,10)+1.9,0,1));wallLamp(frameSD(283.2,BK+.04,hSD(283.2,10)+1.9,0,1));
     bike(s2At(276.6,10.75),t(276));bins(frameSD(275.4,10.75,null,0,-1));mailbox(frameSD(268.1,LO-.25,null,0,-1));pots([[267.4,LO-.3],[279.2,LO-.28],[280.6,LO-.3]]);
     /* the second row's gardens: a tree over one wall, a shed in the next yard, a lean-to that narrows the lane before the courtyard */
@@ -620,18 +631,20 @@ function s2Dress(o){const S=G.S2,Ln=G.s2Lane;const [a1,b1,t1]=S.slot1,[a2,b2,t2]
   /* ---- the courtyard at the turn: the yard house's door, a shed, a bench and the first real look at the sea ---- */
   {const src=(window.BLDGS||[]).find(b=>b.key===o.houseKey&&!b.inst.userData.s2);const hsd=o.house;const hh=s2House(o.houseKey,hsd[0],hsd[1],'w',.72,res);res.house=!!hh;
     const sF=hsd[0]-(hh?hh.dp/2:2)-.45;mailbox(frameSD(sF,hsd[1]+1.35,null,-1,0));pots([[sF,hsd[1]-1.3],[sF-.1,hsd[1]-1.75],[sF+.05,hsd[1]+1.9,'box']]);umbrella(frameSD(sF+.2,hsd[1]+.8,null,-1,0));wallLamp(frameSD(EG+.05,6.6,hSD(EG+.5,6.6)+1.9,1,0)); /* the door faces the lane's arrival, across a small forecourt */
-    bike(s2At(EG+.4,8.2),sd(EG));shed(L1+.15,L1+2.2,12.35,14.05,2.1,{door:'s1',roofTo:'d1',col:0xb9a88c,roof:0x8a5a44});laundry(290.2,12.7,0,1,2.2);
-    tap(frameSD(EG+.05,5.6,null,1,0));bins(frameSD(294.85,TW+1.1,null,1,0));glb('bench2',s2At(292.1,13.55),sd(292),{solid:.35});paintedTree(s2At(293.75,13.35),rb(4,4.6),t(293),true);
-    for(let s=L1+2.4;s<289.1;s+=rb(.45,.8))B[ch(.7)?'shrub':'daisy'].add(s2At(s,UP-.15),rb(.8,1.1),rb(.7,1),rb(.9,1.02),hSD(s,UP-.5)-hSD(s,UP-.15)+.72);
+    bike(s2At(EG+.4,8.2),sd(EG));laundry(288.75,6.6,1,0,2.0);meters(frameSD(EG+.05,7.6,null,1,0));
+    tap(frameSD(EG+.05,5.6,null,1,0));bins(frameSD(294.85,TW+1.1,null,1,0));glb('bench2',s2At(290.3,13.5),sd(290),{solid:.3});
+    shed(291.65,294.25,11.8,14.1,2.8,{door:'s0',window:'d0',roofTo:'d1',col:0xd9cfbd,roof:0x5f6f78}); /* an annex: the sea shows only in the gap between it and the house opposite */
+    acUnit(frameSD(292.9,11.78,Ln(292.9),0,-1),0,2.1,.2,0);pots([[291.4,11.95],[291.35,12.4,'box'],[289.1,11.95]]);
     weedsAlong(L1,a2,BK+.1,6);weedsAlong(L1+2.3,a2,UP-.3,5);ivy(a2+.02,12.2,Ln(290)-1.3,1.5,1,0);drape(a2+.02,11.6,Ln(290)+.7,1,0,1.1);}
   /* ---- the yard house's garden, behind its fence: a lean-to, the tree, the washing ---- */
-  {shed(b2+.5,b2+2.5,TW+.05,TW+1.35,2.3,{roofTo:'d1',door:'d1',col:0xd4cbb8,roof:0x7d6a55});paintedTree(s2At(299.8,9.2),rb(6,7),t(299),true);laundry(298.8,12.3,0,1,2.4);
+  {shed(b2+.5,b2+2.5,TW+.05,TW+1.35,2.3,{roofTo:'d1',door:'d1',col:0xd4cbb8,roof:0x7d6a55});paintedTree(s2At(299.8,9.2),rb(6,7),t(299),true);laundry(301.2,11.2,1,0,2.0);
     for(let s=EG+.8;s<301;s+=rb(1.8,3))drape(s,TW+.06,hSD(s,4.2)+.02,0,1,rb(1.2,1.7));weedsAlong(EG+.3,301,TW+.15,10);wallMarks(EG,301,TW,1,5,'concrete');
     for(const dd of [11.8,12.9])drape(b2-.02,dd,hSD(b2+.4,dd)+.02,-1,0,1.1);}
   /* ---- the private gardens behind the western houses ---- */
-  {shed(244.5,246.1,9.75,11.25,2.0,{door:'s1',roofTo:'d0',col:0xa9b3ad,roof:0x6f7c83});laundry(250.5,11.2,1,0,2.2);glb('bench2',s2At(255.5,12.9),sd(255.5).negate(),{solid:.5});paintedTree(s2At(249.2,12.2),rb(4.5,5.5),t(249),false);paintedTree(s2At(258.6,12.6),rb(4.2,5),t(258),true);
+  {shed(257.9,259.9,12.0,13.95,2.0,{door:'s0',roofTo:'d1',col:0xa9b3ad,roof:0x6f7c83});laundry(250.5,11.2,1,0,2.2);paintedTree(s2At(250.7,13.3),rb(4.5,5.5),t(249),false);paintedTree(s2At(261.0,12.3),rb(4.2,5),t(258),true);
+    {const m=frameSD(250.6,10.0,null,0,1);kit(m).box(1.5,.08,1.0,0x6b5440,0,.04,0);for(let i=0;i<4;i++)B.fern.add(s2At(250.1+i*.33,10.0),rb(.3,.45),rb(.25,.35),1,.08);} /* a vegetable bed */
     s2Fence([[249.6,BK+.1],[249.6,10.6],[249.6,12.1],[249.6,UP-.25]],{h:.95});s2Fence([[257.4,BK+.1],[257.4,11.4],[257.4,UP-.25]],{h:.9,col:0x8a6f52});
-    pots([[246.5,10.1],[246.9,9.95],[247.2,10.25]]);for(let s=252;s<262;s+=rb(.6,1))B[ch(.6)?'shrub':'fern'].add(s2At(s,UP-.45),rb(.7,1.1),rb(.6,.95),1,.15);weedsAlong(244,L0,BK+.15,6);}
+    pots([[246.5,10.1],[246.9,9.95],[247.2,10.25]]);for(let s=256;s<257.8;s+=rb(.6,1))B[ch(.6)?'shrub':'fern'].add(s2At(s,UP-.45),rb(.7,1.1),rb(.6,.95),1,.15);weedsAlong(244,L0,BK+.15,6);}
   /* ---- the coastal path: the wall's foot planted, drains; the hut and boat on the sand to the west ---- */
   {for(let s=246;s<302;s+=rb(3,5))if(s<a2-1||s>b2+1)drape(s,UP+.06,hSD(s,UP-.6)+.02,0,1,rb(1.1,1.6));
     for(let i=0;i<16;i++){const ss=rb(245,302);if(ss>a2-.6&&ss<b2+.6)continue;const q=s2At(ss,UP+.25+rr()*.25);if(ch(.7))B[rp(['fern','weed','rosette','daisy'])].add(q,rb(.35,.7),rb(.3,.6),1);else plant(q,0);}
@@ -640,6 +653,15 @@ function s2Dress(o){const S=G.S2,Ln=G.s2Lane;const [a1,b1,t1]=S.slot1,[a2,b2,t2]
     wallMarks(246,302,UP,1,8,'stone');
     shed(252.6,255.0,16.9,18.5,1.9,{roofTo:'s0',door:'d0',col:0x8a6f52,roof:0x6f7c83}); /* a fishing hut on the sand */
     {const n=s2At(260.2,17.3);const m=basisM(n,t(260.2).applyAxisAngle(atS(MAIN,260.2).n,.35));m.setPosition(onG(n,-.05));kit(m).box(1.05,.42,3,0xe9e6de,0,.21,0).box(1.07,.1,3.02,0x2d5f8f,0,.34,0).box(.7,.3,.5,0xe9e6de,0,.15,1.6);solids.push({c:n.clone().multiplyScalar(R),r:1.1});}
+    /* the coastal path as a sequence: out past the end building, the boat shed, a hedged opening, the house on the sea wall, then the beach */
+    shed(283.4,288.2,16.12,19.3,2.4,{base:G.s2Prom(285.8)-.05,plinth:true,door:'d0',doorOff:1.2,window:'s0',roofTo:'d1',col:0x8a6f52,roof:0x6f7c83});
+    shed(299.95,303.3,14.25,16.35,2.7,{base:G.s2Prom(301.6)-.05,plinth:true,door:'s0',doorOff:-.3,window:'d0',roofTo:'s1',col:0xc9c1ad,roof:0x8a5a44});
+    for(const [ss,w] of [[279.3,1.5],[290.1,1.3],[265.4,1.2]])storeDoor(ss,UP+.03,G.s2Prom(ss),w);meters(frameSD(281.1,UP+.03,G.s2Prom(281.1),0,1));
+    for(let s=276.2;s<282.6;s+=rb(.5,.8))if(s<278.4||s>280.4)B[ch(.7)?'shrub':'shrubD'].add(s2At(s,PR-.15),rb(1.1,1.5),rb(1,1.3),rb(.9,1.02),.3); /* planters on the sea wall: the sea in pieces */
+    paintedTree(s2At(263.4,17.4),rb(5.2,6.2),t(263),true); /* a pine at the corner where the path meets the sand */
+    shed(255.2,258.9,14.24,15.05,2.5,{door:'d1',doorOff:-.8,window:'d1',winOff:1.0,roofTo:'d1',col:0xc9c1ad,roof:0x6f7c83}); /* a workshop built into the wall's foot: the path bends out round it onto the sand */
+    acUnit(frameSD(257.9,15.07,hSD(257.9,15.3),0,1),0,.35,.15,0);meters(frameSD(258.92,14.7,hSD(258.92,14.9),1,0));pots([[254.9,15.25],[254.6,15.1,'box']]);
+    for(let s=247;s<254.5;s+=rb(.5,.8))B[ch(.7)?'shrub':'shrubD'].add(s2At(s,UP+.35),rb(1.2,1.7),rb(1.1,1.5),rb(.9,1.02),0); /* a hedge along the wall's foot further on */
     for(const [ss,dd] of [[248.5,16.9],[257.2,17.2],[250.5,18],[263.5,16.8]])for(let j=0;j<4;j++)B[ch(.6)?'pampas':'weed'].add(s2At(ss+rb(-1,1),dd+rb(-.4,.4)),rb(.6,1),rb(.6,1.1),rb(.95,1.1));}
   /* ---- poles along the street; one more in the strip beside the courtyard, its wires dropping to the yard house ---- */
   {const kerb=MAIN.kerb;const P=[];for(const s of o.poles){const sm=atS(MAIN,s);const n=s2At(s,kerb+.32);if(solidHit(n,.4)||doorNear(n,1.4))continue;P.push(Object.assign(pole(n,sm.side.clone().negate(),{tr:ch(.4),lamp:ch(.5),box:ch(.3),H:rb(7,7.8),guard:ch(.15)?'stripe':'none'}),{s}));}
