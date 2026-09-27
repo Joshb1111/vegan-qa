@@ -411,11 +411,177 @@ function lawns(o){const road=MAIN,S=s_=>atS(road,s_),kerb=road.kerb;const near=R
     if(groups<o.groups){for(let j=0;j<Math.floor(rb(3,6));j++){const q=tn(n,V3(rb(-1,1),rb(-1,1),rb(-1,1)).multiplyScalar(1.2));if(!solidHit(q,.2))(ch(.5)?plant(q,0):B[rp(['fern','daisy','weed','rosette'])].add(q,rb(.5,.9),rb(.4,.7),1));}groups++;}}
   return {trees,groups};}
 
+/* =====================================================================
+   STREET 02, HILLSIDE STAIRS DISTRICT (27 Sep 2026)
+   The terrain (hill, court, passage, garden terrace, sunken yard, shore path) is in the game's terrainBase; this lays
+   the walls, stairs, paving and rails on it, then dresses it. Its own seed; nothing here touches Street 01.
+   ===================================================================== */
+function paintWall(kind){const c=canvas(512,512),g=c.getContext('2d');const r=()=>cr();
+  if(kind==='stone'){g.fillStyle='#6f6a5f';g.fillRect(0,0,512,512);let y=0;while(y<512){const hgt=40+r()*34;let x=-r()*60;while(x<512){const w=50+r()*80;const col=['#a9a393','#b8b2a2','#9d978a','#c2bcac','#aba493','#948f82'][Math.floor(r()*6)];g.fillStyle=col;g.beginPath();const rx=5+r()*6;g.roundRect?g.roundRect(x+3,y+3,w-6,hgt-6,rx):g.rect(x+3,y+3,w-6,hgt-6);g.fill();
+      g.fillStyle='rgba(255,255,255,.14)';g.fillRect(x+6,y+5,w-14,4);g.fillStyle='rgba(0,0,0,.14)';g.fillRect(x+6,y+hgt-10,w-12,5);x+=w;}y+=hgt;}
+    for(let i=0;i<30;i++){g.fillStyle=`rgba(${60+r()*30},${90+r()*40},${50},.${2+Math.floor(r()*3)})`;const x=r()*512,y=380+r()*132;g.beginPath();g.ellipse(x,y,10+r()*24,4+r()*8,0,0,7);g.fill();} /* moss low down */}
+  else if(kind==='concrete'){g.fillStyle='#b4b1a6';g.fillRect(0,0,512,512);for(let i=0;i<900;i++){g.fillStyle=`rgba(${r()<.5?80:230},${r()<.5?80:228},${r()<.5?70:220},.05)`;g.fillRect(r()*512,r()*512,3+r()*10,3+r()*8);}
+    g.strokeStyle='rgba(60,60,55,.35)';g.lineWidth=2;for(const x of [0,256])g.strokeRect(x+1,1,255,510);for(let x=32;x<512;x+=64)for(let y=64;y<512;y+=128){g.fillStyle='rgba(50,50,45,.45)';g.beginPath();g.arc(x,y,3,0,7);g.fill();} /* form-tie holes */
+    for(let i=0;i<26;i++){const x=r()*512,w=4+r()*10,l=60+r()*260;const gr=g.createLinearGradient(0,0,0,l);gr.addColorStop(0,'rgba(70,72,64,.28)');gr.addColorStop(1,'rgba(70,72,64,0)');g.fillStyle=gr;g.fillRect(x,0,w,l);} /* drips from the top */
+    g.fillStyle='rgba(70,100,55,.25)';for(let i=0;i<40;i++){g.beginPath();g.ellipse(r()*512,470+r()*42,10+r()*20,4+r()*7,0,0,7);g.fill();}
+    for(let x=64;x<512;x+=128){g.fillStyle='#4a4d4a';g.beginPath();g.arc(x,300,7,0,7);g.fill();g.fillStyle='rgba(60,70,60,.3)';g.fillRect(x-3,300,6,70);} /* weep holes with their stains */}
+  else{g.fillStyle='#8f918b';g.fillRect(0,0,512,512);for(let row=0;row<8;row++)for(let col=-1;col<5;col++){const x=col*128+(row%2?64:0),y=row*64;const col_=['#b1b3ac','#a9aba4','#b8b9b2','#a3a59e'][Math.floor(r()*4)];g.fillStyle=col_;g.fillRect(x+3,y+3,122,58);g.fillStyle='rgba(0,0,0,.08)';g.fillRect(x+3,y+50,122,11);}
+    for(let i=0;i<14;i++){const x=r()*512,l=40+r()*160;const gr=g.createLinearGradient(0,0,0,l);gr.addColorStop(0,'rgba(60,62,55,.25)');gr.addColorStop(1,'rgba(60,62,55,0)');g.fillStyle=gr;g.fillRect(x,0,6+r()*8,l);}}
+  const t=texOf(c);t.wrapT=T.RepeatWrapping;t.wrapS=T.RepeatWrapping;return t;}
+function paintPave(){const c=canvas(512,512),g=c.getContext('2d');g.fillStyle='#9e9a8e';g.fillRect(0,0,512,512);for(let y=0;y<512;y+=128)for(let x=0;x<512;x+=128){const col=['#c2bdb0','#bab5a7','#c9c4b6','#b3ae9f'][Math.floor(cr()*4)];g.fillStyle=col;g.fillRect(x+4,y+4,120,120);g.fillStyle='rgba(0,0,0,.05)';g.fillRect(x+4,y+100,120,24);}
+  for(let i=0;i<60;i++){g.fillStyle='rgba(80,110,60,.35)';g.fillRect(Math.floor(cr()*4)*128+cr()*128,Math.floor(cr()*4)*128+124+(cr()-.5)*3,6+cr()*10,3);} /* weeds in the joints */
+  const t=texOf(c);t.wrapS=t.wrapT=T.RepeatWrapping;return t;}
+let W2={};
+function s2At(s,d){const sm=atS(MAIN,s);let n=offsetFrom(sm,d);for(let k=0;k<4;k++){const c=G.s2Coords(n,Math.asin(n.y));if(!c)break;const es=s-c.s,ed=d-c.d;if(Math.abs(es)<.005&&Math.abs(ed)<.005)break;n=tn(n,sm.t.clone().multiplyScalar(es).addScaledVector(sm.side,ed));}return n;}
+const hSD=(s,d)=>gAt(s2At(s,d))-R;
+function s2Setup(){const mk=(tex,k)=>new Bucket('s2-'+k,sunMat(new T.MeshBasicMaterial({map:tex,vertexColors:true,side:T.DoubleSide}),.9));W2.stone=mk(paintWall('stone'),'stone');W2.concrete=mk(paintWall('concrete'),'concrete');W2.block=mk(paintWall('block'),'block');
+  W2.pave=new Bucket('s2-pave',new T.MeshBasicMaterial({map:paintPave(),vertexColors:true,side:T.DoubleSide,polygonOffset:true,polygonOffsetFactor:-2,polygonOffsetUnits:-2}),{ud:{roadInk:true}});W2.solids=[];}
+/* a retaining wall along a line of (s,d) points; 'low' says which side is lower (+1: the side of increasing d, or of increasing s for a wall across), the face on that side */
+function s2Wall(pts,o){const bk=W2[o.tex||'stone'];const thick=o.thick||.36;const P=[],N=[],U=[];let u=0;const rows=[];
+  for(let i=0;i<pts.length;i++){const [s,d]=pts[i];const across=o.across;const off=(a,b)=>across?s2At(s+a,d+b):s2At(s+b,d+a);
+    const face=off(0,0),up=off(-o.low*.65,0),lo=off(o.low*.3,0),back=off(-o.low*thick,0);const top=gAt(up)-R+(o.parapet||0)+.02,bot=gAt(lo)-R-.35;rows.push({face,back,top,bot});}
+  for(let i=0;i<rows.length-1;i++){const a=rows[i],b=rows[i+1];const du=a.face.distanceTo(b.face)*R;const q=(n,h)=>n.clone().multiplyScalar(R+h);
+    const fa0=q(a.face,a.bot),fa1=q(a.face,a.top),fb0=q(b.face,b.bot),fb1=q(b.face,b.top),ba1=q(a.back,a.top),bb1=q(b.back,b.top),ba0=q(a.back,a.top-1),bb0=q(b.back,b.top-1);
+    const quad=(p0,p1,p2,p3,uv)=>{const nn=new T.Vector3().subVectors(p1,p0).cross(new T.Vector3().subVectors(p2,p0)).normalize();for(const [p,t] of [[p0,uv[0]],[p1,uv[1]],[p2,uv[2]],[p0,uv[0]],[p2,uv[2]],[p3,uv[3]]]){P.push(p.x,p.y,p.z);N.push(nn.x,nn.y,nn.z);U.push(t[0],t[1]);}};
+    const v=h=>h/2;quad(fa0,fb0,fb1,fa1,[[u/2,v(a.bot)],[(u+du)/2,v(b.bot)],[(u+du)/2,v(b.top)],[u/2,v(a.top)]]);quad(fa1,fb1,bb1,ba1,[[u/2,0],[(u+du)/2,0],[(u+du)/2,.18],[u/2,.18]]);quad(ba1,bb1,bb0,ba0,[[u/2,v(a.top)],[(u+du)/2,v(b.top)],[(u+du)/2,v(b.top-1)],[u/2,v(a.top-1)]]);
+    const mid=a.face.clone().add(b.face).add(a.back).add(b.back).normalize();const X=b.face.clone().sub(a.face);X.addScaledVector(mid,-X.dot(mid)).normalize();const Z=new T.Vector3().crossVectors(X,mid).normalize();
+    if(o.solid!==false&&!(o.gap&&o.gap(...pts[i],...pts[i+1])))solids.push({c:mid.clone().multiplyScalar(R),X,Z,hx:du/2+.02,hz:thick/2+.08,top:1.2});
+    u+=du;}
+  bk.addRaw(P,N,U,o.tint||0xffffff);
+  if(o.gutter){const g=rows.map((r_,i)=>{const [s,d]=pts[i];return o.across?s2At(s+o.low*.28,d):s2At(s,d+o.low*.28);});groundStrip(GUTTER,g,.26,.05,0xffffff,2.4,[0,1]);}
+  if(o.rail){const tops=rows.map((r_,i)=>{const [s,d]=pts[i];const n=o.across?s2At(s-o.low*.2,d):s2At(s,d-o.low*.2);return {n,h:r_.top};});s2Rail(tops,o.railGap);}
+  return rows;}
+function s2Rail(tops,gap){const K=kit(new T.Matrix4());const col=0x7f958d;let prev=null;let acc=0;for(let i=0;i<tops.length;i++){const {n,h}=tops[i];if(gap&&gap(i)){prev=null;continue;}const p0=n.clone().multiplyScalar(R+h),p1=n.clone().multiplyScalar(R+h+.95),pm=n.clone().multiplyScalar(R+h+.5);
+    if(!prev||acc>1.2||i===tops.length-1){K.rod(p0,p1,.024,col,6);if(prev){K.rod(prev.p1,p1,.026,col,6);K.rod(prev.pm,pm,.018,col,6);}prev={p1,pm};acc=0;}else acc+=prev?p1.distanceTo(prev.p1):0;}}
+/* a flight of stairs from (s,d) top to (s,d) bottom; walkable; stepped masses down to the ground; cheek walls or rails */
+function s2Flight(top,bot,W,o){o=o||{};const nT=s2At(...top),nB=s2At(...bot);const hT=o.hT??(gAt(nT)-R),hB=o.hB??(gAt(nB)-R);const dir=nB.clone().sub(nT);dir.addScaledVector(nT,-dir.dot(nT));const L=dir.length()*R;dir.normalize();const t=new T.Vector3().crossVectors(nT,dir).normalize();
+  const N=Math.max(3,Math.round(Math.abs(hT-hB)/.18)),run=L/N;const col=o.col||0xc2bdb0;const at=(al,ac)=>tn(nT,dir.clone().multiplyScalar(al).addScaledVector(t,ac));
+  for(const [key,sx] of [['left',-1],['right',1]]){if(o[key])continue;let g=0;for(const f of [.25,.5,.75])g+=gAt(at(L*f,sx*(W/2+.7)))-R-(hT+(hB-hT)*f);g/=3;o[key]=g<-.35?'rail':g>.35?'none':'cheek';} /* each side: a rail where the ground falls away, nothing against a wall, a low cheek otherwise */const frame=(n,h)=>{const m=basisM(n,dir);m.setPosition(n.clone().multiplyScalar(R+h));return m;};const rails=[[],[]];
+  for(let i=0;i<N;i++){const al=(i+.5)*run,c=at(al,0),top_=hT+(hB-hT)*(i+.5)/N;let gb=1e9;for(const ac of [-W/2,0,W/2])for(const da of [-run/2,run/2])gb=Math.min(gb,gAt(at(al+da,ac))-R);const hb=Math.min(gb,top_-.2)-.25,hh=top_-hb;
+    kit(frame(c,(top_+hb)/2)).box(W,hh,run+.02,col,0,0,0).box(W+.02,.03,.05,0x9c9788,0,hh/2-.01,-run/2+.03);
+    for(const sx of [-1,1]){const side=sx<0?o.left:o.right;if(side==='cheek')kit(frame(c,(top_+hb)/2)).box(.16,hh+.3,run+.02,0xaea898,sx*(W/2+.08),.15,0);if(side==='rail'||side==='cheek')rails[sx<0?0:1].push({n:at(al,sx*(W/2+.08)),h:top_+(side==='cheek'?.3:0)});}}
+  for(const rr_ of rails)if(rr_.length)s2Rail(rr_);
+  for(const sx of [-1,1]){const side=sx<0?o.left:o.right;if(side==='rail'||side==='cheek'){const a=at(run*.5,sx*(W/2+.1)),b=at(L-run*.5,sx*(W/2+.1));const m=a.clone().add(b).normalize();const X=b.clone().sub(a);X.addScaledVector(m,-X.dot(m)).normalize();solids.push({c:m.clone().multiplyScalar(R),X,Z:new T.Vector3().crossVectors(X,m).normalize(),hx:L/2,hz:.1,top:1});}}
+  const nn=nT.clone(),cosC=Math.cos((L+3)/R),d0=dir.clone(),t0=t.clone(),hw=W/2+.06;G.WALKS.push(n=>{if(n.dot(nn)<cosC)return null;const al=((n.x-nn.x)*d0.x+(n.y-nn.y)*d0.y+(n.z-nn.z)*d0.z)*R,ac=((n.x-nn.x)*t0.x+(n.y-nn.y)*t0.y+(n.z-nn.z)*t0.z)*R;if(al<-.15||al>L+.15||Math.abs(ac)>hw)return null;return hT+(hB-hT)*Math.min(1,Math.max(0,al/L));}); /* overlaps its landings a little, so there is no seam to drop through */
+  return {hT,hB,L,N};}
+/* a flat landing: slab, walkable, rails on the sides given */
+function s2Landing(s0,s1,d0,d1,h,o){o=o||{};const c=s2At((s0+s1)/2,(d0+d1)/2),a=s2At(s0,(d0+d1)/2),b=s2At(s1,(d0+d1)/2);const X=b.clone().sub(a);X.addScaledVector(c,-X.dot(c)).normalize();const Z=new T.Vector3().crossVectors(X,c).normalize();const ls=(s1-s0),ld=(d1-d0);
+  let gb=1e9;for(const [s,d] of [[s0,d0],[s1,d0],[s0,d1],[s1,d1],[(s0+s1)/2,(d0+d1)/2]])gb=Math.min(gb,hSD(s,d));const hb=Math.min(gb,h-.2)-.25;const m=new T.Matrix4().makeBasis(X,c,Z.clone().negate());m.setPosition(c.clone().multiplyScalar(R+(h+hb)/2));kit(m).box(ls,h-hb,ld,o.col||0xc2bdb0,0,0,0);
+  const cc=c.clone(),cosC=Math.cos((ls+ld)/R),Xc=X.clone(),Zc=Z.clone();G.WALKS.push(n=>{if(n.dot(cc)<cosC)return null;const x=((n.x-cc.x)*Xc.x+(n.y-cc.y)*Xc.y+(n.z-cc.z)*Xc.z)*R,z=((n.x-cc.x)*Zc.x+(n.y-cc.y)*Zc.y+(n.z-cc.z)*Zc.z)*R;return Math.abs(x)<=ls/2+.2&&Math.abs(z)<=ld/2+.2?h:null;});
+  for(const [side,pts] of Object.entries({s0:[[s0,d0],[s0,d1]],s1:[[s1,d0],[s1,d1]],d0:[[s0,d0],[s1,d0]],d1:[[s0,d1],[s1,d1]]})){if(!(o.rails||[]).includes(side))continue;const tops=[];for(let k=0;k<=4;k++){const s=pts[0][0]+(pts[1][0]-pts[0][0])*k/4,d=pts[0][1]+(pts[1][1]-pts[0][1])*k/4;tops.push({n:s2At(s,d),h});}s2Rail(tops);const A=s2At(...pts[0]),B=s2At(...pts[1]);const mm=A.clone().add(B).normalize();const XX=B.clone().sub(A);const len=XX.length()*R;XX.addScaledVector(mm,-XX.dot(mm)).normalize();solids.push({c:mm.clone().multiplyScalar(R),X:XX,Z:new T.Vector3().crossVectors(XX,mm).normalize(),hx:len/2,hz:.1,top:1});}
+  return h;}
+/* paving: a rectangle in (s,d), laid on the ground */
+function s2Pave(s0,s1,d0,d1,lift){const P=[],N=[],U=[];const ns=Math.max(1,Math.ceil((s1-s0)/.8)),nd=Math.max(1,Math.ceil((d1-d0)/.8));const pt=(i,j)=>{const s=s0+(s1-s0)*i/ns,d=d0+(d1-d0)*j/nd;const n=s2At(s,d);return {p:n.clone().multiplyScalar(gAt(n)+(lift||.04)),n,u:s/1.6,v:d/1.6};};
+  for(let i=0;i<ns;i++)for(let j=0;j<nd;j++){const a=pt(i,j),b=pt(i+1,j),c=pt(i+1,j+1),d=pt(i,j+1);for(const q of [a,c,b,a,d,c]){P.push(q.p.x,q.p.y,q.p.z);N.push(q.n.x,q.n.y,q.n.z);U.push(q.u,q.v);}}W2.pave.addRaw(P,N,U,0xffffff);}
+/* the planet's ground is a 1 m mesh, too coarse for terraces: inside Street 02 it is sunk out of sight and a 35 cm patch,
+   laid on the exact terrain with the ground's own material and lon/lat texture mapping, takes its place */
+function s2Ground(o){const gm=G.groundMesh;if(!gm)return 0;const pa=gm.geometry.attributes.position,v=new T.Vector3();let k=0;
+  for(let i=0;i<pa.count;i++){v.fromBufferAttribute(pa,i);const n=v.clone().normalize();const c=G.s2Coords(n,Math.asin(n.y));if(!c||c.s<o.s0+1.4||c.s>o.s1-1.4||c.d<o.d0+1.3||c.d>o.d1-1.3)continue;v.multiplyScalar((v.length()-5)/v.length()); /* well below every level: the steps are up to 4 m */pa.setXYZ(i,v.x,v.y,v.z);k++;}pa.needsUpdate=true;gm.geometry.computeBoundingSphere();
+  {const sh=window.__shore;if(sh){const sp=sh.geometry.attributes.position;for(let i=0;i<sp.count;i++){v.fromBufferAttribute(sp,i).applyMatrix4(sh.matrixWorld);const n=v.clone().normalize();const c=G.s2Coords(n,Math.asin(n.y));if(!c||c.s<o.s0+.5||c.s>o.s1-.5||c.d<o.d0||c.d>14.8)continue;const w=v.clone().multiplyScalar((v.length()-.6)/v.length());sh.worldToLocal(w);sp.setXYZ(i,w.x,w.y,w.z);}sp.needsUpdate=true;sh.geometry.computeBoundingSphere();}} /* the sand strip along the waterline too, where the terraces are */
+  const STEP=.35,ns=Math.ceil((o.s1-o.s0)/STEP),nd=Math.ceil((o.d1-o.d0)/STEP);const P=new Float32Array((ns+1)*(nd+1)*3),UV=new Float32Array((ns+1)*(nd+1)*2),idx=[];
+  for(let i=0;i<=ns;i++)for(let j=0;j<=nd;j++){const s=o.s0+(o.s1-o.s0)*i/ns,d=o.d0+(o.d1-o.d0)*j/nd;const n=s2At(s,d);let h=gAt(n);for(const [a,b] of [[.3,0],[-.3,0],[0,.3],[0,-.3]])h=Math.min(h,gAt(s2At(s+a,d+b)));h+=.01;const q=(i*(nd+1)+j); /* the lowest ground nearby: the slopes between levels tuck in behind the wall faces instead of wedging out in front */P[q*3]=n.x*h;P[q*3+1]=n.y*h;P[q*3+2]=n.z*h;const lon=Math.atan2(n.z,n.x),lat=Math.asin(n.y);UV[q*2]=(((Math.PI-lon)/(2*Math.PI))%1+1)%1;UV[q*2+1]=.5+(d<o.grassTo?Math.max(lat,-.27):lat)/Math.PI;} /* the terraces take the grass colour; the ground texture turns to sand by latitude alone */
+  for(let i=0;i<ns;i++)for(let j=0;j<nd;j++){const a=i*(nd+1)+j,b=a+nd+1;idx.push(a,b,a+1,b,b+1,a+1);}
+  const g=new T.BufferGeometry();g.setAttribute('position',new T.BufferAttribute(P,3));g.setAttribute('uv',new T.BufferAttribute(UV,2));g.setIndex(idx);g.computeVertexNormals();g.computeBoundingSphere();
+  const mat=gm.material.clone();mat.side=T.DoubleSide;mat.polygonOffset=true;mat.polygonOffsetFactor=-1;mat.polygonOffsetUnits=-1;const m=new T.Mesh(g,mat);m.name='dress:s2-ground';m.receiveShadow=false;scene.add(m);G.dirty();return k;}
+/* the lawn's old furniture (trees, rocks, tufts) where the new levels are */
+function s2Clear(o){const T_=window.__town;if(!T_)return 0;let k=0;
+  scene.traverse(m=>{if(!m.isInstancedMesh||m.name.startsWith('dress')||m.geometry.type!=='IcosahedronGeometry'&&m.geometry.attributes.position.count>300)return;const M=new T.Matrix4(),p=new T.Vector3(),q=new T.Quaternion(),sc=new T.Vector3();let ch_=false;for(let i=0;i<m.count;i++){m.getMatrixAt(i,M);M.decompose(p,q,sc);if(sc.x===0)continue;const n=p.clone().normalize();const c=G.s2Coords(n,Math.asin(n.y));if(!c||c.s<o.s0||c.s>o.s1||c.d<4.5||c.d>o.d1)continue;sc.set(0,0,0);M.compose(p,q,sc);m.setMatrixAt(i,M);ch_=true;k++;}if(ch_)m.instanceMatrix.needsUpdate=true;}); /* the game's pebbles strewn over the old lawn */const kill=[];for(const p of T_.propSlots){const n=sphere(p.lon,p.lat);const c=G.s2Coords(n,Math.asin(n.y));if(!c||c.s<o.s0||c.s>o.s1||c.d<4.5||c.d>o.d1)continue;kill.push(n);}
+  for(const n of kill){const P=n.clone().multiplyScalar(R);const keep=new Set((window.BLDGS||[]).map(b=>b.inst));for(const ch_ of [...scene.children]){if(!ch_.isGroup||ch_.name.startsWith('dress')||keep.has(ch_)||ch_.userData.s2)continue;const q=ch_.position.clone().normalize();if(q.dot(n)>Math.cos(.9/R)){scene.remove(ch_);k++;}}for(let i=solids.length-1;i>=0;i--){const so=solids[i];if(so.r===undefined)continue;const q=so.c.clone().normalize();if(q.dot(n)>Math.cos(.9/R))solids.splice(i,1);}}G.dirty();return k;}
+function street02(o){const res={};res.ground=s2Ground({s0:239,s1:307,d0:4.35,d1:17.5,grassTo:15});res.cleared=s2Clear({s0:241,s1:305,d1:15.6});for(const ms of [4000,12000,30000])setTimeout(()=>{res.cleared+=s2Clear({s0:241,s1:305,d1:15.6});},ms); /* props that load late */
+  const C=o.court,EG=o.eastGap;const row=s=>hSD(s,4.2);
+  /* walls */
+  s2Wall([[C[0]+.05,5.0],[C[0]+1.2,5.0],[C[0]+2.4,5.0],[C[0]+3.6,5.0],[C[0]+4.8,5.0],[C[1]-.05,5.0]],{low:1,tex:'stone',rail:true,railGap:i=>i<=1,gutter:true,gap:(s,d,s2)=>s2<=C[0]+1.3}); /* the court's wall under the pavement; the stair comes off its west end */
+  s2Wall([[C[0],5.0],[C[0],6.5],[C[0],8],[C[0],9.7]],{across:true,low:1,tex:'stone'});s2Wall([[C[1],5.0],[C[1],6.5],[C[1],8],[C[1],9.7]],{across:true,low:-1,tex:'stone'});
+  const behindW=[];for(let s=242;s<=C[0]+.01;s+=1.2)behindW.push([s,9.7]);s2Wall(behindW,{low:1,tex:'concrete',gutter:true});
+  const behindE=[];for(let s=C[1];s<=EG+.01;s+=1.2)behindE.push([s,9.7]);s2Wall(behindE,{low:1,tex:'concrete',gutter:true});
+  s2Wall([[C[0],9.7],[C[0],10.4],[C[0],11.9],[C[0],12.4]],{across:true,low:1,tex:'block',gap:(s,d,s2,d2)=>d>10.2&&d2<11.95}); /* the garden's edge above the court; stair 5 cuts it */
+  const lpW=[];for(let s=244;s<=EG+.01;s+=1.2)lpW.push([s,12.4]);s2Wall(lpW,{low:1,tex:'stone',rail:true,gutter:true}); /* the tall wall above the shore path */
+  s2Wall([[EG,4.8],[EG,6.4],[EG,8],[EG,9.7]],{across:true,low:1,tex:'concrete'});
+  const eN=[];for(let s=EG;s<=301.3;s+=1.2)eN.push([s,4.8]);eN.push([301.3,4.8]);s2Wall(eN,{low:1,tex:'concrete',rail:true,gutter:true}); /* the tall wall under the street at the east end */
+  s2Flight([302.2,4.35],[302.2,6.4],1.5,{hT:hSD(302.2,4.1),hB:hSD(302.2,7)}); /* and a short stair back up to the street: the second way in */
+  /* stairs: street to court, a dog-leg along the wall */
+  const r0=row(C[0]+.6);s2Landing(C[0]+.05,C[0]+1.25,4.35,6.3,r0,{rails:['d1']});
+  s2Flight([C[0]+1.25,5.65],[C[0]+4.6,5.65],1.3,{hT:r0,hB:r0-1.0}); /* runs down inside the court, along its wall */
+  s2Landing(C[0]+4.6,C[1]-.05,5.0,6.9,r0-1.0);
+  const fl=hSD(C[0]+3,8.8);s2Flight([C[0]+5.6,6.9],[C[0]+5.6,8.5],1.3,{hT:r0-1.0,hB:fl});
+  /* court up to the garden terrace */
+  const gh=hSD(C[0]-1.6,11.1);s2Flight([C[0]-1.5,11.1],[C[0]+.3,11.1],1.3,{hT:gh,hB:hSD(C[0]+1.2,11.1)});
+  /* the passage's end, down to the sunken yard */
+  s2Flight([EG-.9,11.05],[EG+2.6,11.05],1.5,{hT:hSD(EG-1.2,11.05),hB:hSD(EG+3.2,11.05)});
+  /* shore path down to the sand */
+  s2Flight([276,14.7],[276,17.6],1.4,{hT:hSD(276,14.2),hB:hSD(276,18)});
+  /* paving */
+  s2Pave(C[0]+.1,C[1]-.1,5.05,9.75);s2Pave(C[0]-.1,EG+.1,9.72,12.45);s2Pave(244,C[0]-.1,9.72,12.45);s2Pave(244,EG+13,12.4,15.1);s2Pave(EG+.1,EG+13,4.85,12.4);
+  /* the shore path's sea side: a rail where the beach falls away, with a gap at the steps */
+  const sea=[];for(let s=258;s<=302;s+=1.2){const drop=hSD(s,14.8)-hSD(s,16.4);sea.push({s,n:s2At(s,15.0),h:hSD(s,14.8),ok:drop>.45&&Math.abs(s-276)>1.1});}
+  let run=[];const flushR=()=>{if(run.length>1){s2Rail(run);for(let i=0;i<run.length-1;i++){const A=run[i].n,B=run[i+1].n;const m=A.clone().add(B).normalize();const X=B.clone().sub(A);const len=X.length()*R;X.addScaledVector(m,-X.dot(m)).normalize();solids.push({c:m.clone().multiplyScalar(R),X,Z:new T.Vector3().crossVectors(X,m).normalize(),hx:len/2,hz:.1,top:1});}}run=[];};for(const q of sea){if(q.ok)run.push(q);else flushR();}flushR();
+  res.row=+row(270).toFixed(2);res.dress=s2Dress(o);return res;}
+
+/* ---------- Street 02 dressing: residential, quieter; laundry, taps, bins, lamps, plants spilling over walls ---------- */
+function paintS2Signs(){const c=canvas(512,256),g=c.getContext('2d');const JP='"Hiragino Sans","Noto Sans JP","Yu Gothic","Meiryo",sans-serif';
+  g.fillStyle='#2c5aa0';g.fillRect(4,4,248,120);g.strokeStyle='#fff';g.lineWidth=4;g.strokeRect(12,12,232,104);g.fillStyle='#fff';g.font='700 46px '+JP;g.textAlign='center';g.textBaseline='middle';g.fillText('海岸へ ↓',128,66); /* to the shore */
+  g.fillStyle='#f3efe2';g.fillRect(260,4,248,120);g.fillStyle='#1f2a33';g.font='700 56px '+JP;g.fillText('私道',384,66); /* private lane */
+  for(const [x,t] of [[4,'山田'],[132,'佐藤'],[260,'木村'],[388,'森']]){g.fillStyle='#8a6a48';g.fillRect(x+10,134,108,116);g.fillStyle='#e9dcc0';g.fillRect(x+18,142,92,100);g.fillStyle='#2b2118';g.font='700 40px '+JP;g.save();g.translate(x+64,192);g.fillText(t,0,0);g.restore();} /* name plates */
+  return texOf(c);}
+let S2SIGN=null;
+function frameSD(s,d,h,fs,fd){const n=s2At(s,d);const sm=atS(MAIN,s);const f=sm.t.clone().multiplyScalar(fs).addScaledVector(sm.side,fd);const m=basisM(n,f);m.setPosition(n.clone().multiplyScalar(R+(h??(gAt(n)-R))));return m;}
+function s2Quad(m,w,h,uvr,x,y,z,ry){S2SIGN.add(new T.PlaneGeometry(w,h),mul(m,mRot(x||0,y||0,z||0,ry||0)),0xffffff,uvr,0);}
+function laundry(s,d,fs,fd,len){const m=frameSD(s,d,null,fs,fd);const k=kit(m);for(const x of [-len/2,len/2]){k.cyl(.03,.035,1.75,0x8a8f90,x,.87,0,6).box(.5,.04,.04,0x8a8f90,x,1.72,0);}k.rod(V3(-len/2,1.74,.2),V3(len/2,1.74,.2),.02,0xb9a574,5).rod(V3(-len/2,1.74,-.2),V3(len/2,1.74,-.2),.02,0xb9a574,5);
+  const cols=[0xe9e4d6,0x7fa3c9,0xe9b8b0,0xf4f1e8,0x9fc29a,0xe8d27a];let x=-len/2+.25;while(x<len/2-.3){const w=rb(.3,.6),hh=rb(.35,.7),c=rp(cols);k.box(w,hh,.015,c,x+w/2,1.72-hh/2,ch(.5)?.2:-.2);x+=w+rb(.05,.15);}}
+function tap(m){const k=kit(m);k.rod(V3(0,0,.05),V3(0,.7,.05),.02,0x8f9699,5).box(.1,.04,.08,0xb8bcbd,0,.7,.1).cyl(.035,.035,.03,0xc8403a,0,.76,.1,8).cyl(.14,.11,.24,0x3f7fb0,.25,.12,.25,10);}
+function bins(m){const k=kit(m);k.cyl(.26,.24,.78,0x2f6b4f,-.3,.39,0,10).cyl(.28,.28,.06,0x24553e,-.3,.8,0,10).cyl(.26,.24,.78,0x2d5f8f,.3,.39,0,10).cyl(.28,.28,.06,0x234c73,.3,.8,0,10);}
+function wallLamp(m){const k=kit(m);k.box(.1,.1,.18,0x3a3f42,0,0,.09).box(.2,.24,.16,0xf6e6b0,0,-.14,.2).box(.22,.03,.18,0x3a3f42,0,-.01,.2);}
+function umbrella(m){const k=kit(m);k.cyl(.01,.11,.78,rp([0x2d5f8f,0xc8403a,0x3f6b4f,0x2b2b2b]),0,.42,0,8,.18);k.rod(V3(0,.02,.07),V3(0,.9,-.07),.012,0x3a3f42,4);}
+function mailbox(m){const k=kit(m);k.cyl(.035,.035,1.05,0x5a5f62,0,.52,0,6).box(.36,.28,.22,rp([0xc8403a,0x9aa0a4,0x2d5f8f]),0,1.18,0).box(.2,.02,.02,0x222222,0,1.24,.115);}
+function s2Dress(o){const C=o.court,EG=o.eastGap;S2SIGN=new Bucket('s2-signs',sunMat(new T.MeshBasicMaterial({map:paintS2Signs(),vertexColors:true,side:T.DoubleSide}),.6));const res={};
+  const drape=(s,d,h,fs,fd,w)=>{WALLF.add(new T.PlaneGeometry(w||1.3,.85),mul(frameSD(s,d,h,fs,fd),mRot(0,-.38,.02)),0xffffff,B.cellDrape,.08);};
+  const ivy=(s,d,h0,hh,fs,fd)=>{WALLF.add(new T.PlaneGeometry(1,hh),mul(frameSD(s,d,h0,fs,fd),mRot(0,hh/2,.02)),0xffffff,B.cellVine,.08);};
+  const weedsAlong=(s0,s1,d,n)=>{for(let i=0;i<n;i++){const q=s2At(rb(s0,s1),d+rb(-.12,.12));B[rp(['weed','weed','rosette','fern'])].add(q,rb(.22,.45),rb(.18,.4),rb(.85,1.05));}};
+  /* ---- the entrance: a sign on the rail, the opening lit ---- */
+  {const r0=hSD(C[0]+.2,4.2);const m=frameSD(C[0]-.25,4.5,r0,0,-1);const k=kit(m);k.cyl(.035,.035,1.9,0x8a8f90,0,.95,0,6);s2Quad(m,.62,.3,[.004,.754,.496,.996],0,1.72,.04);s2Quad(m,.62,.3,[.004,.754,.496,.996],0,1.72,-.04,Math.PI);solids.push({c:s2At(C[0]-.25,4.5).multiplyScalar(R),r:.1});} /* on its own post at the corner, facing the street, clear of the stair */
+  /* ---- the court: a small landing where people live ---- */
+  {const fl=hSD(C[0]+3,8.8);laundry(C[0]+2.6,8.9,1,0,2.6);bike(s2At(C[0]+.7,7.4),atS(MAIN,C[0]).side.clone());
+    for(let i=0;i<4;i++){const q=s2At(C[1]-.5-i*.42,9.35);const P_=pot(q,ch(.2)?'box':'pot',rr());B[rp(['shrub','fern','daisy','hyd'])].add(q,.45+rr()*.4,.45+rr()*.5,rb(.9,1.05),P_.h-.06);}
+    tap(frameSD(C[0]+.25,6.9,fl,1,0));umbrella(frameSD(C[0]+.2,8.1,fl,1,0));wallLamp(frameSD(C[0]+3.4,5.05,fl+1.7,0,1));
+    for(const s of [C[0]+.6,C[0]+2.3,C[1]-1])drape(s,5.02,hSD(s,4.2)+.02,0,1,1.4);ivy(C[0]+.05,8.8,fl,1.4,1,0);weedsAlong(C[0]+.2,C[1]-.2,5.12,8);weedsAlong(C[0]+.2,C[1]-.2,9.55,5);
+    s2Quad(frameSD(C[0]+.05,6.2,fl+1.35,1,0),.34,.34,[.5+.004,.004,.75-.004,.496]); /* a name plate by a back door */}
+  /* ---- the passage: the backs of the houses above, a bench over the sea ---- */
+  {for(let s=C[1]+1.5;s<EG-1;s+=rb(4.5,7)){const top=hSD(s,9.35);if(ch(.6))acUnit(frameSD(s,9.3,top,0,1),0,.28,0,0);if(ch(.5)){const m=frameSD(s+1.1,9.72,hSD(s+1.1,11),0,1);const k=kit(m);const hh=top-hSD(s+1.1,11)+.4;k.cyl(.045,.045,hh,rp([0xd9d3c3,0x8f9a9e]),0,hh/2,.06,8);}
+      if(ch(.55))drape(s+rb(-1,1),9.66,top+.02,0,1,rb(1.1,1.6));else ivy(s,9.74,hSD(s,11),rb(1.2,2),0,1);}
+    for(let s=C[1]+4;s<EG-2;s+=rb(6,9))wallLamp(frameSD(s,9.74,hSD(s,11)+1.6,0,1));
+    glb('bench2',s2At(274,11.95),atS(MAIN,274).side.clone().negate(),{solid:.5});bins(frameSD(EG-1.8,10.1,null,0,1));
+    for(let i=0;i<6;i++){const s=rb(C[1]+1,EG-2);const q=s2At(s,12.15);const P_=pot(q,'pot',rr()*.6);B[rp(['shrub','daisy','fern'])].add(q,.4+rr()*.3,.4+rr()*.4,1,P_.h-.06);}
+    weedsAlong(C[1],EG,9.82,18);weedsAlong(C[1],EG,12.25,10);s2Quad(frameSD(C[1]+.6,9.74,hSD(C[1]+.6,11)+1.4,0,1),.5,.24,[.5+.004,.754,1-.004,.996]); /* 私道 */}
+  /* ---- the garden nook behind the western houses ---- */
+  {const gh=hSD(252,11);laundry(250,11,1,0,2.2);glb('bench2',s2At(255.5,12.0),atS(MAIN,255.5).side.clone().negate(),{solid:.5});paintedTree(s2At(246.5,11),rb(4.5,5.5),atS(MAIN,246).t,false);
+    for(let i=0;i<5;i++){const q=s2At(rb(245,258.5),rb(9.9,10.3));const P_=pot(q,ch(.3)?'box':'pot',rr());B[rp(['shrub','hyd','fern','boug'])].add(q,.45+rr()*.4,.45+rr()*.5,1,P_.h-.06);}
+    for(let s=245;s<259;s+=rb(2,3.2))drape(s,12.36,hSD(s,11.5)+.02,0,1,rb(1,1.5));weedsAlong(244,259.5,9.82,8);}
+  /* ---- the sunken yard: a house below the street ---- */
+  {const src=(window.BLDGS||[]).find(b=>b.key===o.houseKey);if(src){const g=src.inst.clone(true);g.userData.s2=true;const n=s2At(o.house[0],o.house[1]);const [lo,la]=lonLatOf(n);placeOn(g,lo,la,yawFor(lo,la,atS(MAIN,o.house[0]).t.clone().multiplyScalar(-1)));g.scale.copy(src.inst.scale);g.position.copy(n.clone().multiplyScalar(gAt(n)-.05));g.updateMatrixWorld(true);
+      const [x0,x1,z0,z1]=src.foot;const sc=src.sc;const X=V3(1,0,0).applyQuaternion(g.quaternion),Z=V3(0,0,1).applyQuaternion(g.quaternion);const c=g.localToWorld(V3((x0+x1)/2,0,(z0+z1)/2));solids.push({c,X,Z,hx:(x1-x0)/2*sc,hz:(z1-z0)/2*sc,top:src.top});res.house=o.houseKey;
+      const fr=atS(MAIN,o.house[0]).t.clone().multiplyScalar(-1);const door=s2At(o.house[0]-((z1-z0)/2*sc+.6),o.house[1]);mailbox(basisM(door,fr).setPosition(onG(door,0)));
+      bike(s2At(o.house[0]-2.4,o.house[1]+2.3),atS(MAIN,o.house[0]).side.clone());for(let i=0;i<3;i++){const q=s2At(o.house[0]-3.1,o.house[1]-1.4+i*.5);const P_=pot(q,'pot',rr());B[rp(['shrub','hyd','fern'])].add(q,.45+rr()*.4,.45+rr()*.5,1,P_.h-.06);}
+      laundry(o.house[0]+1,o.house[1]+3.6,1,0,2.4);}
+    paintedTree(s2At(EG+10.5,10.4),rb(6,7),atS(MAIN,EG+10).t,true);for(let s=EG+.8;s<EG+12;s+=rb(1.8,3))drape(s,4.86,hSD(s,4.2)+.02,0,1,rb(1.2,1.7));ivy(EG+.06,7,hSD(EG+2,7),2.6,1,0);weedsAlong(EG+.3,EG+13,4.95,12);wallLamp(frameSD(EG+6,4.9,hSD(EG+6,8)+1.8,0,1));}
+  /* ---- the shore path: planting at the wall's foot, the sea open on the other side ---- */
+  {for(let s=246;s<EG;s+=rb(3,5))drape(s,12.36,hSD(s,11.2)+.02,0,1,rb(1.1,1.6));for(let i=0;i<14;i++){const q=s2At(rb(245,EG+10),12.6+rr()*.3);if(ch(.7))B[rp(['fern','weed','rosette','daisy'])].add(q,rb(.35,.7),rb(.3,.6),1);else plant(q,0);}
+    glb('bench2',s2At(262,14.8),atS(MAIN,262).side.clone(),{solid:.5});B.hyd.add(s2At(277.4,14.6),1,.9,1);B.fern.add(s2At(274.6,14.6),.8,.6,1);}
+  /* ---- poles that follow the ground, and wires that drop over the walls ---- */
+  {const kerb=MAIN.kerb;const P=[];for(const s of o.poles){const sm=atS(MAIN,s);const n=s2At(s,kerb+.32);if(solidHit(n,.4)||doorNear(n,1.4))continue;P.push(Object.assign(pole(n,sm.side.clone().negate(),{tr:ch(.4),lamp:ch(.5),box:ch(.3),H:rb(7,7.8),guard:ch(.15)?'stripe':'none'}),{s}));}
+    const yp=s2At(o.yardPole[0],o.yardPole[1]);const Y=pole(yp,atS(MAIN,o.yardPole[0]).side.clone().negate(),{tr:true,lamp:false,box:false,H:7.2,guard:'none'});
+    for(let i=0;i<P.length-1;i++){const a=P[i],b=P[i+1];const dd=a.top[1].distanceTo(b.top[1]);if(dd>19)continue;const sg=.32+dd*.022;for(let k=0;k<3;k++)cable(a.top[k],b.top[k],sg+rr()*.1,.011);cable(a.tel[0],b.tel[0],sg+.3,.018,0x262e35);}
+    if(P.length){const last=P[P.length-1];cable(last.mid[0],Y.mid[0],.45,.011);cable(last.tel[0],Y.tel[0],.6,.016,0x262e35);} /* down over the wall to the pole in the yard */
+    const hs=s2At(o.house[0],o.house[1]);const hp=hs.clone().multiplyScalar(gAt(hs)+4.6);cable(Y.drop,hp,.3,.01,0x2d353c);
+    for(const b of (window.BLDGS||[])){const c=G.s2Coords(b.inst.position.clone().normalize(),Math.asin(b.inst.position.clone().normalize().y));if(!c||c.s<C[0]-12||c.s>EG+2||c.d<0)continue;for(const p_ of P){const q=b.inst.localToWorld(V3((b.foot[0]+b.foot[1])/2,Math.min(b.top*.62,5)/b.sc,b.foot[3]+.05/b.sc));const dd=q.distanceTo(p_.drop);if(dd>2&&dd<10&&ch(.6))cable(p_.drop,q,.3+dd*.03,.01,0x2d353c);}}
+    res.poles=P.length+1;}
+  return res;}
+
 /* ---------- start: once the street's buildings are in ---------- */
 /* ===== STREET 01, LOCAL SHOPPING / RESIDENTIAL HILL: LOCKED 27 Sep 2026 =====
    Approved by Josh. Do not change these numbers, seeds or the code paths they drive (street, junctionKit,
    buildingSide, groundCover, crest, stairSite/buildStair, lawns): every placement is reproduced from them. Other
    streets get their own config and identity; they reuse the kit (materials, billboards, buckets, ink), not this recipe. */
+const S2CFG={court:[259.8,266.6],eastGap:289.5,houseKey:'25',house:[295,8.2],yardPole:[292,5.6],poles:[271,285]}; /* Street 02: must match the S2 terrain in the game */
 const PROTO={locked:true,road:'main',order:['1v2','7','9','12','8','17'],s0:144,s1:208,build:1,rail:-1,junction:'skate',seedB:1340171692,seedC:1071038393,poleS1:236,railS1:216,branch:{road:'side2',from:5,to:44},crest:{road:'main',c0:203,c1:222,trees:7,r0:186,r1:224,tower:null, /* the lookout tower broke the silhouette but did not belong here (27 Sep); trees, roofs, poles and wires carry the skyline */flood:[209,214],floodH:15,streetTrees:[[206,3.35],[209,-3.85]],seed:777},stair:{side:-1,s0:190,s1:206,pref:198,len:4.6,W:1.5},lawn:{side:1,s0:144,s1:206,trees:4,groups:8,seed:555}};
 let built=false,t0=performance.now();
 function ready(){const T_=window.__town;if(!T_)return false;const road=MAIN;const want=T_.modelSlots.filter(sl=>{const n=sphere(sl.lon,sl.lat);const bs=nearest(road,n);return bs&&bs.s>=PROTO.s0-3&&bs.s<=Math.max(PROTO.s1,PROTO.crest.r1)+3;}).length;const have=(window.BLDGS||[]).filter(b=>{const bs=nearest(road,b.inst.position.clone().normalize());return bs&&bs.s>=PROTO.s0-3&&bs.s<=Math.max(PROTO.s1,PROTO.crest.r1)+3;}).length;const lib=window.__propLib||{};return (have>=want&&lib.upole&&lib.tree1)||performance.now()-t0>25000;}
@@ -425,7 +591,8 @@ function build(){if(built)return;built=true;const t=performance.now();setup();{c
   const gc=groundCover(PROTO);const cr_=crest(PROTO.crest);window.DRESS.crest=cr_;flushAll();
   sd_=4242;/* service drops: from the building-side poles to the nearest façades */
   for(const p of (P[PROTO.build]||[]))for(const b of [...(window.BLDGS||[])].sort((a,c)=>a.inst.position.x-c.inst.position.x||a.inst.position.z-c.inst.position.z)){const [x0,x1,,z1]=b.foot;const pts=[V3(x0*.8+x1*.2,Math.min(b.top*.66,5.2)/b.sc,z1+.05/b.sc),V3(x0*.2+x1*.8,Math.min(b.top*.62,5)/b.sc,z1+.05/b.sc)].map(v=>b.inst.localToWorld(v));for(const q of pts){const d=q.distanceTo(p.drop);if(d<11&&d>2&&ch(.6)){cable(p.drop,q,.35+d*.03,.01,0x2d353c);WIRE.add(new T.BoxGeometry(.1,.1,.06),new T.Matrix4().setPosition(q),0x6d7478);}}}
-  if(STAIR){sd_=313;window.DRESS.stair=buildStair(STAIR);}sd_=PROTO.lawn.seed;window.DRESS.lawns=lawns(PROTO.lawn);
+  if(STAIR){sd_=313;window.DRESS.stair=buildStair(STAIR);}
+  if(!/[?&]s2=0\b/.test(location.search)){sd_=2002;try{s2Setup();window.DRESS.s2=street02(S2CFG);}catch(e){window.DRESS.s2err=String(e&&e.stack||e);console.warn('street 02',e);}} /* Street 02 can never stop Street 01 from building */sd_=PROTO.lawn.seed;window.DRESS.lawns=lawns(PROTO.lawn);
   flushAll();window.DRESS.info={ms:Math.round(performance.now()-t),buildings:nb,cover:gc,bills:BILLS.map(b=>[b.name,b.list.length]),verts:BUCKETS.map(b=>[b.name,b.P.length/3])};console.log('dress: built',JSON.stringify(window.DRESS.info));}
 function poll(){if(built)return;if(ready())build();else setTimeout(poll,700);}
 
