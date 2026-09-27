@@ -472,7 +472,8 @@ function terrainBase(n){const lat=Math.asin(clamp(n.y,-1,1));let h=-3.2*smooth(-
 /* the ground mesh: the base terrain, dipped under the park's bowl and tucked just under its floor */
 function terrainH(n){let h=terrainBase(n);if(HM&&inPark(n))h+=Math.min(parkH(n),0)-.02;return h;}
 let DASH_ON=false;const DASH={road:null,halfW:3.6,bins:[],NB:72,H0:16,H1:1.6,ramps:[],pads:[],gates:[],L:0,s:0,lat:0,padTex:null};
-const gAt=n=>{const d=dashSurf(n);return d!==null?R+d:R+terrainBase(n)+parkH(n);}; /* where the player's feet go: base terrain plus the park's surface */
+const WALKS=[]; /* walkable surfaces laid over the ground (a stair down a bank): each returns a height above R, or null off its footprint */
+const gAt=n=>{const d=dashSurf(n);if(d!==null)return R+d;for(let i=0;i<WALKS.length;i++){const w=WALKS[i](n);if(w!==null)return R+w;}return R+terrainBase(n)+parkH(n);}; /* where the player's feet go: base terrain plus the park's surface */
 const hAt=n=>R+terrainH(n);
 /* the drawn ground is a 256x160 mesh, so on steep banks it sits a little below the exact terrain: gMesh gives the height the mesh actually shows, gVis the lower of the two (things are settled onto that, so nothing floats) */
 const GW=256,GH=160;function gMesh(n,drop){const lon=Math.atan2(n.z,n.x),lat=Math.asin(clamp(n.y,-1,1));let phi=Math.PI-lon;phi=((phi%(2*Math.PI))+2*Math.PI)%(2*Math.PI);const th=Math.PI/2-lat;const fu=phi/(2*Math.PI)*GW,fv=th/Math.PI*GH;const iu=Math.floor(fu),iv=Math.floor(fv),tu=fu-iu,tv=fv-iv;
@@ -1566,7 +1567,7 @@ let fpsN=0,fpsT=0,skipN=0;function frame(now){if(intro&&LITE&&((++skipN)&1)){req
   if(mixer)mixer.update(dt);applySit();applyRide();applyJump();applyWeb();applyFly();for(const m of mixers)m.update(dt);updateBirds(dt,now/1000);if(window.DRESS&&window.DRESS.frame)try{window.DRESS.frame(dt,now);}catch(e){if(!window.__dressErr){window.__dressErr=e;console.warn('dress',e);}}if(window.__water&&window.__water.userData.sh)window.__water.userData.sh.uniforms.uT.value=now/1000;if(window.__shore&&window.__shore.material.userData.sh)window.__shore.material.userData.sh.uniforms.uT.value=now/1000;renderInk();requestAnimationFrame(frame);}
 requestAnimationFrame(frame);
 /* what the dressing module (planet-dress.js) may use: the game's scope is closed, so it is handed over here */
-window.GAME={ROADS,gAt,R,MIN,LITE,solids,SUNU,LOOKU,scene,hideInNormals,atS,offsetFrom,lonLatOf,placeOn,settle,yawFor,renderer,DOORS,sphere,dirty(){sceneDirty=true;}};
+window.GAME={WALKS,ROADS,gAt,R,MIN,LITE,solids,SUNU,LOOKU,scene,hideInNormals,atS,offsetFrom,lonLatOf,placeOn,settle,yawFor,renderer,DOORS,sphere,dirty(){sceneDirty=true;}};
 
 /* =====================================================================
    INPUT

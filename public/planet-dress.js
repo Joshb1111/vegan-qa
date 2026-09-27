@@ -78,7 +78,7 @@ const CUT_VS='varying vec2 vUv;varying vec3 vTint;void main(){vUv=uv;vTint=vec3(
 class Bill{
   constructor(name,tex,cell,o){this.name=name;this.tex=tex;this.cell=cell;this.o=Object.assign({tilt:.35,sway:.05},o||{});this.list=[];this.mesh=null;this.dirty=false;BILLS.push(this);
     const un={map:{value:tex},uTilt:{value:this.o.tilt},uT:UT,uSway:{value:this.o.sway}};this.mat=new T.ShaderMaterial({uniforms:un,vertexShader:BB_VS,fragmentShader:BB_FS,side:T.DoubleSide});this.ink=new T.ShaderMaterial({uniforms:un,vertexShader:BB_VS,fragmentShader:INK_FS,side:T.DoubleSide});}
-  add(n,w,h,tint,lift){this.list.push({n:n.clone(),w,h,tint:tint===undefined?1:tint,lift:lift||0});this.dirty=true;schedule();}
+  add(n,w,h,tint,lift){if(STAIR&&STAIR.covers(n,.5))return;this.list.push({n:n.clone(),w,h,tint:tint===undefined?1:tint,lift:lift||0});this.dirty=true;schedule();}
   flush(){if(!this.dirty)return;this.dirty=false;if(this.mesh){scene.remove(this.mesh);this.mesh.geometry.dispose();this.mesh=null;}if(!this.list.length)return;
     const g=new T.PlaneGeometry(1,1);g.translate(0,.5,0);const [u0,v0,u1,v1]=this.cell,ua=g.attributes.uv;for(let i=0;i<ua.count;i++)ua.setXY(i,u0+(u1-u0)*ua.getX(i),v0+(v1-v0)*ua.getY(i));
     const im=new T.InstancedMesh(g,this.mat,this.list.length);const m=new T.Matrix4(),q=new T.Quaternion(),s=new T.Vector3(),c=new T.Color(),ctr=new T.Vector3();let rad=0;
@@ -152,7 +152,7 @@ function paintGutter(){const c=canvas(512,64),g=c.getContext('2d');g.fillStyle='
 
 /* ---------- the kit ---------- */
 let FOL,SGN,DEC,GUT,STAT,SIGN,WIRE,DECAL,DAPPLE,SHADE,MARK,GUTTER,WALLF,GROUND,B={};
-function setup(){FOL=paintFoliage();SGN=paintSigns();DEC=paintDecals();GUT=paintGutter();
+function setup(){{const cam=G.scene.children.find(o=>o.isCamera);RAY.camera=RAYD.camera=cam;} /* the raycasts meet sprites on some models */FOL=paintFoliage();SGN=paintSigns();DEC=paintDecals();GUT=paintGutter();
   STAT=new Bucket('props',sunMat(new T.MeshBasicMaterial({vertexColors:true}),1));
   SIGN=new Bucket('signs',sunMat(new T.MeshBasicMaterial({map:SGN,vertexColors:true,side:T.DoubleSide}),.6));
   WIRE=new Bucket('wires',new T.MeshBasicMaterial({vertexColors:true,depthWrite:false}),{hideN:true,order:5}); /* no depth: the ink pass would outline every cable and double its weight; drawn after the solid world so nothing paints over it */
@@ -189,7 +189,8 @@ function groundStrip(bk,pts,w,lift,col,uRep,vr){const P=[],N=[],U=[];const L=[],
 function tube(bk,pts,r,col){const P=[],N=[],ring=[];for(let i=0;i<pts.length;i++){const t=(i<pts.length-1?pts[i+1].clone().sub(pts[i]):pts[i].clone().sub(pts[i-1])).normalize();let a=new T.Vector3().crossVectors(t,pts[i].clone().normalize());if(a.lengthSq()<1e-6)a=new T.Vector3().crossVectors(t,V3(1,0,0));a.normalize();const b=new T.Vector3().crossVectors(t,a).normalize();const rg=[];for(let k=0;k<4;k++){const an=k*Math.PI/2+Math.PI/4,d=a.clone().multiplyScalar(Math.cos(an)).addScaledVector(b,Math.sin(an));rg.push({p:pts[i].clone().addScaledVector(d,r),n:d});}ring.push(rg);}
   for(let i=0;i<ring.length-1;i++)for(let k=0;k<4;k++){const k2=(k+1)%4;for(const v of [ring[i][k],ring[i+1][k],ring[i+1][k2],ring[i][k],ring[i+1][k2],ring[i][k2]]){P.push(v.p.x,v.p.y,v.p.z);N.push(v.n.x,v.n.y,v.n.z);}}bk.addRaw(P,N,null,col);}
 /* a sagging cable between two points, with its shadow laid on the ground beneath */
-function cable(A,B,sag,r,col,shadow){if(shadow===undefined)shadow=r>.015;const N=Math.max(6,Math.min(22,Math.round(A.distanceTo(B)/.7)));const um=A.clone().add(B).normalize();const pts=[];for(let i=0;i<=N;i++){const t=i/N;pts.push(A.clone().lerp(B,t).addScaledVector(um,-sag*4*t*(1-t)));}tube(WIRE,pts,r,col||0x333c44);
+function cable(A,B,sag,r,col,shadow){if(shadow===undefined)shadow=r>.015;const N=Math.max(6,Math.min(22,Math.round(A.distanceTo(B)/.7)));const um=A.clone().add(B).normalize();
+  for(let it=0;it<4;it++){let low=1e9;for(let i=1;i<N;i++){const t=i/N,p=A.clone().lerp(B,t).addScaledVector(um,-sag*4*t*(1-t));low=Math.min(low,p.length()-gAt(p.clone().normalize()));}if(low>=4.3)break;sag=Math.max(.05,sag-(4.3-low));} /* never low enough to cut across the view at head height */const pts=[];for(let i=0;i<=N;i++){const t=i/N;pts.push(A.clone().lerp(B,t).addScaledVector(um,-sag*4*t*(1-t)));}tube(WIRE,pts,r,col||0x333c44);
   if(shadow!==false){const g=pts.map(p=>{const n=p.clone().normalize();return tn(n,shadowOff(n,p.length()-gAt(n)));});groundStrip(SHADE,g,Math.max(.03,r*2),.1,0x1c2a40);}return pts;}
 
 /* ---------- the pieces ---------- */
@@ -266,7 +267,7 @@ function street(o){const road=ROADS.find(r=>r.name===o.road)||MAIN,s0=o.s0,s1=o.
   /* rails along the drop on the far side (the skate park bank), with gaps to walk through */
   if(o.rail){const sd=o.rail,off=sd*(kerb+2.42);let run=[];const flushRun=()=>{if(run.length>1)for(let i=0;i<run.length-1;i++){const a=run[i],b=run[i+1];const A=onG(a,.62),Bp=onG(b,.62);const mid=A.clone().add(Bp).multiplyScalar(.5),X=Bp.clone().sub(A),len=X.length();X.normalize();const Y=mid.clone().normalize();const Z=new T.Vector3().crossVectors(X,Y).normalize();const Yo=new T.Vector3().crossVectors(Z,X);const m=new T.Matrix4().makeBasis(X,Yo,Z).setPosition(mid);
         kit(m).box(len+.06,.3,.05,0xf1f1ea,0,0,0).box(len+.06,.05,.09,0xdcdcd4,0,.16,0);solids.push({c:mid.clone().normalize().multiplyScalar(R),X:X.clone().addScaledVector(Y,-X.dot(Y)).normalize(),Z:Z.clone().addScaledVector(Y,-Z.dot(Y)).normalize(),hx:len/2,hz:.14,top:.95});}run=[];};
-      let k=0;for(let s=s0;s<=(o.railS1||s1);s+=2){const sm=S(s),n=offsetFrom(sm,off);const skip=junction(n)||solidHit(n,.35)||(k%6===5)||gAt(n)<gAt(sm.n)-.6||gAt(offsetFrom(sm,sd*(kerb+5.2)))>gAt(sm.n)-.7; /* the rail follows the drop, and stops where the bank does */k++;if(skip){flushRun();continue;}const base=basisM(n,sm.side.clone().multiplyScalar(-sd));base.setPosition(onG(n,-.05));kit(base).cyl(.05,.05,.85,0xe9e9e2,0,.42,0,8).cyl(.06,.06,.04,0xcfcfc6,0,.86,0,8);run.push(n);
+      let k=0;for(let s=s0;s<=(o.railS1||s1);s+=2){const sm=S(s),n=offsetFrom(sm,off);const skip=junction(n)||solidHit(n,.35)||(k%6===5)||(STAIR&&STAIR.covers(n,.9))||gAt(n)<gAt(sm.n)-.6||gAt(offsetFrom(sm,sd*(kerb+5.2)))>gAt(sm.n)-.7; /* the rail follows the drop, and stops where the bank does */k++;if(skip){flushRun();continue;}const base=basisM(n,sm.side.clone().multiplyScalar(-sd));base.setPosition(onG(n,-.05));kit(base).cyl(.05,.05,.85,0xe9e9e2,0,.42,0,8).cyl(.06,.06,.04,0xcfcfc6,0,.86,0,8);run.push(n);
         /* the bank behind the rail: flowering shrubs and weeds */
         const nb=offsetFrom(sm,sd*(kerb+2.9+rr()*.9));if(!solidHit(nb,.3)&&ch(.7)){if(ch(.85))plant(nb,0,true);else B.daisy.add(nb,rb(.6,.9),rb(.4,.6),1);}
         for(let j=0;j<2;j++){const nw=offsetFrom(S(s+rb(-1,1)),sd*(kerb+2.3+rr()*.3));B.weed.add(nw,rb(.3,.55),rb(.25,.5),rb(.85,1.1));}}flushRun();}
@@ -289,6 +290,7 @@ function junctionKit(sideRoad){const r=ROADS.find(x=>x.name===sideRoad);if(!r)re
 
 /* the building side: every building near the street gets its cluster; between them, stone walls with planting, and one path down to the beach */
 function buildingSide(o){sd_=o.seedB||sd_; /* each section draws from its own seed, so changing one never reshuffles another (this one is the approved shop street) */const road=ROADS.find(r=>r.name===o.road)||MAIN;const list=(window.BLDGS||[]).filter(b=>{const n=b.inst.position.clone().normalize();const bs=nearest(road,n);return bs&&bs.s>=o.s0-3&&bs.s<=o.s1+3&&n.clone().sub(bs.n).dot(bs.side)*R*o.build>0&&Math.abs(n.clone().sub(bs.n).dot(bs.side)*R)<14;});
+  const sOf=b=>nearest(road,b.inst.position.clone().normalize()).s;const rank=b=>{const k=(o.order||[]).indexOf(b.key);return k<0?100+sOf(b):k;};list.sort((a,b)=>rank(a)-rank(b)); /* models finish loading in any order; the dressing must not depend on it */
   const spans=[];list.forEach((b,i)=>{dressBuilding(b,b.shop||i%3===1);const [x0,x1,,z1]=b.foot;const ss=[x0,x1].map(x=>{const n=b.inst.localToWorld(V3(x,0,z1)).normalize();return nearest(road,n).s;});spans.push([Math.min(...ss),Math.max(...ss)]);});
   spans.sort((a,b)=>a[0]-b[0]);const gaps=[];let prev=o.s0;for(const [a,b] of spans){if(a-prev>1.6)gaps.push([prev,a]);prev=Math.max(prev,b);}if(o.s1-prev>1.6)gaps.push([prev,o.s1]);
   let alley=null;for(const g of gaps)if(g[1]-g[0]>3.2&&(!alley||g[1]-g[0]>alley[1]-alley[0]))alley=g;
@@ -368,22 +370,62 @@ function crest(o){sd_=o.seed||sd_;const road=ROADS.find(r=>r.name===o.road)||MAI
     const base=basisM(n,sm.t);base.setPosition(onG(n,.02));const k=kit(base);k.box(1.1,.08,.08,0x8f918c,0,0,.51).box(1.1,.08,.08,0x8f918c,0,0,-.51).box(.08,.08,1.1,0x8f918c,.51,0,0).box(.08,.08,1.1,0x8f918c,-.51,0,0);groundQuad(GROUND,n,sm.t,.95,.95,[0,0,1,1],.06,0x5a4a3a,2);B.weed.add(tn(n,sm.t.clone().multiplyScalar(.3)),.3,.25,1);res.trees++;}
   for(const [s_,lat] of cand){if(res.trees>=o.trees)break;const n=offsetFrom(S(s_),lat);if(placed.some(q=>q.dot(n)>Math.cos(4.2/R)))continue;if(roadDist(n,near)<.5||solidHit(n,.5)||Math.asin(n.y)<-.22)continue;if(gAt(n)<gAt(S(s_).n)-.5)continue;placed.push(n);paintedTree(n,rb(10,13),S(s_).t,ch(.5));res.trees++;}
   /* roofs at and over the crest */
-  for(const b of (window.BLDGS||[])){const bs=nearest(road,b.inst.position.clone().normalize());if(!bs||bs.s<o.r0||bs.s>o.r1)continue;if(Math.abs(b.inst.position.clone().normalize().sub(bs.n).dot(bs.side)*R)>14)continue;res.roofs+=rooftop(b);}
+  for(const b of [...(window.BLDGS||[])].sort((a,c)=>a.inst.position.x-c.inst.position.x||a.inst.position.z-c.inst.position.z)){const bs=nearest(road,b.inst.position.clone().normalize());if(!bs||bs.s<o.r0||bs.s>o.r1)continue;if(Math.abs(b.inst.position.clone().normalize().sub(bs.n).dot(bs.side)*R)>14)continue;res.roofs+=rooftop(b);}
   /* one distant landmark: a fire-lookout tower on the far corner, only its top above the crest from the spawn */
   const pk=n=>{const g=window.__gAt?window.__gAt(...lonLatOf(n)):null;return g?g.out:9;};
   if(o.tower){const [ta,tb]=o.tower;outer:for(let s_=ta;s_<=tb;s_+=.8)for(const lat of [-9.6,-10,-9,-8.4]){const n=offsetFrom(S(s_),lat);if(roadDist(n,near)<.4||solidHit(n,1.8)||doorNear(n,3))continue;if(pk(n)<.6||Math.asin(n.y)<-.22||gAt(n)<gAt(S(s_).n)-.6)continue;fireTower(n,S(o.c0).n.clone().sub(n),o.towerH||21);res.tower=[+s_.toFixed(1),lat];break outer;}}
   if(o.flood){const [fa,fb]=o.flood;outer2:for(let s_=fa;s_<=fb;s_+=.8)for(const lat of [-11.5,-11,-12,-10.5]){const n=offsetFrom(S(s_),lat);if(pk(n)>.01||solidHit(n,1.4))continue; /* inside the park's corner, on its floor */floodMast(n,PLAZA_C.clone().sub(n),o.floodH||16);res.flood=[+s_.toFixed(1),lat];break outer2;}}
   return res;}
 
+/* ---------- one stair: from the street's pavement down the bank to the skate park floor ----------
+   Street 01's only real drop is the bank into the skate park; elsewhere its park is reached only by the skate road
+   at the junction. A stair where the bank falls ~3 m to open park floor (clear of the park's features) is a real
+   short cut. It is walkable: its surface joins the game's ground through GAME.WALKS. */
+let STAIR=null;
+function stairSite(o){const S=s_=>atS(MAIN,s_),kerb=MAIN.kerb,sd=o.side;let best=null;for(let s_=o.s0;s_<=o.s1;s_+=.5){const sm=S(s_);const top=offsetFrom(sm,sd*(kerb+2.2)),bot=offsetFrom(sm,sd*(kerb+2.2+o.len));const drop=gAt(top)-gAt(bot);if(drop<2.4)continue;
+    const pk=window.__gAt?window.__gAt(...lonLatOf(bot)).out:0;if(pk>.01)continue;let clear=true;for(let t=.35;t<=1.45;t+=.12){const q=offsetFrom(sm,sd*(kerb+2.2+o.len*t));for(const w of [-o.W/2-.3,0,o.W/2+.3])if(solidHit(tn(q,sm.t.clone().multiplyScalar(w)),.25)){clear=false;break;}if(!clear)break;}if(!clear)continue;
+    const fl=Math.abs(gAt(bot)-gAt(offsetFrom(sm,sd*(kerb+3.4+o.len))));if(fl>.25)continue; /* the landing must be on level floor */
+    const score=Math.abs(s_-o.pref);if(!best||score<best.score)best={s:s_,sm,top,bot,score};}
+  if(!best)return null;const dir=best.sm.side.clone().multiplyScalar(sd),t=best.sm.t.clone(),n0=best.top,W=o.W,L=o.len;
+  best.covers=(n,pad)=>{const d=n.clone().sub(n0);const al=d.dot(dir)*R,ac=d.dot(t)*R;return al>-1-pad&&al<L+1.2+pad&&Math.abs(ac)<W/2+pad;};best.dir=dir;best.t=t;best.W=W;best.L=L;return best;}
+function buildStair(st){const {dir,t,W,L}=st,n0=st.top;const h0=gAt(n0)-R,h1=gAt(st.bot)-R;const N=Math.max(8,Math.round((h0-h1)/.2)),rise=(h0-h1)/N,run=L/N;const col=0xc2bdb0,cheek=0xaea898,rail=0x8fa6a0;
+  const at=(al,ac)=>tn(n0,dir.clone().multiplyScalar(al).addScaledVector(t,ac));const frame=(n,h)=>{const m=basisM(n,dir);m.setPosition(n.clone().multiplyScalar(R+h));return m;};
+  const posts=[[],[]];
+  /* each tread sits on or above the ground under it (the bank's crown bulges above a straight flight), never climbing */
+  const tops=[];for(let i=0;i<N;i++){const al=(i+.5)*run;let gm=-1e9;for(const ac of [-W/2,0,W/2])for(const da of [-run/2,0,run/2])gm=Math.max(gm,gAt(at(al+da,ac))-R);tops.push(Math.min(i?tops[i-1]-.02:h0,Math.max(h0-(i+.5)*rise,gm+.06)));}
+  for(let i=0;i<N;i++){const al=(i+.5)*run,c=at(al,0);const top=tops[i];let gb=1e9;for(const ac of [-W/2-.2,0,W/2+.2])for(const da of [-run/2,run/2])gb=Math.min(gb,gAt(at(al+da,ac))-R);const hb=Math.min(gb,top-.25)-.2;const hh=top-hb;
+    const k=kit(frame(c,(top+hb)/2));k.box(W,hh,run+.02,col,0,0,0).box(W+.02,.03,.05,0x9c9788,0,hh/2-.01,run/2-.02);
+    for(const sx of [-1,1]){k.box(.16,hh+.32,run+.02,cheek,sx*(W/2+.08),.16,0);if(i%3===0||i===N-1)posts[sx<0?0:1].push(at(al,sx*(W/2+.08)).multiplyScalar(R+top+.32+.62));}}
+  {const k=kit(frame(at(L+.55,0),h1+.03));k.box(W+.35,.1,1.1,col,0,0,0);} /* landing on the park floor */
+  {const k=kit(frame(at(-.35,0),h0-.02));k.box(W+.35,.08,.7,col,0,0,0);} /* and a lip at the pavement */
+  const K=kit(new T.Matrix4());for(const ps of posts){for(let i=0;i<ps.length;i++){const p=ps[i],base=p.clone().normalize();K.rod(p,base.clone().multiplyScalar(p.length()-.62),.025,rail,6);if(i)K.rod(ps[i-1],p,.028,rail,6);}}
+  for(let i=0;i<N;i+=2)for(const sx of [-1,1]){const q=at((i+.5)*run,sx*(W/2+.35));B.weed.add(q,rb(.3,.5),rb(.25,.45),rb(.85,1.05));}B.fern.add(at(L+.4,W/2+.7),.9,.6,1);B.fern.add(at(L+.5,-W/2-.7),.8,.55,1);
+  for(let i=0;i<7;i++){const sx=i%2?1:-1,q=at(rb(.6,L-.3),sx*rb(W/2+1,W/2+2.6));if(!solidHit(q,.3))(ch(.55)?plant(q,0):B[rp(['fern','pampas','weed'])].add(q,rb(.6,1),rb(.5,.9),1));} /* the bank either side, planted so the flight sits in greenery */
+  const nn=n0.clone(),cosC=Math.cos((L+3)/R),d0=dir.clone(),t0=t.clone(),hw=W/2+.05;
+  G.WALKS.push(n=>{if(n.dot(nn)<cosC)return null;const al=((n.x-nn.x)*d0.x+(n.y-nn.y)*d0.y+(n.z-nn.z)*d0.z)*R,ac=((n.x-nn.x)*t0.x+(n.y-nn.y)*t0.y+(n.z-nn.z)*t0.z)*R;if(al<-.1||al>L+1.05||Math.abs(ac)>hw)return null;if(al>=L)return h1+.06;const f=al/run-.5;if(f<=0)return h0+(tops[0]-h0)*Math.min(1,(al+.1)/(run*.5+.1));const i=Math.min(N-2,Math.floor(f)),u=Math.min(1,f-i);return tops[i]+(tops[i+1]-tops[i])*u;}); /* the walk follows the treads */
+  return {s:+st.s.toFixed(1),steps:N,drop:+(h0-h1).toFixed(2)};}
+/* the open lawns behind the shop street, towards the beach: painted trees and shrub groups, nothing more */
+function lawns(o){const road=MAIN,S=s_=>atS(road,s_),kerb=road.kerb;const near=ROADS.filter(r=>r.kind!=='track'&&r.kind!=='path'&&r.samples.some(sm=>sm.n.dot(S((o.s0+o.s1)/2).n)>Math.cos(50/R)));let trees=0,groups=0;const placed=(window.DRESS.treeAt=window.DRESS.treeAt||[]);
+  for(let i=0;i<220&&(trees<o.trees||groups<o.groups);i++){const s_=rb(o.s0,o.s1),lat=o.side*rb(kerb+6,kerb+14),n=offsetFrom(S(s_),lat);if(Math.asin(n.y)<-.24||roadDist(n,near)<1||solidHit(n,1))continue; /* the grass edge is about -.235 rad (the game strews its edge tufts from there) */
+    if(trees<o.trees&&!placed.some(q=>q.dot(n)>Math.cos(6/R))){placed.push(n);paintedTree(n,rb(6.5,9),S(s_).t,ch(.4));trees++;for(let j=0;j<3;j++)plant(tn(n,V3(rb(-1,1),rb(-1,1),rb(-1,1)).multiplyScalar(1.6)),0);continue;}
+    if(groups<o.groups){for(let j=0;j<Math.floor(rb(3,6));j++){const q=tn(n,V3(rb(-1,1),rb(-1,1),rb(-1,1)).multiplyScalar(1.2));if(!solidHit(q,.2))(ch(.5)?plant(q,0):B[rp(['fern','daisy','weed','rosette'])].add(q,rb(.5,.9),rb(.4,.7),1));}groups++;}}
+  return {trees,groups};}
+
 /* ---------- start: once the street's buildings are in ---------- */
-const PROTO={road:'main',s0:144,s1:208,build:1,rail:-1,junction:'skate',seedB:1340171692,seedC:1071038393,poleS1:236,railS1:216,branch:{road:'side2',from:5,to:44},crest:{road:'main',c0:203,c1:222,trees:7,r0:186,r1:224,tower:[216.3,219],towerH:18.5,towerAt:[216.3,-9.6],flood:[209,214],floodH:15,streetTrees:[[206,3.35],[209,-3.85]],seed:777}};
+/* ===== STREET 01, LOCAL SHOPPING / RESIDENTIAL HILL: LOCKED 27 Sep 2026 =====
+   Approved by Josh. Do not change these numbers, seeds or the code paths they drive (street, junctionKit,
+   buildingSide, groundCover, crest, stairSite/buildStair, lawns): every placement is reproduced from them. Other
+   streets get their own config and identity; they reuse the kit (materials, billboards, buckets, ink), not this recipe. */
+const PROTO={locked:true,road:'main',order:['1v2','7','9','12','8','17'],s0:144,s1:208,build:1,rail:-1,junction:'skate',seedB:1340171692,seedC:1071038393,poleS1:236,railS1:216,branch:{road:'side2',from:5,to:44},crest:{road:'main',c0:203,c1:222,trees:7,r0:186,r1:224,tower:null, /* the lookout tower broke the silhouette but did not belong here (27 Sep); trees, roofs, poles and wires carry the skyline */flood:[209,214],floodH:15,streetTrees:[[206,3.35],[209,-3.85]],seed:777},stair:{side:-1,s0:190,s1:206,pref:198,len:4.6,W:1.5},lawn:{side:1,s0:144,s1:206,trees:4,groups:8,seed:555}};
 let built=false,t0=performance.now();
 function ready(){const T_=window.__town;if(!T_)return false;const road=MAIN;const want=T_.modelSlots.filter(sl=>{const n=sphere(sl.lon,sl.lat);const bs=nearest(road,n);return bs&&bs.s>=PROTO.s0-3&&bs.s<=Math.max(PROTO.s1,PROTO.crest.r1)+3;}).length;const have=(window.BLDGS||[]).filter(b=>{const bs=nearest(road,b.inst.position.clone().normalize());return bs&&bs.s>=PROTO.s0-3&&bs.s<=Math.max(PROTO.s1,PROTO.crest.r1)+3;}).length;const lib=window.__propLib||{};return (have>=want&&lib.upole&&lib.tree1)||performance.now()-t0>25000;}
 function build(){if(built)return;built=true;const t=performance.now();setup();{const br=ROADS.find(r=>r.name===PROTO.branch.road);if(br){const toSpawn=atS(MAIN,PROTO.s0).n.clone().sub(atS(br,5).n);PROTO.branch.side=Math.sign(atS(br,5).side.dot(toSpawn))||1;}} /* poles down the side street on the side that faces the spawn, so they read against the sky */
+  STAIR=stairSite(PROTO.stair);if(STAIR){const w=window.DRESS.treeAt=window.DRESS.treeAt||[];for(const f of [0,.5,1])w.push(tn(STAIR.top,STAIR.dir.clone().multiplyScalar(STAIR.L*f)));} /* keep trees off the stair */
   const P=street(PROTO);junctionKit(PROTO.junction);const nb=buildingSide(PROTO);if(PROTO.crest.towerAt){const [ts,tl]=PROTO.crest.towerAt;(window.DRESS.treeAt=window.DRESS.treeAt||[]).push(offsetFrom(atS(MAIN,ts),tl));} /* keep the tower's corner clear of trees */
   const gc=groundCover(PROTO);const cr_=crest(PROTO.crest);window.DRESS.crest=cr_;flushAll();
   sd_=4242;/* service drops: from the building-side poles to the nearest façades */
-  for(const p of (P[PROTO.build]||[]))for(const b of (window.BLDGS||[])){const [x0,x1,,z1]=b.foot;const pts=[V3(x0*.8+x1*.2,Math.min(b.top*.66,5.2)/b.sc,z1+.05/b.sc),V3(x0*.2+x1*.8,Math.min(b.top*.62,5)/b.sc,z1+.05/b.sc)].map(v=>b.inst.localToWorld(v));for(const q of pts){const d=q.distanceTo(p.drop);if(d<11&&d>2&&ch(.6)){cable(p.drop,q,.35+d*.03,.01,0x2d353c);WIRE.add(new T.BoxGeometry(.1,.1,.06),new T.Matrix4().setPosition(q),0x6d7478);}}}
+  for(const p of (P[PROTO.build]||[]))for(const b of [...(window.BLDGS||[])].sort((a,c)=>a.inst.position.x-c.inst.position.x||a.inst.position.z-c.inst.position.z)){const [x0,x1,,z1]=b.foot;const pts=[V3(x0*.8+x1*.2,Math.min(b.top*.66,5.2)/b.sc,z1+.05/b.sc),V3(x0*.2+x1*.8,Math.min(b.top*.62,5)/b.sc,z1+.05/b.sc)].map(v=>b.inst.localToWorld(v));for(const q of pts){const d=q.distanceTo(p.drop);if(d<11&&d>2&&ch(.6)){cable(p.drop,q,.35+d*.03,.01,0x2d353c);WIRE.add(new T.BoxGeometry(.1,.1,.06),new T.Matrix4().setPosition(q),0x6d7478);}}}
+  if(STAIR){sd_=313;window.DRESS.stair=buildStair(STAIR);}sd_=PROTO.lawn.seed;window.DRESS.lawns=lawns(PROTO.lawn);
   flushAll();window.DRESS.info={ms:Math.round(performance.now()-t),buildings:nb,cover:gc,bills:BILLS.map(b=>[b.name,b.list.length]),verts:BUCKETS.map(b=>[b.name,b.P.length/3])};console.log('dress: built',JSON.stringify(window.DRESS.info));}
 function poll(){if(built)return;if(ready())build();else setTimeout(poll,700);}
 
