@@ -8,6 +8,7 @@ License version 2, compiled to WebAssembly with Emscripten. Changes from upstrea
   - src/mainint.c: W A S D also move the ship during play; mouse movement no longer steers (clicks still fire).
   - src/tyrian2.c: no pointer lock in the browser.
   - src/network.c: a missing game-state packet is re-requested after 100 ms instead of 320 ms.
+  - src/mainint.c: in a network game the two ships never dock together; src/network.c: NET_VERSION 3.
   - Built with -sSTACK_SIZE=5MB -sASYNCIFY -sASYNCIFY_STACK_SIZE=1048576 (the small default stack overflowed
     while a level loaded).
 The game data is Tyrian 2.1, released as freeware by Jason Emery in 2004: "Feel free to play it all you want and

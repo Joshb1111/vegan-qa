@@ -7,7 +7,7 @@
 /* OpenTyrian (GPL-2.0, https://github.com/opentyrian/opentyrian) built for the browser, with Tyrian 2.1's freeware data.
    ?net=1&p=1|2&name=… starts a two-player network game; its packets go to and from the page around this frame. */
 const qs=new URLSearchParams(location.search);const net=qs.get('net')==='1';
-var Module={locateFile:f=>f+(f.endsWith('.data')?'?v=2':'?v=3'),onExit:()=>parent.postMessage({ty:'exit'},location.origin),quit:()=>parent.postMessage({ty:'exit'},location.origin),canvas:document.getElementById('canvas'),print:t=>console.log('[tyrian]',t),printErr:t=>console.warn('[tyrian]',t),tyNetQueue:[],
+var Module={locateFile:f=>f+(f.endsWith('.data')?'?v=2':'?v=4'),onExit:()=>parent.postMessage({ty:'exit'},location.origin),quit:()=>parent.postMessage({ty:'exit'},location.origin),canvas:document.getElementById('canvas'),print:t=>console.log('[tyrian]',t),printErr:t=>console.warn('[tyrian]',t),tyNetQueue:[],
   setStatus:t=>{const el=document.getElementById('load');if(el)el.textContent=t?('Loading Tyrian… '+(t.match(/\((\d+)\/(\d+)\)/)?Math.round(100*RegExp.$1/RegExp.$2)+'%':'')):'';},
   preRun:[()=>{ENV.XDG_CONFIG_HOME='/save';FS.mkdir('/save');FS.mount(IDBFS,{},'/save');Module.addRunDependency('save');FS.syncfs(true,()=>Module.removeRunDependency('save'));}],
   onRuntimeInitialized(){document.getElementById('load').remove();const c=document.getElementById('canvas');c.focus();addEventListener('pointerdown',()=>c.focus());
@@ -16,4 +16,4 @@ var Module={locateFile:f=>f+(f.endsWith('.data')?'?v=2':'?v=3'),onExit:()=>paren
 Module.tyMuted=false;addEventListener('message',e=>{if(e.source!==parent||e.origin!==location.origin)return;const m=e.data;if(m&&m.ty==='mute')Module.tyMuted=!!m.on;});
 setInterval(()=>{const ac=Module.SDL2&&Module.SDL2.audioContext;if(!ac)return;if(Module.tyMuted&&ac.state==='running')ac.suspend();else if(!Module.tyMuted&&ac.state==='suspended')ac.resume().catch(()=>{});},300); /* the arcade's sound button: SDL's audio context is suspended while muted (and kept so if the browser resumes it on a click) */
 if(net){Module.tyNetSend=d=>parent.postMessage({ty:'pkt',d},location.origin,[d.buffer]);addEventListener('message',e=>{if(e.source!==parent||e.origin!==location.origin)return;const m=e.data;if(!m||m.ty!=='pkt'||!m.d||typeof m.d.byteLength!=='number'||m.d.byteLength<4||m.d.byteLength>256||Module.tyNetQueue.length>512)return;Module.tyNetQueue.push(new Uint8Array(m.d.buffer?m.d.slice():m.d));}); /* packets only from the planet page that framed us, and only the size the game uses */}
-</script><script src="opentyrian.js?v=3"></script></body></html>
+</script><script src="opentyrian.js?v=4"></script></body></html>
