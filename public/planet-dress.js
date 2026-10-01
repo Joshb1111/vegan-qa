@@ -309,7 +309,7 @@ function buildingSide(o){sd_=o.seedB||sd_; /* each section draws from its own se
   window.DRESS.dbg.walls=walls;return list.length;}
 
 /* Josh's own props (vending machine, trees, bench) cloned from the game's loaded models */
-const waiting=[];function glb(kind,n,f,o){o=o||{};const lib=window.__propLib||{};if(!lib[kind]){waiting.push([kind,n,f,o]);return;}const inst=new T.Group();inst.add(lib[kind].clone());if(o.k)inst.scale.setScalar(o.k);const [lo,la]=lonLatOf(n);placeOn(inst,lo,la,yawFor(lo,la,f));if(o.s2){inst.userData.s2=true;inst.updateMatrixWorld(true);const bb=new T.Box3().setFromObject(lib[kind]),k=o.k||1;const gc=gAt(inst.position.clone().normalize());let lo=gc;for(const x of [bb.min.x*.8,bb.max.x*.8])for(const z of [bb.min.z*.8,bb.max.z*.8])lo=Math.min(lo,gAt(inst.localToWorld(V3(x,0,z)).normalize()));inst.translateY(-Math.min(gc-lo,o.maxSink??.15)-(o.sink||.02));inst.updateMatrixWorld(true);} /* Street 02: grounded on the exact levels at its footprint (the coarse mesh there is sunk out of sight) */else if(o.keep){inst.translateY(-.12);inst.updateMatrixWorld(true);}else settle(inst); /* keep: on a bank top, settling would sink it down the slope */inst.traverse(m=>{if(m.isMesh)m.castShadow=!LITE;});if(o.solid)solids.push({c:n.clone().multiplyScalar(R),r:o.solid});
+const waiting=[];function glb(kind,n,f,o){o=o||{};const lib=window.__propLib||{};if(!lib[kind]){waiting.push([kind,n,f,o]);return;}const inst=new T.Group();inst.add(lib[kind].clone());if(o.k)inst.scale.setScalar(o.k);if(/^tree/.test(kind)){const bb=new T.Box3().setFromObject(lib[kind]);inst.userData.tree={H:(bb.max.y-bb.min.y)*(o.k||1)};}const [lo,la]=lonLatOf(n);placeOn(inst,lo,la,yawFor(lo,la,f));if(o.s2){inst.userData.s2=true;inst.updateMatrixWorld(true);const bb=new T.Box3().setFromObject(lib[kind]),k=o.k||1;const gc=gAt(inst.position.clone().normalize());let lo=gc;for(const x of [bb.min.x*.8,bb.max.x*.8])for(const z of [bb.min.z*.8,bb.max.z*.8])lo=Math.min(lo,gAt(inst.localToWorld(V3(x,0,z)).normalize()));inst.translateY(-Math.min(gc-lo,o.maxSink??.15)-(o.sink||.02));inst.updateMatrixWorld(true);} /* Street 02: grounded on the exact levels at its footprint (the coarse mesh there is sunk out of sight) */else if(o.keep){inst.translateY(-.12);inst.updateMatrixWorld(true);}else settle(inst); /* keep: on a bank top, settling would sink it down the slope */inst.traverse(m=>{if(m.isMesh)m.castShadow=!LITE;});if(o.solid)solids.push({c:n.clone().multiplyScalar(R),r:o.solid});
   if(/^tree/.test(kind)){const k=o.k||1,cell=()=>{const c=rr()<.5?0:.25;return [c+.002,.502,c+.248,.998];};groundQuad(DAPPLE,tn(n,shadowOff(n,3.4*k)),V3(rr()-.5,0,rr()-.5).addScaledVector(n,1),4.6*k,3.8*k,cell(),.1,0x1b2942,6);if(o.lean){const d=o.lean.clone().multiplyScalar(3.3*k);groundQuad(DAPPLE,tn(n,shadowOff(n,3.4*k).add(d)),V3(rr()-.5,0,rr()-.5).addScaledVector(n,1),3.6*k,3*k,cell(),.1,0x1b2942,6);}} /* its dappled shade, laid where the sun throws it (and on across the pavement for a tree leaning over the street) */G.dirty();return inst;}
 window.addEventListener('planet:prop',e=>{for(let i=waiting.length-1;i>=0;i--)if(waiting[i][0]===e.detail){const w=waiting.splice(i,1)[0];glb(...w);}});
 
@@ -355,12 +355,14 @@ function floodMast(n,face,H){const base=basisM(n,face);base.setPosition(onG(n,-.
   k.box(1.2,.05,.9,0x6d7478,0,H-.9,.1);for(const x of [-.6,.6])k.rod(V3(x,H-.9,-.35),V3(x,H-.35,-.35),.02,0x6d7478);
   solids.push({c:n.clone().multiplyScalar(R),r:.4});groundStrip(SHADE,[n,tn(n,shadowOff(n,H*.95))],.35,.1,0x1c2a40);}
 /* a painted tree: trunk and limbs, and a crown built from overlapping painted leaf masses, the way a background painter blocks one in */
-function paintedTree(n,H,f,dark){const base=basisM(n,f||V3(1,0,0));base.setPosition(onG(n,-.1));const k=kit(base);const tr=.11+H*.012;k.cyl(tr*.7,tr,H*.62,0x5b4636,0,H*.31,0,7);
+const TREE_TINT=new T.Color(0xb4dcb8); /* Josh liked the deeper, cooler green of the old model trees: every painted crown is tinted towards it */
+const treeTint=b=>TREE_TINT.clone().multiplyScalar(b);
+function paintedTree(n,H,f,dark,noSolid){const base=basisM(n,f||V3(1,0,0));base.setPosition(onG(n,-.1));const k=kit(base);const tr=.11+H*.012;k.cyl(tr*.7,tr,H*.62,0x5b4636,0,H*.31,0,7);
   for(let i=0;i<3;i++){const a=i*2.1+rr(),y=H*(.42+.1*i);k.rod(V3(0,y,0),V3(Math.cos(a)*H*.16,y+H*.14,Math.sin(a)*H*.16),tr*.45,0x5b4636,5);}
   const Y=n.clone(),X=V3(1,0,0).cross(Y).normalize(),Z=new T.Vector3().crossVectors(X,Y);const masses=Math.round(5+H*.25);
-  for(let i=0;i<masses;i++){const a=rr()*6.28,r_=rb(.2,.55)*H*.18,y=H*rb(.42,.68);const m=tn(n,X.clone().multiplyScalar(Math.cos(a)*r_).addScaledVector(Z,Math.sin(a)*r_));const w=H*rb(.3,.42);(dark&&ch(.6)?B.shrubD:B.shrub).add(m,w,w*rb(.8,.95),rb(.88,1.06),y);}
-  B.shrub.add(n,H*.34,H*.3,rb(.95,1.08),H*.7); /* the sunlit top */
-  solids.push({c:n.clone().multiplyScalar(R),r:.3});const c=rr()<.5?0:.25;groundQuad(DAPPLE,tn(n,shadowOff(n,H*.65)),V3(rr()-.5,0,rr()-.5).addScaledVector(n,1),H*.55,H*.45,[c+.002,.502,c+.248,.998],.1,0x1b2942,6);return true;}
+  for(let i=0;i<masses;i++){const a=rr()*6.28,r_=rb(.2,.55)*H*.18,y=H*rb(.42,.68);const m=tn(n,X.clone().multiplyScalar(Math.cos(a)*r_).addScaledVector(Z,Math.sin(a)*r_));const w=H*rb(.3,.42);(dark&&ch(.6)?B.shrubD:B.shrub).add(m,w,w*rb(.8,.95),treeTint(rb(.88,1.06)),y);}
+  B.shrub.add(n,H*.34,H*.3,treeTint(rb(.95,1.08)),H*.7); /* the sunlit top */
+  if(!noSolid)solids.push({c:n.clone().multiplyScalar(R),r:.3});const c=rr()<.5?0:.25;groundQuad(DAPPLE,tn(n,shadowOff(n,H*.65)),V3(rr()-.5,0,rr()-.5).addScaledVector(n,1),H*.55,H*.45,[c+.002,.502,c+.248,.998],.1,0x1b2942,6);return true;}
 function crest(o){sd_=o.seed||sd_;const road=ROADS.find(r=>r.name===o.road)||MAIN,S=s=>atS(road,s),kerb=road.kerb;const all=ROADS.filter(r=>r.kind!=='track'&&r.kind!=='path');const near=all.filter(r=>r.samples.some(sm=>sm.n.dot(S(o.c0).n)>Math.cos(50/R)));const res={trees:0,roofs:0,tower:0};
   /* tall trees just over the crest, both sides, never on the road or in the park's pit */
   const cand=[];for(let s_=o.c0;s_<=o.c1;s_+=1.3)for(const lat of [-5.3,-5.8,-6.3,-7.5,-9,6.8,8,9.5])cand.push([s_+rb(-.5,.5),lat+rb(-.2,.2),s_<o.c0+9&&lat<0&&lat>-6.5?0:1]);cand.sort((a,b)=>a[2]-b[2]||rr()-.5); /* the bank top just past the crest first: those crowns are the ones that clear it */
@@ -506,7 +508,7 @@ function s2House(key,s,d,face,sc,res,o){o=o||{}; /* face: +1/-1 fronts to +d/-d;
   if(o.plinth){const up=c.clone().normalize();let fl=1e9;for(const [a,b] of [[x0,z0],[x1,z0],[x0,z1],[x1,z1]])fl=Math.min(fl,gAt(g.localToWorld(V3(a,0,b)).normalize()));const hh=gmin-.05-fl+.3;const m=new T.Matrix4().makeBasis(X,up,Z);m.setPosition(up.clone().multiplyScalar(fl-.3+hh/2));kit(m).box((x1-x0)*sc+.3,hh,(z1-z0)*sc+.3,0x9c9a90,0,0,0);} /* a stone base down to the sea bed */
   if(res)(res.houses=res.houses||[]).push(key);return {g,w:(x1-x0)*sc,dp:(z1-z0)*sc,top:src.top*k};}
 function street02(o){const res={};const hsdW=()=>o.house[0]-2.05;const S=G.S2,Ln=G.s2Lane,Pr=G.s2Prom;window.DRESS.s2At=s2At;window.DRESS.hSD=hSD;
-  res.ground=s2Ground({s0:239,s1:307,d0:4.35,d1:17.5,grassTo:S.upTo,sandFrom:S.prom-.1,shoreTo:S.prom+.45});res.cleared=s2Clear({s0:241,s1:305,d1:16.6});for(const ms of [4000,12000,30000])setTimeout(()=>{res.cleared+=s2Clear({s0:241,s1:305,d1:16.6});},ms); /* props that load late */
+  res.ground=s2Ground({s0:239,s1:307,d0:4.35,d1:17.5,grassTo:S.upTo,sandFrom:S.prom-.5,shoreTo:S.prom+.45});res.cleared=s2Clear({s0:241,s1:305,d1:16.6});for(const ms of [4000,12000,30000])setTimeout(()=>{res.cleared+=s2Clear({s0:241,s1:305,d1:16.6});},ms); /* props that load late */
   const [a1,b1,t1]=S.slot1,[a2,b2,t2]=S.slot2,EG=S.eastGap,BK=S.back,UP=S.upTo,PR=S.prom,L0=S.lane[0],L1=S.lane[1],LO=S.laneOut;
   const line=(a,b,d,st)=>{const r=[];for(let s=a;s<b-.01;s+=st||1.2)r.push([s,d]);r.push([b,d]);return r;};const across=(s,d0,d1,st)=>{const r=[];for(let d=d0;d<d1-.01;d+=st||1.2)r.push([s,d]);r.push([s,d1]);return r;};
   /* ---- the back wall: the street houses stand on it, the lane runs at its foot (built in goes) ---- */
@@ -715,6 +717,160 @@ function s2Dress(o){const S=G.S2,Ln=G.s2Lane;const [a1,b1,t1]=S.slot1,[a2,b2,t2]
     res.poles=P.length+1;}
   return res;}
 
+/* ===================== ZONES (1 Oct 2026): somewhere to hang out =====================
+   The town had streets and the skate park; Josh wanted places to stop. A forest on the north cap, west of the break
+   room: a path in from the road, a stream with a footbridge, and a clearing with a campfire where three residents sit,
+   one of them playing the guitar. And a beach hangout east of the cinema: umbrellas, towels, deck chairs, a radio. */
+const ZONE_F={lon:-.41,lat:1.17},ZONE_B={lon:1.12,lat:-.322};
+function zFrame(z){const n=sphere(z.lon,z.lat);const e=V3(-Math.sin(z.lon),0,Math.cos(z.lon)).normalize();const no=V3(-Math.sin(z.lat)*Math.cos(z.lon),Math.cos(z.lat),-Math.sin(z.lat)*Math.sin(z.lon)).normalize();
+  const at=(x,y)=>tn(n,e.clone().multiplyScalar(x).addScaledVector(no,y));const dir=(x,y)=>e.clone().multiplyScalar(x).addScaledVector(no,y);return {n,e,no,at,dir};}
+function paintDirt(){const c=canvas(256,256),g=c.getContext('2d');g.clearRect(0,0,256,256);const gr=g.createLinearGradient(0,0,0,256);gr.addColorStop(0,'rgba(176,146,104,0)');gr.addColorStop(.18,'rgba(176,146,104,.95)');gr.addColorStop(.82,'rgba(176,146,104,.95)');gr.addColorStop(1,'rgba(176,146,104,0)');g.fillStyle=gr;g.fillRect(0,0,256,256);
+  for(let i=0;i<220;i++){const y=40+Math.random()*176;g.fillStyle=`rgba(${rp([110,140,200])},${rp([90,115,170])},${rp([70,85,130])},.35)`;g.beginPath();g.ellipse(Math.random()*256,y,1+Math.random()*4,1+Math.random()*2.5,Math.random()*3,0,7);g.fill();}
+  const t=texOf(c);t.wrapS=T.RepeatWrapping;return t;}
+function paintWater(){const c=canvas(256,256),g=c.getContext('2d');const gr=g.createLinearGradient(0,0,0,256);gr.addColorStop(0,'rgba(90,120,80,0)');gr.addColorStop(.1,'rgba(98,120,92,.9)');gr.addColorStop(.2,'#3f8fb0');gr.addColorStop(.5,'#2f7aa0');gr.addColorStop(.8,'#3f8fb0');gr.addColorStop(.9,'rgba(98,120,92,.9)');gr.addColorStop(1,'rgba(90,120,80,0)');g.fillStyle=gr;g.fillRect(0,0,256,256);
+  g.strokeStyle='rgba(235,248,255,.7)';g.lineWidth=2.2;for(let i=0;i<26;i++){const x=Math.random()*256,y=60+Math.random()*136,w=10+Math.random()*28;g.beginPath();g.moveTo(x,y);g.quadraticCurveTo(x+w/2,y-3,x+w,y);g.stroke();}
+  const t=texOf(c);t.wrapS=T.RepeatWrapping;return t;}
+function paintZoneSign(lines){const c=canvas(512,256),g=c.getContext('2d');g.fillStyle='#8a6a48';g.fillRect(0,0,512,256);g.fillStyle='#e9dcc0';g.fillRect(14,14,484,228);g.fillStyle='#2b2118';g.textAlign='center';g.textBaseline='middle';g.font='700 92px "Hiragino Sans","Noto Sans JP",sans-serif';g.fillText(lines[0],256,96);g.font='700 50px "Patrick Hand","Segoe Print",cursive';g.fillText(lines[1],256,190);return texOf(c);}
+let ZW=null;
+function zones(){const res={};ZW={dirt:new Bucket('z-dirt',new T.MeshBasicMaterial({map:paintDirt(),vertexColors:true,transparent:true,depthWrite:false,side:T.DoubleSide,polygonOffset:true,polygonOffsetFactor:-3,polygonOffsetUnits:-3}),{ud:{roadInk:true},order:1}),
+    water:new Bucket('z-water',new T.MeshBasicMaterial({map:paintWater(),vertexColors:true,transparent:true,depthWrite:false,side:T.DoubleSide,polygonOffset:true,polygonOffsetFactor:-4,polygonOffsetUnits:-4}),{ud:{roadInk:true},order:1})};
+  try{res.forest=forestZone();}catch(e){res.ferr=String(e&&e.stack||e);console.warn('forest',e);}
+  try{res.beach=beachZone();}catch(e){res.berr=String(e&&e.stack||e);console.warn('beach zone',e);}
+  return res;}
+const nearRoads=n=>ROADS.filter(r=>r.kind!=='track'&&r.samples.some(sm=>sm.n.dot(n)>Math.cos(40/R)));
+function polyDist(pts,q){let best=1e9;for(let i=0;i<pts.length-1;i++){const a=pts[i],b=pts[i+1];const ab=b.clone().sub(a),aq=q.clone().sub(a);const t=Math.max(0,Math.min(1,aq.dot(ab)/ab.lengthSq()));best=Math.min(best,a.clone().addScaledVector(ab,t).distanceTo(q)*R);}return best;}
+/* a resident, cloned, posed sitting (or lying), facing a point */
+const ZPEOPLE=[],p_mx=[];
+function zPerson(name,n,face,o){o=o||{};const src=G.npcs.find(p=>p.name===name&&p.model);if(!src||!THREE.SkeletonUtils)return null;const root=THREE.SkeletonUtils.clone(src.model.root);root.traverse(m=>{if(m.isMesh){m.material=m.material.clone();m.frustumCulled=false;}});
+  const holder=new T.Group();holder.add(root);const [lo,la]=lonLatOf(n);placeOn(holder,lo,la,yawFor(lo,la,face.clone().negate()));holder.userData.noCull=true; /* the models face -Z in their holders */
+  const bones={};root.traverse(b=>{if(b.isBone)bones[b.name]=b;});const clip=src.model.act.idle&&src.model.act.idle.getClip();if(clip){const mx=new T.AnimationMixer(root);const a=mx.clipAction(clip);a.play();mx.update(.25);p_mx.push(mx);} /* held on that frame: the mixer is never updated again, and stopping it would put the bind pose back */
+  const qx=new T.Quaternion(),ax=V3(1,0,0),az=V3(0,0,1),ay=V3(0,1,0);
+  if(o.pose!=='stand'){for(const k of ['L_Thigh','R_Thigh'])bones[k]&&bones[k].quaternion.multiply(qx.setFromAxisAngle(ax,1.45));for(const k of ['L_Calf','R_Calf'])bones[k]&&bones[k].quaternion.multiply(qx.setFromAxisAngle(ax,-1.45));}
+  if(o.pose==='lie'){for(const k of ['L_Thigh','R_Thigh'])bones[k]&&bones[k].quaternion.multiply(qx.setFromAxisAngle(ax,-1.45));for(const k of ['L_Calf','R_Calf'])bones[k]&&bones[k].quaternion.multiply(qx.setFromAxisAngle(ax,1.45));
+    for(const k of ['L_Upperarm','R_Upperarm'])bones[k]&&bones[k].quaternion.multiply(qx.setFromAxisAngle(az,k[0]==='L'?-.9:.9));}
+  holder.updateMatrixWorld(true);const up=n.clone();const g=gAt(n);
+  if(o.pose==='lie'){root.rotation.x=-Math.PI/2;holder.updateMatrixWorld(true);const hw=new T.Vector3(),fw=new T.Vector3();(bones.Head||root).getWorldPosition(hw);(bones.L_Foot||root).getWorldPosition(fw);const mid=hw.add(fw).multiplyScalar(.5);const off=n.clone().multiplyScalar(mid.length()).sub(mid);off.addScaledVector(up,-off.dot(up));holder.position.add(off);holder.updateMatrixWorld(true); /* centred on the towel */
+    let lo2=1e9;root.traverse(m=>{if(m.isBone){const w=new T.Vector3();m.getWorldPosition(w);lo2=Math.min(lo2,w.dot(up));}});holder.position.addScaledVector(up,g+(o.seat||.12)-lo2);}
+  else if(bones.Pelvis){const w=new T.Vector3();bones.Pelvis.getWorldPosition(w);holder.position.addScaledVector(up,g+(o.seat||.46)-w.dot(up)+.04);}
+  holder.updateMatrixWorld(true);const p={name,holder,root,bones,o,rest:{}};for(const k in bones)p.rest[k]=bones[k].quaternion.clone();ZPEOPLE.push(p);G.dirty();return p;}
+function guitar(p){const g=new T.Group();const wood=new T.MeshBasicMaterial({color:0xc8843e}),dark=new T.MeshBasicMaterial({color:0x4a2e1a}),pale=new T.MeshBasicMaterial({color:0xe9d2a8});
+  const b1=new T.Mesh(new T.SphereGeometry(.2,16,10),wood);b1.scale.set(1,1,.32);const b2=new T.Mesh(new T.SphereGeometry(.15,16,10),wood);b2.scale.set(1,1,.32);b2.position.y=.2;const hole=new T.Mesh(new T.CircleGeometry(.055,14),dark);hole.position.set(0,.1,.066);
+  const neck=new T.Mesh(new T.BoxGeometry(.05,.5,.03),dark);neck.position.set(0,.55,.02);const head=new T.Mesh(new T.BoxGeometry(.075,.13,.03),dark);head.position.set(0,.85,.01);const bridge=new T.Mesh(new T.BoxGeometry(.11,.02,.02),dark);bridge.position.set(0,-.06,.07);
+  g.add(b1,b2,hole,neck,head,bridge);for(const m of [b1,b2,hole,neck,head,bridge]){m.userData.noInk=true;hideInNormals.push(m);}
+  const bp=p.bones.Spine01||p.bones.Pelvis;if(!bp)return null;bp.add(g);const s=1/(p.root.scale.x||1);g.scale.setScalar(s);g.position.set(.1*s,.02*s,.2*s);g.rotation.set(0,0,1.15); /* across the lap, the neck up to his left */
+  return g;}
+/* ---------- the forest ---------- */
+/* the town's own scattered props (rocks, tufts, the odd planter) out of a zone's open ground, and their collision circles */
+function zClear(c,r){const keep=new Set((window.BLDGS||[]).map(b=>b.inst));const npcH=new Set(G.npcs.map(n=>n.model&&n.model.holder).filter(Boolean));let k=0;const gone=[];
+  for(const ch_ of [...scene.children]){if(!ch_.isGroup||keep.has(ch_)||npcH.has(ch_)||ch_.userData.s2||ch_.userData.zone||(ch_.name||'').startsWith('dress'))continue;const q=ch_.position.clone().normalize();if(q.dot(c)<Math.cos(r/R))continue;if(ch_.userData.tree&&!ch_.userData.tree.done)continue;if(new T.Box3().setFromObject(ch_).getSize(V3()).length()>4.5)continue;scene.remove(ch_);gone.push(ch_.position.clone());k++;}
+  for(let i=solids.length-1;i>=0;i--){const so=solids[i];if(so.r===undefined||so.r>1)continue;if(gone.some(p=>p.distanceTo(so.c)<.7))solids.splice(i,1);} /* only the circles of what was taken away */G.dirty();return k;}
+function forestZone(){sd_=1001;const F=zFrame(ZONE_F);const res={};res.cleared=zClear(F.n,4.6);const roads=nearRoads(F.n);const ROOMN=sphere(.6,1.5);
+  /* the path: from the clearing to the nearest road, the way you came in */
+  /* the way in: of all the directions out of the clearing, the longest clear walk through the trees to a road (not past the break room or a house) */
+  let best=null;for(let k=0;k<72;k++){const th=k/72*6.283;const dv=F.dir(Math.cos(th),Math.sin(th));let r=4,okk=true;for(;r<26;r+=.4){const q=tn(F.n,dv.clone().multiplyScalar(r));if(Math.acos(Math.min(1,q.dot(ROOMN)))*R<12||solidHit(q,1.4)&&r>5.5){okk=false;break;}if(roadDist(q,roads)<-.3)break;}if(!okk||r>=26)continue;if(!best||r>best.r)best={r,dv};}
+  const edge=best?best.r-1.2:6;res.edge=+edge.toFixed(1);const toRoad=(best?best.dv:F.e).clone();const side=new T.Vector3().crossVectors(F.n,toRoad).normalize();
+  const pAt=(a,b)=>tn(F.n,toRoad.clone().multiplyScalar(a).addScaledVector(side,b));
+  const path=[];for(let a=3.6;a<=edge;a+=.6){const b=.7*Math.sin(a*.55);path.push(pAt(a,b));}groundStrip(ZW.dirt,path,1.7,.035,0xffffff,2.2,[0,1]);
+  /* the stream: across the path halfway, curving away both sides */
+  const cross=Math.min(edge-2.2,Math.max(5.4,(3.6+edge)/2));res.cross=+cross.toFixed(1);const stream=[];for(let b=-18;b<=18;b+=.7){const a=cross+1.1*Math.sin(b*.32)-.012*b*b;const q=pAt(a,b);if(nearRoads(q).length&&roadDist(q,roads)<1.2)continue;if(Math.acos(Math.min(1,q.dot(ROOMN)))*R<11)continue;if(Math.abs(b)>2&&solids.some(so=>so.r===undefined&&so.hx*so.hz>1&&Math.abs(q.clone().multiplyScalar(R).sub(so.c).dot(so.X))<so.hx+.8&&Math.abs(q.clone().multiplyScalar(R).sub(so.c).dot(so.Z))<so.hz+.8))continue;stream.push({q,b});} /* only buildings stop the water; it runs past the trees */
+  const runs=[];let cur=[];for(let i=0;i<stream.length;i++){if(i&&Math.abs(stream[i].b-stream[i-1].b)>.75){runs.push(cur);cur=[];}cur.push(stream[i]);}runs.push(cur);
+  for(const run of runs){if(run.length<2)continue;groundStrip(ZW.water,run.map(s=>s.q),1.7,.04,0xffffff,3,[0,1]);
+    for(let i=0;i<run.length-1;i++){const s0=run[i],s1=run[i+1];const mb=(s0.b+s1.b)/2;if(Math.abs(mb)<1.1)continue;const m=s0.q.clone().add(s1.q).normalize();const X=s1.q.clone().sub(s0.q);const len=X.length()*R;X.addScaledVector(m,-X.dot(m)).normalize();solids.push({c:m.clone().multiplyScalar(R),X,Z:new T.Vector3().crossVectors(X,m).normalize(),hx:len/2+.05,hz:.55,top:.3});} /* you cross on the bridge, not through the water */
+    for(const s of run){if(Math.abs(s.b)<1.3)continue;const t=s.q;if(ch(.35))B[rp(['weed','fern','pampas'])].add(tn(t,side.clone().multiplyScalar(rb(-1,1)).addScaledVector(toRoad,ch(.5)?.95:-.95)),rb(.4,.8),rb(.4,.9),1);if(ch(.25)){const r=tn(t,toRoad.clone().multiplyScalar(ch(.5)?.88:-.88));kit(basisM(r,toRoad).setPosition(onG(r,-.05))).box(rb(.25,.45),rb(.15,.25),rb(.2,.35),rp([0x9a978c,0x8a8a80,0xa8a59b]),0,.08,0,rr()*3);}}}
+  res.stream=stream.length;
+  /* the footbridge: an arched deck across the water, walkable, with a rail each side */
+  {const c=pAt(cross,0);const L=3.4,W=1.3,H=.32;const m=basisM(c,toRoad);const g=gAt(c)-R;m.setPosition(c.clone().multiplyScalar(R+g));const k=kit(m);const N=9;
+    for(let i=0;i<N;i++){const t=(i+.5)/N,z=(t-.5)*L,y=H*Math.sin(Math.PI*t);k.box(W,.06,L/N-.03,rp([0x9c7a52,0x8a6a48,0xa7845a]),0,y+.05,z,0,-Math.cos(Math.PI*t)*Math.PI*H/L*.9);}
+    for(const sx of [-1,1]){for(let i=0;i<=4;i++){const t=i/4,z=(t-.5)*L,y=H*Math.sin(Math.PI*t);k.box(.08,.8,.08,0x6b4a2e,sx*(W/2),y+.4,z);}const pts=[];for(let i=0;i<=8;i++){const t=i/8;pts.push(V3(sx*W/2,H*Math.sin(Math.PI*t)+.82,(t-.5)*L));}for(let i=0;i<8;i++)k.rod(pts[i],pts[i+1],.035,0x7a5a3e,5);
+      solids.push({c:tn(c,side.clone().multiplyScalar(sx*(W/2+.12))).multiplyScalar(R),X:side.clone(),Z:toRoad.clone(),hx:.1,hz:L/2,top:1});}
+    k.box(W+.4,.2,.5,0x8a8a80,0,.0,-L/2-.1).box(W+.4,.2,.5,0x8a8a80,0,0,L/2+.1);
+    const cc=c.clone(),tr=toRoad.clone(),sd=side.clone();G.WALKS.push(n=>{if(n.dot(cc)<Math.cos(4/R))return null;const d=n.clone().sub(cc);const z=d.dot(tr)*R,x=d.dot(sd)*R;if(Math.abs(x)>W/2+.05||Math.abs(z)>L/2+.1)return null;const t=Math.max(0,Math.min(1,z/L+.5));return gAt(n)-R+H*Math.sin(Math.PI*t)+.06;});res.bridge=true;}
+  /* the clearing: a fire pit and three logs round it, the gap towards the path */
+  const fireN=F.n.clone();{const k=kit(basisM(fireN,toRoad).setPosition(onG(fireN,-.02)));const fm=basisM(fireN,toRoad).setPosition(onG(fireN,-.02));for(let i=0;i<12;i++){const a=i/12*6.283;const gq=new T.IcosahedronGeometry(.16,0);gq.scale(1.25,.75,1);STAT.add(gq,mul(fm,mRot(Math.cos(a)*.62,.07,Math.sin(a)*.62,rr()*3)),rp([0x8a8a80,0x9a978c,0x77776f,0xa3a196]));}
+    for(let i=0;i<4;i++){const a=i/4*3.14+.3;k.cyl(.06,.07,.9,0x5a3e28,0,.14,0,6,Math.PI/2,0,a);}k.cyl(.5,.55,.03,0x3a3430,0,.015,0,12);solids.push({c:fireN.clone().multiplyScalar(R),r:.75});}
+  const seats=[];
+  const logs=[];for(const a of [Math.PI*.55,Math.PI*1.0,Math.PI*1.45]){const dir=toRoad.clone().applyAxisAngle(F.n,a);const pos=tn(F.n,dir.clone().multiplyScalar(2.25));const tang=new T.Vector3().crossVectors(F.n,dir).normalize();const m=basisM(pos,tang);m.setPosition(onG(pos,0));
+    kit(m).cyl(.23,.25,1.9,0x7a5a3e,0,.22,0,9,Math.PI/2).cyl(.2,.2,.02,0xc9a878,0,.22,.955,9,Math.PI/2).cyl(.2,.2,.02,0xc9a878,0,.22,-.955,9,Math.PI/2);solids.push({c:pos.clone().multiplyScalar(R),X:dir.clone(),Z:tang.clone(),hx:.28,hz:.95,top:.45});
+    logs.push({pos,dir,tang});for(const off of [-.5,.5]){const sp=tn(pos,tang.clone().multiplyScalar(off).addScaledVector(dir,-.02));seats.push({n:sp,face:dir.clone().negate(),label:'Sit by the fire',drop:.24});}}
+  /* who is sitting there: the guitarist on the far log, two listening */
+  res.seats=seats.length;const who=[['Kofi',3,'guitar'],['June',0],['Sam',5]];const taken=new Set(who.map(w=>w[1]));for(let i=0;i<seats.length;i++)if(!taken.has(i))G.SEATS.push(seats[i]);
+  const seatPeople=()=>{if(!THREE.SkeletonUtils||!who.every(([nm])=>G.npcs.find(p=>p.name===nm&&p.model)))return false;for(const [nm,i,role] of who){const st=seats[i];const p=zPerson(nm,st.n,fireN.clone().sub(st.n),{seat:.47});if(p&&role==='guitar'){p.guitar=guitar(p);p.role='guitar';}else if(p)p.role='listen';}return true;};
+  {const t0=setInterval(()=>{if(seatPeople())clearInterval(t0);},1500);}
+  /* the fire itself: flickering flames and embers, a warm glow on the ground */
+  {const g=new T.Group();const mk=(c,o)=>new T.MeshBasicMaterial({color:c,transparent:true,opacity:o,depthWrite:false,blending:T.AdditiveBlending});const fl=[];
+    const ftex=(()=>{const c=canvas(128,256),gg=c.getContext('2d');const blob=(w,h,col,y0)=>{gg.fillStyle=col;gg.beginPath();gg.moveTo(64,y0);gg.bezierCurveTo(64+w*.2,y0+h*.35,64+w,y0+h*.55,64+w*.55,y0+h*.92);gg.quadraticCurveTo(64,y0+h*1.02,64-w*.55,y0+h*.92);gg.bezierCurveTo(64-w,y0+h*.55,64-w*.2,y0+h*.35,64,y0);gg.fill();};
+      blob(60,240,'#ff6a1a',10);blob(46,190,'#ffa52a',60);blob(30,130,'#ffd65a',115);blob(16,70,'#fff4c0',172);return texOf(c);})(); /* an anime flame: three tongues, orange to white */
+    const fmat=new T.MeshBasicMaterial({map:ftex,transparent:true,depthWrite:false,side:T.DoubleSide,alphaTest:.02});
+    for(const [w,h,ry,x,z] of [[.52,.8,0,0,0],[.52,.8,Math.PI/2,0,0],[.36,.58,Math.PI/4,.1,.05],[.32,.52,-Math.PI/4,-.08,-.04]]){const m=new T.Mesh(new T.PlaneGeometry(w,h),fmat);m.geometry.translate(0,h/2,0);m.rotation.y=ry;m.position.set(x,.08,z);m.userData.noInk=true;m.userData.h=h;m.userData.ph=Math.random()*6;g.add(m);fl.push(m);}
+    const glow=new T.Mesh(new T.CircleGeometry(1.5,24),new T.MeshBasicMaterial({map:(()=>{const c=canvas(128,128),gg=c.getContext('2d');const gr=gg.createRadialGradient(64,64,4,64,64,64);gr.addColorStop(0,'rgba(255,170,80,.22)');gr.addColorStop(1,'rgba(255,140,60,0)');gg.fillStyle=gr;gg.fillRect(0,0,128,128);return texOf(c);})(),transparent:true,depthWrite:false,blending:T.AdditiveBlending}));glow.rotation.x=-Math.PI/2;glow.position.y=.05;glow.userData.noInk=true;g.add(glow);
+    const emb=[];for(let i=0;i<10;i++){const m=new T.Mesh(new T.SphereGeometry(.025,5,4),mk(0xffc060,1));m.userData.noInk=true;m.userData.ph=Math.random()*3;g.add(m);emb.push(m);}
+    const [lo,la]=lonLatOf(fireN);placeOn(g,lo,la,0);g.position.copy(fireN.clone().multiplyScalar(gAt(fireN)));g.userData.noCull=true;g.traverse(m=>{if(m.isMesh)hideInNormals.push(m);});ZFX.fire={g,fl,emb,n:fireN};}
+  /* string lights between the trees round the clearing */
+  /* the trees: the forest proper, kept off the roads, the buildings, the path, the stream and the break room */
+  const trees=[];const ok=q=>{const dc=Math.acos(Math.min(1,q.dot(F.n)))*R;if(dc<4.6||dc>27)return false;if(roadDist(q,roads)<.9)return false;if(solidHit(q,1.1))return false;if(Math.acos(Math.min(1,q.dot(ROOMN)))*R<11.5)return false;if(polyDist(path,q)<1.7)return false;if(stream.length&&polyDist(stream.map(s=>s.q),q)<1.6)return false;for(const t of trees)if(Math.acos(Math.min(1,q.dot(t)))*R<2.25)return false;return true;};
+  for(let i=0;i<1600&&trees.length<80;i++){const a=rr()*6.283,r=5+Math.sqrt(rr())*19;const q=tn(F.n,F.dir(Math.cos(a),Math.sin(a)).multiplyScalar(r));if(!ok(q))continue;trees.push(q);paintedTree(q,rb(4.4,6.8),F.dir(rr()-.5,rr()-.5),ch(.55));}
+  res.trees=trees.length;
+  /* undergrowth: ferns and dark shrubs among the trunks, a few fallen logs and mushrooms of rock */
+  let under=0;for(let i=0;i<900&&under<150;i++){const a=rr()*6.283,r=4.4+Math.sqrt(rr())*22;const q=tn(F.n,F.dir(Math.cos(a),Math.sin(a)).multiplyScalar(r));if(roadDist(q,roads)<.6||solidHit(q,.4)||polyDist(path,q)<1.1||(stream.length&&polyDist(stream.map(s=>s.q),q)<1.1)||Math.acos(Math.min(1,q.dot(ROOMN)))*R<11)continue;const k_=rr();(k_<.4?B.fern:k_<.7?B.shrubD:k_<.85?B.weed:B.shrub).add(q,rb(.5,1.1),rb(.45,.9),treeTint(rb(.85,1.02)),0);under++;}
+  /* lights: a cable looping from tree to tree round the clearing, with warm bulbs */
+  {const near=trees.filter(t=>{const d=Math.acos(Math.min(1,t.dot(F.n)))*R;return d<8.5;}).sort((a,b)=>{const aa=Math.atan2(a.clone().sub(F.n).dot(F.no),a.clone().sub(F.n).dot(F.e)),bb=Math.atan2(b.clone().sub(F.n).dot(F.no),b.clone().sub(F.n).dot(F.e));return aa-bb;});
+    const bulbs=[];for(let i=0;i<near.length;i++){const a=near[i],b=near[(i+1)%near.length];if(Math.acos(Math.min(1,a.dot(b)))*R>9)continue;const A=a.clone().multiplyScalar(gAt(a)+3.1),Bp=b.clone().multiplyScalar(gAt(b)+3.1);cable(A,Bp,.55,.012,0x2b2b2b,false);for(let j=1;j<6;j++){const t=j/6;const p=A.clone().lerp(Bp,t);const sag=.55*4*t*(1-t);p.addScaledVector(p.clone().normalize(),-sag-.06);bulbs.push(p);}}
+    const bm=new T.InstancedMesh(new T.SphereGeometry(.06,7,5),new T.MeshBasicMaterial({color:0xffe6a0}),Math.max(1,bulbs.length));bulbs.forEach((p,i)=>bm.setMatrixAt(i,new T.Matrix4().setPosition(p)));bm.count=bulbs.length;bm.frustumCulled=false;bm.userData.noInk=true;hideInNormals.push(bm);scene.add(bm);res.bulbs=bulbs.length;}
+  /* a sign where the path leaves the road */
+  {const sp=pAt(edge-.4,1.5);const m=basisM(sp,toRoad);m.setPosition(onG(sp,-.05));const k=kit(m);k.box(.1,1.6,.1,0x6b4a2e,-.55,.8,0).box(.1,1.6,.1,0x6b4a2e,.55,.8,0);const tex=paintZoneSign(['森のキャンプ','forest camp']);const pl=new T.Mesh(new T.PlaneGeometry(1.3,.65),new T.MeshBasicMaterial({map:tex,side:T.DoubleSide}));const mm=mul(m,mRot(0,1.45,.06));pl.applyMatrix4(mm);scene.add(pl);solids.push({c:sp.clone().multiplyScalar(R),r:.3});}
+  ZFX.forest={n:F.n};return res;}
+/* ---------- the beach hangout ---------- */
+function beachZone(){sd_=1002;const Z=zFrame(ZONE_B);const res={};res.cleared=zClear(Z.n,4.5);const sea=Z.no.clone().negate(); /* the sea lies south */
+  const umb=(x,y,cols)=>{const n=Z.at(x,y);const m=basisM(n,sea);m.setPosition(onG(n,-.25));const k=kit(m);k.cyl(.035,.035,2.75,0xe9e6de,0,1.37,0,6);const N=10;for(let i=0;i<N;i++){STAT.add(new T.CylinderGeometry(.02,1.35,.42,3,1,true,i/N*6.283,6.283/N+.01),mul(m,mRot(0,2.55,0)),cols[i%2]);}solids.push({c:n.clone().multiplyScalar(R),r:.15});};
+  umb(-2.6,.6,[0xd9483b,0xf3efe4]);umb(2.4,1.0,[0x2d7fb8,0xf3efe4]);
+  const towel=(x,y,ry,a,b)=>{const n=Z.at(x,y);const m=basisM(n,Z.dir(Math.sin(ry),Math.cos(ry)));m.setPosition(onG(n,.01));const k=kit(m);k.box(.9,.015,1.8,a,0,0,0);for(let i=-3;i<=3;i+=2)k.box(.9,.018,.16,b,0,0,i*.22);};
+  towel(-2.9,-.6,.15,0xf4c945,0xf3efe4);towel(-1.6,-.9,-.1,0x7fc4c9,0xf3efe4);towel(2.1,-.3,.3,0xe9b8b0,0xd9483b);
+  /* deck chairs, facing the sea: somewhere for you to lie back */
+  const chair=(x,y,ry)=>{const n=Z.at(x,y);const f=sea.clone().applyAxisAngle(n,ry);const m=basisM(n,f);m.setPosition(onG(n,0));const k=kit(m);const wd=0xc89a62;
+    k.rod(V3(-.3,0,-.55),V3(-.3,.78,.32),.025,wd).rod(V3(.3,0,-.55),V3(.3,.78,.32),.025,wd).rod(V3(-.3,0,.35),V3(-.3,.42,-.25),.025,wd).rod(V3(.3,0,.35),V3(.3,.42,-.25),.025,wd).rod(V3(-.3,.78,.32),V3(.3,.78,.32),.025,wd);
+    k.box(.56,.02,1.0,0x2d7fb8,0,.36,-.06,0,-1.0);for(let i=0;i<3;i++)k.box(.12,.022,1.0,0xf3efe4,-.2+i*.2,.365,-.06,0,-1.0);solids.push({c:n.clone().multiplyScalar(R),r:.42});
+    G.SEATS.push({n:tn(n,f.clone().multiplyScalar(.15)),face:f.clone(),label:'Lie back in the deck chair',drop:.32});};
+  chair(.3,1.5,.1);chair(1.15,1.6,-.15);
+  /* a cooler, a radio and a beach ball */
+  {const n=Z.at(.75,.75);const k=kit(basisM(n,sea).setPosition(onG(n,0)));k.box(.5,.32,.32,0x2d7fb8,0,.16,0).box(.52,.07,.34,0xf3efe4,0,.34,0).box(.3,.04,.06,0xf3efe4,0,.4,0);solids.push({c:n.clone().multiplyScalar(R),r:.3});}
+  {const n=Z.at(-.4,1.2);const k=kit(basisM(n,sea).setPosition(onG(n,0)));k.box(.36,.22,.14,0x3a3f42,0,.11,0).cyl(.06,.06,.02,0x9aa0a4,-.09,.12,.075,10,Math.PI/2).cyl(.06,.06,.02,0x9aa0a4,.09,.12,.075,10,Math.PI/2).rod(V3(.14,.22,0),V3(.22,.5,0),.008,0x9aa0a4);ZFX.radio={n};}
+  {const n=Z.at(1.2,-1.5);const g=new T.Group();const cols=[0xd9483b,0xf3efe4,0x2d7fb8,0xf4c945];for(let i=0;i<4;i++){const m=new T.Mesh(new T.SphereGeometry(.22,12,8,i*Math.PI/2,Math.PI/2),new T.MeshBasicMaterial({color:cols[i]}));g.add(m);}const [lo,la]=lonLatOf(n);placeOn(g,lo,la,0);g.position.copy(n.clone().multiplyScalar(gAt(n)+.21));}
+  /* driftwood to sit on and two residents enjoying it */
+  const log=(x,y,ry)=>{const n=Z.at(x,y);const f=Z.dir(Math.sin(ry),Math.cos(ry));const m=basisM(n,f);m.setPosition(onG(n,-.05));kit(m).cyl(.2,.23,2.2,0xb8a68a,0,.18,0,8,Math.PI/2);solids.push({c:n.clone().multiplyScalar(R),X:new T.Vector3().crossVectors(n,f).normalize(),Z:f.clone(),hx:.25,hz:1.1,top:.4});return {n,f};};
+  const lg=log(-.9,2.6,Math.PI/2+.1);G.SEATS.push({n:tn(lg.n,Z.dir(.55,-.05)),face:sea.clone(),label:'Sit on the driftwood',drop:.3});
+  const place=()=>{if(!THREE.SkeletonUtils||!['Mina','Elin'].every(nm=>G.npcs.find(p=>p.name===nm&&p.model)))return false;
+    zPerson('Mina',Z.at(-1.5,2.55),sea.clone(),{seat:.4});const t=Z.at(-1.6,-.9);zPerson('Elin',t,Z.dir(.1,1),{pose:'lie',seat:.08});return true;};
+  {const t0=setInterval(()=>{if(place())clearInterval(t0);},1500);}
+  res.ok=true;ZFX.beach={n:Z.n};return res;}
+/* ---------- the zones' life: the fire flickers, the guitarist strums, the music fades in as you come near ---------- */
+const ZFX={};let zAudio=null;
+function zonesFrame(dt,t){const f=ZFX.fire;if(f){for(const m of f.fl){const ph=m.userData.ph;const k=1+.16*Math.sin(t*9+ph)+.1*Math.sin(t*15.3+ph*2);m.scale.set(1+.1*Math.sin(t*11+ph),k,1);}
+    for(const e of f.emb){const ph=(t*.6+e.userData.ph)%1.6;e.position.set(Math.sin(e.userData.ph*7+t)*.25*ph,.3+ph*1.6,Math.cos(e.userData.ph*5+t*.7)*.25*ph);e.material.opacity=Math.max(0,1-ph/1.6);}}
+  for(const p of ZPEOPLE){if(p.role==='guitar'){const b=p.bones.R_Forearm;if(b){b.quaternion.copy(p.rest.R_Forearm).multiply(_zq.setFromAxisAngle(_zx,.22*Math.sin(t*6.2)));}const h=p.bones.Head;if(h)h.quaternion.copy(p.rest.Head).multiply(_zq.setFromAxisAngle(_zx,.08+.05*Math.sin(t*2.1)));}
+    else if(p.role==='listen'){const h=p.bones.Head;if(h)h.quaternion.copy(p.rest.Head).multiply(_zq.setFromAxisAngle(_zy,.12*Math.sin(t*.4+p.name.length)));}}
+  zSound(t);}
+const _zq=new T.Quaternion(),_zx=V3(1,0,0),_zy=V3(0,1,0);
+/* a fingerpicked guitar by the fire, and a little ukulele tune on the beach radio: plucked strings made on the spot (Karplus-Strong) */
+const zPluckCache=new Map();function zPluck(ctx,freq,bright){const key=freq.toFixed(1)+'|'+bright;if(zPluckCache.has(key))return zPluckCache.get(key);const sr=ctx.sampleRate,len=Math.floor(sr*2.2),buf=ctx.createBuffer(1,len,sr),d=buf.getChannelData(0);const N=Math.max(2,Math.round(sr/freq));const ring=new Float32Array(N);for(let i=0;i<N;i++)ring[i]=Math.random()*2-1;let idx=0,prev=0;const damp=bright?.996:.994;
+  for(let i=0;i<len;i++){const v=ring[idx];const nv=damp*.5*(v+ring[(idx+1)%N]);ring[idx]=nv;d[i]=v*(i<40?i/40:1);idx=(idx+1)%N;}zPluckCache.set(key,buf);return buf;}
+const NOTE=s=>{const m={C:0,D:2,E:4,F:5,G:7,A:9,B:11}[s[0]];const sh=s[1]==='#'?1:0;const oct=+s[s.length-1];return 261.63*Math.pow(2,(m+sh+(oct-4)*12)/12);};
+const SONG_FIRE={bpm:84,bars:[['C3','E4','G4','C5'],['A2','E4','A4','C5'],['F2','C4','F4','A4'],['G2','D4','G4','B4']],pat:[0,1,2,3,2,1,2,3]};
+const SONG_BEACH={bpm:104,bars:[['G3','B4','D5','G5'],['E3','B4','E5','G5'],['C4','E5','G5','C5'],['D4','F#4','A4','D5']],pat:[0,2,1,3,2,1,3,2]};
+function zSound(t){const ctx=G.audio&&G.audio();const me=G.player&&G.player();if(!me){return;}
+  const dist=n=>n?me.distanceTo(n.clone().multiplyScalar(gAt(n))):1e9;const vf=Math.pow(Math.max(0,Math.min(1,1-(dist(ZFX.fire&&ZFX.fire.n)-3)/16)),1.4),vb=Math.pow(Math.max(0,Math.min(1,1-(dist(ZFX.radio&&ZFX.radio.n)-2)/14)),1.4);
+  window.__duck=Math.max(vf*.9,vb*.8);if(!ctx){return;}
+  if(!zAudio){zAudio={next:{fire:0,beach:0},step:{fire:0,beach:0},gain:{fire:ctx.createGain(),beach:ctx.createGain()}};for(const k in zAudio.gain){zAudio.gain[k].gain.value=0;const lp=ctx.createBiquadFilter();lp.type='lowpass';lp.frequency.value=k==='fire'?2600:3400;zAudio.gain[k].connect(lp);lp.connect(ctx.destination);}}
+  zAudio.gain.fire.gain.setTargetAtTime(vf*.5,ctx.currentTime,.3);zAudio.gain.beach.gain.setTargetAtTime(vb*.32,ctx.currentTime,.3);
+  for(const [k,song,v] of [['fire',SONG_FIRE,vf],['beach',SONG_BEACH,vb]]){if(v<=.001){zAudio.next[k]=0;continue;}const spb=60/song.bpm/2;if(!zAudio.next[k]||zAudio.next[k]<ctx.currentTime)zAudio.next[k]=ctx.currentTime+.05;
+    while(zAudio.next[k]<ctx.currentTime+.3){const st=zAudio.step[k]++;const bar=song.bars[Math.floor(st/8)%song.bars.length];const which=song.pat[st%8];const notes=[bar[which]];if(st%8===0)notes.push(bar[0]);
+      for(const nm of notes){const src=ctx.createBufferSource();src.buffer=zPluck(ctx,NOTE(nm),k==='beach');const g=ctx.createGain();g.gain.value=(nm===bar[0]&&st%8===0?.9:.55)*(.85+Math.random()*.3);src.connect(g);g.connect(zAudio.gain[k]);src.start(zAudio.next[k]+(Math.random()*.012));}
+      zAudio.next[k]+=spb*(st%2?.92:1.08);}}} /* a little swing */
+
+/* ---------- the model trees (thin relief meshes that look flat side-on) become painted trees, same place, same height ---------- */
+function treeSwap(){const keep=sd_;sd_=9090+(window.DRESS.treesSwapped||0);let k=0;const list=[];for(const o of scene.children)if(o.isGroup&&o.userData.tree&&!o.userData.tree.done)list.push(o);
+  list.sort((a,b)=>a.position.x-b.position.x||a.position.z-b.position.z); /* a fixed order, so the same crowns come out every visit */
+  for(const o of list){o.userData.tree.done=true;o.visible=false;const ci=G.colliders.indexOf(o);if(ci>=0)G.colliders.splice(ci,1);const n=o.position.clone().normalize();const H=Math.max(3.2,Math.min(6.4,o.userData.tree.H*.95));paintedTree(n,H,V3(rr()-.5,0,rr()-.5).addScaledVector(n,-1).cross(n),ch(.5),true);k++;}
+  window.DRESS.treesSwapped=(window.DRESS.treesSwapped||0)+k;sd_=keep;if(k)G.dirty();return k;}
 /* ---------- start: once the street's buildings are in ---------- */
 /* ===== STREET 01, LOCAL SHOPPING / RESIDENTIAL HILL: LOCKED 27 Sep 2026 =====
    Approved by Josh. Do not change these numbers, seeds or the code paths they drive (street, junctionKit,
@@ -732,10 +888,12 @@ function build(){if(built)return;built=true;const t=performance.now();setup();{c
   for(const p of (P[PROTO.build]||[]))for(const b of [...(window.BLDGS||[])].sort((a,c)=>a.inst.position.x-c.inst.position.x||a.inst.position.z-c.inst.position.z)){const [x0,x1,,z1]=b.foot;const pts=[V3(x0*.8+x1*.2,Math.min(b.top*.66,5.2)/b.sc,z1+.05/b.sc),V3(x0*.2+x1*.8,Math.min(b.top*.62,5)/b.sc,z1+.05/b.sc)].map(v=>b.inst.localToWorld(v));for(const q of pts){const d=q.distanceTo(p.drop);if(d<11&&d>2&&ch(.6)){cable(p.drop,q,.35+d*.03,.01,0x2d353c);WIRE.add(new T.BoxGeometry(.1,.1,.06),new T.Matrix4().setPosition(q),0x6d7478);}}}
   if(STAIR){sd_=313;window.DRESS.stair=buildStair(STAIR);}
   if(!/[?&]s2=0\b/.test(location.search)){sd_=2002;try{s2Setup();window.DRESS.s2=street02(S2CFG);}catch(e){window.DRESS.s2err=String(e&&e.stack||e);console.warn('street 02',e);}} /* Street 02 can never stop Street 01 from building */sd_=PROTO.lawn.seed;window.DRESS.lawns=lawns(PROTO.lawn);
+  try{window.DRESS.zones=zones();}catch(e){window.DRESS.zerr=String(e&&e.stack||e);console.warn('zones',e);}
+  treeSwap();for(const ms of [3000,9000,20000,40000])setTimeout(()=>{treeSwap();flushAll();},ms); /* trees still loading come in later */
   flushAll();window.DRESS.info={ms:Math.round(performance.now()-t),buildings:nb,cover:gc,bills:BILLS.map(b=>[b.name,b.list.length]),verts:BUCKETS.map(b=>[b.name,b.P.length/3])};console.log('dress: built',JSON.stringify(window.DRESS.info));}
 function poll(){if(built)return;if(ready())build();else setTimeout(poll,700);}
 
-window.DRESS={frame(dt,now){UT.value=now/1000;},glb,look(v){LOOKU.value=v;return v;},rebuild(){location.reload();},
+window.DRESS={frame(dt,now){UT.value=now/1000;try{zonesFrame(dt,now/1000);}catch(e){}},glb,look(v){LOOKU.value=v;return v;},rebuild(){location.reload();},
   async calls(){const ri=renderer.info;ri.autoReset=false;ri.reset();await new Promise(r=>requestAnimationFrame(()=>requestAnimationFrame(r)));const c={calls:ri.render.calls,tris:ri.render.triangles};ri.autoReset=true;return c;},buckets:BUCKETS,bills:BILLS};
 setTimeout(poll,1500);
 })();
