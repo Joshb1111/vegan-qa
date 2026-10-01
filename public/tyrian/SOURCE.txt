@@ -5,6 +5,8 @@ License version 2, compiled to WebAssembly with Emscripten. Changes from upstrea
   - SDL_net is replaced by SDL_net.h and sdlnet_web.c (both in this folder): packets go to and from the page,
     which carries them between the two players over a WebRTC data channel or the Ably room.
   - src/tyrian2.c: a network game does not pause when the browser window loses focus.
+  - Built with -sSTACK_SIZE=5MB -sASYNCIFY -sASYNCIFY_STACK_SIZE=1048576 (the small default stack overflowed
+    while a level loaded).
 The game data is Tyrian 2.1, released as freeware by Jason Emery in 2004: "Feel free to play it all you want and
 share it with friends."
 The full GPL-2.0 text: https://www.gnu.org/licenses/old-licenses/gpl-2.0.txt
