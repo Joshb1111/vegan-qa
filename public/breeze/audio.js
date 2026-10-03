@@ -117,6 +117,13 @@ const SFX = {
   // ouch, gently: a wobbly downward 'bwoo'
   hurt: [.38, 1, (H, t, o) => { const s = H.tone('triangle', 700, 300, t, .3, .3, o); H.wob(s, t, .3, 16, 30); H.tone(H.p25, 350, 150, t, .25, .05, o); }],
   bubble: [.45, 1, (H, t, o) => [[900, 500], [700, 380], [520, 260]].forEach(([a, b], i) => { const s = H.tone('sine', a, b, t + i * .12, .12, .2, o); H.wob(s, t + i * .12, .12, 20, 30); })],
+  // v3: a ship with no lives left settles down to rest: a soft slow sigh
+  out: [.6, 1, (H, t, o) => { const s = H.tone('sine', 620, 240, t, .5, .18, o); H.wob(s, t, .5, 5, 18); H.tone('triangle', NH('E5'), NH('C5'), t + .08, .35, .07, o); }],
+  // v3 GAME OVER: a kind little lullaby that lands on a warm major chord (no sad trombone)
+  gameover: [2, 1, (H, t, o) => {
+    ['G5', 'E5', 'C5', 'D5'].forEach((n, i) => { H.tone('triangle', NH(n), 0, t + i * .2, .18, .18, o); H.tone('sine', NH(n) * 2, 0, t + i * .2, .12, .04, o); });
+    for (const n of ['C4', 'E5', 'G5', 'C6']) H.tone('sine', NH(n), 0, t + .82, .9, n === 'C4' ? .2 : .08, o);
+  }],
   revive: [.6, 1, (H, t, o) => {
     ['G5', 'C6', 'E6', 'G6'].forEach((n, i) => H.tone(H.p25, NH(n), 0, t + i * .07, .07, .08, o));
     const s = H.tone(H.p25, NH('C7'), 0, t + .28, .25, .08, o); H.wob(s, t + .34, .2, 7, 18); H.tone('triangle', NH('C4'), 0, t + .28, .3, .25, o);

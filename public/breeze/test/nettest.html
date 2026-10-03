@@ -3,7 +3,8 @@
 <!-- Two game frames and a fake parent that plays the planet's part for both (SPEC.md section 6: link, net relay, peer left,
      mute, music (v2), the ready queue). The relay adds lag, jitter, loss, duplicates and reordering. URL: ?mode=rtc|ably&lag=60&jit=30&loss=0.05
      &dup=0&order=0|1 (1 = in order, like Ably; default: in order for ably) &link=0 (do not link on load) &fake=1 (drive BB.Net from
-     here with synthetic snapshots, to test the plumbing before the engine speaks); bot, debug, stage, t, god, boss pass to both games. -->
+     here with synthetic snapshots, to test the plumbing before the engine speaks); bot, debug, stage, t, god, boss pass to both games.
+     v3: &a=PATH / &b=PATH load another local build in the host / guest frame (e.g. a v2 copy, to see the version screen). -->
 <style>
 *{box-sizing:border-box}body{margin:0;height:100vh;display:flex;flex-direction:column;background:#1d2433;color:#e8eef7;font:13px/1.35 system-ui,sans-serif}
 #bar{display:flex;flex-wrap:wrap;gap:6px 12px;align-items:center;padding:6px 10px;background:#2a3348}
@@ -34,6 +35,7 @@ const P = { mode: Q.get('mode') === 'ably' ? 'ably' : 'rtc', lag: +(Q.get('lag')
 P.order = Q.has('order') ? Q.get('order') === '1' : P.mode === 'ably';
 const PASS = ['bot', 'debug', 'stage', 't', 'god', 'boss'].filter(k => Q.has(k)).map(k => '&' + k + '=' + encodeURIComponent(Q.get(k))).join('');
 const SRC = '../index.html?mute=1' + PASS;
+const own = k => { const v = Q.get(k); return v && /^(\.\.?\/|\/)(?!\/)[\w\-./]*\.html$/.test(v) ? v + '?mute=1' + PASS : SRC; };   /* local paths only */
 const logEl = $('#log'); const log = s => { const t = (performance.now() / 1000).toFixed(1); logEl.textContent = (t + 's ' + s + '\n' + logEl.textContent).slice(0, 6000); };
 const side = (id, role, name) => ({ id, role, name, f: $('#f-' + id), st: $('#st-' + id), ready: false, q: [], rtt: 0, mute: true, music: true, left: false, last: '',
   n: { out: 0, outB: 0, maxB: 0, lost: 0, deliv: 0, dups: 0, late: 0, inOrderAt: 0 }, rate: '' });
@@ -74,7 +76,7 @@ addEventListener('message', e => {
 function link() { startAt = Date.now() + 3000; linked = true; A.left = B.left = false; for (const s of [A, B]) { s.n.inOrderAt = 0; toGame(s, linkMsg(s)); } log('link: ' + mode + ', start in 3 s'); }
 function setMode(md) { if (md === mode) return; mode = md; $('#mode').value = md; if (linked) for (const s of [A, B]) if (!s.left) toGame(s, linkMsg(s)); log('mode → ' + md); }
 function peerGone(s) { /* what the planet does on a duel 'bye' from s: the other game is told, the link ends */ if (!linked) return; s.left = true; linked = false; toGame(s.peer, { ty: 'peer', left: true }); log(s.role + ' left → ' + s.peer.role + ' gets {ty:peer,left:true}'); }
-function load() { for (const s of [A, B]) { s.ready = false; s.q = []; s.f.src = SRC + '&nt=' + s.role; } }
+function load() { for (const s of [A, B]) { s.ready = false; s.q = []; s.f.src = own(s.id) + '&nt=' + s.role; } }
 
 /* ---------- UI ---------- */
 $('#mode').value = mode; $('#lag').value = P.lag; $('#jit').value = P.jit; $('#loss').value = P.loss; $('#dup').value = P.dup; $('#order').checked = P.order;
@@ -89,7 +91,7 @@ $('#b-lh').onclick = () => peerGone(A); $('#b-lg').onclick = () => peerGone(B); 
 function status() {
   for (const s of [A, B]) {
     const n = s.n; let what = '';
-    try { const o = JSON.parse(s.last || 'null'); if (o && o.k === 's') what = 's t' + o.t + ' st' + o.st + ' ph' + o.ph + ' df' + o.df + ' e' + (o.e || []).length / 6 + ' b' + (o.b || []).length / 3 + ' i' + (o.i || []).length / 6 + ' g' + (o.g || []).length + ' ev' + (o.ev || []).length; else if (o && o.k === 'g') what = 'g t' + o.t + ' ga' + o.ga; } catch (_) {}
+    try { const o = JSON.parse(s.last || 'null'); if (o && o.k === 's') what = 's v' + o.v + ' t' + o.t + ' st' + o.st + ' ph' + o.ph + ' df' + o.df + (o.lv != null ? ' lv' + o.lv : '') + ' e' + (o.e || []).length / 6 + ' b' + (o.b || []).length / 3 + ' i' + (o.i || []).length / 6 + ' g' + (o.g || []).length + ' ev' + (o.ev || []).length; else if (o && o.k === 'g') what = 'g v' + o.v + ' t' + o.t + ' ga' + o.ga + ((o.s && o.s[2] & 64) ? ' OUT' : ''); } catch (_) {}
     let gn = ''; try { const N = s.f.contentWindow.BB && s.f.contentWindow.BB.Net; if (N) gn = 'game: ' + N.mode + '/' + (N.role || '-') + (N.meter ? ' · ' + N.meter() : ''); } catch (_) {}
     s.st.textContent = s.role.toUpperCase() + ' ' + s.name + (s.ready ? ' · ready' : ' · loading') + (s.left ? ' · LEFT' : '') + ' · parent mode ' + (linked ? mode : 'unlinked') + ' · rtt ' + (s.rtt || '-') + ' ms · music ' + (s.music ? 'on' : 'off') + '\n' +
       'sent ' + n.out + ' (avg ' + Math.round(n.outB / Math.max(1, n.out)) + ', max ' + n.maxB + ' chars) · delivered ' + n.deliv + ' · lost ' + n.lost + ' · dups ' + n.dups + '\n' +
@@ -112,9 +114,9 @@ function fake(s) {
   clearInterval(s.fakeTimer); s.fakeTimer = setInterval(() => { /* catch the tick count up to real time, send every SEND_EVERY ticks */
     const want = Math.floor((performance.now() - t0) / TICK);
     while (F.t < want) { F.t++; const r = F.t * TICK;
-      if (s.role === 'host' && N.mode !== 'solo') { if (F.t % 120 === 0) N.grants.add('f', 1 + (F.t / 120) % 12); /* v2: 'f' carries k 1..12 */ if (F.t % 20 === 0) N.events.add('K', 2, 400, 300, 100); }
+      if (s.role === 'host' && N.mode !== 'solo') { if (F.t % 120 === 0) N.grants.add('f', 1 + (F.t / 120) % 12); /* v2: 'f' carries k 1..12 */ if (F.t % 600 === 0) N.grants.add('o', run); /* v3: OUT */ if (F.t % 20 === 0) N.events.add('K', 2, 400, 300, 100); }
       if (F.t % N.sendEvery() || N.mode === 'solo') continue;
-      if (s.role === 'host') N.send({ k: 's', v: BB.C.PROTO, run, p: 0, t: F.t, sk: 0, st: 0, ph: 0, sc: 0, bk: 0, bm: 0, df: 2, h: N.pack({ x: 100, y: 280, hp: 8, wt: 3, power: 4, f: 32 }), e: [1, 0, Math.round(X(r) * 4), 400, 3, 0], b: [], i: [2, 12, 480, 600, 0, 0], g: N.grants.pending().slice(), ev: N.events.pending() });
+      if (s.role === 'host') N.send({ k: 's', v: BB.C.PROTO, run, p: 0, t: F.t, sk: 0, st: 0, ph: (F.t / 600 | 0) % 2 ? 5 : 0, sc: 0, bk: 0, bm: 0, df: 2, lv: (F.t / 600 | 0) % 4, h: N.pack({ x: 100, y: 280, hp: 3, wt: 3, power: 4, f: 32 | ((F.t / 600 | 0) % 2 ? 64 | 8 : 0) }), /* v3: ph 5, lv, OUT */ e: [1, 0, Math.round(X(r) * 4), 400, 3, 0], b: [], i: [2, 12, 480, 600, 0, 0], g: N.grants.pending().slice(), ev: N.events.pending() });
       else N.send({ k: 'g', v: BB.C.PROTO, run, t: F.t, s: N.pack({ x: X(r), y: 250, hp: 5, wt: 1, power: 2 }), ga: N.grants.ga });
     }
     if (view) { const o = view.at(); if (o) { F.frames++; if (o.extra > 0) F.dry++; if (o.held) F.held++; const xa = s.role === 'host' ? o.a.s[0] / 4 : o.a.e[2] / 4, xb = s.role === 'host' ? o.b.s[0] / 4 : o.b.e[2] / 4; F.err += Math.abs(xa + (xb - xa) * o.k - X(view.rc)); F.errN++; } }

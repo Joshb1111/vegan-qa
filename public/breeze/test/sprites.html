@@ -104,6 +104,41 @@ function render() {
     rows.forEach((r, i) => { const y = 4 + i * 40, x = 4 + 0; ctx.fillStyle = '#9fd9a0'; ctx.fillRect(x, y, 240, 38);
       P({ diff: diffs[i], score: 12340 * (i + 1), basket: i, p: r.map(o => Object.assign({}, base, o, { joined: true })) }, x, y); label(ctx, JSON.stringify(r.map(o => [o.hp + '/' + (o.hpMax || 5), 'wt' + (o.wt == null ? 0 : o.wt), 'p' + (o.spread == null ? 2 : o.spread)])).replace(/"/g, ''), 370, y + 12); });
   });
+  section('v3', 'v3 (HARD): down vs OUT ships, the life seedling, HUD with 3 hearts + team lives (×3..×0, bounce when a life is used), OUT pill', 500, 404, '#7fa8c8', ctx => {
+    ctx.fillStyle = '#cfeeff'; ctx.fillRect(0, 0, 500, 96);
+    [['down', { down: 1 }], ['OUT', { down: 1, out: 1 }], ['OUT t 90', { down: 1, out: 1, t: 90 }], ['OUT ghost', { out: 1, ghost: 1 }]].forEach(([n, o], i) => { for (let who = 0; who < 2; who++) { const x = 26 + i * 96 + who * 44, y = 52; A.ship(ctx, who, x, y, Object.assign({ t: 3 }, o)); label(ctx, n + (who ? ' M' : ' S'), x, y + 24 + who * 9); } });
+    ctx.save(); ctx.beginPath(); ctx.rect(396, 2, 102, 86); ctx.clip(); ctx.fillStyle = '#9fd9a0'; ctx.fillRect(396, 2, 102, 86); ctx.translate(447, 4); ctx.scale(2, 2); ctx.translate(-120, 0); A.hud(ctx, { t: 0, touch: true, score: 4560, basket: 2, diff: 'HARD', lives: 3, p: [] }); ctx.restore(); label(ctx, 'centre HUD ×2 zoom', 447, 80);
+    const P = (o, x, y) => { ctx.save(); ctx.translate(x, y); A.hud(ctx, Object.assign({ t: 6, score: 0, basket: 0 }, o)); ctx.restore(); };
+    const base = { name: 'SPRIG', who: 0, hp: 3, hpMax: 3, shield: 0, shMax: 1, buddies: 0, spd: 0, spread: 1, wt: 0, charge: 0 };
+    const rows = [
+      ['HARD', 3, [{ hp: 3 }], 'solo HARD 3/3 ×3'],
+      ['HARD', 2, [{ hp: 2, shield: 1, spread: 2 }, { hp: 3, who: 1, name: 'MARIGOLD', wt: 1, buddies: 1 }], 'co-op 2/3 + 3/3, ×2'],
+      ['HARD', 1, [{ hp: 1, super: .6 }, { hp: 0, down: 1, who: 1, name: 'MARIGOLD' }], 'super, partner down, ×1'],
+      ['HARD', 0, [{ hp: 0, down: 1, out: 1 }, { hp: 1, who: 1, name: 'MARIGOLD', charge: 45 }], 'Sprig OUT, ×0'],
+      ['HARD', 3, [{ hp: 3, wt: 2, spread: 3 }], 'bounce: ×4 → ×3 (age 8)', 1],
+      ['EASY', null, [{ hp: 8, hpMax: 8, shMax: 3, shield: 2 }, { hp: 5, hpMax: 5, who: 1, name: 'MARIGOLD', shMax: 2, shield: 1 }], 'EASY 3 / MEDIUM 2 shield dots, no lives'],
+      [null, 2, [{ hp: 3 }], 'lives without a diff label']];
+    rows.forEach(([diff, lives, ps, note, bounce], i) => { const y = 100 + i * 42, x = 4; ctx.fillStyle = '#9fd9a0'; ctx.fillRect(x, y, 240, 40);
+      if (bounce) { P({ lives: 4, p: [] }, -999, -999); P({ diff, lives, score: 40000, basket: 2, t: 14, p: ps.map(o => Object.assign({}, base, o, { joined: true })) }, x, y); }
+      else { P({ p: [] }, -999, -999); P({ diff, lives, score: 12340 * (i + 1), basket: i, p: ps.map(o => Object.assign({}, base, o, { joined: true })) }, x, y); }
+      label(ctx, note, 370, y + 14); });
+  });
+  section('v3panels', 'v3 screens (240×320 each): GAME OVER host (age 20 / 90), guest, touch; title HARD offline + online host + touch; a HARD frame with Sprig OUT', 1000, 656, '#2b2140', ctx => {
+    const P = [];
+    const hardFrame = (c, st, out) => { A.setStage(st); const o = busy(st); o.enemies = o.enemies.slice(6); o.bullets = o.bullets.slice(0, 40);
+      o.ships = [{ who: 0, x: 100, y: 190, down: 1, out }, { who: 1, x: 160, y: 270, shield: 1 }]; o.buddies = []; o.fx = [];
+      o.hud = { score: 23110, basket: 3, diff: 'HARD', lives: 0, p: [{ name: 'SPRIG', who: 0, hp: 0, hpMax: 3, down: 1, out, wt: 0, spread: 2 }, { name: 'MARIGOLD', who: 1, hp: 2, hpMax: 3, shield: 1, buddies: 0, spd: 0, spread: 1, wt: 1, joined: true }] };
+      scene(c, st, 800, o); };
+    P.push(c => { hardFrame(c, 1, 1); A.screen(c, 'gameover', { age: 20, stage: 1, score: 23110, guest: false, opp: '' }); });
+    P.push(c => { hardFrame(c, 1, 1); A.screen(c, 'gameover', { age: 90, stage: 1, score: 23110, guest: false, opp: '' }); });
+    P.push(c => { hardFrame(c, 2, 1); A.screen(c, 'gameover', { age: 120, stage: 2, score: 187650, guest: true, opp: 'Lou' }); });
+    P.push(c => { hardFrame(c, 0, 1); A.screen(c, 'gameover', { age: 300, stage: 0, score: 4200, guest: false, touch: true }); });
+    P.push(c => A.screen(c, 'title', { t: 60, best: 2, diff: 2, sound: true, music: true }));
+    P.push(c => { A.screen(c, 'title', { t: 90, best: 2, online: 1, opp: 'Lou', diff: 2, sound: true, music: true }); });
+    P.push(c => A.screen(c, 'title', { t: 120, best: 0, diff: 2, sound: true, music: true, touch: true }));
+    P.push(c => hardFrame(c, 0, 1));
+    P.forEach((fn, i) => panel(ctx, 4 + (i % 4) * 248, 4 + Math.floor(i / 4) * 328, fn));
+  });
   section('wgrid', 'Weapon icon + power pips: rows pea / petal / sunbeam / seekers, power 0 to 4', 500, 136, '#9fd9a0', ctx => {
     for (let wt = 0; wt < 4; wt++) for (let pw = 0; pw < 5; pw++) { const x = 2 + pw * 99, y = 2 + wt * 33; ctx.save(); ctx.beginPath(); ctx.rect(x, y, 97, 31); ctx.clip(); ctx.translate(x - 2, y - 2);
       A.hud(ctx, { t: 0, touch: true, p: [{ name: BB.C.WEAPON.names[wt], who: 0, hp: 5, hpMax: 5, shield: 0, buddies: 0, spd: 0, spread: pw, wt }] }); ctx.restore(); }

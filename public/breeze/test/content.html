@@ -13,19 +13,27 @@ button{font:inherit;margin:0 6px 6px 0;padding:4px 10px}pre{white-space:pre-wrap
 <script src="../art.js"></script>
 <script id="sim">
 'use strict';
-/* Headless content harness (v2): the real World + content, fake ships (dodge / power / wander / still bots), column auto-fire
+/* Headless content harness (v3): the real World + content, fake ships (dodge / power / wander / still / human bots), column auto-fire
    (w.damage on the first shootable thing a shot touches), bullet/zap hits, then the boss flow. Runs every stage at EASY / MEDIUM
    / HARD, solo and co-op. Works with the v1 world too: when the world ignores o.diff, the harness sets w.diff itself and applies
-   DIFF.bMul (bullet speed) and DIFF.eHp (enemy hp) the way the v2 world does (the report says "emulated"). */
+   DIFF.bMul (bullet speed) and DIFF.eHp (enemy hp) the way the v2 world does (the report says "emulated").
+   v3: ships use DIFF.hp / invHit / reviveHp / lives (shared counter; down with 0 lives left = OUT, all OUT = GAME OVER); the
+   power bot respects C.POWER_CAP; a world that does not read DIFF.safeR yet gets C.SAFE_R swapped for the run ("safeR emulated").
+   'human' = a human-like bot: sees bullets 12 ticks late (RT), misjudges positions a little, moves at normal speed, holds still
+   now and then, no upgrades; 'humanp' = the same, but it grabs power pickups it notices (about half of them). */
 (function () {
 const C = BB.C, SH = C.SHIP, DIFF = C.DIFF || [{ name: 'MEDIUM', hp: 5, reviveHp: 3, bMul: 1, eHp: 1, extra: 0 }];
 const H = {};
+const RT = 12;   /* human bot reaction delay (ticks) */
 const KN = { 0: 'sun', 1: 'blue', 2: 'grape', 3: 'power', 4: 'kiwi', 5: 'heart', 6: 'rainbow', 7: 'STAR', 8: 'pea', 9: 'petal', 10: 'beam', 11: 'seek', 12: 'bubble' };
 const kinds = o => Object.keys(o).sort((a, b) => a - b).map(k => (KN[k] || k) + ' ' + o[k]).join(', ') || '-';
-function mkShip(who, x, mode, df) {
+function mkShip(who, x, mode, df, seed) {
   const D = DIFF[df] || DIFF[1];
-  return { x, y: 280, who, hp: D.hp, hpMax: D.hp, revHp: D.reviveHp, mode, inv: 0, down: 0, hits: 0, lost: 0, bubbles: 0, bonks: 0, shield: 0, pw: 0, fire: who * 3, rnd: BB.mulberry32(99 + who) };
+  return { x, y: 280, who, hp: D.hp, hpMax: D.hp, revHp: D.reviveHp, invHit: D.invHit || SH.invHit, mode, inv: 0, down: 0, out: false, hits: 0, lost: 0, bubbles: 0, bonks: 0,
+    shield: 0, pw: 0, fire: who * 3, rnd: BB.mulberry32(99 + who + 1000 * (seed | 0)) };
 }
+/* the team's shared lives (DIFF.lives > 0: HARD); null = no game over (EASY / MEDIUM) */
+const mkLives = df => (DIFF[df] || {}).lives > 0 ? { n: DIFF[df].lives, lost: 0, over: false } : null;
 /* player shots: pea weapon at power pw (SHIP.spreadDeg[pw]: 0 = the twin shot), 6 px/t, stop on the first shootable thing */
 function shotsStep(w, R) {
   for (const p of R.shots) {
@@ -45,8 +53,40 @@ function volley(s, R) {
     else R.shots.push({ x: s.x, y: s.y - 8, vx, vy, dmg: 1, who: s.who });
   }
 }
+/* the human-like bot: decides from what it saw RT ticks ago (positions projected to now, with a small per-bullet error),
+   so a bullet younger than RT ticks is invisible; normal speed; holds still now and then; drifts toward toys and the boss */
+function human(w, s) {
+  const H = s.hm || (s.hm = { hist: [], hold: 0, err: {}, want: {} });
+  H.hist.push(w.bullets.map(b => [b.id, b.x, b.y, b.vx, b.vy]));
+  if (H.hist.length > RT + 1) H.hist.shift();
+  if (H.hold > 0) { H.hold--; return; }
+  if (s.rnd() < 1 / 200) { H.hold = 10 + (s.rnd() * 25 | 0); return; }   /* a moment of holding still */
+  const seen = H.hist.length > RT ? H.hist[0] : [];
+  let fx = 0, fy = (266 - s.y) * 0.03;
+  for (const [id, x, y, vx, vy] of seen) {
+    const e = H.err[id] || (H.err[id] = [(s.rnd() * 2 - 1) * 5, (s.rnd() * 2 - 1) * 5]);
+    const px = x + vx * (RT + 6) + e[0], py = y + vy * (RT + 6) + e[1], dx = s.x - px, dy = s.y - py, d2 = dx * dx + dy * dy;
+    if (d2 < 40 * 40) { const k = 200 / (d2 + 40); fx += dx * k; fy += dy * k; }
+  }
+  if (w.tick % 600 === 0) H.err = {};
+  for (const e of w.enemies) if (e.type === 'zap' && e.t > RT && Math.abs(e.x - s.x) < 20) { const sg = s.x >= e.x ? 1 : -1; fx += (s.x > 200 ? -1 : s.x < 40 ? 1 : sg) * 5; }
+  let t = null, td = 1e9;
+  for (const e of w.enemies) if (BB.ENEMY[e.type].boss && !e.dying && w.T(e) > C.BOSS.enterTicks) { t = e; td = -1; }
+  if (!t) for (const e of w.enemies) { const d = BB.ENEMY[e.type]; if (!d.shootable || e.y < 0 || e.y > s.y - 40 || e.dying) continue; const dd = Math.abs(e.x - s.x); if (dd < td) { td = dd; t = e; } }
+  if (t) fx += Math.max(-0.6, Math.min(0.6, (t.x - s.x) * 0.05));
+  if (s.mode === 'humanp') for (const f of w.fruits) {
+    if (f.taken || f.y < 150 || !(f.k === 1 || f.k === 3 || f.k >= 7)) continue;
+    if (H.want[f.id + ':' + f.born] == null) H.want[f.id + ':' + f.born] = s.rnd() < 0.5;
+    if (H.want[f.id + ':' + f.born]) { fx += Math.max(-1, Math.min(1, (f.x - s.x) * 0.05)); fy += Math.max(-1, Math.min(1, (f.y - s.y) * 0.05)); break; }
+  }
+  for (const e of w.enemies) { const d = BB.ENEMY[e.type]; if (!d.contact) continue; const dx = s.x - e.x, dy = s.y - e.y, rr = e.r + 14; if (dx * dx + dy * dy < rr * rr) { fx += Math.sign(dx || 1) * 1.5; fy += Math.sign(dy || 1) * 1.5; } }
+  const m = Math.hypot(fx, fy), v = SH.speeds[0];
+  if (m > 0.08) { s.x += fx / m * Math.min(v, m * 2); s.y += fy / m * Math.min(v, m * 2); }
+  s.x = Math.max(SH.xMin, Math.min(SH.xMax, s.x)); s.y = Math.max(SH.yMin, Math.min(SH.yMax, s.y));
+}
 function bot(w, s) {
   if (s.mode === 'still' || s.mode === 'watch') return;
+  if (s.mode === 'human' || s.mode === 'humanp') return human(w, s);
   if (s.mode === 'wander') {   /* a small child: drifts toward random spots, ignores bullets */
     if (!s.goal || Math.hypot(s.goal[0] - s.x, s.goal[1] - s.y) < 4) s.goal = [20 + s.rnd() * 200, 220 + s.rnd() * 80];
     const dx = s.goal[0] - s.x, dy = s.goal[1] - s.y, m = Math.hypot(dx, dy) || 1, v = SH.speeds[0] * 0.7;
@@ -71,6 +111,7 @@ function bot(w, s) {
   s.x = Math.max(SH.xMin, Math.min(SH.xMax, s.x)); s.y = Math.max(SH.yMin, Math.min(SH.yMax, s.y));
 }
 function shipStep(w, s, R) {
+  if (s.out) return;
   if (s.down) { if (--s.down === 0) { s.hp = s.revHp; s.inv = SH.invRevive; } s.y = Math.max(SH.downYMin, s.y - SH.downRise); return; }
   bot(w, s);
   if (s.inv > 0) s.inv--;
@@ -78,7 +119,8 @@ function shipStep(w, s, R) {
   /* grab pickups (the power bot's pea power goes up with strawberries and packets; bubbles add shield) */
   for (const f of w.fruits) if (!f.taken && (f.x - s.x) ** 2 + (f.y - s.y) ** 2 < SH.pickR ** 2) {
     f.taken = true; R.grabbed[f.k] = (R.grabbed[f.k] | 0) + 1;
-    if (s.mode === 'power' && (f.k === 3 || (f.k >= 8 && f.k <= 11))) s.pw = Math.min(SH.powerMax || 2, s.pw + 1);
+    const cap = C.POWER_CAP ? C.POWER_CAP[Math.min(2, w.stage)] : SH.powerMax || 2;
+    if ((s.mode === 'power' || s.mode === 'humanp') && (f.k === 3 || (f.k >= 8 && f.k <= 11))) s.pw = Math.min(cap, s.pw + 1);
     if (f.k === 12) s.shield = Math.min(3, s.shield + 1); else if (f.k === 1 || f.k === 6) s.shield = 3;
   }
   /* bonks */
@@ -93,14 +135,22 @@ function shipStep(w, s, R) {
   }
   if (s.inv > 0) return;
   let hit = false;
-  for (const b of w.bullets) if (!b.dead && (b.x - s.x) ** 2 + (b.y - s.y) ** 2 < (SH.hurtR + b.r) ** 2) { b.dead = true; hit = true; break; }
-  if (!hit) for (const e of w.enemies) { const d = BB.ENEMY[e.type]; if (d.hit && d.hit(e, s.x, s.y)) { hit = true; R.zapHits++; break; } }
+  for (const b of w.bullets) if (!b.dead && (b.x - s.x) ** 2 + (b.y - s.y) ** 2 < (SH.hurtR + b.r) ** 2) {
+    b.dead = true; hit = true; const k = (b.src || '?') + (w.tick - b.born < RT ? '<rt' : ''); R.hitBy[k] = (R.hitBy[k] | 0) + 1; break; }
+  if (!hit) for (const e of w.enemies) { const d = BB.ENEMY[e.type]; if (d.hit && d.hit(e, s.x, s.y)) { hit = true; R.zapHits++; R.hitBy.zap = (R.hitBy.zap | 0) + 1; break; } }
   if (!hit) return;
-  s.hits++; s.inv = SH.invHit;
+  s.hits++; s.inv = s.invHit;
   if (s.shield > 0) { s.shield--; return; }
-  s.hp--; s.lost++; if (s.hp <= 0) { s.down = SH.downTicks; s.bubbles++; }
+  s.hp--; s.lost++; R.lostAt.push(w.tick);
+  if (s.hp > 0) return;
+  s.bubbles++; s.shield = 0;
+  const L = R.lives;
+  if (L && L.n <= 0) { s.out = true; s.down = 1e9; if (R.ships.every(o => o.out)) { L.over = true; R.overAt = w.tick; } }
+  else { if (L) { L.n--; L.lost++; } s.down = SH.downTicks; }
 }
 /* the v1 world has no difficulty: set w.diff and apply DIFF.bMul / DIFF.eHp here the way the v2 world does */
+const safeEmu = () => !/safeR/.test(BB.World.prototype.bullet.toString());   /* world without DIFF.safeR yet */
+function setSafe(df) { const old = C.SAFE_R; if (safeEmu() && (DIFF[df] || {}).safeR) C.SAFE_R = DIFF[df].safeR; return () => { C.SAFE_R = old; }; }
 function withDiff(o, df) {
   const w = new BB.World(Object.assign({ diff: df }, o));
   if (w.diff === df) return w;
@@ -122,7 +172,7 @@ function instrument(w, R) {
   w.bullet = function (x, y, s, a, big) {
     if (w.bullets.length >= C.MAX_EBUL) { R.cap.bullet++; return false; }
     const ok = bu.call(w, x, y, s, a, big);
-    if (ok) { R.fired++; if (R.phase === 'timeline') R.byType[R.cur] = (R.byType[R.cur] | 0) + 1; const k = R.phase === 'boss' && w.boss ? 'boss' + ((w.boss.d && w.boss.d.ph) | 0) : R.phase; R.firedPh[k] = (R.firedPh[k] | 0) + 1; } else R.safeRej++;
+    if (ok) { const nb = w.bullets[w.bullets.length - 1]; if (nb) nb.src = R.phase === 'boss' && BB.ENEMY[R.cur] && BB.ENEMY[R.cur].boss ? R.cur + ((w.boss && w.boss.d && w.boss.d.ph) | 0) : R.cur; R.fired++; if (R.phase === 'timeline') R.byType[R.cur] = (R.byType[R.cur] | 0) + 1; const k = R.phase === 'boss' && w.boss ? 'boss' + ((w.boss.d && w.boss.d.ph) | 0) : R.phase; R.firedPh[k] = (R.firedPh[k] | 0) + 1; } else R.safeRej++;
     return ok;
   };
   w.fruit = function (x, y, k, vx, vy) { R.fruit[k | 0] = (R.fruit[k | 0] | 0) + 1; return fr(x, y, k, vx, vy); };
@@ -135,36 +185,44 @@ function step(w, R) {
   if (R.phase === 'boss' && w.boss && w.boss.d) R.phTicks[w.boss.d.ph | 0] = (R.phTicks[w.boss.d.ph | 0] | 0) + 1;
 }
 const newR = (st, df, modes) => ({ stage: st, df, modes: modes.join('+'), spawned: {}, peakE: 0, peakB: 0, fired: 0, firedPh: {}, phTicks: {}, safeRej: 0, cap: { bullet: 0, enemy: 0, bush: 0 },
-  capTicks: 0, byType: {}, cur: '', exc: [], kills: 0, grabbed: {}, fruit: {}, src: {}, zapHits: 0, bossDone: [], phase: 'timeline', shots: [] });
-/* one full stage at difficulty df: timeline → warning → boss fight with the bots → defeat; returns the report */
-function runStage(st, modes, seed, df) {
+  capTicks: 0, byType: {}, cur: '', exc: [], kills: 0, grabbed: {}, fruit: {}, src: {}, zapHits: 0, bossDone: [], phase: 'timeline', shots: [], lostAt: [], lives: null, ships: [], overAt: -1, hitBy: {} });
+/* one full stage at difficulty df: timeline → warning → boss fight with the bots → defeat; returns the report.
+   carry (optional, a run): {ships, lives} from the previous stage; ships heal DIFF.heal (max DIFF.hp) and keep pw/shield. */
+function runStage(st, modes, seed, df, carry) {
   const w = withDiff({ stage: st, seed: seed == null ? 7 : seed, coop: modes.length > 1 }, df), R = newR(st, df, modes);
-  R.emulated = !!w.emulated;
+  R.emulated = !!w.emulated; R.safeEmu = safeEmu();
   instrument(w, R);
   const ticks = {}; for (const t in BB.ENEMY) { const D = BB.ENEMY[t], f = ticks[t] = D.tick; D.tick = function (e, ww) { R.cur = t; return f.call(this, e, ww); }; }
   const dk = BB.dropKind; if (dk) BB.dropKind = (ww, src) => { const k = dk(ww, src); R.src[src] = (R.src[src] | 0) + 1; return k; };
-  const ships = modes.map((m, i) => mkShip(i, modes.length > 1 ? (i ? 150 : 90) : 120, m, df));
+  const D = DIFF[df] || DIFF[1];
+  const ships = carry ? carry.ships : modes.map((m, i) => mkShip(i, modes.length > 1 ? (i ? 150 : 90) : 120, m, df, seed));
+  if (carry) for (const s of ships) { s.hits = s.lost = s.bubbles = s.bonks = 0; s.inv = 0; s.y = 280; s.hm = null; if (!s.out) { s.hp = s.down ? s.revHp : Math.min(D.hp, s.hp + (D.heal | 0)); s.down = 0; } }
+  R.lives = carry ? carry.lives : mkLives(df); R.lives0 = R.lives ? R.lives.n : null; R.ships = ships;
   w.ships.push(...ships);
   w.onStep = () => { for (const s of ships) shipStep(w, s, R); shotsStep(w, R); };
-  const S = BB.STAGES[st], endT = (S.bossAt || C.STAGE.bossAt) * 60;
+  const S = BB.STAGES[st], endT = (S.bossAt || C.STAGE.bossAt) * 60, unSafe = setSafe(df);
+  const over = () => R.lives && R.lives.over;
   try {
-    while (w.tick < endT) step(w, R);
+    while (w.tick < endT && !over()) step(w, R);
     R.hitsTimeline = ships.map(s => s.hits);
     R.enemiesTimeline = 0; for (const k in R.spawned) if (k !== 'bush' && k !== 'zap') R.enemiesTimeline += R.spawned[k];
     R.cleared = w.sm.cleared | 0;
-    w.ph = 1; for (let i = 0; i < C.STAGE.warnTicks; i++) step(w, R);
+    w.ph = 1; for (let i = 0; i < C.STAGE.warnTicks && !over(); i++) step(w, R);
     w.ph = 2; R.phase = 'boss';
     const b0 = w.tick, boss = w.spawn(S.boss, 120, -40);
     R.bossHp = boss.maxHp;
-    while (!boss.dying && w.tick - b0 < C.BOSS.tiredTicks) step(w, R);
-    R.bossTicks = w.tick - b0; R.bossBeaten = boss.dying;
-    if (!boss.dying) { boss.dying = true; boss.d.tired = true; }
-    const d0 = w.tick; while (!boss.dead && w.tick - d0 < 600) step(w, R);
-    R.bossEndTicks = w.tick - d0;
-  } finally { if (dk) BB.dropKind = dk; for (const t in ticks) BB.ENEMY[t].tick = ticks[t]; }
+    while (!boss.dying && w.tick - b0 < C.BOSS.tiredTicks && !over()) step(w, R);
+    R.bossTicks = Math.max(1, w.tick - b0); R.bossBeaten = boss.dying;
+    if (!over()) {
+      if (!boss.dying) { boss.dying = true; boss.d.tired = true; }
+      const d0 = w.tick; while (!boss.dead && w.tick - d0 < 600) step(w, R);
+      R.bossEndTicks = w.tick - d0;
+    }
+  } finally { if (dk) BB.dropKind = dk; for (const t in ticks) BB.ENEMY[t].tick = ticks[t]; unSafe(); }
+  R.gameOver = !!over(); R.livesLeft = R.lives ? R.lives.n : null; R.livesLost = R.lives ? R.lives0 - R.lives.n : 0;
   R.hits = ships.map(s => s.hits); R.lost = ships.map(s => s.lost); R.bubbles = ships.map(s => s.bubbles); R.bonks = ships.map(s => s.bonks); R.pw = ships.map(s => s.pw);
   R.hitsBoss = R.hits.map((h, i) => h - R.hitsTimeline[i]);
-  R.perMinTimeline = Math.round((R.firedPh.timeline | 0) / (endT / 3600));
+  R.perMinTimeline = Math.round((R.firedPh.timeline | 0) / (Math.min(endT, w.tick) / 3600));
   let bf = 0; for (let p = 0; p < 3; p++) bf += R.firedPh['boss' + p] | 0;
   R.perMinBoss = Math.round(bf / (R.bossTicks / 3600));
   R.perMinPh = [0, 1, 2].map(p => R.phTicks[p] ? Math.round((R.firedPh['boss' + p] | 0) / (R.phTicks[p] / 3600)) : '-');
@@ -254,36 +312,39 @@ function v2Checks() {
   if (typeof BB.dropKind !== 'function') return { ok: false, drops: [], missing: 'BB.dropKind (v1 content?)' };
   { /* BB.dropKind distribution (10000 bush pops) at the start and the end of each stage, MEDIUM and HARD */
     const rows = [];
-    for (let st = 0; st < 3; st++) for (const df of [1, 2]) for (const p of [0, 1]) {
+    out.star1 = 0;
+    for (let st = 0; st < 3; st++) for (const df of [0, 1, 2]) for (const p of [0, 1]) {
       const w = { stage: st, diff: df, tick: p * BB.STAGES[st].bossAt * 60, rng: BB.mulberry32(11 + st), ph: 0 }, n = {};
       for (let i = 0; i < 10000; i++) { const k = BB.dropKind(w, 'bush'); n[k] = (n[k] | 0) + 1; }
+      if (st === 0) out.star1 += n[7] | 0;
       const pc = k => ((n[k] | 0) / 100).toFixed(1);
       rows.push(`S${st + 1} ${DIFF[df].name.slice(0, 3)} ${p ? 'end  ' : 'start'}: sun ${pc(0)}% power ${pc(3)}% packets ${(((n[8] | 0) + (n[9] | 0) + (n[10] | 0) + (n[11] | 0)) / 100).toFixed(1)}% [pea ${n[8] | 0} petal ${n[9] | 0} beam ${n[10] | 0} seek ${n[11] | 0}] STAR ${pc(7)}% shield ${pc(1)}% buddy ${pc(2)}% zoom ${pc(4)}%`);
     }
     out.drops = rows;
-    const ww = { stage: 0, diff: 1, tick: 0, rng: BB.mulberry32(3) }, wn = {}; for (let i = 0; i < 1000; i++) { const k = BB.dropKind(ww, 'wave'); wn[k] = (wn[k] | 0) + 1; }
-    out.waveKinds = kinds(wn);
+    out.waveKinds = [0, 1, 2].map(st => { const ww = { stage: st, diff: 1, tick: 0, rng: BB.mulberry32(3) }, wn = {}; for (let i = 0; i < 1000; i++) { const k = BB.dropKind(ww, 'wave'); wn[k] = (wn[k] | 0) + 1; } return 'S' + (st + 1) + ': ' + kinds(wn); });
+    out.wave1ok = /^S1: (power|pea|petal) \d+(, (power|pea|petal) \d+)*$/.test(out.waveKinds[0]);
   }
-  { /* formation clear: kill every member of a 5-smudge wave → about 35 % drop; one member escaping → no drop */
-    let drops = 0, escDrops = 0; const N = 200;
+  out.formation = {};
+  for (const df of [1, 2]) { /* formation clear: kill every member of a 5-smudge wave → about 20 % drop (HARD 12 %); one member escaping → no drop */
+    let drops = 0, escDrops = 0; const N = 400;
     for (let i = 0; i < N; i++) for (const esc of [false, true]) {
-      const w = new BB.World({ stage: 0, seed: 100 + i }); w.ships.push(mkShip(0, 120, 'watch', 1)); let made = 0;
+      const w = withDiff({ stage: 0, seed: 100 + i }, df); w.ships.push(mkShip(0, 120, 'watch', df)); let made = 0;
       const fr = w.fruit.bind(w); w.fruit = (x, y, k, vx, vy) => { made++; return fr(x, y, k, vx, vy); };
       BB.spawnWave(w, [0, 'smudge', 'row', 5]);
       const es = w.enemies.filter(e => e.type === 'smudge');
       es.forEach((e, j) => { if (!(esc && j === 2)) w.damage(e, 9, 0); });
       if (esc) escDrops += made; else drops += made;
     }
-    out.formation = { clearDropRate: +(drops / N).toFixed(2), escapedDrops: escDrops };
+    out.formation[DIFF[df].name] = { clearDropRate: +(drops / N).toFixed(3), escapedDrops: escDrops };
   }
   { /* bubbles and flagged waves per difficulty, stage 1 timeline */
     out.flags = {};
     for (let df = 0; df < 3; df++) {
       const w = withDiff({ stage: 0, seed: 7 }, df); w.ships.push(mkShip(0, 120, 'watch', df)); let bub = 0;
       const fr = w.fruit.bind(w); w.fruit = (x, y, k, vx, vy) => { if (k === 12) bub++; return fr(x, y, k, vx, vy); };
-      let toys = 0; const spn = w.spawn; w.spawn = (t, x, y, i) => { const e = spn.call(w, t, x, y, i); if (e && t !== 'bush') toys++; return e; };
+      let toys = 0, bushes = 0; const spn = w.spawn; w.spawn = (t, x, y, i) => { const e = spn.call(w, t, x, y, i); if (e && t !== 'bush') toys++; if (e && t === 'bush') bushes++; return e; };
       while (w.tick < BB.STAGES[0].bossAt * 60) w.step();
-      out.flags[DIFF[df].name] = { bubbles: bub, toys };
+      out.flags[DIFF[df].name] = { bubbles: bub, toys, bushes };
     }
   }
   { /* determinism: the same seed twice → the same enemies, bullets and fruit */
@@ -291,8 +352,11 @@ function v2Checks() {
       while (w.tick < 60 * 60) { w.step(); for (const b of w.bullets) h = (h * 31 + Math.round(b.x * 4) + Math.round(b.y * 4)) | 0; for (const f of w.fruits) h = (h * 7 + f.k) | 0; } return h + ':' + w.enemies.length; };
     out.deterministic = sig() === sig();
   }
-  out.ok = out.formation.escapedDrops === 0 && out.formation.clearDropRate > 0.2 && out.formation.clearDropRate < 0.5 && out.deterministic &&
-    out.flags.EASY && out.flags.EASY.bubbles > out.flags.MEDIUM.bubbles && out.flags.HARD.toys > out.flags.MEDIUM.toys;
+  const fm = out.formation.MEDIUM, fh = out.formation.HARD;
+  out.ok = fm.escapedDrops === 0 && fh.escapedDrops === 0 && fm.clearDropRate > 0.15 && fm.clearDropRate < 0.25 && fh.clearDropRate > 0.08 && fh.clearDropRate < 0.16 &&
+    out.deterministic && out.star1 === 0 && out.wave1ok && out.flags.EASY && out.flags.EASY.bubbles > out.flags.MEDIUM.bubbles && out.flags.MEDIUM.bubbles === 4 &&
+    out.flags.HARD.bubbles === 2 && out.flags.MEDIUM.toys > out.flags.EASY.toys && out.flags.HARD.toys >= out.flags.MEDIUM.toys &&
+    out.flags.HARD.bushes < out.flags.MEDIUM.bushes;   // v3 tuning: MEDIUM gets the extra waves too (extra 1); HARD keeps fewer bushes
   return out;
 }
 function defsCheck() {
@@ -313,7 +377,7 @@ function defsCheck() {
     for (const wv of S.waves) {
       if (wv[1] === 'bubble' ? wv[2] !== 'rise' : !BB.ENEMY[wv[1]]) bad.push(S.name + ': unknown type ' + wv[1]);
       if (wv[2] === 'vee') bad.push(S.name + ': vee');
-      if (wv[6] != null && wv[6] !== 'H' && wv[6] !== 'E') bad.push(S.name + ': flag ' + wv[6]);
+      if (wv[6] != null && wv[6] !== 'H' && wv[6] !== 'E' && wv[6] !== 'N') bad.push(S.name + ': flag ' + wv[6]);
       if (wv[0] * 2 !== Math.round(wv[0] * 2) || wv[0] >= S.bossAt) bad.push(S.name + ': time ' + wv[0]);
     }
   }
@@ -356,6 +420,8 @@ H.runAll = function (seed, diffs) {
   data.v2 = v2Checks(); lines.push((data.v2.ok ? 'v2 checks ok: ' : 'v2 checks PROBLEMS: ') + JSON.stringify(Object.assign({}, data.v2, { drops: undefined })));
   lines.push('drop tables:\n  ' + data.v2.drops.join('\n  '));
   lines.push('\nSUMMARY (solo bots unless noted; hits = bullet/zap hits incl. shield pops)\n' + summary(data.stages));
+  data.human = H.human([1, 2, 3, 4], diffs); lines.push('\n' + data.human.text);
+  data.run = H.campaign([1, 2, 3, 4, 5, 6], diffs); lines.push('\n' + data.run.text);
   lines.push('ran in ' + Math.round((typeof performance !== 'undefined' ? performance : Date).now() - t0) + ' ms');
   data.text = lines.join('\n');
   return data;
@@ -372,6 +438,55 @@ H.avg = function (seeds, diffs) {
   }
   return { text: lines.join('\n') };
 };
+/* v3 report per difficulty x stage (solo, fresh hearts each stage, several seeds): bullets/min (timeline / boss), peak bullets,
+   drops by kind (summed), and the human-like bot (RT-tick reaction, no upgrades): hits, hearts lost (timeline + boss), downs,
+   lives lost, game overs, boss time. 'humanp' (grabs about half of the power pickups, capped) in the last columns. */
+H.human = function (seeds, diffs) {
+  seeds = seeds || [1, 2, 3, 4, 5, 6];
+  const m = a => a.reduce((x, y) => x + y, 0) / a.length, f = v => (Math.round(v * 10) / 10).toString(), rows = [], data = [];
+  rows.push(`HUMAN BOT (reaction ${RT} ticks) over seeds ${seeds.join(',')}, solo, each stage from full hearts${safeEmu() ? ' · safeR emulated (world has no DIFF.safeR yet)' : ''}`);
+  rows.push('stage diff   | bullets/min tl / boss | peak b | human: hits | hearts lost tl+boss | downs | lives lost | game over | boss s (tired) | humanp: hearts lost | end power | drops (all seeds, human runs)');
+  for (let st = 0; st < 3; st++) for (const df of diffs || [0, 1, 2]) {
+    const A = seeds.map(sd => runStage(st, ['human'], sd, df)), P = seeds.map(sd => runStage(st, ['humanp'], sd, df)), dr = {};
+    for (const r of A) for (const k in r.fruit) dr[k] = (dr[k] | 0) + r.fruit[k];
+    const lt = r => r.lostAt.filter(t => t <= BB.STAGES[st].bossAt * 60 + C.STAGE.warnTicks).length;
+    const row = { st, df, perMin: m(A.map(r => r.perMinTimeline)), boss: m(A.map(r => r.perMinBoss)), peakB: Math.max(...A.map(r => r.peakB)), hits: m(A.map(r => r.hits[0])),
+      lostTl: m(A.map(lt)), lost: m(A.map(r => r.lost[0])), downs: m(A.map(r => r.bubbles[0])), livesLost: m(A.map(r => r.livesLost)), over: A.filter(r => r.gameOver).length,
+      hitBy: A.reduce((o, r) => { for (const k in r.hitBy) o[k] = (o[k] | 0) + r.hitBy[k]; return o; }, {}),
+      bossS: m(A.map(r => r.bossTicks / 60)), tired: A.filter(r => !r.bossBeaten).length, lostP: m(P.map(r => r.lost[0])), pw: m(P.map(r => r.pw[0])), drops: dr, star: dr[7] | 0 };
+    data.push(row);
+    rows.push(`S${st + 1} ${(DIFF[df].name + '      ').slice(0, 6)} | ${f(row.perMin).padStart(5)} / ${f(row.boss).padStart(5)} | ${String(row.peakB).padStart(2)}/${C.MAX_EBUL} | ${f(row.hits).padStart(5)} | ${f(row.lostTl)}+${f(row.lost - row.lostTl)} = ${f(row.lost)} | ${f(row.downs)} | ${f(row.livesLost)} | ${row.over}/${seeds.length} | ${f(row.bossS)} (${row.tired}) | ${f(row.lostP)} | ${f(row.pw)} | ${kinds(dr)}`);
+  }
+  rows.push('hits by shooter (all seeds; "<rt" = the bullet was younger than the reaction delay):');
+  for (const r of data) if (r.df === 2 || r.hits > 1) rows.push(`  S${r.st + 1} ${DIFF[r.df].name}: ` + Object.entries(r.hitBy).sort((a, b) => b[1] - a[1]).map(([k, v]) => k + ' ' + v).join(', '));
+  const s1 = data.filter(r => r.st === 0).reduce((n, r) => n + r.star, 0);
+  rows.push(`starfruit dropped in stage 1 (all difficulties, all seeds): ${s1}${s1 ? '  PROBLEM' : ' (ok)'}`);
+  return { text: rows.join('\n'), data, star1: s1 };
+};
+/* a whole run (stages 1 → 3, hearts and lives carried, +DIFF.heal at each stage start) with the human bot: where does it end? */
+H.campaign = function (seeds, diffs, mode) {
+  seeds = seeds || [1, 2, 3, 4, 5, 6, 7, 8]; mode = mode || 'human';
+  const rows = [`RUN (${mode} bot, stages 1-3 carried, seeds ${seeds.join(',')}): hearts lost per stage (avg) | lives lost per stage | GAME OVER: count and the stage each ended`], data = [];
+  for (const df of diffs || [0, 1, 2]) {
+    const per = [[], [], []], lv = [[], [], []], ends = [], hb = [{}, {}, {}], pw = [[], [], []];
+    for (const sd of seeds) {
+      let carry = null, end = 'clear';
+      for (let st = 0; st < 3; st++) {
+        const R = runStage(st, [mode], sd, df, carry);
+        per[st].push(R.lost[0]); lv[st].push(R.livesLost); pw[st].push(R.pw[0]); for (const k in R.hitBy) hb[st][k] = (hb[st][k] | 0) + R.hitBy[k];
+        if (R.gameOver) { end = 'S' + (st + 1) + (R.overAt > BB.STAGES[st].bossAt * 60 ? ' boss' : ''); break; }
+        carry = { ships: R.ships, lives: R.lives };
+      }
+      ends.push(end);
+    }
+    const av = a => a.length ? (Math.round(a.reduce((x, y) => x + y, 0) / a.length * 10) / 10) + (a.length < seeds.length ? '(n' + a.length + ')' : '') : '-';
+    const go = ends.filter(e => e !== 'clear').length;
+    data.push({ df, hearts: per.map(av), lives: lv.map(av), over: go, ends });
+    rows.push(`${(DIFF[df].name + '      ').slice(0, 6)} hearts ${per.map(av).join(' / ')} | lives ${lv.map(av).join(' / ')} | GAME OVER ${go}/${seeds.length}: ${ends.join(' ')}${mode === 'humanp' ? ' | power at stage end ' + pw.map(av).join(' / ') : ''}`);
+    if (df === 2) rows.push('  hits by: ' + hb.map((o, i) => 'S' + (i + 1) + ' ' + Object.entries(o).sort((a, b) => b[1] - a[1]).slice(0, 5).map(([k, v]) => k + ' ' + v).join(', ')).join(' | '));
+  }
+  return { text: rows.join('\n'), data };
+};
 H.runStage = runStage; H.bossChecks = bossChecks; H.v2Checks = v2Checks;
 /* visual: run a stage with bots to `sec`, draw with whatever BB.Art exists, post to /__shot */
 H.snapshot = async function (st, sec, n, name, cv, mode, df) {
@@ -380,9 +495,10 @@ H.snapshot = async function (st, sec, n, name, cv, mode, df) {
   instrument(w, R);
   const ships = []; for (let i = 0; i < n; i++) ships.push(mkShip(i, n > 1 ? (i ? 150 : 90) : 120, mode || 'watch', df));
   w.ships.push(...ships); w.onStep = () => { for (const s of ships) shipStep(w, s, R); shotsStep(w, R); };
-  const S = BB.STAGES[st];
+  const S = BB.STAGES[st], unSafe = setSafe(df);
   if (typeof sec === 'string' && sec.indexOf('boss') === 0) { while (w.tick < S.bossAt * 60) step(w, R); w.ph = 2; R.phase = 'boss'; const b = w.spawn(S.boss, 120, -40); for (let i = 0; i < 400; i++) step(w, R); const f = { boss: 0.9, boss2: 0.5, boss3: 0.2 }[sec]; b.hp = Math.round(b.maxHp * f); for (let i = 0; i < 300; i++) step(w, R); }
   else while (w.tick < sec * 60) step(w, R);
+  unSafe();
   const ctx = cv.getContext('2d'), A = BB.Art, Rr = cv.width / C.W;
   if (!A.ready && A.init) A.init(Rr); if (A.setStage) A.setStage(st);
   ctx.setTransform(Rr, 0, 0, Rr, 0, 0);
@@ -401,8 +517,10 @@ H.snapshot = async function (st, sec, n, name, cv, mode, df) {
 H.visualAll = async function (prefix) {
   const cv = document.getElementById('c'), out = [];
   /* ships 'watch' (never fire, never move) so formations stay whole; bosses are drawn with dodging, firing ships */
-  const plan = [[0, 8, 1], [0, 30, 1], [0, 69, 1], [0, 104, 1], [0, 'boss', 1], [0, 'boss3', 1], [1, 18, 1], [1, 62, 1], [1, 'boss2', 1], [1, 'boss3', 2], [2, 30, 1], [2, 88, 2], [2, 'boss2', 1], [2, 'boss3', 2]];
-  for (const [st, sec, df] of plan) out.push(await H.snapshot(st, sec, st === 1 ? 2 : 1, `${prefix || 'v2-content'}-s${st + 1}-${sec}-d${df}.png`, cv, typeof sec === 'string' ? 'dodge' : 'watch', df));
+  /* v3: mostly HARD (the new content); one MEDIUM per stage for comparison */
+  const plan = [[0, 30, 1], [0, 17, 2], [0, 54, 2], [0, 85, 2], [0, 'boss', 2], [0, 'boss2', 2], [0, 'boss3', 2], [1, 62, 1], [1, 9, 2], [1, 49, 2], [1, 92, 2],
+    [1, 'boss', 2], [1, 'boss2', 2], [1, 'boss3', 2], [2, 88, 1], [2, 16, 2], [2, 66, 2], [2, 98, 2], [2, 'boss', 2], [2, 'boss2', 2], [2, 'boss3', 2]];
+  for (const [st, sec, df] of plan) out.push(await H.snapshot(st, sec, st === 1 ? 2 : 1, `${prefix || 'v3-content'}-s${st + 1}-${sec}-d${df}.png`, cv, typeof sec === 'string' ? 'dodge' : 'watch', df));
   return out;
 };
 window.BBTest = H;

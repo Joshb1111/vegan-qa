@@ -12,6 +12,8 @@ const rgb = h => { const n = parseInt(h.slice(1), 16); return [n >> 16, n >> 8 &
 const mix = (a, b, t) => { const A = rgb(a), B = rgb(b); return '#' + A.map((v, i) => Math.round(v + (B[i] - v) * t).toString(16).padStart(2, '0')).join(''); };
 const tint = (h, t) => mix(h, '#ffffff', t);
 const soft = (m, t) => m.map(c => mix(c, '#ffffff', t));
+const grey = h => { if (!/^#[0-9a-f]{6}$/i.test(h)) return h; const [r, g, b] = rgb(h), l = Math.round(r * .3 + g * .59 + b * .11).toString(16).padStart(2, '0'); return mix('#' + l + l + l, '#c9c3e6', .3); };
+const gz = c => GREY ? grey(c) : c;
 // material triples [base, dark, light]
 const M = {
   SPRIG: ['#4cc46a', '#2f8f5a', '#c9f7c1'], MARI: ['#ff8a3d', '#d9622a', '#ffe0c4'], WINGG: ['#a8ec8c', '#45a85a', '#ecffe0'],
@@ -27,7 +29,7 @@ const M = {
 };
 const FONT = '"Arial Rounded MT Bold", ui-rounded, "Varela Round", "Trebuchet MS", system-ui, sans-serif';
 const font = s => 'bold ' + s + 'px ' + FONT;
-let R = 2, TR = 2, FLASH = false;
+let R = 2, TR = 2, FLASH = false, GREY = false;
 const PAD = 3;
 const own = (o, k) => Object.prototype.hasOwnProperty.call(o, k) ? o[k] : undefined;   // net-fed keys never reach the prototype
 const clock = () => typeof performance !== 'undefined' ? performance.now() : Date.now();
@@ -39,6 +41,7 @@ function sprite(w, h, draw, sc) {
   const g = c.getContext('2d'); g.scale(sc, sc); g.translate(PAD, PAD); g.lineJoin = 'round'; g.lineCap = 'round'; draw(g); return c;
 }
 function flashOf(w, h, draw) { FLASH = true; try { return sprite(w, h, draw); } finally { FLASH = false; } }
+function greyOf(w, h, draw) { GREY = true; try { return sprite(w, h, draw); } finally { GREY = false; } }   // v3: the OUT ship (faded grey look)
 function put(ctx, c, x, y) { ctx.drawImage(c, Math.round((x - c.lw / 2) * R) / R, Math.round((y - c.lh / 2) * R) / R, c.lw, c.lh); }
 function putS(ctx, c, x, y, sx, sy, rot) { ctx.save(); ctx.translate(x, y); if (rot) ctx.rotate(rot); ctx.scale(sx, sy == null ? sx : sy); ctx.drawImage(c, -c.lw / 2, -c.lh / 2, c.lw, c.lh); ctx.restore(); }
 function rrect(g, x, y, w, h, r) {
@@ -67,10 +70,10 @@ function outlined(g, parts, w) {
 function shade(g, p) {
   g.save(); g.beginPath(); p.path(g); g.clip();
   if (FLASH) { g.fillStyle = '#fff'; g.fill(); g.restore(); return; }
-  g.fillStyle = p.dark; g.fill();
-  const k = p.r * 0.22; g.translate(-k, -k); g.beginPath(); p.path(g); g.fillStyle = p.base; g.fill(); g.translate(k, k);
+  g.fillStyle = gz(p.dark); g.fill();
+  const k = p.r * 0.22; g.translate(-k, -k); g.beginPath(); p.path(g); g.fillStyle = gz(p.base); g.fill(); g.translate(k, k);
   if (p.hl && p.lite) {
-    g.fillStyle = p.lite;
+    g.fillStyle = gz(p.lite);
     g.beginPath(); g.ellipse(p.cx - p.r * .38, p.cy - p.r * .42, p.r * .34, p.r * .18, -0.6, 0, TAU); g.fill();
     g.beginPath(); g.arc(p.cx - p.r * .05, p.cy - p.r * .62, Math.max(.6, p.r * .07), 0, TAU); g.fill();
   }
@@ -111,7 +114,7 @@ function eye(g, x, y, h, o) {
   if (m === 'grumpy') lid(g, x, y, w, h, o.side || 1, o.k == null ? 1 : o.k, FLASH ? '#fff' : o.lid, Math.max(1.3, h * .1));
   g.restore();
 }
-function blush(g, pts, rx, ry) { if (FLASH) return; g.fillStyle = 'rgba(255,150,125,.8)'; for (const [x, y] of pts) { g.beginPath(); g.ellipse(x, y, rx, ry, 0, 0, TAU); g.fill(); } }
+function blush(g, pts, rx, ry) { if (FLASH || GREY) return; g.fillStyle = 'rgba(255,150,125,.8)'; for (const [x, y] of pts) { g.beginPath(); g.ellipse(x, y, rx, ry, 0, 0, TAU); g.fill(); } }
 function mouth(g, x, y, r, kind, lw) { // kind: smile, frown, flat, half
   g.save(); g.strokeStyle = PAL.ink; g.lineWidth = lw || 1; g.lineCap = 'round'; g.beginPath();
   if (kind === 'smile') g.arc(x, y - r * .4, r, .2 * PI, .8 * PI);
@@ -134,17 +137,20 @@ function drawSprout(g, who, f, face) {
   const s = [1, .55, .15, .55][f], body = who ? M.MARI : M.SPRIG;
   // root tuft
   const tuft = () => { g.beginPath(); g.moveTo(10.3, 21.6); g.lineTo(9.2, 24.6); g.moveTo(12, 22.2); g.lineTo(12, 25.4); g.moveTo(13.7, 21.6); g.lineTo(14.8, 24.6); g.stroke(); };
-  g.strokeStyle = PAL.ink; g.lineWidth = 3; tuft(); g.strokeStyle = FLASH ? '#fff' : PAL.wood; g.lineWidth = 1.3; tuft();
+  g.strokeStyle = PAL.ink; g.lineWidth = 3; tuft(); g.strokeStyle = FLASH ? '#fff' : gz(PAL.wood); g.lineWidth = 1.3; tuft();
   // wings: their own outline so they read against the body
   if (!who) outlined(g, [P(M.WINGG, LEAF(3.2, 15.6, 5, 2.2, -.55), 3), P(M.WINGG, LEAF(20.8, 15.6, 5, 2.2, .55), 3)]);
   else outlined(g, [P(M.SUN, E(3.4, 15.6, 4.4, 2.7, -.5), 3), P(M.SUN, E(20.6, 15.6, 4.4, 2.7, .5), 3)]);
-  if (!FLASH) { g.strokeStyle = who ? M.SUN[1] : M.WINGG[1]; g.lineWidth = .7; g.beginPath(); g.moveTo(-.6, 17.8); g.lineTo(5.4, 14.4); g.moveTo(24.6, 17.8); g.lineTo(18.6, 14.4); g.stroke(); }
+  if (!FLASH) { g.strokeStyle = gz(who ? M.SUN[1] : M.WINGG[1]); g.lineWidth = .7; g.beginPath(); g.moveTo(-.6, 17.8); g.lineTo(5.4, 14.4); g.moveTo(24.6, 17.8); g.lineTo(18.6, 14.4); g.stroke(); }
   const parts = who
     ? [P(M.SUN, E(12 - 4.4 * s, 4, 4.4 * s + .8, 2.4), 3), P(M.SUN, E(12 + 4.4 * s, 4, 4.4 * s + .8, 2.4), 3), P(M.WOOD, RR(11, 4, 2, 4, 1), 1)]
     : [P(M.LEAF, LEAF(12 - 4.6 * s, 4, 4.6 * s + .9, 1.15), 3), P(M.LEAF, LEAF(12 + 4.6 * s, 4, 4.6 * s + .9, 1.15), 3), P(M.LEAF, RR(11, 4, 2, 4, 1), 1)];
   parts.push(P(body, E(12, 14.5, 8.8, 8), 8.5, 12, 14.5));
   if (who) { for (let i = 0; i < 5; i++) { const a = i * TAU / 5 - PI / 2; parts.push(P(M.CREAM, C(18.6 + Math.cos(a) * 1.7, 8.4 + Math.sin(a) * 1.7, 1.25), 1)); } parts.push(P(M.GOLD, C(18.6, 8.4, .95), 1)); }
   outlined(g, parts);
+  if (face === 'rest') { // v3: having a rest (OUT ship, GAME OVER): softly closed eyes, a small smile
+    g.strokeStyle = PAL.ink; g.lineWidth = 1.2; for (const x of [9.2, 14.8]) { g.beginPath(); g.arc(x, 13.2, 1.9, PI * .18, PI * .82); g.stroke(); }
+    blush(g, [[6.3, 16.8], [17.7, 16.8]], 1.7, 1.05); mouth(g, 12, 18, 1.1, 'smile', 1); return; }
   const mood = face === 'dizzy' ? 'dizzy' : 'open';
   eye(g, 9.2, 13.6, 6.4, { mood }); eye(g, 14.8, 13.6, 6.4, { mood });
   blush(g, [[6.3, 17.4], [17.7, 17.4]], 1.7, 1.05);
@@ -160,12 +166,17 @@ function drawBuddy(g, who, f) {
 function drawDandelion(g) { // the downed sprout's parachute: a dandelion seed clock (hub at 12,14)
   const tips = []; for (let i = 0; i < 19; i++) { const a = PI - .25 + i * (PI + .5) / 18; tips.push([12 + Math.cos(a) * 10.5, 14 + Math.sin(a) * (8.5 + Math.sin(i * 1.7) * .6)]); }
   g.lineCap = 'round';
-  g.strokeStyle = 'rgba(74,58,107,.75)'; g.lineWidth = .55; g.beginPath(); for (const [x, y] of tips) { g.moveTo(12, 14); g.lineTo(x, y); } g.stroke();
-  g.strokeStyle = 'rgba(74,58,107,.55)'; g.lineWidth = .45; g.beginPath();
+  const ln = GREY ? '96,92,108' : '74,58,107';   // GREY: the OUT ship's faded seed clock
+  g.strokeStyle = 'rgba(' + ln + ',.75)'; g.lineWidth = .55; g.beginPath(); for (const [x, y] of tips) { g.moveTo(12, 14); g.lineTo(x, y); } g.stroke();
+  g.strokeStyle = 'rgba(' + ln + ',.55)'; g.lineWidth = .45; g.beginPath();
   for (const [x, y] of tips) { const a = Math.atan2(y - 14, x - 12); for (const d of [-.7, .7]) { g.moveTo(x, y); g.lineTo(x + Math.cos(a + d) * 2.4, y + Math.sin(a + d) * 2.4); } } g.stroke();
-  for (const [x, y] of tips) { g.fillStyle = PAL.cloudSh; g.beginPath(); g.arc(x + .3, y + .4, 1.45, 0, TAU); g.fill(); g.fillStyle = '#fff'; g.beginPath(); g.arc(x, y, 1.3, 0, TAU); g.fill(); }
-  g.strokeStyle = PAL.ink; g.lineWidth = 1.8; g.beginPath(); g.moveTo(12, 14); g.lineTo(12, 19.5); g.stroke(); g.strokeStyle = PAL.wood; g.lineWidth = .8; g.stroke();
+  for (const [x, y] of tips) { g.fillStyle = GREY ? '#a9a6b4' : PAL.cloudSh; g.beginPath(); g.arc(x + .3, y + .4, 1.45, 0, TAU); g.fill(); g.fillStyle = GREY ? '#dcdae2' : '#fff'; g.beginPath(); g.arc(x, y, 1.3, 0, TAU); g.fill(); }
+  g.strokeStyle = PAL.ink; g.lineWidth = 1.8; g.beginPath(); g.moveTo(12, 14); g.lineTo(12, 19.5); g.stroke(); g.strokeStyle = gz(PAL.wood); g.lineWidth = .8; g.stroke();
   outlined(g, [P(M.WOOD, E(12, 14.2, 1.3, 1), 1)], .8);
+}
+function drawLife(g) { // v3 HUD: one team life = a little seedling sprout (stem, two leaves, a soil mound)
+  g.strokeStyle = PAL.ink; g.lineWidth = 2.2; g.beginPath(); g.moveTo(5, 9); g.quadraticCurveTo(4.6, 6.6, 5, 4.6); g.stroke(); g.strokeStyle = PAL.leaf; g.lineWidth = .9; g.stroke();
+  outlined(g, [P(M.LEAF, LEAF(2.7, 4.2, 2.6, 1.15, .45), 2.4, 2.4, 4), P(M.LEAF, LEAF(7.4, 3.6, 2.8, 1.2, -.5), 2.6, 7.2, 3.4), P(M.WOOD, E(5, 9.6, 3.6, 1.4), 2)], .75);
 }
 /* ---------- shots, bullets ---------- */
 function drawShot(g, who) {
@@ -585,8 +596,8 @@ const fruitImg = k => { if (k < 7) return glob('fruit' + k, 18, 18, g => drawFru
   const n = glob('fruit' + k, b[0], b[1], g => drawPick(g, k)); n.oy = b[2]; return n; };
 const iconImg = k => glob('ico' + k, 10, 10, g => { g.scale(.56, .56); drawFruit(g, k); });
 function buildGlobal() {
-  for (const who of [0, 1]) { for (let f = 0; f < 4; f++) shipImg(who, f); shipImg(who, 0, 'dizzy'); for (let f = 0; f < 2; f++) glob('bud' + who + f, 14, 14, g => drawBuddy(g, who, f)); glob('shot' + who, 6, 12, g => drawShot(g, who)); }
-  glob('bshot', 4, 8, drawBShot); glob('seedlet', 14, 14, drawSeedlet); glob('sunrays', 26, 26, drawSunRays); glob('sunface', 26, 26, drawSunFace); glob('dand', 24, 20, drawDandelion);
+  for (const who of [0, 1]) { for (let f = 0; f < 4; f++) shipImg(who, f); shipImg(who, 0, 'dizzy'); shipImg(who, 0, 'rest'); GC['shipOut' + who] = greyOf(24, 26, g => drawSprout(g, who, 0, 'rest')); for (let f = 0; f < 2; f++) glob('bud' + who + f, 14, 14, g => drawBuddy(g, who, f)); glob('shot' + who, 6, 12, g => drawShot(g, who)); }
+  glob('bshot', 4, 8, drawBShot); glob('seedlet', 14, 14, drawSeedlet); glob('sunrays', 26, 26, drawSunRays); glob('sunface', 26, 26, drawSunFace); glob('dand', 24, 20, drawDandelion); GC.dandG = greyOf(24, 20, drawDandelion); glob('life', 10, 11, drawLife);
   for (const big of [0, 1]) for (const f of [0, 1]) glob('bul' + big + f, big ? 13 : 10, big ? 13 : 10, g => drawBullet(g, big, f));
   for (let k = 0; k < 7; k++) { fruitImg(k); iconImg(k); }
   for (let k = 7; k < 13; k++) fruitImg(k);   // v2 pickups, weapon shots and icons, the super glow
@@ -925,22 +936,34 @@ function drawZap(ctx, x, a, t) {
   ctx.lineJoin = 'round'; ctx.strokeStyle = PAL.ink; ctx.lineWidth = 3.4; path(); ctx.stroke(); ctx.strokeStyle = PAL.sun; ctx.lineWidth = 1.6; path(); ctx.stroke();
 }
 
+/* a sprout hanging under a dandelion seed clock (down: dizzy; OUT: grey + resting; GAME OVER card: resting) */
+function hang(ctx, x, y, t, dand, img) {
+  const sw = Math.sin(t * .05) * .14, py = y - 22, hx = x + Math.sin(t * .05) * 2;
+  put(ctx, dand, hx, py - 2);
+  ctx.save(); ctx.translate(hx, py + 4); ctx.rotate(sw);
+  ctx.strokeStyle = PAL.ink; ctx.lineWidth = 1.6; ctx.beginPath(); ctx.moveTo(0, -1); ctx.lineTo(0, 11); ctx.stroke(); ctx.strokeStyle = dand === GC.dandG ? '#a8a3b4' : PAL.wood; ctx.lineWidth = .7; ctx.stroke();
+  ctx.scale(.85, .85); ctx.drawImage(img, -img.lw / 2, 9, img.lw, img.lh); ctx.restore();
+}
+
 /* ---------- HUD bits ---------- */
 const PCOL = ['#a6f2a0', '#ffbe8a'];
-let coopT = -1; const hudDiff = ['', ''];
+let coopT = -1, livesP = -1, livesT = -1e9; const hudDiff = ['', ''];
 function pill(ctx, x, y, w, h) { ctx.fillStyle = 'rgba(43,33,64,.38)'; ctx.beginPath(); rrect(ctx, x, y, w, h, 8); ctx.fill(); }
 function drawPlayerPill(ctx, p, x, y, t) {
   const ga = ctx.globalAlpha, su = Math.max(0, Math.min(1, +p.super || 0)); pill(ctx, x, y, 94, 27);
   if (su > 0) superBar(ctx, x + 2, y + 7.5, 46, su, t);   // SUPER STAR: a draining rainbow bar takes the name's place
   else text(ctx, p.name || (p.who ? 'MARIGOLD' : 'SPRIG'), x + 5, y + 7.5, 8, PCOL[p.who ? 1 : 0], 'left');
   const hm = Math.max(1, Math.min(8, (p.hpMax | 0) || 5)), hp = p.hp | 0;
-  if (hm <= 5) { const h1 = GC.heart1, h0 = GC.heart0; for (let i = 0; i < hm; i++) put(ctx, i < hp ? h1 : h0, x + 54 + (5 - hm + i) * 8.2, y + 7.5); }
+  if (hm <= 3) { const h1 = GC.heart1, h0 = GC.heart0; for (let i = 0; i < hm; i++) putS(ctx, i < hp ? h1 : h0, x + 87 - (hm - 1 - i) * 9.8, y + 8, 1.15); }   // v3 HARD: 3 bigger hearts
+  else if (hm <= 5) { const h1 = GC.heart1, h0 = GC.heart0; for (let i = 0; i < hm; i++) put(ctx, i < hp ? h1 : h0, x + 54 + (5 - hm + i) * 8.2, y + 7.5); }
   else { const h1 = GC.heart1s, h0 = GC.heart0s, n1 = Math.ceil(hm / 2), x0 = x + 88.6 - (n1 - 1) * 7.3;   // 6-8 hearts: two rows of smaller ones
     for (let i = 0; i < hm; i++) { const r = i < n1 ? 0 : 1; put(ctx, i < hp ? h1 : h0, x0 + (r ? i - n1 : i) * 7.3, y + 5.3 + r * 6.9); } }
-  if (p.down) { putS(ctx, GC.dand, x + 47, y + 17, .45); text(ctx, 'floating…', x + 56, y + 18, 8, '#fff', 'left'); }
+  if (p.out) { putS(ctx, GC.dandG, x + 47, y + 17, .45); text(ctx, 'resting', x + 56, y + 18, 8, '#cfc9e3', 'left'); }   // v3: OUT (no lives left)
+  else if (p.down) { putS(ctx, GC.dand, x + 47, y + 17, .45); text(ctx, 'floating…', x + 56, y + 18, 8, '#fff', 'left'); }
   else {
     const iy = y + 18.5;
-    for (let i = 0; i < 3; i++) { ctx.lineWidth = 1; ctx.strokeStyle = i < p.shield ? '#cfeaff' : 'rgba(255,255,255,.3)'; ctx.fillStyle = i < p.shield ? PAL.blue : 'rgba(255,255,255,.08)'; circle(ctx, x + 6.5 + i * 5.1, iy, 2.1); ctx.fill(); ctx.stroke(); }
+    const sm = p.shMax >= 1 && p.shMax <= 3 ? p.shMax | 0 : 3;   // v3: only as many shield dots as the difficulty allows (EASY 3, MEDIUM 2, HARD 1)
+    for (let i = 0; i < sm; i++) { ctx.lineWidth = 1; ctx.strokeStyle = i < p.shield ? '#cfeaff' : 'rgba(255,255,255,.3)'; ctx.fillStyle = i < p.shield ? PAL.blue : 'rgba(255,255,255,.08)'; circle(ctx, x + 6.5 + i * 5.1, iy, 2.1); ctx.fill(); ctx.stroke(); }
     for (let i = 0; i < 2; i++) { ctx.globalAlpha = ga * (i < p.buddies ? 1 : .28); putS(ctx, GC['bud' + (p.who ? 1 : 0) + '0'], x + 25 + i * 7, iy, .5); } ctx.globalAlpha = ga;
     ctx.lineWidth = 1.4; ctx.lineCap = 'round';
     for (let i = 0; i < 3; i++) { const ix = x + 36.5 + i * 3.7; ctx.strokeStyle = i <= (p.spd | 0) ? '#b6f07a' : 'rgba(255,255,255,.25)'; ctx.beginPath(); ctx.moveTo(ix, iy - 2.4); ctx.lineTo(ix + 2, iy); ctx.lineTo(ix, iy + 2.4); ctx.stroke(); }
@@ -990,7 +1013,13 @@ const PIPS = [{ x: 92, y: 260, r: 10 }, { x: 120, y: 260, r: 10 }, { x: 148, y: 
 // v2 title tap rects, updated in place each title frame (w = 0 when hidden)
 const DIFF_UI = [{ x: 0, y: 0, w: 0, h: 0 }, { x: 0, y: 0, w: 0, h: 0 }, { x: 0, y: 0, w: 0, h: 0 }], SND_UI = [{ x: 0, y: 0, w: 0, h: 0 }, { x: 0, y: 0, w: 0, h: 0 }];
 const DCOL = ['#8fe8a8', '#ffd93b', '#ff9a4d'], DPALE = DCOL.map(c => mix(c, '#b9b3d9', .55)), DNAME = ['EASY', 'MEDIUM', 'HARD'], TW = {};
-function tw8(s) { return TW[s] || (mctx.font = font(8), TW[s] = mctx.measureText(s).width); }
+function tw8(s, z) { z = z || 8; const k = z + s; return TW[k] || (mctx.font = font(z), TW[k] = mctx.measureText(s).width); }
+// v3: team lives = a seedling + "×N" (N 0..9); it bounces when a life is used and turns orange at 0. Returns the width.
+function livesRow(ctx, x, y, lv, t, align) {
+  const s = '×' + lv, w = 10 + tw8(s, 8), x0 = align === 'left' ? x : x - w / 2, k = t - livesT, b = k >= 0 && k < 40 ? 1 - k / 40 : 0, ga = ctx.globalAlpha;
+  if (!lv) ctx.globalAlpha = ga * .55; putS(ctx, GC.life, x0 + 4, y - .6 - b * 2, 1 + b * .3); ctx.globalAlpha = ga;
+  text(ctx, s, x0 + 10, y, 8, b && (k >> 2) & 1 ? '#fff' : lv ? (b ? '#ffb27a' : '#fff') : DCOL[2], 'left'); return w;
+}
 function sndIcon(ctx, x, y, music, on) {
   ctx.fillStyle = ctx.strokeStyle = on ? '#fff' : 'rgba(255,255,255,.75)'; ctx.lineWidth = 1; ctx.lineCap = 'round';
   if (music) { ctx.beginPath(); ctx.ellipse(x - 1.4, y + 2.4, 1.7, 1.3, -.4, 0, TAU); ctx.fill(); ctx.fillRect(x - .1, y - 3.6, 1, 6); ctx.beginPath(); ctx.moveTo(x + .4, y - 3.6); ctx.quadraticCurveTo(x + 3.4, y - 2.4, x + 2.6, y + .2); ctx.stroke(); }
@@ -1018,6 +1047,8 @@ function diffRow(ctx, y, S, t) {
     text(ctx, DNAME[i], cx, y + .3, sel ? 9 : 8, sel ? '#fff' : '#ece8f8');
     const r = DIFF_UI[i]; r.x = cx - 29; r.y = y - 11; r.w = 58; r.h = 22;
   }
+  if (d === 2) { const D = BB.C && BB.C.DIFF && BB.C.DIFF[2], n = (D && D.lives) | 0;   // v3: a tiny note under the HARD pill
+    if (n > 0) { const s = n + ' lives', w = 9 + tw8(s, 7), x0 = 178 - w / 2; putS(ctx, GC.life, x0 + 3.5, y + 14.4, .8); text(ctx, s, x0 + 9, y + 15, 7, '#ffd9b8', 'left'); } }
 }
 const SCREENS = {
   title(ctx, S) {
@@ -1046,7 +1077,7 @@ const SCREENS = {
     if (!on) text(ctx, 'STAGE', 58, 260, 8, '#fff');
     if (!on) PIPS.forEach((p, i) => { const ok = i <= best; ctx.fillStyle = PAL.ink; circle(ctx, p.x, p.y + 1, p.r + 1.6); ctx.fill(); ctx.fillStyle = ok ? ['#8fe08a', '#c8b2ff', '#7fd0ff'][i] : 'rgba(255,255,255,.55)'; circle(ctx, p.x, p.y, p.r); ctx.fill();
       ctx.fillStyle = 'rgba(255,255,255,.5)'; ctx.beginPath(); ctx.ellipse(p.x - 3.2, p.y - 4, 3.6, 1.8, -.5, 0, TAU); ctx.fill(); text(ctx, ok ? String(i + 1) : '·', p.x, p.y + .5, 10, ok ? '#fff' : PAL.cloudSh); });
-    if (best > 0 && !on) text(ctx, touch ? 'tap a stage' : 'press ' + (best > 1 ? '2 or 3' : '2'), 188, 260, 8, '#fff');
+    if (best > 0 && !on) text(ctx, touch ? 'tap a stage' : 'press ' + (best > 1 ? '2 or 3' : '2'), 188, S.diff === 2 ? 266 : 260, 8, '#fff');   // v3: clear of the HARD '3 lives' note
     const msg = S.waiting ? 'Waiting for ' + (S.opp || 'your friend') + '…' : on ? 'Flying with ' + (S.opp || 'a friend') + '!' : touch ? 'Tap to fly!' : 'Press SPACE to fly!';
     ctx.globalAlpha = .6 + .4 * Math.abs(Math.sin(t * .06)); text(ctx, msg, 120, on ? 284 : 283, 12, PAL.sun); ctx.globalAlpha = 1;
     if (!on && !touch) { text(ctx, 'Two players? Start, then Marigold holds ENTER', 120, 301, 8, '#fff'); text(ctx, 'Sprig: W A S D + SPACE   Marigold: arrows + ENTER', 120, 312, 8, '#e4d8ff'); }
@@ -1091,6 +1122,27 @@ const SCREENS = {
     const guest = S.guest != null ? !!S.guest : duo && solo === 1, go = 'fly again';
     if (!guest) { ctx.globalAlpha = .6 + .4 * Math.abs(Math.sin(a * .06)); text(ctx, 'SPACE / tap: ' + go, 120, 284, 9, PAL.sun); ctx.globalAlpha = 1; }
   },
+  gameover(ctx, S) { // v3 HARD: every ship is OUT. Kind words, no skulls; the host/solo restarts, the guest waits for the host
+    const a = S.age | 0, st = Math.max(0, Math.min(2, S.stage | 0)), guest = !!S.guest, e = easeOut(a / 22), dy = (1 - e) * -40;
+    ctx.fillStyle = 'rgba(43,33,64,' + (.5 * Math.min(1, a / 20)).toFixed(3) + ')'; ctx.fillRect(0, 0, 240, 320);
+    const ga = ctx.globalAlpha; ctx.globalAlpha = ga * Math.min(1, a / 10);
+    for (const [who, x, ph] of S.duo === false ? [[S.who ? 1 : 0, 120, 0]] : [[0, 92, 0], [1, 148, 2]]) hang(ctx, x, 78 + dy * 1.4 + Math.sin(a * .04 + ph) * 3, a + ph * 40, GC.dand, shipImg(who, 0, 'rest'));
+    ctx.save(); ctx.translate(0, dy); card(ctx, 22, 104, 196, guest || S.touch ? 138 : 152);
+    const W = 'GAME OVER'; let x = 120 - 58.5;   // the letters drop in one by one
+    for (let i = 0; i < W.length; i++) { const k = Math.min(1, Math.max(0, (a - 6 - i * 2) / 10)), c = W[i]; if (c !== ' ' && k > 0) { ctx.globalAlpha = ga * k; text(ctx, c, x, 125 - (1 - easeOut(k)) * 10 + Math.sin(a * .08 + i * .7) * 1.2, 20, i & 1 ? '#ffe36b' : PAL.sun); } x += c === ' ' ? 9 : 14.6; }
+    ctx.globalAlpha = ga;
+    text(ctx, 'Good flying! The sprouts need a rest.', 120, 146, 8, '#fff');
+    text(ctx, 'Reached stage ' + (st + 1), 120, 165, 10, '#fff');
+    for (let i = 0; i < 3; i++) { const px = 102 + i * 18, ok = i <= st; ctx.fillStyle = PAL.ink; circle(ctx, px, 182, 7.4); ctx.fill(); ctx.fillStyle = ok ? ['#8fe08a', '#c8b2ff', '#7fd0ff'][i] : 'rgba(255,255,255,.4)'; circle(ctx, px, 181.4, 6); ctx.fill();
+      if (ok) { ctx.fillStyle = 'rgba(255,255,255,.5)'; ctx.beginPath(); ctx.ellipse(px - 2, 178.8, 2.2, 1.1, -.5, 0, TAU); ctx.fill(); } text(ctx, ok ? String(i + 1) : '·', px, 181.8, 7, ok ? '#fff' : PAL.cloudSh); }
+    const sc = Math.max(0, S.score | 0), k = Math.min(1, Math.max(0, (a - 24) / 36));
+    text(ctx, 'SCORE ' + Math.round(sc * easeOut(k)), 120, 203, 13, PAL.sun);
+    const p = Math.min(1, Math.max(0, (a - 40) / 16));
+    if (p > 0) { ctx.globalAlpha = ga * p;
+      if (guest) text(ctx, String(S.opp || 'your friend').slice(0, 16) + ' can try again', 120, 228, 9, '#fff');
+      else { ctx.globalAlpha = ga * p * (.6 + .4 * Math.abs(Math.sin(a * .06))); text(ctx, S.touch ? 'Tap: try again' : 'SPACE / tap: try again', 120, 226, 10, PAL.sun); ctx.globalAlpha = ga * p; if (!S.touch) text(ctx, 'Esc: title', 120, 242, 8, '#e4d8ff'); } }
+    ctx.globalAlpha = ga; ctx.restore();
+  },
   pause(ctx) { ctx.fillStyle = 'rgba(43,33,64,.45)'; ctx.fillRect(0, 0, 240, 320); text(ctx, 'Paused', 120, 150, 20, '#fff'); text(ctx, 'P to carry on', 120, 172, 9, PAL.sun); },
   wait(ctx, S) { ctx.fillStyle = 'rgba(43,33,64,.35)'; ctx.fillRect(0, 0, 240, 320); const L = lines(S.text || 'Waiting…'); card(ctx, 20, 150 - L.length * 8 - 10, 200, L.length * 16 + 20); L.forEach((s, i) => text(ctx, s, 120, 150 - L.length * 8 + 8 + i * 16, 10, i ? '#fff' : PAL.sun)); },
   upright(ctx, S) {
@@ -1115,12 +1167,9 @@ BB.Art = {
   ship(ctx, who, x, y, o) {
     o = o || {}; const t = o.t | 0; who = who ? 1 : 0;
     if (o.ghost) ctx.globalAlpha = .35;
+    if (o.out) { ctx.globalAlpha = o.ghost ? .25 : .5; hang(ctx, x, y, t * .6, GC.dandG, GC['shipOut' + who]); ctx.globalAlpha = 1; return; }   // v3 OUT: grey, faded, resting, no stars
     if (o.down) {
-      const sw = Math.sin(t * .05) * .14, py = y - 22;
-      put(ctx, GC.dand, x + Math.sin(t * .05) * 2, py - 2);
-      ctx.save(); ctx.translate(x + Math.sin(t * .05) * 2, py + 4); ctx.rotate(sw);
-      ctx.strokeStyle = PAL.ink; ctx.lineWidth = 1.6; ctx.beginPath(); ctx.moveTo(0, -1); ctx.lineTo(0, 11); ctx.stroke(); ctx.strokeStyle = PAL.wood; ctx.lineWidth = .7; ctx.stroke();
-      ctx.scale(.85, .85); ctx.drawImage(shipImg(who, 0, 'dizzy'), -GC.ship00.lw / 2, 9, GC.ship00.lw, GC.ship00.lh); ctx.restore();
+      hang(ctx, x, y, t, GC.dand, shipImg(who, 0, 'dizzy'));
       for (let i = 0; i < 3; i++) { const an = t * .08 + i * TAU / 3; inkStar(ctx, x + Math.cos(an) * 10, y - 3 + Math.sin(an) * 3, 2.4, an, PAL.sun, .8); }
       ctx.globalAlpha = 1; return;
     }
@@ -1210,7 +1259,11 @@ BB.Art = {
     else if (!H.touch) { ctx.strokeStyle = 'rgba(255,255,255,.7)'; ctx.lineWidth = 1.2; ctx.setLineDash([3, 3]); ctx.beginPath(); rrect(ctx, 144.5, 2.5, 93, 26, 8); ctx.stroke(); ctx.setLineDash([]);
       ctx.globalAlpha = .55 + .45 * Math.abs(Math.sin(t * .05)); text(ctx, 'Hold ENTER', 191, 10, 8, PCOL[1]); text(ctx, 'to join!', 191, 21, 8, '#fff'); ctx.globalAlpha = 1; }
     text(ctx, String(H.score | 0), 120, 9, 10, '#fff');
-    if (H.diff) { if (H.diff !== hudDiff[0]) { hudDiff[0] = H.diff; hudDiff[1] = String(H.diff).toUpperCase().slice(0, 8); } const d = hudDiff[1]; text(ctx, d, 120, 31.5, 7, d === 'EASY' ? DCOL[0] : d === 'HARD' ? DCOL[2] : DCOL[1]); }   // small difficulty label under the score
+    const lv = typeof H.lives === 'number' && H.lives === H.lives ? Math.max(0, Math.min(9, H.lives | 0)) : -1;   // v3: team lives (HARD)
+    if (lv < 0) livesP = -1; else { if (livesP >= 0 && lv < livesP) livesT = t; if (t < livesT) livesT = -1e9; livesP = lv; }
+    if (H.diff) { if (H.diff !== hudDiff[0]) { hudDiff[0] = H.diff; hudDiff[1] = String(H.diff).toUpperCase().slice(0, 8); } const d = hudDiff[1], dc = d === 'EASY' ? DCOL[0] : d === 'HARD' ? DCOL[2] : DCOL[1];
+      if (lv < 0) text(ctx, d, 120, 31.5, 7, dc); else { const wd = tw8(d, 7), w = wd + 4 + 10 + tw8('×' + lv, 8); text(ctx, d, 120 - w / 2, 31.5, 7, dc, 'left'); livesRow(ctx, 120 - w / 2 + wd + 4, 31.5, lv, t, 'left'); } }   // small difficulty label (+ lives) under the score
+    else if (lv >= 0) livesRow(ctx, 120, 31.5, lv, t);
     const bk = H.basket | 0; putS(ctx, glob('basket', 16, 12, drawBasket), 107, 22, .7);
     for (let i = 0; i < 4; i++) { ctx.fillStyle = PAL.ink; circle(ctx, 116 + i * 5.5, 22.5, 2.2); ctx.fill(); ctx.fillStyle = i < bk % 5 ? PAL.sun : 'rgba(255,255,255,.4)'; circle(ctx, 116 + i * 5.5, 22.5, 1.5); ctx.fill(); }
     // local co-op: who flies with which keys, for 7 s after the second player joins

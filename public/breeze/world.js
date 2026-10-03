@@ -6,6 +6,8 @@
    next stage / ending), the boss death flow (bossDone), and the world side of the snapshot (pack / World.unpack).
    v2 (SPEC2): w.diff (0 easy, 1 medium, 2 hard; DIFF.bMul in w.bullet, DIFF.eHp at spawn, no kind assist when DIFF.kind is
    false), weapons (Ship.volley/seekers/stars, piercing bolts, homing), SUPER STAR, pickups 7-12 (pickMove; never juggled).
+   v3 (SPEC3): power capped per stage (C.POWER_CAP, Ship.cap), DIFF superTicks / invHit / safeR, team LIVES (w.lives, null when
+   off): going down costs a life, going down at 0 is OUT (never revives); every ship OUT → GAME OVER (ph 5). Pack f bit 64 = OUT.
    Keep every w API name and signature. Plain objects in w.ships (the content harness) are left alone. */
 'use strict';
 (function () {
@@ -26,23 +28,25 @@ BB.KILLFX = { smudge: 'pop', glider: 'unwind', tinbot: 'unwind', grumble: 'calm'
 
 /* ---------- Ship: one player's sprout-copter. Host: P1, local P2, and the mirror of the online guest (remote).
    Guest: its own ship, and a cosmetic mirror of the host. Field names match the 12-int ship pack (SPEC section 6).
-   v2: hearts from BB.C.DIFF (setDiff), weapon type wt 0-3 x power 'spread' 0-4 (SPEC2 F), SUPER STAR timer superT. ---------- */
+   v2: hearts from BB.C.DIFF (setDiff), weapon type wt 0-3 x power 'spread' 0-4 (SPEC2 F), SUPER STAR timer superT.
+   v3: cap (the stage's power cap, set by the world / the guest each tick), out (OUT: down for good), invHit and superMax from DIFF. ---------- */
 const WP = C.WEAPON, SU = C.SUPER, PK = C.PICK, PMAX = SH.powerMax || 4;
 const SEEK_LIFE = 150;    /* a seeker that finds nothing wilts after 2.5 s */
 /* shots that may home on a toy: shootable, on screen, not a bush, not the secret Gift Box, not shielded (host e or guest view v) */
 function seekOk(e) { const d = e.def || BB.ENEMY[e.type]; return !!d && d.shootable && !e.dead && !e.dying && e.type !== 'bush' && e.type !== 'present' && e.y >= 4 && e.y < 300 && !(e.hp < 0) && !(e.d && e.d.inv); }
 class Ship {
-  constructor(who, x, y, diff) { this.who = who | 0; this.x = x; this.y = y; this.shots = []; this.bx = [x, x]; this.by = [y, y]; this.setDiff(diff == null ? 1 : diff); this.reset(); }
-  /* hearts for a difficulty (0 easy, 1 medium, 2 hard): max/start, stage-clear heal, revive */
+  constructor(who, x, y, diff) { this.who = who | 0; this.x = x; this.y = y; this.shots = []; this.bx = [x, x]; this.by = [y, y]; this.cap = PMAX; this.setDiff(diff == null ? 1 : diff); this.reset(); }
+  /* a difficulty (0 easy, 1 medium, 2 hard): hearts max/start, stage-clear heal, revive; invulnerability after a hit; super star length */
   setDiff(d) {
     const D = C.DIFF[d] || C.DIFF[1]; this.diff = C.DIFF[d] ? d | 0 : 1;
-    this.hpMax = D.hp; this.healN = D.heal; this.reviveHp = D.reviveHp;
-    if (this.hp > this.hpMax) this.hp = this.hpMax;
+    this.hpMax = D.hp; this.healN = D.heal; this.reviveHp = D.reviveHp; this.invHit = D.invHit || SH.invHit; this.superMax = D.superTicks || SU.ticks;
+    this.shMax = clamp(D.shield == null ? 3 : D.shield | 0, 1, 3);   /* v3: most shield layers (EASY 3, MEDIUM 2, HARD 1) */
+    if (this.hp > this.hpMax) this.hp = this.hpMax; if (this.shield > this.shMax) this.shield = this.shMax;
   }
   reset(x, y) {
     if (x != null) { this.x = x; this.y = y; }
     this.hp = this.hpMax; this.shield = 0; this.buddies = 0; this.spd = 0; this.spread = 0; this.wt = 0; this.superT = 0; this.charge = 0; this.cool = 0;
-    this.inv = 0; this.down = false; this.downT = 0; this.bub = 0; this.sn = 0; this.sl = 0; this.f = 0;
+    this.inv = 0; this.down = false; this.out = false; this.downT = 0; this.bub = 0; this.sn = 0; this.sl = 0; this.f = 0;
     this.firing = false; this.charging = false; this.hidden = false; this.away = false;
     this.fireT = 0; this.budT = 0; this.seekT = 0; this.bonkT = 0; this.tilt = 0; this.t = 0; this.vol = false; this.rel = 0; this.supEnd = false; this.ow = 0;
     this.lastSn = -1; this.lastBub = -1; this.revAt = -99; this.shots.length = 0;
@@ -60,7 +64,7 @@ class Ship {
       if (this.y > SH.downYMin) this.y = Math.max(SH.downYMin, this.y - SH.downRise);
       this.x = clamp(this.x + (inp.dx || 0) * 0.5, SH.xMin, SH.xMax);         /* a gentle sideways steer under the parachute */
       if (inp !== NOIN) inp.mx = inp.my = 0;
-      if (this.downT >= SH.downTicks || (partner && !partner.down && !partner.away && (partner.x - this.x) ** 2 + (partner.y - this.y) ** 2 < SH.reviveR * SH.reviveR)) this.revive();
+      if (!this.out && (this.downT >= SH.downTicks || (partner && !partner.down && !partner.away && (partner.x - this.x) ** 2 + (partner.y - this.y) ** 2 < SH.reviveR * SH.reviveR))) this.revive();   /* OUT: never */
     } else {
       const v = SH.speeds[this.spd] || SH.speeds[0];
       let dx = inp.dx || 0, dy = inp.dy || 0;
@@ -185,11 +189,11 @@ class Ship {
     if (this.ow >= j) this.ow = 0;
   }
   buddyLerp() { for (let i = 0; i < 2; i++) { const sl = SH.buddySlots[i]; this.bx[i] += (this.x + sl[0] - this.bx[i]) * SH.buddyLerp; this.by[i] += (this.y + sl[1] - this.by[i]) * SH.buddyLerp; } }
-  flags() { this.f = (this.firing ? 1 : 0) | (this.charging ? 2 : 0) | (this.inv > 0 ? 4 : 0) | (this.down ? 8 : 0) | (this.hidden ? 16 : 0) | (this.superT > 0 ? 32 : 0); return this.f; }
+  flags() { this.f = (this.firing ? 1 : 0) | (this.charging ? 2 : 0) | (this.inv > 0 ? 4 : 0) | (this.down ? 8 : 0) | (this.hidden ? 16 : 0) | (this.superT > 0 ? 32 : 0) | (this.out ? 64 : 0); return this.f; }
   /* hit by a bullet or a live zap: 0 nothing (invulnerable), 1 shield layer popped, 2 heart lost, 3 bubbled (down) */
   hurt() {
     if (this.down || this.inv > 0) return 0;
-    this.inv = SH.invHit;
+    this.inv = this.invHit;
     if (this.shield > 0) { this.shield--; return 1; }
     this.hp--; if (this.buddies > 0) this.buddies--;
     if (this.hp <= 0) { this.goDown(); return 3; }
@@ -197,46 +201,50 @@ class Ship {
   }
   /* down keeps weapon type and power; loses buddies, shield and the super star */
   goDown() { this.down = true; this.downT = 0; this.hp = 0; this.buddies = 0; this.shield = 0; this.superT = 0; this.charge = 0; this.charging = false; this.inv = 0; this.bub++; this.flags(); }
-  revive() { this.down = false; this.downT = 0; this.hp = this.reviveHp; this.inv = SH.invRevive; this.flags(); }
+  revive() { if (this.out) return; this.down = false; this.downT = 0; this.hp = this.reviveHp; this.inv = SH.invRevive; this.flags(); }
   heal(n) { if (this.down) this.revive(); else this.hp = Math.min(this.hpMax, this.hp + n); }
+  /* OUT (SPEC3 2): down for good; no timer, partner or stage-clear revive */
+  goOut() { if (!this.down) this.goDown(); this.out = true; this.flags(); }
+  /* v3: power stops at the stage's cap (C.POWER_CAP); a strawberry or same-type packet there gives +500 */
+  pcap() { return clamp(this.cap == null ? PMAX : this.cap | 0, 0, PMAX); }
   maxed(k) {
-    return k === 1 ? this.shield >= 3 : k === 2 ? this.buddies >= 2 : k === 3 ? this.spread >= PMAX : k === 4 ? this.spd >= 2
-      : k >= 8 && k <= 11 ? this.wt === k - 8 && this.spread >= PMAX : k === 12 ? this.shield >= 3 : false;
+    return k === 1 ? this.shield >= this.shMax : k === 2 ? this.buddies >= 2 : k === 3 ? this.spread >= this.pcap() : k === 4 ? this.spd >= 2
+      : k >= 8 && k <= 11 ? this.wt === k - 8 && this.spread >= this.pcap() : k === 12 ? this.shield >= this.shMax : false;
   }
   /* apply a fruit or pickup: returns {pts, label, full}. full = a Heart Peach at max hearts (the world decides gift or +200) */
   grab(k) {
     const lab = (BB.FRUITS[k] && BB.FRUITS[k].label) || '';
     if (k === 0) return { pts: FR.sunPts, label: '+' + FR.sunPts };
-    if (k === 12) { if (this.shield >= 3) return { pts: PK.bubblePts, label: '+' + PK.bubblePts }; this.shield++; return { pts: 0, label: lab }; }
+    if (k === 12) { if (this.shield >= this.shMax) return { pts: PK.bubblePts, label: '+' + PK.bubblePts }; this.shield++; return { pts: 0, label: lab }; }
     if (this.maxed(k)) return { pts: PK.maxPts || FR.maxPts, label: '+' + (PK.maxPts || FR.maxPts) };
     if (k >= 1 && k <= 4) {
-      if (k === 1) this.shield = 3;
+      if (k === 1) this.shield = this.shMax;
       else if (k === 2) { this.bx[this.buddies] = this.x; this.by[this.buddies] = this.y; this.buddies++; }
       else if (k === 3) this.spread++;
       else this.spd++;
       return { pts: 0, label: lab };
     }
     if (k === 5) { if (this.hp >= this.hpMax) return { pts: 0, label: '', full: true }; this.hp++; return { pts: 0, label: lab }; }
-    if (k === 6) { this.hp = this.hpMax; this.shield = 3; return { pts: 0, label: lab }; }   /* Rainbow Peach */
-    if (k === 7) { if (!this.down) this.superT = SU.ticks; return { pts: 0, label: lab }; }   /* SUPER STAR */
+    if (k === 6) { this.hp = this.hpMax; this.shield = this.shMax; return { pts: 0, label: lab }; }   /* Rainbow Peach */
+    if (k === 7) { if (!this.down) this.superT = this.superMax; return { pts: 0, label: lab }; }   /* SUPER STAR (DIFF superTicks) */
     if (k >= 8 && k <= 11) {   /* seed packet: same type → +1 power; another type → switch, keeping the power */
       const t = k - 8; if (t === this.wt) { this.spread++; return { pts: 0, label: '+POWER' }; }
       this.wt = t; return { pts: 0, label: lab };
     }
     return { pts: 0, label: '' };
   }
-  /* index 7 = wt*5 + power (0-19); f bit 32 = super star (SPEC2 F) */
+  /* index 7 = wt*5 + power (0-19); f bit 32 = super star (SPEC2 F), bit 64 = OUT (SPEC3) */
   pack() {
     this.flags(); const r = Math.round;
-    return [clamp(r(this.x * 4) || 0, -800, 1800), clamp(r(this.y * 4) || 0, -800, 2000), this.f & 63, clamp(this.hp | 0, 0, 9), clamp(this.shield | 0, 0, 3), clamp(this.buddies | 0, 0, 2),
+    return [clamp(r(this.x * 4) || 0, -800, 1800), clamp(r(this.y * 4) || 0, -800, 2000), this.f & 127, clamp(this.hp | 0, 0, 9), clamp(this.shield | 0, 0, 3), clamp(this.buddies | 0, 0, 2),
       clamp(this.spd | 0, 0, 2), clamp(this.wt | 0, 0, 3) * 5 + clamp(this.spread | 0, 0, PMAX), clamp(r(this.charge || 0), 0, 60), clamp(this.bub | 0, 0, 99999), (this.sn | 0) & 2147483647, clamp(this.sl | 0, 0, 2)];
   }
   unpack(a) {
     this.x = a[0] / 4; this.y = a[1] / 4; const f = this.f = a[2] | 0, w7 = clamp(a[7] | 0, 0, 19);
     this.hp = a[3] | 0; this.shield = a[4] | 0; this.buddies = clamp(a[5] | 0, 0, 2); this.spd = clamp(a[6] | 0, 0, 2); this.wt = (w7 / 5) | 0; this.spread = w7 % 5;
     this.charge = a[8] | 0; this.bub = a[9] | 0; this.sn = a[10] | 0; this.sl = a[11] | 0;
-    this.firing = !!(f & 1); this.charging = !!(f & 2); this.inv = f & 4 ? 1 : 0; this.down = !!(f & 8); this.hidden = !!(f & 16);
-    if (f & 32) { if (!this.superT) this.superT = SU.ticks; } else this.superT = 0;
+    this.firing = !!(f & 1); this.charging = !!(f & 2); this.inv = f & 4 ? 1 : 0; this.down = !!(f & 8); this.hidden = !!(f & 16); this.out = !!(f & 64);
+    if (f & 32) { if (!this.superT) this.superT = this.superMax; } else this.superT = 0;
     return this;
   }
 }
@@ -263,6 +271,8 @@ class World {
     this.auto = !!o.auto;     // phases run themselves (engine); the content harness drives ph by hand
     this.god = !!o.god; this.gt = o.gt | 0; this.score = o.score | 0; this.basket = o.basket | 0;
     this.sfxArg = []; this.grantsOut = []; this.runToys = 0; this.runFruit = 0; this.ending = null;
+    /* v3: team lives (HARD): null when off; o.lives carries them over (a guest flying on alone) */
+    this.lives = this.D.lives > 0 ? (o.lives != null ? clamp(o.lives | 0, 0, 9) : this.D.lives) : null; this.outT = 0; this.over = null; this.run = o.run | 0;
     this._pl = []; this._po = []; this._pv = false; this._in = false;
     this.startStage(this.stage, o.t || 0);
     if (this.gt < this.tick) this.gt = this.tick;   /* sk = gt - tick stays >= 0 after a ?t= jump */
@@ -279,9 +289,10 @@ class World {
     this.boss = null;
     this.stats = { fruit: 0, toys: 0, gift: false }; this.showerQ = []; this.doneT = -1; this.bossT0 = 0; this.dyingT = 0;
     this.bossBonus = 0; this.bossTired = false; this.bossName = ''; this.tally = null; this.sweep = 0;
-    for (const s of this.ships) if (s && s.shots) s.shots.length = 0;
+    for (const s of this.ships) if (s && s.shots) { s.shots.length = 0; if (s instanceof Ship) s.cap = this.powerCap(); }
     this.event('S', st);
   }
+  powerCap() { const P = C.POWER_CAP; return P ? clamp(P[clamp(this.stage | 0, 0, P.length - 1)] | 0, 0, PMAX) : PMAX; }   /* v3: by stage */
   later(ticks, fn) { if (ticks <= 0) fn(); else this.timers.push({ at: this.tick + ticks, fn }); }
   T(e) { return this.tick - e.born; }
   /* ---------- the w API ---------- */
@@ -304,7 +315,8 @@ class World {
   bullet(x, y, speed, ang, big) {
     if (this.bullets.length >= C.MAX_EBUL) return false;
     if (this.auto && (this.ph === 1 || this.ph >= 3 || this.doneT >= 0)) return false;   /* warning, boss beaten, tally: the sky stays clear */
-    for (const p of this.players()) { const r = p.remote ? C.SAFE_R_GUEST : C.SAFE_R; if ((p.x - x) ** 2 + (p.y - y) ** 2 < r * r) return false; }
+    const sr = this.D.safeR || C.SAFE_R;   /* v3: DIFF.safeR (HARD 26); the online guest keeps its extra 20 px for lag */
+    for (const p of this.players()) { const r = p.remote ? sr + C.SAFE_R_GUEST - C.SAFE_R : sr; if ((p.x - x) ** 2 + (p.y - y) ** 2 < r * r) return false; }
     const v = speed * this.bulletMul * this.D.bMul;
     this.bullets.push({ id: this.nextBid, x, y, vx: Math.cos(ang) * v, vy: Math.sin(ang) * v, big: !!big, r: big ? 4 : 2.5, born: this.tick });
     this.nextBid = this.nextBid % 999 + 1;
@@ -359,7 +371,7 @@ class World {
     if (!tired) { this.stats.toys++; this.runToys++; if (this.stage >= 1) this.fxl('rainbow', 120, 70); }
     this.event('B', X4(x), X4(y));
     for (const b of this.bullets) if (!b.dead) { b.dead = true; this.fxl('cancel', b.x, b.y); }
-    this.showerQ = [5, 5, 0, 0, 0, 0, 0, 0]; this.showerX = clamp(x, 40, 200); this.showerY = clamp(y, 40, 160); this.showerAt = this.gt + 24;   /* after the big pop */
+    this.showerQ = [5, this.diff === 2 ? 0 : 5, 0, 0, 0, 0, 0, 0];   /* HARD: one Heart Peach */ this.showerX = clamp(x, 40, 200); this.showerY = clamp(y, 40, 160); this.showerAt = this.gt + 24;   /* after the big pop */
     this.doneT = 150;
     if (this.onBossDone) this.onBossDone(e, tired);
   }
@@ -434,6 +446,12 @@ class World {
   /* ---------- phases (engine runs: o.auto) ---------- */
   phases() {
     const S = BB.STAGES[this.stage] || {};
+    if (this.lives != null && this.ph < 3) { if (this.allOut()) { if (++this.outT >= 60) this.setPh(5); } else this.outT = 0; }   /* GAME OVER a second after the last ship is OUT */
+    if (this.ph === 5) {   /* GAME OVER: the sky clears and the toys float off */
+      for (let n = 0; n < 3 && this.bullets.length; n++) { const b = this.bullets.shift(); this.fxl('cancel', b.x, b.y); }
+      if (this.phT % 8 === 0) this.calmOne();
+      return;
+    }
     if (this.ph === 0) {
       if (this.tick >= (S.bossAt != null ? S.bossAt : C.STAGE.bossAt) * 60) this.setPh(1);
     } else if (this.ph === 1) {
@@ -463,6 +481,21 @@ class World {
     if (ph === 1) { this.event('W'); this.sfx('warning'); }
     else if (ph === 3) this.makeTally();
     else if (ph === 4) this.ending = { score: this.score, toys: this.runToys, fruit: this.runFruit };
+    else if (ph === 5) { this.over = { stage: this.stage, score: this.score, toys: this.runToys }; this.showerQ.length = 0; this.sfx('gameover'); }
+  }
+  /* v3 lives: every ship counted is OUT (a remote guest silent for 5 s does not hold the run open) */
+  allOut() {
+    let n = 0;
+    for (const s of this.ships) { if (!(s instanceof Ship) || (s.remote && (s.awayT | 0) >= 300)) continue; if (!s.out) return false; n++; }
+    return n > 0;
+  }
+  /* a ship went down: it costs a team life; with none left it is OUT (SPEC3 2). The online guest hears it by grant 'o' (arg: run) */
+  lifeLost(s) {
+    if (this.lives == null || !s) return;
+    if (this.lives > 0) { this.lives--; this.event('L', this.lives); return; }
+    if (s.remote) { if (!s.outH) this.grantsOut.push(['o', this.run % 10000]); s.down = s.out = s.outH = true; }   /* outH: the host's own record */
+    else s.goOut();
+    this.fxl('sticker', s.x, s.y - 20, 'RESTING'); this.event('L', 0);   /* kind words: the ship is resting */
   }
   calmOne() {   /* one normal toy floats away calmly (warning, boss beaten, tally) */
     const e = this.enemies.find(q => !q.dead && !q.dying && q.type !== 'bush' && q.type !== 'present' && q.type !== 'zap' && !BB.ENEMY[q.type].boss);
@@ -511,7 +544,7 @@ class World {
   nextStage() {
     if (this.stage >= Math.min(2, BB.STAGES.length - 1)) { this.setPh(4); return; }
     this.startStage(this.stage + 1, 0);
-    for (const s of this.ships) if (s instanceof Ship && !s.remote) { s.heal(s.healN); this.fxl('heart', s.x, s.y - 10); }   /* the guest heals itself when st goes up */
+    for (const s of this.ships) if (s instanceof Ship && !s.remote && !s.out) { s.heal(s.healN); this.fxl('heart', s.x, s.y - 10); }   /* the guest heals itself when st goes up; OUT stays out */
     this.sfx('start');
   }
   /* ---------- ships ---------- */
@@ -528,16 +561,17 @@ class World {
   }
   partnerAway() { for (const s of this.ships) if (s instanceof Ship && s.remote && s.awayT >= AWAY_SOLO) return true; return false; }
   stepShips() {
-    const ss = this.ships;
+    const ss = this.ships, cap = this.powerCap();
     let shot = false;
     for (let i = 0; i < ss.length; i++) {
       const s = ss[i]; if (!(s instanceof Ship)) continue;
+      s.cap = cap;
       if (s.remote) {
         s.awayT = s.away || s.hidden ? (s.awayT | 0) + 1 : 0;
         if (s.awayT === AWAY_SOLO) this.soloBoss();                                               /* gone quiet: this boss for one */
         s.mirror();
         if (s.lastBub < 0 || s.bub < s.lastBub) s.lastBub = s.bub;                               /* guest bubbles → kind assist */
-        else if (s.bub > s.lastBub) { this.bubbled(null, s.bub - s.lastBub); s.lastBub = s.bub; }
+        else if (s.bub > s.lastBub) { this.bubbled(null, s.bub - s.lastBub); for (let n = s.bub - s.lastBub; n > 0; n--) this.lifeLost(s); s.lastBub = s.bub; }
       } else {
         const wasDown = s.down;
         s.step(s.input, this.partnerOf(s));
@@ -647,7 +681,7 @@ class World {
   remoteChecks(s) {
     if (s.away || s.hidden) return;
     if (s.down) {
-      if (this.gt - s.revAt > 30) for (const p of this.ships) if (p !== s && p instanceof Ship && !p.remote && !p.down && (p.x - s.x) ** 2 + (p.y - s.y) ** 2 < SH.reviveR * SH.reviveR) {
+      if (!s.out && this.gt - s.revAt > 30) for (const p of this.ships) if (p !== s && p instanceof Ship && !p.remote && !p.down && (p.x - s.x) ** 2 + (p.y - s.y) ** 2 < SH.reviveR * SH.reviveR) {
         s.revAt = this.gt; this.grantsOut.push(['r', 0]); this.fxl('revive', s.x, s.y); this.sfx('revive'); break;
       }
       return;
@@ -665,7 +699,7 @@ class World {
     const r = s.hurt(); if (!r) return;
     if (r === 1) { this.fxl('shield', s.x, s.y); this.sfx('shield'); }
     else if (r === 2) { this.fxl('hurt', s.x, s.y); this.sfx('hurt'); this.shake(0.5); }
-    else { this.fxl('bubble', s.x, s.y); this.bubbled(s, 1); }
+    else { this.fxl('bubble', s.x, s.y); this.bubbled(s, 1); this.lifeLost(s); }
   }
   bubbled(s, n) {
     this.bubN += n;
@@ -701,7 +735,7 @@ class World {
       if (k === 0) pts = FR.sunPts;
       else if (k === 5) { if (s.hp < s.hpMax) this.grantsOut.push(['f', 5]); else full = true; }
       else if (k === 6) this.grantsOut.push(['w', 0]);
-      else if (k === 12 && s.shield >= 3) pts = C.PICK.bubblePts;
+      else if (k === 12 && s.shield >= s.shMax) pts = C.PICK.bubblePts;
       else if (s.maxed(k)) pts = C.PICK.maxPts;
       else { this.grantsOut.push(['f', k]); if (k >= 8 && k <= 11 && k - 8 === s.wt) label = '+POWER'; }
       if (k === 7 && s.down) snd = 'grab';
@@ -743,7 +777,9 @@ class World {
     for (const bu of this.bullets) if (!bu.dead) b.push(bu.id * 2 + (bu.big ? 1 : 0), X4(bu.x), X4(bu.y));
     for (const f of this.fruits) if (!f.taken) i.push(f.id, f.k, X4(f.x), X4(f.y), f.h | 0, f.k < 5 && f.vy > 0 && !(f.lock > 0) ? 1 : 0);   /* 1: falling and bumpable */
     const bs = this.boss && !this.boss.dead ? this.boss : null;
-    return { t: this.gt, sk: this.gt - this.tick, st: this.stage, ph: this.ph, sc: this.score, bk: this.basket, bm: bs ? Math.round(bs.maxHp) : 0, df: this.diff, e, b, i };
+    const o = { t: this.gt, sk: this.gt - this.tick, st: this.stage, ph: this.ph, sc: this.score, bk: this.basket, bm: bs ? Math.round(bs.maxHp) : 0, df: this.diff, e, b, i };
+    if (this.lives != null) o.lv = clamp(this.lives | 0, 0, 9);   /* v3: team lives, only when they are on */
+    return o;
   }
 }
 /* contact rules shared by host and guest: a bonk knocks the ship 12 px away (30 ticks safe); a boss pushes it out to r + 8 */
@@ -773,7 +809,7 @@ World.unpack = function (o) {
   for (let j = 0; j + 5 < e.length; j += 6) E.push({ id: e[j], tc: e[j + 1], type: BB.TYPE_LIST[e[j + 1]] || 'smudge', x: e[j + 2] / 4, y: e[j + 3] / 4, hp: e[j + 4], a: e[j + 5] });
   for (let j = 0; j + 2 < b.length; j += 3) B.push({ id: b[j] >> 1, big: b[j] & 1, x: b[j + 1] / 4, y: b[j + 2] / 4 });
   for (let j = 0; j + 5 < i.length; j += 6) I.push({ id: i[j], k: i[j + 1], x: i[j + 2] / 4, y: i[j + 3] / 4, h: i[j + 4], fall: i[j + 5] });
-  return { t: o.t, sk: o.sk, st: o.st, ph: o.ph, sc: o.sc, bk: o.bk, bm: o.bm, df: C.DIFF[o.df] ? o.df | 0 : 1, p: o.p | 0, run: o.run | 0, h: o.h, E, B, I };
+  return { t: o.t, sk: o.sk, st: o.st, ph: o.ph, sc: o.sc, bk: o.bk, bm: o.bm, df: C.DIFF[o.df] ? o.df | 0 : 1, lv: o.lv == null ? null : o.lv | 0, p: o.p | 0, run: o.run | 0, h: o.h, E, B, I };
 };
 BB.World = World;
 })();

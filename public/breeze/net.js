@@ -3,7 +3,9 @@
    host grants and cosmetic events, the 12-int ship pack, and RTT. The parent page (the planet's breezeRoom, or
    test/nettest.html) only moves strings between the two browsers. Solo play is mode 'solo' and sends nothing.
    v2 (SPEC2.md, PROTO 2): pack index 7 = weapon wt*5+power (0..19), f bit 32 = super star, fruit k 0..12, snapshot df (difficulty),
-   'f' grants 1..12, and the parent's {ty:'music', on}. */
+   'f' grants 1..12, and the parent's {ty:'music', on}.
+   v3 (SPEC3.md, PROTO 3): snapshot ph 0..5 (5 = GAME OVER), optional lv (team lives 0..9, left out when lives are off),
+   pack f 0..127 with bit 64 = OUT, grant 'o' (the guest is OUT; arg = the host's run % 10000). */
 'use strict';
 (function () {
 const C = BB.C, N = C.NET, TICK = C.TICK, MAXMSG = N.maxMsg || 6000, I31 = 2147483647;
@@ -18,13 +20,13 @@ const no = w => { why = w; return false; };
 const XY = [-3000, 3000];
 const NWT = 4, NPW = 5, WMAX = NWT * NPW - 1; /* index 7 of the ship pack: weapon type 0..3 (pea, fan, beam, seeker) * 5 + power 0..4 */
 const KMAX = BB.FRUITS.length - 1; /* fruit and pickup kinds 0..12 */
-const SHIP_R = [[-800, 1800], [-800, 2000], [0, 63], [0, 9], [0, 3], [0, 2], [0, 2], [0, WMAX], [0, 60], [0, 99999], [0, I31], [0, 2]];
+const SHIP_R = [[-800, 1800], [-800, 2000], [0, 127], [0, 9], [0, 3], [0, 2], [0, 2], [0, WMAX], [0, 60], [0, 99999], [0, I31], [0, 2]];
 const E_R = [[0, 9999], [0, BB.TYPE_LIST.length - 1], XY, XY, [-1, 99999], [0, 15]];
 const B_R = [[0, 19999], XY, XY];
 const F_R = [[0, 999], [0, KMAX], XY, XY, [0, 3], [0, 1]];
 const okShip = (a, w) => { if (!Array.isArray(a) || a.length !== 12) return no(w); for (let i = 0; i < 12; i++) if (!isI(a[i], SHIP_R[i][0], SHIP_R[i][1])) return no(w + '[' + i + ']'); return true; };
 const okFlat = (a, w, n, R, tag) => { if (!Array.isArray(a) || a.length % w || a.length > w * n) return no(tag); for (let i = 0; i < a.length; i++) { const r = R[i % w]; if (!isI(a[i], r[0], r[1])) return no(tag + '[' + i + ']'); } return true; };
-const okG = a => { if (!Array.isArray(a) || a.length > 32) return no('g'); for (const g of a) if (!Array.isArray(g) || g.length !== 3 || !isI(g[0], 1, I31) || typeof g[1] !== 'string' || g[1].length !== 1 || 'fhrw'.indexOf(g[1]) < 0 || !isI(g[2], -9999, 9999) || (g[1] === 'f' && !isI(g[2], 1, KMAX))) return no('g.item'); return true; };
+const okG = a => { if (!Array.isArray(a) || a.length > 32) return no('g'); for (const g of a) if (!Array.isArray(g) || g.length !== 3 || !isI(g[0], 1, I31) || typeof g[1] !== 'string' || g[1].length !== 1 || 'fhrwo'.indexOf(g[1]) < 0 || !isI(g[2], -9999, 9999) || (g[1] === 'f' && !isI(g[2], 1, KMAX))) return no('g.item'); return true; };
 const TXT = /[\u0000-\u001f\u007f<>\\"`]/g, TXT1 = new RegExp(TXT.source); /* sticker text ('Zzz...', 'TEAM TOSS!', '♥') is only ever drawn on a canvas */
 const okArg = v => (typeof v === 'number' && isI(v, -1e7, 1e7)) || (typeof v === 'string' && v.length <= 24 && !TXT1.test(v));
 const okEv = a => { if (!Array.isArray(a) || a.length > 48) return no('ev'); for (const e of a) { if (!Array.isArray(e) || e.length < 2 || e.length > 8 || !isI(e[0], 1, I31) || typeof e[1] !== 'string' || !/^[A-Z]$/.test(e[1])) return no('ev.item'); for (let i = 2; i < e.length; i++) if (!okArg(e[i])) return no('ev.arg'); } return true; };
@@ -34,8 +36,9 @@ const valid = {
     if (!o || typeof o !== 'object' || o.k !== 's') return no('k');
     fill(o, ['e', 'b', 'i', 'g', 'ev']); /* empty arrays may be left out */
     if (o.df === undefined) o.df = 1; /* difficulty: MEDIUM if a host leaves it out */
+    if (o.lv !== undefined && !isI(o.lv, 0, 9)) return no('lv'); /* team lives: optional (off on EASY / MEDIUM) */
     return (isI(o.v, 0, 999) || no('v')) && (isI(o.df, 0, 2) || no('df')) && (isI(o.run, 0, 1e9) || no('run')) && (isI(o.p, 0, 1) || no('p')) && (isI(o.t, 0, I31) || no('t')) &&
-      (isI(o.sk, 0, I31) || no('sk')) && (isI(o.st, 0, 2) || no('st')) && (isI(o.ph, 0, 4) || no('ph')) && (isI(o.sc, 0, I31) || no('sc')) &&
+      (isI(o.sk, 0, I31) || no('sk')) && (isI(o.st, 0, 2) || no('st')) && (isI(o.ph, 0, 5) || no('ph')) && (isI(o.sc, 0, I31) || no('sc')) &&
       (isI(o.bk, 0, 1e7) || no('bk')) && (isI(o.bm, 0, 1e6) || no('bm')) && okShip(o.h, 'h') &&
       okFlat(o.e, 6, 48, E_R, 'e') && okFlat(o.b, 3, C.MAX_EBUL + 16, B_R, 'b') && okFlat(o.i, 6, C.MAX_FRUIT + 4, F_R, 'i') && okG(o.g) && okEv(o.ev) &&
       (isI(o.ht, -1, I31) || no('ht')) && (isI(o.hh, 0, 600000) || no('hh'));
@@ -207,7 +210,7 @@ addEventListener('message', e => {
 /* ---------- BB.Net ---------- */
 const Net = BB.Net = {
   mode: 'solo', role: null, me: '', opp: '', rtt: 0, lastIn: 0, verBad: 0, debug: /[?&]debug=1/.test(location.search),
-  F: { FIRE: 1, CHARGE: 2, BLINK: 4, DOWN: 8, HIDDEN: 16, STAR: 32 },
+  F: { FIRE: 1, CHARGE: 2, BLINK: 4, DOWN: 8, HIDDEN: 16, STAR: 32, OUT: 64 },
   valid, Interp, stats: S,
   init(c) { cb = c || {}; while (early.length) { const [m, at] = early.shift(); handle(m, at); } },
   sendEvery() { return this.mode === 'ably' ? N.everyAbly : N.everyRtc; },
@@ -227,7 +230,7 @@ const Net = BB.Net = {
   interp(kind) { const it = new Interp(1, 1); it.kind = kind === 'ship' ? 'ship' : 'view'; setRange(it); regs.push(it); if (regs.length > 8) regs.shift(); return it; },
   silence(t) { return (t == null ? now() : t) - this.lastIn; },
   meter() { return this.mode + (this.rtt ? ' ' + Math.round(this.rtt) + ' ms' : '') + (S.rate ? ' · ' + S.rate : '') + (S.bad ? ' · bad ' + S.bad : '') + (S.fixed ? ' · fixed ' + S.fixed : ''); },
-  /* grants: power-ups, heart gifts, revives and rainbows for the guest, repeated until acked */
+  /* grants: power-ups, heart gifts, revives, rainbows and OUT for the guest, repeated until acked */
   grants: {
     seq: 0, list: [], ga: 0,
     add(code, arg) { const s = ++this.seq; this.list.push([s, code, arg | 0]); if (this.list.length > 32) this.list.shift(); return s; },
@@ -269,15 +272,15 @@ const Net = BB.Net = {
     }
   },
   /* the ship pack, 12 ints: [x4, y4, f, hp, sh, bd, sp, wp, ch, bub, sn, sl] (clamped to what valid.* accepts); wp = wt*5 + power.
-     f bit 32 (super star) comes from the ship's own f, like the other flags */
+     f bit 32 (super star) and bit 64 (OUT) come from the ship's own f, like the other flags */
   pack(s) {
     const r = Math.round, pw = s.power != null ? s.power : s.spread; /* a v1-style ship (spread only) packs as pea + power */
-    return [clamp(r(s.x * 4) || 0, -800, 1800), clamp(r(s.y * 4) || 0, -800, 2000), (s.f | 0) & 63, clamp(s.hp | 0, 0, 9), clamp(s.shield | 0, 0, 3), clamp(s.buddies | 0, 0, 2),
+    return [clamp(r(s.x * 4) || 0, -800, 1800), clamp(r(s.y * 4) || 0, -800, 2000), (s.f | 0) & 127, clamp(s.hp | 0, 0, 9), clamp(s.shield | 0, 0, 3), clamp(s.buddies | 0, 0, 2),
       clamp(s.spd | 0, 0, 2), clamp(s.wt | 0, 0, NWT - 1) * NPW + clamp(pw | 0, 0, NPW - 1), clamp(r(s.charge || 0), 0, 60), clamp(s.bub | 0, 0, 99999), (s.sn | 0) & I31, clamp(s.sl | 0, 0, 2)];
   },
   unpack(a, o) {
     o = o || {}; o.x = a[0] / 4; o.y = a[1] / 4; o.f = a[2]; o.hp = a[3]; o.shield = a[4]; o.buddies = a[5]; o.spd = a[6]; o.wt = (a[7] / NPW) | 0; o.power = o.spread = a[7] % NPW; o.charge = a[8]; o.bub = a[9]; o.sn = a[10]; o.sl = a[11];
-    o.firing = !!(a[2] & 1); o.charging = !!(a[2] & 2); o.blink = !!(a[2] & 4); o.down = !!(a[2] & 8); o.hidden = !!(a[2] & 16); o.star = !!(a[2] & 32); return o;
+    o.firing = !!(a[2] & 1); o.charging = !!(a[2] & 2); o.blink = !!(a[2] & 4); o.down = !!(a[2] & 8); o.hidden = !!(a[2] & 16); o.star = !!(a[2] & 32); o.out = !!(a[2] & 64); return o;
   }
 };
 })();
