@@ -34,7 +34,7 @@ function shadowOff(n,H){const d=sunAt(n),k=d.dot(n);return d.clone().addScaledVe
 function nearest(r,n){let bs=null,bd=-2;for(const sm of r.samples){const d=n.dot(sm.n);if(d>bd){bd=d;bs=sm;}}return bs;}
 /* metres beyond a road's pavement (negative: on it) */
 function roadDist(n,roads){let best=1e9;for(const r of roads){const bs=nearest(r,n);if(!bs)continue;const dv=n.clone().sub(bs.n);const lat=Math.abs(dv.dot(bs.side))*R,al=Math.abs(dv.dot(bs.t))*R;const edge=r.kerb+2.15;const d=(al>1.2&&!r.closed)?Math.hypot(Math.max(0,lat-edge),al):lat-edge;if(d<best)best=d;}return best;}
-function solidHit(n,pad){const p=n.clone().multiplyScalar(R);for(const s of solids){if(Math.abs(s.c.x-p.x)>14||Math.abs(s.c.y-p.y)>14||Math.abs(s.c.z-p.z)>14)continue;const d=p.clone().sub(s.c);if(s.r!==undefined){d.addScaledVector(n,-d.dot(n));if(d.length()<s.r+pad)return true;continue;}if(Math.abs(d.dot(s.X))<s.hx+pad&&Math.abs(d.dot(s.Z))<s.hz+pad)return true;}return false;}
+function solidHit(n,pad){const A=window.__arcade;if(A&&A.covers&&A.covers(n,pad))return true; /* the walk-in arcade has walls, not one solid block */const p=n.clone().multiplyScalar(R);for(const s of solids){if(Math.abs(s.c.x-p.x)>14||Math.abs(s.c.y-p.y)>14||Math.abs(s.c.z-p.z)>14)continue;const d=p.clone().sub(s.c);if(s.r!==undefined){d.addScaledVector(n,-d.dot(n));if(d.length()<s.r+pad)return true;continue;}if(Math.abs(d.dot(s.X))<s.hx+pad&&Math.abs(d.dot(s.Z))<s.hz+pad)return true;}return false;}
 const doorNear=(n,r)=>typeof DOORS!=='undefined'&&DOORS.some(d=>Math.acos(Math.min(1,n.dot(d.n)))*R<r);
 
 /* ---------- merged meshes: one per material ---------- */
@@ -866,22 +866,6 @@ function zSound(t){const ctx=G.audio&&G.audio();const me=G.player&&G.player();if
       for(const nm of notes){const src=ctx.createBufferSource();src.buffer=zPluck(ctx,NOTE(nm),k==='beach');const g=ctx.createGain();g.gain.value=(nm===bar[0]&&st%8===0?.9:.55)*(.85+Math.random()*.3);src.connect(g);g.connect(zAudio.gain[k]);src.start(zAudio.next[k]+(Math.random()*.012));}
       zAudio.next[k]+=spb*(st%2?.92:1.08);}}} /* a little swing */
 
-/* ---------- the arcade by the skate park: two Tyrian cabinets on the lawn beside the park's entrance ---------- */
-function paintCabinetScreen(){const c=canvas(256,256),g=c.getContext('2d');g.fillStyle='#05040c';g.fillRect(0,0,256,256);for(let i=0;i<70;i++){g.fillStyle=`rgba(255,255,255,${.3+Math.random()*.7})`;g.fillRect(Math.random()*256,Math.random()*256,1.5,1.5);}
-  g.fillStyle='#d9a441';g.font='italic 900 46px Georgia,serif';g.textAlign='center';g.fillText('TYRIAN',128,78);g.fillStyle='#7fc4c9';g.font='700 15px monospace';g.fillText('PRESS START',128,226);
-  g.fillStyle='#cfd6dc';g.beginPath();g.moveTo(128,128);g.lineTo(116,166);g.lineTo(128,158);g.lineTo(140,166);g.closePath();g.fill();g.fillStyle='#ff7a1a';g.fillRect(124,166,8,10);return texOf(c);}
-function paintMarquee(){const c=canvas(256,64),g=c.getContext('2d');const gr=g.createLinearGradient(0,0,256,0);gr.addColorStop(0,'#7b2fbf');gr.addColorStop(1,'#d9483b');g.fillStyle=gr;g.fillRect(0,0,256,64);g.fillStyle='#fff4c0';g.font='900 34px "Hiragino Sans","Noto Sans JP",sans-serif';g.textAlign='center';g.textBaseline='middle';g.fillText('ARCADE · TYRIAN',128,34,240);return texOf(c);}
-function arcade(){const F=zFrame({lon:3.548,lat:.05});const res={cleared:zClear(F.n,2)};const face=F.e.clone().negate();
-  const scr=new T.MeshBasicMaterial({map:paintCabinetScreen()}),mq=new T.MeshBasicMaterial({map:paintMarquee()});
-  for(const [k,col,side] of [[-.45,0x2b2340,0x7b2fbf],[.45,0x1f3550,0x2d7fb8]]){const n=F.at(0,k);const m=basisM(n,face);const X0=new T.Vector3().crossVectors(n,face).normalize();let gl=gAt(n);for(const [a_,b_] of [[-.4,-.4],[.4,-.4],[-.4,.4],[.4,.4]])gl=Math.min(gl,gAt(tn(n,X0.clone().multiplyScalar(a_).addScaledVector(face,b_))));m.setPosition(n.clone().multiplyScalar(gl-.02));const kk=kit(m); /* on the lowest corner: no floating on the bank */
-    kk.box(.74,.5,.7,col,0,-.2,0).box(.74,1.05,.7,col,0,.52,0).box(.74,.75,.42,col,0,1.42,-.14).box(.78,.06,.74,0x111018,0,1.83,-.05);
-    kk.box(.7,.12,.34,0x3a3348,0,1.05,.2,0,.35).cyl(.018,.018,.12,0x222222,-.16,1.15,.22,6).cyl(.04,.04,.03,0xd9483b,-.16,1.22,.22,8);for(let i=0;i<3;i++)kk.cyl(.028,.028,.02,[0xf4c945,0x7fc4c9,0x9fe0a8][i],.02+i*.09,1.12,.23,8);
-    kk.box(.06,1.86,.72,side,-.37,.93,-.02).box(.06,1.86,.72,side,.37,.93,-.02);
-    const sp=new T.Mesh(new T.PlaneGeometry(.6,.5),scr);sp.applyMatrix4(mul(m,mRot(0,1.45,.08,0,-.25)));sp.userData.noInk=true;scene.add(sp);
-    const mm=new T.Mesh(new T.PlaneGeometry(.7,.18),mq);mm.applyMatrix4(mul(m,mRot(0,1.95,.08)));mm.userData.noInk=true;scene.add(mm);
-    const X=new T.Vector3().crossVectors(n,face).normalize();solids.push({c:n.clone().multiplyScalar(R),X,Z:face.clone().addScaledVector(n,-face.dot(n)).normalize(),hx:.4,hz:.4,top:1.9});
-    const dn=tn(n,face.clone().multiplyScalar(.95));G.DOORS.push({n:dn,w:dn.clone().multiplyScalar(gAt(dn)),inw:face.clone().negate(),act:{kind:'tyrian',title:'Tyrian',label:'Play Tyrian'},key:'tyrian'});}
-  res.ok=true;return res;}
 /* ---------- the model trees (thin relief meshes that look flat side-on) become painted trees, same place, same height ---------- */
 function treeSwap(){const keep=sd_;sd_=9090+(window.DRESS.treesSwapped||0);let k=0;const list=[];for(const o of scene.children)if(o.isGroup&&o.userData.tree&&!o.userData.tree.done)list.push(o);
   list.sort((a,b)=>a.position.x-b.position.x||a.position.z-b.position.z); /* a fixed order, so the same crowns come out every visit */
@@ -904,7 +888,6 @@ function build(){if(built)return;built=true;const t=performance.now();setup();{c
   for(const p of (P[PROTO.build]||[]))for(const b of [...(window.BLDGS||[])].sort((a,c)=>a.inst.position.x-c.inst.position.x||a.inst.position.z-c.inst.position.z)){const [x0,x1,,z1]=b.foot;const pts=[V3(x0*.8+x1*.2,Math.min(b.top*.66,5.2)/b.sc,z1+.05/b.sc),V3(x0*.2+x1*.8,Math.min(b.top*.62,5)/b.sc,z1+.05/b.sc)].map(v=>b.inst.localToWorld(v));for(const q of pts){const d=q.distanceTo(p.drop);if(d<11&&d>2&&ch(.6)){cable(p.drop,q,.35+d*.03,.01,0x2d353c);WIRE.add(new T.BoxGeometry(.1,.1,.06),new T.Matrix4().setPosition(q),0x6d7478);}}}
   if(STAIR){sd_=313;window.DRESS.stair=buildStair(STAIR);}
   if(!/[?&]s2=0\b/.test(location.search)){sd_=2002;try{s2Setup();window.DRESS.s2=street02(S2CFG);}catch(e){window.DRESS.s2err=String(e&&e.stack||e);console.warn('street 02',e);}} /* Street 02 can never stop Street 01 from building */sd_=PROTO.lawn.seed;window.DRESS.lawns=lawns(PROTO.lawn);
-  try{window.DRESS.arcade=arcade();}catch(e){window.DRESS.aerr=String(e&&e.stack||e);console.warn('arcade',e);}
   try{window.DRESS.zones=zones();}catch(e){window.DRESS.zerr=String(e&&e.stack||e);console.warn('zones',e);}
   treeSwap();for(const ms of [3000,9000,20000,40000])setTimeout(()=>{treeSwap();flushAll();},ms); /* trees still loading come in later */
   flushAll();window.DRESS.info={ms:Math.round(performance.now()-t),buildings:nb,cover:gc,bills:BILLS.map(b=>[b.name,b.list.length]),verts:BUCKETS.map(b=>[b.name,b.P.length/3])};console.log('dress: built',JSON.stringify(window.DRESS.info));}
