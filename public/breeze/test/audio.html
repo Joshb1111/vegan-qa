@@ -1,0 +1,125 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Berry Breeze audio test</title>
+<style>
+body{font:14px/1.4 system-ui,sans-serif;margin:16px;background:#fff8ee;color:#2b2140}
+h1{font-size:18px;margin:0 0 4px} h2{font-size:15px;margin:18px 0 6px}
+button{font:inherit;margin:2px;padding:4px 9px;border:2px solid #2b2140;border-radius:9px;background:#fff;cursor:pointer}
+button.on{background:#ffd93b}
+table{border-collapse:collapse;font:12px ui-monospace,monospace} td,th{padding:2px 8px;border-bottom:1px solid #e6dccc;text-align:right} td:first-child,th:first-child{text-align:left}
+.ok{color:#178a3a;font-weight:600}.bad{color:#c0262f;font-weight:600}.note{color:#7a6a8a;font-size:12px}
+input[type=range]{width:160px;vertical-align:middle}
+</style></head><body>
+<h1>Berry Breeze — audio test</h1>
+<div class="note">Live buttons make sound (click to unlock). <a href="?offline=1">?offline=1</a> renders everything silently into an OfflineAudioContext and prints peak/RMS (add &amp;wav=0 to skip the WAV export, &amp;long=1 for a slow 3-minute stage render).</div>
+<div id="checks"></div>
+<div id="live">
+<h2>Sounds</h2><div id="sfx"></div>
+<div>bump n: <input id="bn" type="range" min="0" max="12" value="0"> <span id="bnv">0</span>
+ · charge: <input id="ch" type="range" min="0" max="60" value="0"> <button id="chs">charge off</button>
+ · <button id="mute">mute</button> <button id="hid">hidden</button></div>
+<h2>Music</h2><div id="mus"></div>
+</div>
+<div id="off"></div>
+<script src="../audio.js"></script>
+<script>
+'use strict';
+const $ = id => document.getElementById(id), Q = new URLSearchParams(location.search), A = BB.Audio;
+const checks = [];
+function check(name, ok, info) { checks.push([name, ok, info]); $('checks').innerHTML = '<h2>Checks</h2>' + checks.map(([n, o, i]) => `<div><span class="${o ? 'ok' : 'bad'}">${o ? 'PASS' : 'FAIL'}</span> ${n} <span class="note">${i || ''}</span></div>`).join(''); }
+
+// 1) API is a no-op before unlock (no AudioContext is created here)
+try { A.music('title'); A.play('pop'); A.play('bump', 3); A.charge(40); A.charge(null); A.mute(false); A.hidden(true); A.hidden(false); A.music(null); check('API calls before unlock() do nothing and do not throw', A.ready === false); }
+catch (e) { check('API calls before unlock()', false, e.message); }
+// 2) audio.js with no WebAudio at all must not throw
+fetch('../audio.js').then(r => r.text()).then(src => {
+  const win = { location: { search: '' } };
+  try { new Function('window', src)(win); const X = win.BB.Audio; X.unlock(); X.music('stage', 1); X.play('pop'); X.charge(20); X.charge(null); X.mute(true); X.hidden(true); X.hidden(false);
+    check('No WebAudio: every call is a silent no-op', X.ready === false); }
+  catch (e) { check('No WebAudio', false, e.message); }
+});
+
+// ---------- live buttons (for Josh; tests never press these) ----------
+const bn = $('bn'); bn.oninput = () => $('bnv').textContent = bn.value;
+for (const n of A.SFX_NAMES) { const b = document.createElement('button'); b.textContent = n; b.onclick = () => { A.unlock(); A.play(n, n === 'bump' ? +bn.value : n === 'pop' ? 1 : undefined); }; $('sfx').append(b); }
+let charging = false;
+$('ch').oninput = () => { A.unlock(); charging = true; A.charge(+$('ch').value); };
+$('chs').onclick = () => { charging = false; A.charge(null); };
+let muted = false, hidden = false;
+$('mute').onclick = e => { muted = !muted; e.target.classList.toggle('on', muted); A.mute(muted); };
+$('hid').onclick = e => { hidden = !hidden; e.target.classList.toggle('on', hidden); A.hidden(hidden); };
+for (const [label, name, v] of [['title / ending', 'title'], ['stage 1 (G)', 'stage', 0], ['stage 2 (F)', 'stage', 1], ['stage 3 (D)', 'stage', 2], ['boss', 'boss'], ['clear jingle', 'clear'], ['stop', null]]) {
+  const b = document.createElement('button'); b.textContent = label;
+  b.onclick = () => { A.unlock(); A.music(null); A.music(name, v); }; $('mus').append(b);
+}
+
+// ---------- offline renders (silent) ----------
+const SR = 44100;
+async function render(secs, fn) {
+  const ac = new OfflineAudioContext(1, Math.ceil(SR * secs), SR), I = A._render(ac);
+  fn(I, .02);
+  const buf = await ac.startRendering(), d = buf.getChannelData(0);
+  let peak = 0, sum = 0, first = -1, last = 0, nan = false, clip = 0;
+  for (let i = 0; i < d.length; i++) { const x = d[i]; if (x !== x) { nan = true; continue; } const v = Math.abs(x); if (v > peak) peak = v; sum += v * v; if (v > .001) { if (first < 0) first = i; last = i; } if (v >= .999) clip++; }
+  const n = Math.max(1, last - Math.max(0, first) + 1);
+  return { peak, rms: Math.sqrt(sum / n), ms: first < 0 ? 0 : Math.round((last - first) / SR * 1000), nan, clip, dropped: I.dropped, data: d };
+}
+const db = v => (20 * Math.log10(v || 1e-9)).toFixed(1);
+function wav(d) {
+  const b = new ArrayBuffer(44 + d.length * 2), v = new DataView(b), w = (o, s) => { for (let i = 0; i < s.length; i++) v.setUint8(o + i, s.charCodeAt(i)); };
+  w(0, 'RIFF'); v.setUint32(4, 36 + d.length * 2, true); w(8, 'WAVEfmt '); v.setUint32(16, 16, true); v.setUint16(20, 1, true); v.setUint16(22, 1, true);
+  v.setUint32(24, SR, true); v.setUint32(28, SR * 2, true); v.setUint16(32, 2, true); v.setUint16(34, 16, true); w(36, 'data'); v.setUint32(40, d.length * 2, true);
+  for (let i = 0; i < d.length; i++) v.setInt16(44 + i * 2, Math.max(-1, Math.min(1, d[i])) * 32767, true);
+  return new Blob([b], { type: 'audio/wav' });
+}
+async function offline() {
+  $('live').style.display = 'none';
+  const rows = [], res = window.__res = { sfx: {}, music: {}, mix: {} };
+  const row = (group, name, r) => { rows.push([group, name, r]); $('off').innerHTML = '<h2>Offline renders (peak / RMS over the audible part, dBFS)</h2><table><tr><th>item</th><th>peak</th><th>peak dB</th><th>RMS dB</th><th>ms</th><th>clipped</th><th>dropped</th></tr>' +
+    rows.map(([g, n, r]) => `<tr><td>${g} ${n}</td><td>${r.peak.toFixed(3)}</td><td>${db(r.peak)}</td><td>${db(r.rms)}</td><td>${r.ms}</td><td>${r.clip}</td><td>${r.dropped}</td></tr>`).join('') + '</table>'; };
+  const keep = r => ({ peak: +r.peak.toFixed(4), peakDb: +db(r.peak), rmsDb: +db(r.rms), ms: r.ms, nan: r.nan, clip: r.clip, dropped: r.dropped });
+  let anyNaN = false, silent = [];
+  // every sound effect
+  for (const n of A.SFX_NAMES) {
+    const args = n === 'bump' ? [0, 6, 12] : [n === 'pop' ? 1 : undefined];
+    for (const a of args) {
+      const r = await render(2, (I, t) => I.play(n, a, t)), key = n + (n === 'bump' ? a : '');
+      res.sfx[key] = keep(r); row('sfx', key, r); anyNaN = anyNaN || r.nan; if (r.peak < .005) silent.push(key);
+    }
+  }
+  // charge: rises 0→60 over 1 s (one call per tick), holds full 0.6 s, then released
+  { const r = await render(2, (I, t) => { for (let k = 0; k <= 96; k++) I.charge(Math.min(60, k), t + k / 60); I.charge(null, t + 1.6); });
+    res.sfx.charge = keep(r); row('sfx', 'charge 0→60', r); }
+  check('Shot peak ≤ 0.05', res.sfx.shot.peak <= .05, 'shot peak ' + res.sfx.shot.peak);
+  check('Every sound renders (no silent sound, no NaN)', !silent.length && !anyNaN, silent.join(' '));
+  // music: ~20 s of each looping piece, the whole jingle
+  const pieces = [['title', 'title', 0, 20], ['stage0', 'stage', 0, 20], ['stage1', 'stage', 1, 20], ['stage2', 'stage', 2, 20], ['boss', 'boss', 0, 20], ['clear', 'clear', 0, 5]];
+  const doWav = Q.get('wav') !== '0';
+  for (const [key, name, v, secs] of pieces) {
+    const r = await render(secs, (I, t) => { I.music(name, v, t); I.schedule(t, secs); });
+    res.music[key] = keep(r); row('music', key, r); anyNaN = anyNaN || r.nan;
+    if (doWav) await fetch('/__shot?name=bb-audio-' + key + '.wav', { method: 'POST', body: wav(r.data) }).then(x => res.music[key].wav = x.status).catch(e => res.music[key].wav = String(e));
+  }
+  check('Clear jingle stops on its own', res.music.clear.ms < 4500, res.music.clear.ms + ' ms');
+  // optional: 3 minutes of stage 1 (breather passes etc.) stays clean; slow, so only with &long=1
+  if (Q.get('long') === '1') { const r = await render(180, (I, t) => { I.music('stage', 0, t); I.schedule(t, 180); }); res.music.stage0_3min = keep(r); row('music', 'stage0 3 min', r); }
+  // auto-fire over music: 2 players' shots every 100 ms for 4 s (rate limiter lets ~1 per 75 ms through)
+  { const r = await render(5, (I, t) => { I.music('stage', 0, t); I.schedule(t, 5); for (let k = 0; k < 40; k++) { I.play('shot', 0, t + .5 + k * .1); I.play('shot', 0, t + .52 + k * .1); } });
+    res.mix.autofire = keep(r); row('mix', 'music + auto-fire', r); }
+  // stress: 30 pops + 10 bumps at once on top of the boss music, plus a popBig and a warning
+  const stress = noLimits => render(4, (I, t) => {
+    I.noLimits = noLimits; I.music('boss', 0, t); I.schedule(t, 4);
+    for (let k = 0; k < 30; k++) I.play('pop', 1 + (k % 5) * .1, t + 1 + (k % 3) * .001);
+    for (let k = 0; k < 10; k++) I.play('bump', k, t + 1);
+    I.play('popBig', 0, t + 1.01); I.play('warning', 0, t + 1.02); I.play('hurt', 0, t + 1.03);
+  });
+  { const r = await stress(false); res.mix.stress = keep(r); row('mix', 'stress (game limits)', r);
+    const r2 = await stress(true); res.mix.stressRaw = keep(r2); row('mix', 'stress (rate limits off, voice cap on)', r2);
+    check('Stress: 30 pops + 10 bumps + music never clips', r.peak < .99 && r2.peak < .99 && !r.clip && !r2.clip, 'peaks ' + r.peak.toFixed(3) + ' / ' + r2.peak.toFixed(3)); }
+  // mute ramps the master to silence
+  { const r = await render(2, (I, t) => { I.setMute(true, t); I.music('stage', 0, t); I.schedule(t, 2); I.play('pop', 1, t + .5); }); res.mix.muted = keep(r); row('mix', 'muted', r); check('Muted renders silent', r.peak < .001, 'peak ' + r.peak.toFixed(5)); }
+  check('No NaN in any render', !anyNaN);
+  res.done = true;
+}
+if (Q.get('offline') === '1') offline().catch(e => { check('offline run', false, e.message); window.__res = { error: e.message }; });
+</script></body></html>

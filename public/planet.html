@@ -1998,7 +1998,8 @@ function enterHouse(act){if(houseOn||!act)return;houseOn=true;paused=true;for(co
   else if(act.kind==='talk')houseStop=talkRoom(body,act,showPage);
   else if(act.kind==='fruit')houseStop=fruitGame(body);
   else if(act.kind==='shop')houseStop=shopRoom(body);
-  else if(act.kind==='tyrian')houseStop=tyrianRoom(body);}
+  else if(act.kind==='tyrian')houseStop=tyrianRoom(body);
+  else if(act.kind==='breeze'&&window.breezeRoom)houseStop=breezeRoom(body,{duelFind,duelSend,duelCancel,duelLeave,DUEL,LIVE,MP,me:myName,musicOn});}
 function closeHouse(){if(!houseOn)return;if(houseStop){try{houseStop();}catch(_){}}houseStop=null;$('#house-body').innerHTML='';$('#house').hidden=true;houseOn=false;paused=false;shownN=undefined;game.focus();}
 /* A talk room: a lounge with a television. Kofi reads a short piece taken from the house's page, and the screen shows
    each word as he says it. Audio and word timings come from /api/narrate (ElevenLabs, cached) or the baked copies in
@@ -2639,5 +2640,6 @@ $('#ask').addEventListener('submit',e=>{e.preventDefault();ask(q.value);});
 })();
 </script>
 <script src="planet-dress.js?v=11"></script>
+<script src="breeze-room.js?v=1"></script>
 </body>
 </html>
