@@ -17,7 +17,7 @@ input[type=range]{width:160px;vertical-align:middle}
 <h2>Sounds</h2><div id="sfx"></div>
 <div>bump n: <input id="bn" type="range" min="0" max="12" value="0"> <span id="bnv">0</span>
  · charge: <input id="ch" type="range" min="0" max="60" value="0"> <button id="chs">charge off</button>
- · <button id="mute">mute</button> <button id="hid">hidden</button></div>
+ · <button id="mute">mute</button> <button id="musoff">music off</button> <button id="hid">hidden</button></div>
 <h2>Music</h2><div id="mus"></div>
 </div>
 <div id="off"></div>
@@ -29,12 +29,16 @@ const checks = [];
 function check(name, ok, info) { checks.push([name, ok, info]); $('checks').innerHTML = '<h2>Checks</h2>' + checks.map(([n, o, i]) => `<div><span class="${o ? 'ok' : 'bad'}">${o ? 'PASS' : 'FAIL'}</span> ${n} <span class="note">${i || ''}</span></div>`).join(''); }
 
 // 1) API is a no-op before unlock (no AudioContext is created here)
-try { A.music('title'); A.play('pop'); A.play('bump', 3); A.charge(40); A.charge(null); A.mute(false); A.hidden(true); A.hidden(false); A.music(null); check('API calls before unlock() do nothing and do not throw', A.ready === false); }
+try { A.music('title'); A.play('pop'); A.play('bump', 3); A.play('super'); A.charge(40); A.charge(null); A.mute(false); A.hidden(true); A.hidden(false); A.music(null); check('API calls before unlock() do nothing and do not throw', A.ready === false); }
 catch (e) { check('API calls before unlock()', false, e.message); }
+// 1b) musicOn before unlock: remembered, still no AudioContext
+try { const was = A.musicOn(); A.musicOn(false); const off = A.musicOn(); A.musicOn(true); const on = A.musicOn(); A.musicOn(was);
+  check('musicOn() before unlock is remembered and creates nothing', off === false && on === true && A.ready === false, 'off→' + off + ' on→' + on); }
+catch (e) { check('musicOn before unlock', false, e.message); }
 // 2) audio.js with no WebAudio at all must not throw
 fetch('../audio.js').then(r => r.text()).then(src => {
   const win = { location: { search: '' } };
-  try { new Function('window', src)(win); const X = win.BB.Audio; X.unlock(); X.music('stage', 1); X.play('pop'); X.charge(20); X.charge(null); X.mute(true); X.hidden(true); X.hidden(false);
+  try { new Function('window', src)(win); const X = win.BB.Audio; X.unlock(); X.music('stage', 1); X.play('pop'); X.charge(20); X.charge(null); X.mute(true); X.musicOn(false); X.music('boss', 2); X.play('weapon', 3); X.hidden(true); X.hidden(false);
     check('No WebAudio: every call is a silent no-op', X.ready === false); }
   catch (e) { check('No WebAudio', false, e.message); }
 });
@@ -47,8 +51,9 @@ $('ch').oninput = () => { A.unlock(); charging = true; A.charge(+$('ch').value);
 $('chs').onclick = () => { charging = false; A.charge(null); };
 let muted = false, hidden = false;
 $('mute').onclick = e => { muted = !muted; e.target.classList.toggle('on', muted); A.mute(muted); };
+$('musoff').onclick = e => { const off = A.musicOn(); e.target.classList.toggle('on', off); A.musicOn(!off); };
 $('hid').onclick = e => { hidden = !hidden; e.target.classList.toggle('on', hidden); A.hidden(hidden); };
-for (const [label, name, v] of [['title / ending', 'title'], ['stage 1 (G)', 'stage', 0], ['stage 2 (F)', 'stage', 1], ['stage 3 (D)', 'stage', 2], ['boss', 'boss'], ['clear jingle', 'clear'], ['stop', null]]) {
+for (const [label, name, v] of [['title / ending', 'title'], ['stage 1 (G)', 'stage', 0], ['stage 2 (F)', 'stage', 1], ['stage 3 (D)', 'stage', 2], ['boss 1 Clanky', 'boss', 0], ['boss 2 Thunderpuff', 'boss', 1], ['boss 3 Smoggins', 'boss', 2], ['clear jingle', 'clear'], ['stop', null]]) {
   const b = document.createElement('button'); b.textContent = label;
   b.onclick = () => { A.unlock(); A.music(null); A.music(name, v); }; $('mus').append(b);
 }
@@ -62,8 +67,10 @@ async function render(secs, fn) {
   let peak = 0, sum = 0, first = -1, last = 0, nan = false, clip = 0;
   for (let i = 0; i < d.length; i++) { const x = d[i]; if (x !== x) { nan = true; continue; } const v = Math.abs(x); if (v > peak) peak = v; sum += v * v; if (v > .001) { if (first < 0) first = i; last = i; } if (v >= .999) clip++; }
   const n = Math.max(1, last - Math.max(0, first) + 1);
-  return { peak, rms: Math.sqrt(sum / n), ms: first < 0 ? 0 : Math.round((last - first) / SR * 1000), nan, clip, dropped: I.dropped, data: d };
+  return { peak, rms: Math.sqrt(sum / n), ms: first < 0 ? 0 : Math.round((last - first) / SR * 1000), nan, clip, dropped: I.dropped, data: d, I };
 }
+// peak of a render between a and b seconds
+function peakIn(d, a, b) { let p = 0; for (let i = Math.floor(a * SR), e = Math.min(d.length, Math.floor(b * SR)); i < e; i++) { const v = Math.abs(d[i]); if (v > p) p = v; } return p; }
 const db = v => (20 * Math.log10(v || 1e-9)).toFixed(1);
 function wav(d) {
   const b = new ArrayBuffer(44 + d.length * 2), v = new DataView(b), w = (o, s) => { for (let i = 0; i < s.length; i++) v.setUint8(o + i, s.charCodeAt(i)); };
@@ -81,9 +88,9 @@ async function offline() {
   let anyNaN = false, silent = [];
   // every sound effect
   for (const n of A.SFX_NAMES) {
-    const args = n === 'bump' ? [0, 6, 12] : [n === 'pop' ? 1 : undefined];
+    const args = n === 'bump' ? [0, 6, 12] : n === 'weapon' ? [0, 4] : [n === 'pop' ? 1 : undefined];
     for (const a of args) {
-      const r = await render(2, (I, t) => I.play(n, a, t)), key = n + (n === 'bump' ? a : '');
+      const r = await render(2, (I, t) => I.play(n, a, t)), key = n + (n === 'bump' || n === 'weapon' ? a : '');
       res.sfx[key] = keep(r); row('sfx', key, r); anyNaN = anyNaN || r.nan; if (r.peak < .005) silent.push(key);
     }
   }
@@ -92,8 +99,13 @@ async function offline() {
     res.sfx.charge = keep(r); row('sfx', 'charge 0→60', r); }
   check('Shot peak ≤ 0.05', res.sfx.shot.peak <= .05, 'shot peak ' + res.sfx.shot.peak);
   check('Every sound renders (no silent sound, no NaN)', !silent.length && !anyNaN, silent.join(' '));
+  // every name the game calls exists (v1 list + v2 pickups); aliases resolve to a real sound
+  { const want = ['shot','hit','pop','popBig','bump','ripen','grab','power','shield','heart','gift','basket','hurt','bubble','revive','seedlet','sun','cancel','warning','zap','bossDown','clear','start','join','boing','select',
+      'super','superEnd','weapon','bubbleGet','powerMax'], miss = want.filter(n => A.SFX_NAMES.indexOf(n) < 0), badAl = Object.keys(A.ALIASES).filter(k => A.SFX_NAMES.indexOf(A.ALIASES[k]) < 0);
+    check('All v1 + v2 sound names exist', !miss.length && !badAl.length, (miss.concat(badAl).join(' ') || want.length + ' names, aliases ' + Object.keys(A.ALIASES).join(' '))); }
+  for (const n of ['super', 'superEnd', 'weapon0', 'weapon4', 'bubbleGet', 'powerMax']) if (res.sfx[n]) check('v2 sound ' + n + ' renders clean', res.sfx[n].peak > .005 && res.sfx[n].peak < .99 && !res.sfx[n].clip, 'peak ' + res.sfx[n].peak + ', ' + res.sfx[n].ms + ' ms');
   // music: ~20 s of each looping piece, the whole jingle
-  const pieces = [['title', 'title', 0, 20], ['stage0', 'stage', 0, 20], ['stage1', 'stage', 1, 20], ['stage2', 'stage', 2, 20], ['boss', 'boss', 0, 20], ['clear', 'clear', 0, 5]];
+  const pieces = [['title', 'title', 0, 20], ['stage0', 'stage', 0, 20], ['stage1', 'stage', 1, 20], ['stage2', 'stage', 2, 20], ['boss0', 'boss', 0, 20], ['boss1', 'boss', 1, 20], ['boss2', 'boss', 2, 20], ['clear', 'clear', 0, 5]];
   const doWav = Q.get('wav') !== '0';
   for (const [key, name, v, secs] of pieces) {
     const r = await render(secs, (I, t) => { I.music(name, v, t); I.schedule(t, secs); });
@@ -101,21 +113,47 @@ async function offline() {
     if (doWav) await fetch('/__shot?name=bb-audio-' + key + '.wav', { method: 'POST', body: wav(r.data) }).then(x => res.music[key].wav = x.status).catch(e => res.music[key].wav = String(e));
   }
   check('Clear jingle stops on its own', res.music.clear.ms < 4500, res.music.clear.ms + ' ms');
+  check('Music renders never clip', Object.keys(res.music).every(k => res.music[k].peak < .99 && !res.music[k].clip), Object.keys(res.music).map(k => k + ' ' + res.music[k].peak).join(', '));
+  check('Boss variants get busier (RMS 0 ≤ 1 ≤ 2 within 1 dB)', res.music.boss1.rmsDb >= res.music.boss0.rmsDb - 1 && res.music.boss2.rmsDb >= res.music.boss1.rmsDb - 1, ['boss0', 'boss1', 'boss2'].map(k => res.music[k].rmsDb + ' dB').join(' / '));
+  // ---- music off (sound effects stay on) ----
+  // a) music off from the start: the whole stage render is silent
+  { const r = await render(3, (I, t) => { I.setMusicOn(false, t); I.music('stage', 0, t); I.schedule(t, 3); }); res.mix.musicOff = keep(r); row('mix', 'stage, music off', r);
+    check('Music off: stage music renders silent', r.peak < .001, 'peak ' + r.peak.toFixed(5)); }
+  // b) music off + sfx: sfx render as loud as on their own (sfx bus untouched)
+  { const play = (I, t) => { I.play('pop', 1, t + .5); I.play('super', 0, t + 1); I.play('weapon', 2, t + 2); };
+    const r = await render(3, (I, t) => { I.setMusicOn(false, t); I.music('boss', 2, t); I.schedule(t, 3); play(I, t); }), r0 = await render(3, play);
+    res.mix.musicOffSfx = keep(r); row('mix', 'boss music off + sfx', r); row('mix', 'same sfx alone', r0);
+    check('Music off: sound effects still play at full level', r.peak > .005 && Math.abs(r.peak - r0.peak) < .02 * r0.peak + .002, 'with music off ' + r.peak.toFixed(4) + ' vs sfx alone ' + r0.peak.toFixed(4)); }
+  // c) toggled mid-song: on 0-1.5 s, off at 1.5 s (silent by 1.6 s), back on at 3 s and resumes in time (step count keeps running)
+  { let stepsAt3 = 0, nextAt3 = 0;
+    const r = await render(5, (I, t) => { I.music('stage', 0, t); I.schedule(t, 1.5); I.setMusicOn(false, 1.5); I.schedule(1.5, 3); stepsAt3 = I.seq.step; nextAt3 = I.seq.next; I.setMusicOn(true, 3); I.schedule(3, 5); });
+    const sd = 60 / 148 / 4, expect = Math.ceil((3 - .02) / sd - 1e-9), on1 = peakIn(r.data, .3, 1.5), off = peakIn(r.data, 1.6, 2.95), on2 = peakIn(r.data, 3.2, 5);
+    res.mix.toggle = { on1: +on1.toFixed(4), off: +off.toFixed(5), on2: +on2.toFixed(4), stepsAt3, expect };
+    row('mix', 'music on → off at 1.5 s → on at 3 s', r);
+    check('Music off fades to silence within 0.1 s (sequencer keeps its place)', on1 > .01 && off < .001 && on2 > .01 && stepsAt3 === expect, 'on ' + on1.toFixed(3) + ', off ' + off.toFixed(5) + ', on again ' + on2.toFixed(3) + ', steps at 3 s ' + stepsAt3 + ' (expected ' + expect + ')'); }
+  // d) the boss warning's music duck never brings music back while it is off
+  { const r = await render(5, (I, t) => { I.setMusicOn(false, t); I.music('stage', 1, t); I.schedule(t, 5); I.play('warning', 0, t + .5); });
+    const tail = peakIn(r.data, 2, 5); res.mix.musicOffWarning = { tail: +tail.toFixed(5) };
+    check('Music off: the warning duck does not restore music', tail < .001, 'peak after the warning ' + tail.toFixed(5)); }
+  // e) mute still silences everything with music on or off
+  { const r = await render(2, (I, t) => { I.setMusicOn(false, t); I.setMute(true, t); I.music('stage', 0, t); I.schedule(t, 2); I.play('super', 0, t + .5); }); check('Mute + music off: silent', r.peak < .001, 'peak ' + r.peak.toFixed(5)); }
   // optional: 3 minutes of stage 1 (breather passes etc.) stays clean; slow, so only with &long=1
   if (Q.get('long') === '1') { const r = await render(180, (I, t) => { I.music('stage', 0, t); I.schedule(t, 180); }); res.music.stage0_3min = keep(r); row('music', 'stage0 3 min', r); }
   // auto-fire over music: 2 players' shots every 100 ms for 4 s (rate limiter lets ~1 per 75 ms through)
   { const r = await render(5, (I, t) => { I.music('stage', 0, t); I.schedule(t, 5); for (let k = 0; k < 40; k++) { I.play('shot', 0, t + .5 + k * .1); I.play('shot', 0, t + .52 + k * .1); } });
     res.mix.autofire = keep(r); row('mix', 'music + auto-fire', r); }
   // stress: 30 pops + 10 bumps at once on top of the boss music, plus a popBig and a warning
-  const stress = noLimits => render(4, (I, t) => {
-    I.noLimits = noLimits; I.music('boss', 0, t); I.schedule(t, 4);
+  const stress = (noLimits, bv) => render(4, (I, t) => {
+    I.noLimits = noLimits; I.music('boss', bv | 0, t); I.schedule(t, 4);
     for (let k = 0; k < 30; k++) I.play('pop', 1 + (k % 5) * .1, t + 1 + (k % 3) * .001);
     for (let k = 0; k < 10; k++) I.play('bump', k, t + 1);
     I.play('popBig', 0, t + 1.01); I.play('warning', 0, t + 1.02); I.play('hurt', 0, t + 1.03);
+    I.play('super', 0, t + 1.04); I.play('weapon', 4, t + 1.05); I.play('bubbleGet', 0, t + 1.06); I.play('powerMax', 0, t + 1.07);
   });
   { const r = await stress(false); res.mix.stress = keep(r); row('mix', 'stress (game limits)', r);
     const r2 = await stress(true); res.mix.stressRaw = keep(r2); row('mix', 'stress (rate limits off, voice cap on)', r2);
-    check('Stress: 30 pops + 10 bumps + music never clips', r.peak < .99 && r2.peak < .99 && !r.clip && !r2.clip, 'peaks ' + r.peak.toFixed(3) + ' / ' + r2.peak.toFixed(3)); }
+    const r3 = await stress(true, 2); res.mix.stressBoss3 = keep(r3); row('mix', 'stress on boss 3 music (limits off)', r3);
+    check('Stress: 30 pops + 10 bumps + v2 pickups + music never clips', [r, r2, r3].every(x => x.peak < .99 && !x.clip), 'peaks ' + [r, r2, r3].map(x => x.peak.toFixed(3)).join(' / ')); }
   // mute ramps the master to silence
   { const r = await render(2, (I, t) => { I.setMute(true, t); I.music('stage', 0, t); I.schedule(t, 2); I.play('pop', 1, t + .5); }); res.mix.muted = keep(r); row('mix', 'muted', r); check('Muted renders silent', r.peak < .001, 'peak ' + r.peak.toFixed(5)); }
   check('No NaN in any render', !anyNaN);

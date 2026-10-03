@@ -12,15 +12,16 @@ function breezeRoom(body, ctx) {
   ctx = ctx || {};
   const el = document.createElement('div'); el.id = 'arcade'; body.appendChild(el);
   const ICE = { iceServers: [{ urls: 'stun:stun.l.google.com:19302' }, { urls: 'stun:stun1.l.google.com:19302' }] }, MAXMSG = 6000;
-  let frame = null, st = null, alive = true, ready = false, queue = [], muted = true, sndBtn = null, low = 0;
+  let frame = null, st = null, alive = true, ready = false, queue = [], muted = true, music = true, sndBtn = null, musBtn = null, low = 0, place = null, used = 0;
   const esc_ = t => String(t).replace(/[<>&"]/g, ''), nm = (s, d) => String(s || '').replace(/[^\w \-'.]/g, '').slice(0, 16) || d;
   const dSend = (n, d) => { try { if (ctx.duelSend) ctx.duelSend(n, d || {}); } catch (_) {} };
   const live = () => !!(ctx.LIVE && ctx.LIVE.on && ctx.LIVE.rt && ctx.duelFind);
   try { const v = localStorage.getItem('planet-breeze-mute'); muted = v === null ? !ctx.musicOn : v === '1'; } catch (_) { muted = !ctx.musicOn; }
+  try { music = localStorage.getItem('planet-breeze-music') !== '0'; } catch (_) {} /* v2: music on its own (sound effects stay), default on */
 
-  const dropFrame = () => { if (frame) { if (frame.__unf) frame.__unf(); frame.remove(); frame = null; } ready = false; queue = []; sndBtn = null; low = 0; };
-  const menu = msg => { dropFrame(); el.innerHTML = '<h3>BERRY BREEZE</h3><p class="sub">A cheerful sky shooter for one or two. W A S D or arrows to fly, it shoots by itself, hold SPACE for a sun seed. Two on one keyboard: start, then the second player holds ENTER.</p><div class="row"><button type="button" data-a="solo">Play</button><button type="button" class="alt" data-a="duo">Play with someone online</button></div><p class="msg">' + (msg || '') + '</p><p class="fine">An original game made for the planet · all art and music made in code</p>'; };
-  const toast = (text, ms) => { const t = document.createElement('div'); t.className = 'role'; t.textContent = text; if (low === 1) t.style.bottom = '54px'; el.appendChild(t); setTimeout(() => t.remove(), ms || 6000); };
+  const dropFrame = () => { if (frame) { if (frame.__unf) frame.__unf(); frame.remove(); frame = null; } ready = false; queue = []; sndBtn = musBtn = null; low = 0; place = null; used = 0; };
+  const menu = msg => { dropFrame(); el.innerHTML = '<h3>BERRY BREEZE</h3><p class="sub">A cheerful sky shooter for one or two. W A S D or arrows to fly, it shoots by itself, hold SPACE for a sun seed. Two on one keyboard: start, then the second player holds ENTER. Choose EASY, MEDIUM or HARD on the title screen.</p><div class="row"><button type="button" data-a="solo">Play</button><button type="button" class="alt" data-a="duo">Play with someone online</button></div><p class="msg">' + (msg || '') + '</p><p class="fine">An original game made for the planet · all art and music made in code</p>'; };
+  const toast = (text, ms) => { const t = document.createElement('div'); t.className = 'role'; t.textContent = text; if (low === 1) t.style.bottom = used + 8 + 'px'; el.appendChild(t); setTimeout(() => t.remove(), ms || 6000); };
 
   /* ---------- to the game: same origin only; queued until it says 'ready' (the last of each kind, the last 8 'net') ---------- */
   const toGame = m => {
@@ -29,36 +30,52 @@ function breezeRoom(body, ctx) {
     try { frame.contentWindow.postMessage(m, location.origin); } catch (_) {}
   };
   const linkMsg = () => ({ ty: 'link', role: st.host ? 'host' : 'guest', me: st.me, opp: st.opp, mode: st.mode, startIn: Math.max(0, st.startAt - (Date.now() + ((ctx.MP && ctx.MP.offset) || 0))) });
-  const showTag = () => { if (st && st.tag) st.tag.textContent = 'with ' + st.opp + (st.mode === 'rtc' ? ' · direct link' : ' · relayed') + (st.rtt ? ' · ' + st.rtt + ' ms' : ''); };
+  const showTag = () => { if (st && st.tag) st.tag.textContent = 'with ' + st.opp + (st.mode === 'rtc' ? ' · direct link' : ' · relayed') + (st.rtt ? ' · ' + st.rtt + ' ms' : ''); if (place) place(); }; /* its width changes: placed again */
   const setMode = mode => { if (!st || st.mode === mode) return; st.mode = mode; showTag(); toGame(linkMsg()); console.log('[breeze net] ' + mode); };
 
   const play = q => {
     window.__duck = 1; /* the game has its own music */
     dropFrame(); el.innerHTML = '';
-    frame = document.createElement('iframe'); frame.className = 'tyframe'; frame.title = 'Berry Breeze'; frame.src = 'breeze/index.html?v=1' + (q || ''); frame.allow = 'autoplay; fullscreen'; el.appendChild(frame);
+    frame = document.createElement('iframe'); frame.className = 'tyframe'; frame.title = 'Berry Breeze'; frame.src = 'breeze/index.html?v=2' + (q || ''); frame.allow = 'autoplay; fullscreen'; el.appendChild(frame);
     if (st) { const tag = document.createElement('div'); tag.className = 'net'; st.tag = tag; el.appendChild(tag); showTag(); }
     const SPK = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M4 9h4l5-4v14l-5-4H4z" fill="currentColor"/>';
     const btn = sndBtn = document.createElement('button'); btn.type = 'button'; btn.className = 'snd';
     btn.__show = post => { const w = muted ? 'Sound off' : 'Sound on'; btn.innerHTML = SPK + (muted ? '<path d="M17 9l5 6M22 9l-5 6"/>' : '<path d="M16.5 8.5a5 5 0 0 1 0 7M19.5 5.5a9 9 0 0 1 0 13"/>') + '</svg>' + (low === 2 ? '' : ' ' + w); btn.title = w; btn.setAttribute('aria-label', w); btn.setAttribute('aria-pressed', String(!muted)); if (post) toGame({ ty: 'mute', on: muted }); };
-    btn.addEventListener('click', e => { e.stopPropagation(); muted = !muted; try { localStorage.setItem('planet-breeze-mute', muted ? '1' : '0'); } catch (_) {} btn.__show(true); setTimeout(foc, 0); });
+    btn.addEventListener('click', e => { e.stopPropagation(); muted = !muted; try { localStorage.setItem('planet-breeze-mute', muted ? '1' : '0'); } catch (_) {} btn.__show(true); if (musBtn) musBtn.__show(false); setTimeout(foc, 0); });
     el.appendChild(btn); btn.__show(true); /* the game's sound on or off, remembered; the keyboard goes straight back to the game */
+    const mb = musBtn = document.createElement('button'); mb.type = 'button'; mb.className = 'snd';
+    mb.__show = post => { const w = music ? 'Music on' : 'Music off'; mb.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M9 17V5l10-2v12"/><circle cx="6.5" cy="17" r="2.5" fill="currentColor"/><circle cx="16.5" cy="15" r="2.5" fill="currentColor"/>' + (music ? '' : '<path d="M3 3l18 18" stroke-width="2.4"/>') + '</svg>' + (low === 2 ? '' : ' ' + w);
+      mb.title = w + (muted ? ' (all sound is off)' : ''); mb.setAttribute('aria-label', w); mb.setAttribute('aria-pressed', String(music)); mb.style.opacity = muted ? '.6' : ''; if (post) toGame({ ty: 'music', on: music }); if (place) place(); };
+    mb.addEventListener('click', e => { e.stopPropagation(); music = !music; try { localStorage.setItem('planet-breeze-music', music ? '1' : '0'); } catch (_) {} mb.__show(true); setTimeout(foc, 0); });
+    el.appendChild(mb); mb.__show(true); /* music only: the sound effects stay (dimmed while all sound is off) */
     const coarse = matchMedia('(pointer:coarse)').matches;
-    const place = () => { /* keep the button and the tag off the game's HUD (its top 30 px): where the 240x320 field fills the width (a portrait phone),
-                             they sit at the bottom, over the touch pad band or the letterbox (low 1), or as a small icon in the corner (low 2) */
-      if (frame !== f) return; const w = f.clientWidth, h = f.clientHeight, S = Math.min(w / 240, h / 320), pad = coarse && w <= h && h - 320 * S >= 120;
-      const lo = (w - 240 * S) / 2 >= 134 ? 0 : (pad ? h - 320 * S : (h - 320 * S) / 2) >= 44 ? 1 : 2, was = low; low = lo;
+    const pl = place = () => { /* keep the buttons and the tag off the game's HUD (its top 30 px). Side letterbox wide enough (low 0): the two buttons stacked
+                       top left, the tag top right. Where the 240x320 field fills the width (a portrait phone), they sit in a row at the bottom, over
+                       the touch pad band or the letterbox (low 1; the tag joins the row if it fits, else goes above it on the pad band or into the
+                       top letterbox band), or as small icons in the corner (low 2) */
+      if (frame !== f || !musBtn) return; const w = f.clientWidth, h = f.clientHeight, S = Math.min(w / 240, h / 320), pad = coarse && w <= h && h - 320 * S >= 120;
+      const band = pad ? h - 320 * S : (h - 320 * S) / 2, lo = (w - 240 * S) / 2 >= 134 ? 0 : band >= 44 ? 1 : 2, was = low; low = lo;
+      if (lo !== was) { btn.__show(false); mb.__show(false); return; } /* labels change with low: show() measures again and calls back here */
       Object.assign(btn.style, lo ? { top: 'auto', bottom: lo === 1 ? '8px' : '4px', left: lo === 1 ? '10px' : '4px', padding: lo === 1 ? '' : '4px' } : { top: '', bottom: '', left: '', padding: '' });
-      if (st && st.tag) Object.assign(st.tag.style, lo ? { top: 'auto', bottom: lo === 1 ? '10px' : '4px', left: lo === 1 ? '128px' : '', right: lo === 1 ? 'auto' : '', fontSize: lo === 1 ? '' : '12px', padding: '2px 8px', background: 'rgba(13,11,22,.8)', borderRadius: '6px' }
-        : { top: '', bottom: '', left: '', right: '', fontSize: '', padding: '', background: '', borderRadius: '' }); /* a dark pill (the pad band is pale), clear of the SEED button on the right */
-      if (lo !== was) btn.__show(false);
+      const bw = btn.offsetWidth || 100, bh = btn.offsetHeight || 30, mx = (lo === 1 ? 10 : 4) + bw + (lo === 1 ? 6 : 4);
+      Object.assign(mb.style, lo ? { top: 'auto', bottom: lo === 1 ? '8px' : '4px', left: mx + 'px', padding: lo === 1 ? '' : '4px' } : { top: 8 + bh + 6 + 'px', bottom: '', left: '', padding: '' });
+      used = lo === 1 ? 8 + bh : 0; const tag = st && st.tag; if (!tag) return;
+      if (!lo) { Object.assign(tag.style, { top: '', bottom: '', left: '', right: '', fontSize: '', padding: '', background: '', borderRadius: '' }); return; }
+      Object.assign(tag.style, { top: 'auto', bottom: lo === 1 ? '10px' : '4px', left: '', right: '', fontSize: lo === 1 ? '' : '12px', padding: '2px 8px', background: 'rgba(13,11,22,.8)', borderRadius: '6px' }); /* a dark pill (the pad band is pale) */
+      if (lo !== 1) return; /* low 2: bottom right (the stylesheet's right: 10px) */
+      const tx = mx + (mb.offsetWidth || 100) + 8, lim = pad ? w - (w - 240 * S) / 2 - 72 * S : w - 10; /* clear of the SEED button at the pad's right end */
+      if (tx + tag.offsetWidth <= lim) Object.assign(tag.style, { left: tx + 'px', right: 'auto' });
+      else if (pad && band >= bh + 8 + tag.offsetHeight + 8 + 4) { Object.assign(tag.style, { left: '10px', right: 'auto', bottom: 8 + bh + 8 + 'px' }); used += 8 + tag.offsetHeight; }
+      else if (!pad) Object.assign(tag.style, { top: Math.max(2, (band - tag.offsetHeight) / 2) + 'px', bottom: 'auto', left: '10px', right: 'auto' }); /* the top letterbox band is empty */
+      else Object.assign(tag.style, { left: '', right: '' });
     };
     const cm = document.createElement('div'); cm.className = 'clickme'; cm.textContent = 'Click the game to play'; cm.hidden = coarse; el.appendChild(cm); /* a frame only gets the keyboard once it has been clicked (or focused) */
     const f = frame, foc = () => { try { f.focus(); f.contentWindow.focus(); } catch (_) {} };
     f.addEventListener('load', () => setTimeout(foc, 200)); setTimeout(foc, 400);
     const onBlur = () => { if (document.activeElement === f) cm.hidden = true; }, onFocus = () => { if (f.isConnected && !coarse) cm.hidden = false; };
-    addEventListener('blur', onBlur); addEventListener('focus', onFocus); addEventListener('resize', place); place();
+    addEventListener('blur', onBlur); addEventListener('focus', onFocus); addEventListener('resize', pl); pl();
     if (st) toast(st.host ? 'You are Sprig, player 1. ' + st.opp + ' flies Marigold.' : 'You are Marigold, player 2. ' + st.opp + ' flies Sprig.', 9000); /* after place(): on a phone it sits above the button */
-    f.__unf = () => { removeEventListener('blur', onBlur); removeEventListener('focus', onFocus); removeEventListener('resize', place); };
+    f.__unf = () => { removeEventListener('blur', onBlur); removeEventListener('focus', onFocus); removeEventListener('resize', pl); };
     setTimeout(() => { if (document.activeElement === f) cm.hidden = true; }, 900);
   };
 
@@ -69,7 +86,8 @@ function breezeRoom(body, ctx) {
     if (m.ty === 'ready') { if (st) toGame(linkMsg()); if (!ready) { ready = true; const q = queue; queue = []; q.sort((x, y) => (x.ty === 'net') - (y.ty === 'net')); for (const x of q) toGame(x); } } /* the link first: the game ignores 'net' until it is linked */
     else if (m.ty === 'net') { if (st && typeof m.d === 'string' && m.d.length <= MAXMSG) send(m.d); }
     else if (m.ty === 'rtt') { if (st) { st.rtt = Math.max(0, Math.min(9999, m.ms | 0)); showTag(); } }
-    else if (m.ty === 'mute') { muted = !!m.on; try { localStorage.setItem('planet-breeze-mute', muted ? '1' : '0'); } catch (_) {} if (sndBtn) sndBtn.__show(false); }
+    else if (m.ty === 'mute') { muted = !!m.on; try { localStorage.setItem('planet-breeze-mute', muted ? '1' : '0'); } catch (_) {} if (sndBtn) sndBtn.__show(false); if (musBtn) musBtn.__show(false); }
+    else if (m.ty === 'music') { music = !!m.on; try { localStorage.setItem('planet-breeze-music', music ? '1' : '0'); } catch (_) {} if (musBtn) musBtn.__show(false); } /* N or the title chip in the game */
     else if (m.ty === 'leave') { if (st) { dSend('bye'); endLink(); } } /* the game ended co-op itself and flies on alone: keep the frame */
     else if (m.ty === 'exit') { if (st) { dSend('bye'); endLink(); } menu('Thanks for playing.'); }
   };

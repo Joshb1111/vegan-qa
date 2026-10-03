@@ -1,7 +1,7 @@
 <!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Berry Breeze net test</title>
 <!-- Two game frames and a fake parent that plays the planet's part for both (SPEC.md section 6: link, net relay, peer left,
-     mute, the ready queue). The relay adds lag, jitter, loss, duplicates and reordering. URL: ?mode=rtc|ably&lag=60&jit=30&loss=0.05
+     mute, music (v2), the ready queue). The relay adds lag, jitter, loss, duplicates and reordering. URL: ?mode=rtc|ably&lag=60&jit=30&loss=0.05
      &dup=0&order=0|1 (1 = in order, like Ably; default: in order for ably) &link=0 (do not link on load) &fake=1 (drive BB.Net from
      here with synthetic snapshots, to test the plumbing before the engine speaks); bot, debug, stage, t, god, boss pass to both games. -->
 <style>
@@ -19,7 +19,7 @@ button{font:inherit;padding:3px 9px;border:0;border-radius:4px;background:#ffd76
   <label>loss <input id="loss" type="number" min="0" max="1" step="0.01"></label><label>dup <input id="dup" type="number" min="0" max="1" step="0.01"></label>
   <label><input id="order" type="checkbox" style="width:auto"> in order</label>
   <button id="b-link">Link</button><button class="alt" id="b-drop">Drop link 5 s</button>
-  <button class="alt" id="b-lh">Host leaves</button><button class="alt" id="b-lg">Guest leaves</button><button class="alt" id="b-reload">Reload games</button>
+  <button class="alt" id="b-mus">Music: on</button><button class="alt" id="b-lh">Host leaves</button><button class="alt" id="b-lg">Guest leaves</button><button class="alt" id="b-reload">Reload games</button>
 </div>
 <div id="frames">
   <div class="side"><div class="st" id="st-a"></div><iframe id="f-a" title="Host (Sprig)" allow="autoplay"></iframe></div>
@@ -35,10 +35,10 @@ P.order = Q.has('order') ? Q.get('order') === '1' : P.mode === 'ably';
 const PASS = ['bot', 'debug', 'stage', 't', 'god', 'boss'].filter(k => Q.has(k)).map(k => '&' + k + '=' + encodeURIComponent(Q.get(k))).join('');
 const SRC = '../index.html?mute=1' + PASS;
 const logEl = $('#log'); const log = s => { const t = (performance.now() / 1000).toFixed(1); logEl.textContent = (t + 's ' + s + '\n' + logEl.textContent).slice(0, 6000); };
-const side = (id, role, name) => ({ id, role, name, f: $('#f-' + id), st: $('#st-' + id), ready: false, q: [], rtt: 0, mute: true, left: false, last: '',
+const side = (id, role, name) => ({ id, role, name, f: $('#f-' + id), st: $('#st-' + id), ready: false, q: [], rtt: 0, mute: true, music: true, left: false, last: '',
   n: { out: 0, outB: 0, maxB: 0, lost: 0, deliv: 0, dups: 0, late: 0, inOrderAt: 0 }, rate: '' });
 const A = side('a', 'host', 'Sprig'), B = side('b', 'guest', 'Marigold'); A.peer = B; B.peer = A;
-let linked = false, mode = P.mode, startAt = 0, dropUntil = 0;
+let linked = false, mode = P.mode, startAt = 0, dropUntil = 0, music = Q.get('music') !== '0'; A.music = B.music = music;
 
 /* ---------- the parent's half of the protocol, as the planet's breezeRoom does it ---------- */
 function toGame(s, m) { /* queued until the game says 'ready': the last of each kind, and only the last 8 'net' */
@@ -63,10 +63,11 @@ addEventListener('message', e => {
   const s = e.source === A.f.contentWindow ? A : e.source === B.f.contentWindow ? B : null;
   if (!s || e.origin !== location.origin) return;
   const m = e.data || {};
-  if (m.ty === 'ready') { log(s.role + ': ready'); if (P.fake) fake(s); if (linked && !s.left) toGame(s, linkMsg(s)); toGame(s, { ty: 'mute', on: true }); s.ready = true; flush(s); }
+  if (m.ty === 'ready') { log(s.role + ': ready'); if (P.fake) fake(s); if (linked && !s.left) toGame(s, linkMsg(s)); toGame(s, { ty: 'mute', on: true }); toGame(s, { ty: 'music', on: music }); s.ready = true; flush(s); }
   else if (m.ty === 'net') { if (typeof m.d === 'string' && m.d.length <= MAXMSG) relay(s, m.d); else log(s.role + ': refused a net message of ' + (m.d && m.d.length)); }
   else if (m.ty === 'rtt') s.rtt = m.ms | 0;
   else if (m.ty === 'mute') { s.mute = !!m.on; log(s.role + ': mute ' + s.mute); }
+  else if (m.ty === 'music') { s.music = !!m.on; log(s.role + ': music ' + (s.music ? 'on' : 'off')); }
   else if (m.ty === 'leave') { log(s.role + ': leave (the game ended co-op itself)'); peerGone(s); }
   else if (m.ty === 'exit') { log(s.role + ': exit (back to the menu)'); if (linked) peerGone(s); }
 });
@@ -81,41 +82,44 @@ $('#mode').onchange = e => setMode(e.target.value);
 for (const k of ['lag', 'jit', 'loss', 'dup']) $('#' + k).oninput = e => { P[k] = Math.max(0, +e.target.value || 0); };
 $('#order').onchange = e => { P.order = e.target.checked; };
 $('#b-link').onclick = link; $('#b-drop').onclick = () => { dropUntil = performance.now() + 5000; log('link dropped for 5 s'); };
+const showMus = () => { $('#b-mus').textContent = 'Music: ' + (music ? 'on' : 'off'); };
+function setMusic(on) { music = !!on; showMus(); for (const s of [A, B]) { s.music = music; toGame(s, { ty: 'music', on: music }); } log('parent → both: music ' + (music ? 'on' : 'off')); } /* as the planet's Music button */
+showMus(); $('#b-mus').onclick = () => setMusic(!music);
 $('#b-lh').onclick = () => peerGone(A); $('#b-lg').onclick = () => peerGone(B); $('#b-reload').onclick = () => { linked = false; load(); };
 function status() {
   for (const s of [A, B]) {
     const n = s.n; let what = '';
-    try { const o = JSON.parse(s.last || 'null'); if (o && o.k === 's') what = 's t' + o.t + ' st' + o.st + ' ph' + o.ph + ' e' + (o.e || []).length / 6 + ' b' + (o.b || []).length / 3 + ' i' + (o.i || []).length / 6 + ' g' + (o.g || []).length + ' ev' + (o.ev || []).length; else if (o && o.k === 'g') what = 'g t' + o.t + ' ga' + o.ga; } catch (_) {}
+    try { const o = JSON.parse(s.last || 'null'); if (o && o.k === 's') what = 's t' + o.t + ' st' + o.st + ' ph' + o.ph + ' df' + o.df + ' e' + (o.e || []).length / 6 + ' b' + (o.b || []).length / 3 + ' i' + (o.i || []).length / 6 + ' g' + (o.g || []).length + ' ev' + (o.ev || []).length; else if (o && o.k === 'g') what = 'g t' + o.t + ' ga' + o.ga; } catch (_) {}
     let gn = ''; try { const N = s.f.contentWindow.BB && s.f.contentWindow.BB.Net; if (N) gn = 'game: ' + N.mode + '/' + (N.role || '-') + (N.meter ? ' · ' + N.meter() : ''); } catch (_) {}
-    s.st.textContent = s.role.toUpperCase() + ' ' + s.name + (s.ready ? ' · ready' : ' · loading') + (s.left ? ' · LEFT' : '') + ' · parent mode ' + (linked ? mode : 'unlinked') + ' · rtt ' + (s.rtt || '-') + ' ms\n' +
+    s.st.textContent = s.role.toUpperCase() + ' ' + s.name + (s.ready ? ' · ready' : ' · loading') + (s.left ? ' · LEFT' : '') + ' · parent mode ' + (linked ? mode : 'unlinked') + ' · rtt ' + (s.rtt || '-') + ' ms · music ' + (s.music ? 'on' : 'off') + '\n' +
       'sent ' + n.out + ' (avg ' + Math.round(n.outB / Math.max(1, n.out)) + ', max ' + n.maxB + ' chars) · delivered ' + n.deliv + ' · lost ' + n.lost + ' · dups ' + n.dups + '\n' +
       'last: ' + (what || '-') + '\n' + gn + (s.fk ? '\n' + s.fk() : '');
   }
 }
 setInterval(status, 500);
-window.NT = { A, B, P, link, setMode, peerGone, drop: ms => { dropUntil = performance.now() + (ms || 5000); }, reload: load, get linked() { return linked; } };
+window.NT = { A, B, P, link, setMode, setMusic, peerGone, drop: ms => { dropUntil = performance.now() + (ms || 5000); }, reload: load, get linked() { return linked; } };
 
 /* ---------- ?fake=1: drive each frame's BB.Net from here with synthetic traffic (the engine's job once it speaks) ---------- */
 P.fake = Q.get('fake') === '1';
 function fake(s) {
   const W = s.f.contentWindow, BB = W.BB, N = BB && BB.Net; if (!N || !N.Interp) { log(s.role + ': no BB.Net to drive'); return; }
-  const TICK = BB.C.TICK, F = { t: 0, ga: 0, gr: 0, ev: 0, frames: 0, dry: 0, held: 0, err: 0, errN: 0 }; let view = null, run = 0;
+  const TICK = BB.C.TICK, F = { t: 0, ga: 0, gr: 0, ev: 0, frames: 0, dry: 0, held: 0, err: 0, errN: 0, mus: -1, musN: 0 }; let view = null, run = 0;
   const X = r => 120 + 80 * Math.sin(2 * Math.PI * r / 2000);
   N.init({ onLink(l) { log(s.role + ' game: link ' + l.mode + (l.first ? ' (first)' : '')); if (!view) view = N.interp(s.role === 'host' ? 'ship' : 'view'); },
     onMsg(o) { if (o.k === 's') { view.push(o.t * TICK, o, o._at); N.grants.apply(o.g, () => F.gr++); F.ev += N.events.fresh(o).length; } else if (o.k === 'g') { N.grants.ack(o.ga); view.push(o.t * TICK, o, o._at); } },
-    onPeerLeft(w) { log(s.role + ' game: peer left (was ' + w + ')'); }, onMute() {} });
+    onPeerLeft(w) { log(s.role + ' game: peer left (was ' + w + ')'); }, onMute() {}, onMusic(on) { F.mus = on ? 1 : 0; F.musN++; } });
   const t0 = performance.now();
   clearInterval(s.fakeTimer); s.fakeTimer = setInterval(() => { /* catch the tick count up to real time, send every SEND_EVERY ticks */
     const want = Math.floor((performance.now() - t0) / TICK);
     while (F.t < want) { F.t++; const r = F.t * TICK;
-      if (s.role === 'host' && N.mode !== 'solo') { if (F.t % 120 === 0) N.grants.add('f', F.t % 5); if (F.t % 20 === 0) N.events.add('K', 2, 400, 300, 100); }
+      if (s.role === 'host' && N.mode !== 'solo') { if (F.t % 120 === 0) N.grants.add('f', 1 + (F.t / 120) % 12); /* v2: 'f' carries k 1..12 */ if (F.t % 20 === 0) N.events.add('K', 2, 400, 300, 100); }
       if (F.t % N.sendEvery() || N.mode === 'solo') continue;
-      if (s.role === 'host') N.send({ k: 's', v: BB.C.PROTO, run, p: 0, t: F.t, sk: 0, st: 0, ph: 0, sc: 0, bk: 0, bm: 0, h: N.pack({ x: 100, y: 280, hp: 5 }), e: [1, 0, Math.round(X(r) * 4), 400, 3, 0], b: [], i: [], g: N.grants.pending().slice(), ev: N.events.pending() });
-      else N.send({ k: 'g', v: BB.C.PROTO, run, t: F.t, s: N.pack({ x: X(r), y: 250, hp: 5 }), ga: N.grants.ga });
+      if (s.role === 'host') N.send({ k: 's', v: BB.C.PROTO, run, p: 0, t: F.t, sk: 0, st: 0, ph: 0, sc: 0, bk: 0, bm: 0, df: 2, h: N.pack({ x: 100, y: 280, hp: 8, wt: 3, power: 4, f: 32 }), e: [1, 0, Math.round(X(r) * 4), 400, 3, 0], b: [], i: [2, 12, 480, 600, 0, 0], g: N.grants.pending().slice(), ev: N.events.pending() });
+      else N.send({ k: 'g', v: BB.C.PROTO, run, t: F.t, s: N.pack({ x: X(r), y: 250, hp: 5, wt: 1, power: 2 }), ga: N.grants.ga });
     }
     if (view) { const o = view.at(); if (o) { F.frames++; if (o.extra > 0) F.dry++; if (o.held) F.held++; const xa = s.role === 'host' ? o.a.s[0] / 4 : o.a.e[2] / 4, xb = s.role === 'host' ? o.b.s[0] / 4 : o.b.e[2] / 4; F.err += Math.abs(xa + (xb - xa) * o.k - X(view.rc)); F.errN++; } }
   }, 16);
-  s.fk = () => 'fake: view D ' + (view ? Math.round(view.D) : '-') + ' · dry ' + (F.frames ? (100 * F.dry / F.frames).toFixed(1) : 0) + '% · held ' + F.held + ' · err ' + (F.errN ? (F.err / F.errN).toFixed(2) : '-') + ' px · grants ' + F.gr + ' · events ' + F.ev;
+  s.fk = () => 'fake: view D ' + (view ? Math.round(view.D) : '-') + ' · dry ' + (F.frames ? (100 * F.dry / F.frames).toFixed(1) : 0) + '% · held ' + F.held + ' · err ' + (F.errN ? (F.err / F.errN).toFixed(2) : '-') + ' px · grants ' + F.gr + ' · events ' + F.ev + ' · music msgs ' + F.musN + (F.mus < 0 ? '' : F.mus ? ' (on)' : ' (off)');
   s.fakeStats = F;
 }
 load(); if (Q.get('link') !== '0') link();

@@ -2,6 +2,7 @@
    Graph: sfx voices → sfx bus ┐
           song (lead+echo → lowpass, drums) → music bus ┴→ master (mute) → compressor → limiter → trim → out
    All tunes are original. Everything is a no-op before unlock() and never throws without WebAudio.
+   v2: musicOn(on) fades the music bus (sfx untouched; the sequencer keeps counting silently); boss music has 3 variants (stage).
    BB.Audio._render(ctx) builds the same graph in any (Offline)AudioContext (used by test/audio.html). */
 'use strict';
 (function () {
@@ -62,9 +63,17 @@ const parseBar = s => {
 };
 const parseChord = s => { const m = /^([A-G])([#b]?)(m?)$/.exec(s); return [SEMI[m[1]] + (m[2] === '#' ? 1 : m[2] ? -1 : 0), m[3] ? 3 : 4]; };
 for (const k in SONGS) { const S = SONGS[k]; S.L = S.lead.map(parseBar); S.C = S.ch.map(c => c.split(' ').map(parseChord)); }
+// boss variants (v2, bosses get harder): 0 Clanky as v1, 1 Thunderpuff a tone up and faster, 2 Smoggins higher, fastest, busiest
+const BOSS_V = [
+  {},
+  { tr: 2, bpm: 172, drum: 'drive2', lp: 4300 },
+  { tr: 3, bpm: 182, drum: 'drive3', arp: 'stab2', lp: 4600, lv: .115, dbl: 1 }
+];
+const VARIED = { stage: STAGE_V, boss: BOSS_V };
+const clampV = v => Math.max(0, Math.min(2, v | 0));
 function songDef(name, v) {
   const S = SONGS[name]; if (!S) return null;
-  return Object.assign({ tr: 0, swing: 0 }, S, name === 'stage' ? STAGE_V[Math.max(0, Math.min(2, v | 0))] : {});
+  return Object.assign({ tr: 0, swing: 0 }, S, VARIED[name] ? VARIED[name][clampV(v)] : {});
 }
 
 // ---------- sfx table: [voice length s, keep (never dropped first), fn(H, t, out, arg)] ----------
@@ -128,15 +137,49 @@ const SFX = {
   clear: [.6, 1, (H, t, o) => { H.tone('triangle', 400, 1600, t, .2, .14, o); [1800, 2400, 3000].forEach((f, i) => H.tone('sine', f, 0, t + .12 + i * .07, .1, .06, o)); }],
   start: [.45, 1, (H, t, o) => { H.tone('triangle', NH('C5'), 0, t, .08, .2, o); H.tone('triangle', NH('G5'), 0, t + .09, .08, .2, o); H.tone('triangle', NH('C6'), 0, t + .18, .22, .2, o); H.tone('sine', NH('E6'), 0, t + .18, .2, .06, o); }],
   join: [.35, 1, (H, t, o) => { H.tone('triangle', NH('E5'), NH('A5'), t, .12, .2, o); H.tone('sine', NH('E6'), 0, t + .12, .15, .08, o); }],
-  select: [.06, 0, (H, t, o) => { H.tone('triangle', 900, 1300, t, .04, .14, o); }]
+  select: [.06, 0, (H, t, o) => { H.tone('triangle', 900, 1300, t, .04, .14, o); }],
+  // ---- v2 pickups ----
+  // starfruit SUPER STAR: a sparkly two-octave rising pentatonic run, twinkles on top, a bright chord bloom (~0.8 s)
+  super: [.9, 1, (H, t, o) => {
+    const run = ['C5', 'D5', 'E5', 'G5', 'A5', 'C6', 'D6', 'E6', 'G6', 'A6'];
+    run.forEach((n, i) => { const f = NH(n), u = t + i * .045; H.tone('triangle', f, 0, u, .09, .13, o); H.tone(H.p12, f * 2, 0, u + .01, .05, .025, o); });
+    for (let i = 0; i < 6; i++) H.tone('sine', 2600 + ((i * 1777) % 1900), 0, t + .08 + i * .075, .05, .035, o);
+    for (const n of ['C6', 'E6', 'G6', 'C7']) H.tone('sine', NH(n), 0, t + .46, .34, .07, o, .01);
+    H.noise(t + .44, .35, .03, 'highpass', 6000, 10000, .7, o);
+  }],
+  // super star runs out: a soft falling chime
+  superEnd: [.75, 1, (H, t, o) => ['G6', 'E6', 'C6', 'G5'].forEach((n, i) => {
+    const f = NH(n), u = t + i * .1; H.tone('sine', f, 0, u, .26, .09, o, .004); H.tone('sine', f * 2.76, 0, u, .08, .012, o);
+  })],
+  // seed packet: a bright paper flip (two quick filtered-noise flutters) + a two-note pop; arg = power 0-4 lifts the pitch
+  weapon: [.4, 1, (H, t, o, a) => {
+    H.noise(t, .025, .07, 'bandpass', 2600, 5200, 1.2, o); H.noise(t + .04, .03, .06, 'bandpass', 3400, 6500, 1.2, o);
+    const f = 523 * Math.pow(2, MAJ[Math.max(0, Math.min(4, a | 0))] / 12);
+    H.tone('triangle', f * .8, f, t + .08, .07, .2, o); H.tone('sine', f * 2, 0, t + .08, .04, .05, o);
+    H.tone('triangle', f * 1.2, f * 1.5, t + .17, .12, .2, o); H.tone('sine', f * 3, 0, t + .17, .1, .05, o);
+  }],
+  // shield bubble grabbed: a soft rising bloop + a little shimmer
+  bubbleGet: [.55, 1, (H, t, o) => {
+    const s = H.tone('sine', 260, 640, t, .16, .24, o, .01); H.wob(s, t, .16, 18, 25);
+    H.tone('sine', 520, 1280, t + .02, .1, .05, o);
+    ['E6', 'G#6', 'B6', 'E7'].forEach((n, i) => H.tone('sine', NH(n), 0, t + .14 + i * .05, .14, .045, o));
+    H.noise(t + .14, .3, .025, 'highpass', 5000, 9000, .7, o);
+  }],
+  // already at max power: a happy two-note ding (+500)
+  powerMax: [.5, 1, (H, t, o) => [['C6', 0], ['G6', .1]].forEach(([n, d]) => {
+    const f = NH(n); H.tone('sine', f, 0, t + d, .3, .13, o); H.tone('triangle', f, 0, t + d, .05, .06, o); H.tone('sine', f * 2.76, 0, t + d, .07, .015, o);
+  })]
 };
+// other names the game may use for the same sounds (v1 'bubble' stays the gentle "going down" sound)
+const ALIAS = { shieldBubble: 'bubbleGet', bubbleGrab: 'bubbleGet', starfruit: 'super', packet: 'weapon', maxed: 'powerMax' };
 // rate limits: [max plays, per window s]
-const RATE = { shot: [1, .075], hit: [2, .05], pop: [4, .06], popBig: [2, .1], bump: [2, .06], cancel: [1, .07], boing: [1, .1], grab: [2, .06], seedlet: [1, .1], zap: [2, .1] };
+const RATE = { shot: [1, .075], hit: [2, .05], pop: [4, .06], popBig: [2, .1], bump: [2, .06], cancel: [1, .07], boing: [1, .1], grab: [2, .06], seedlet: [1, .1], zap: [2, .1],
+  super: [1, .3], superEnd: [1, .3], weapon: [2, .08], bubbleGet: [2, .08], powerMax: [2, .08] };
 const RATE_DEF = [2, .04], MAXV = 20;
 
 // ---------- one audio graph + synth + sequencer in a given context ----------
 function create(ac) {
-  const I = { ac, rl: {}, vox: [], seq: null, key: '', ch: null, muted: false, noLimits: false, dropped: 0, base: { master: .8, sfx: 1.5, mus: .42 } };
+  const I = { ac, rl: {}, vox: [], seq: null, key: '', ch: null, muted: false, musOn: true, noLimits: false, dropped: 0, base: { master: .8, sfx: 1.5, mus: .42 } };
   const gain = v => { const g = ac.createGain(); g.gain.value = v; return g; };
   const dyn = (th, kn, ra, at, re) => { const c = ac.createDynamicsCompressor(); c.threshold.value = th; c.knee.value = kn; c.ratio.value = ra; c.attack.value = at; c.release.value = re; return c; };
   const comp = dyn(-14, 6, 4, .003, .15), lim = dyn(-4, 0, 20, .001, .08), trim = gain(.8);
@@ -181,13 +224,19 @@ function create(ac) {
     const g = gain(1); g.connect(I.sfx); v.push({ g, end: t + len, keep }); return g;
   }
   I.play = (name, arg, t) => {
+    if (ALIAS[name]) name = ALIAS[name];
     const d = SFX[name]; if (!d) return false;
     if (!I.noLimits && !rateOk(name, t)) return false;
     d[2](H, t, voice(t, d[0], d[1]), arg);
-    if (name === 'warning') { const g = I.mus.gain; g.setTargetAtTime(I.base.mus * .6, t, .08); g.setTargetAtTime(I.base.mus, t + 3, .3); }
+    if (name === 'warning' && I.musOn) { const g = I.mus.gain; g.setTargetAtTime(I.base.mus * .6, t, .08); g.setTargetAtTime(I.base.mus, t + 3, .3); }
     return true;
   };
   I.setMute = (on, t) => { I.muted = !!on; const g = I.master.gain; g.cancelScheduledValues(t); g.setTargetAtTime(on ? 0 : I.base.master, t, .03); if (on) I.charge(null, t); };
+  // music only: the bus reaches 0 by t+0.1 (and any pending warning duck is dropped); schedule() stops making notes but keeps counting
+  I.setMusicOn = (on, t) => {
+    I.musOn = !!on; const g = I.mus.gain; g.cancelScheduledValues(t);
+    if (on) g.setTargetAtTime(I.base.mus, t, .03); else { g.setTargetAtTime(0, t, .018); g.setValueAtTime(0, t + .1); }
+  };
 
   // ----- charge: one held voice, pitch and shimmer follow the level -----
   I.charge = (lv, t) => {
@@ -213,7 +262,7 @@ function create(ac) {
 
   // ----- music: 16th-step sequencer; the caller pumps schedule(now, until) -----
   I.music = (name, v, t) => {
-    const key = name ? (name === 'stage' ? name + (v | 0) : name) : '';
+    const key = name ? (VARIED[name] ? name + clampV(v) : name) : '';
     if (key === I.key) return; I.key = key;
     if (I.seq) { const o = I.seq.n; o.out.gain.setTargetAtTime(0, t, .06); I.seq = null; setTimeout(() => { try { for (const k in o) o[k].disconnect(); } catch (e) {} }, 900); }
     const d = songDef(name, v); if (!d) return;
@@ -228,7 +277,7 @@ function create(ac) {
     if (q.next < now - .1) q.next = now + .03; // fell behind (throttled timer): skip ahead, never burst
     while (I.seq === q && q.next < until) {
       const s = q.step, sw = (s & 3) === 2 ? q.d.swing * q.sd : (s & 3) === 3 ? q.d.swing * q.sd * .5 : 0;
-      if (!I.muted) step(q, s, q.next + sw);
+      if (!I.muted && I.musOn) step(q, s, q.next + sw);
       q.next += q.sd; q.step++;
       if (!q.d.loop && q.step >= q.d.L.length * 16) I.seq = null; // jingle done; key stays so it won't restart
     }
@@ -244,6 +293,7 @@ function create(ac) {
     if (L && !breather) {
       const m = L[0] + d.tr; lead(d, n.lead, hz(m), t, L[1] * sd, L[1]);
       if (d.loop && pass % 2 === 1 && nb > 8 && bar >= 8) H.tone('sine', hz(m + 12), 0, t, Math.min(.3, L[1] * sd), .025, n.mel, .01);
+      if (d.dbl) H.tone(H.p12, hz(m - 12), 0, t, Math.min(.25, L[1] * sd), .03, n.mel, .006);   // boss 3: a buzzy octave-down shadow
     }
     // arpeggio / chord layer
     const a = 60 + r, T = [0, th, 7, 12], ag = breather ? 1.4 : 1;
@@ -251,6 +301,7 @@ function create(ac) {
     else if (d.arp === 'dream') H.tone('triangle', hz(a + T[[0, 1, 2, 3, 2, 1, 2, 1][i & 7]] + 12), 0, t, sd * 3, .045 * ag, n.mel, .006);
     else if (d.arp === 'box') { if (!(i & 1)) H.tone('sine', hz(a + T[[0, 2, 1, 2, 3, 2, 1, 2][i >> 1]] + 12), 0, t, sd * 2.5, .06 * ag, n.mel, .002); }
     else if (d.arp === 'stab') { if ((i & 3) === 2) for (let k = 0; k < 3; k++) H.tone(H.p25, hz(a + T[k]), 0, t, sd * .9, .022 * ag, n.mel); }
+    else if (d.arp === 'stab2') { if ((i & 3) === 2 || i === 7 || i === 15) for (let k = 0; k < 3; k++) H.tone(H.p25, hz(a + T[k]), 0, t, sd * .8, (i & 3) === 2 ? .02 : .014, n.mel); }
     else if (d.arp === 'pad') { if (i === 0 || (i === 8 && cs.length > 1)) for (let k = 0; k < 3; k++) H.tone('triangle', hz(a + T[k]), 0, t, sd * (nb === bar + 1 ? 14 : 7), .045, n.mel, .03); }
     // bass (gentle triangle, E2..D#3)
     const b = 40 + ((r + 8) % 12), bt = (iv, dur, g) => H.tone('triangle', hz(b + iv), 0, t, dur, g, n.mel, .005);
@@ -269,6 +320,11 @@ function create(ac) {
     else if (dr === 'soft') { if (i === 0) kick(.16); if (i === 10) kick(.08); if (i === 4 || i === 12) rim(.05); if (!(i & 1)) hat(.012); }
     else if (dr === 'swing') { if (i === 0 || i === 8) kick(.22); if (i === 4 || i === 12) snare(.08); if ((i & 3) === 2) H.noise(t, .04, .05, 'bandpass', 3000, 0, 8, o); }
     else if (dr === 'drive') { if (!(i & 3)) kick(.2); if (i === 4 || i === 12) snare(.09); if (i & 1) hat(.022); else hat(.012); }
+    else if (dr === 'drive2' || dr === 'drive3') {   // later bosses: pushier kicks, snare pickups, a soft crash every 4 bars
+      if (!(i & 3) || i === 10) kick(i === 10 ? .14 : .2); if (i === 4 || i === 12) snare(.09); if (i === 15 && (dr === 'drive3' || (bar & 1))) snare(.05);
+      hat(i & 1 ? .024 : .013); if (dr === 'drive3' && (i === 6 || i === 14)) rim(.04);
+      if (i === 0 && !(bar & 3)) H.noise(t, .5, .035, 'highpass', 5000, 8000, .7, o);
+    }
     else if (dr === 'dream') { if (i === 0) kick(.12); if (i === 8) rim(.03); if ((i & 3) === 2) hat(.012); }
     else if (dr === 'fin') { if (i === 0) kick(.16); if (bar === 1 && i === 0) H.noise(t, .8, .04, 'highpass', 6000, 9000, .7, o); }
   }
@@ -284,18 +340,19 @@ function create(ac) {
 }
 
 // ---------- live wrapper ----------
-let I = null, muted = /[?&]mute=1/.test((window.location && window.location.search) || ''), hid = false, want = null, timer = 0;
+let I = null, muted = /[?&]mute=1/.test((window.location && window.location.search) || ''), hid = false, want = null, timer = 0, musOn = true;
+try { musOn = window.localStorage.getItem('breeze-music') !== '0'; } catch (e) {}   // the engine's saved choice; it also calls musicOn() itself
 const now = () => I.ac.currentTime;
 function pump() { timer = 0; if (!I || hid) return; try { if (I.schedule(now(), now() + .12)) run(); } catch (e) {} }
 function run() { if (!timer && I && !hid && I.seq) timer = setTimeout(pump, 25); }
 const A = BB.Audio = {
   ready: false,
-  SFX_NAMES: Object.keys(SFX), MUSIC_NAMES: Object.keys(SONGS),
+  SFX_NAMES: Object.keys(SFX), MUSIC_NAMES: Object.keys(SONGS), ALIASES: ALIAS,
   unlock() {
     if (!AC) return;
     try {
       if (!I) {
-        I = create(new AC()); A.ready = true; I.setMute(muted, 0);
+        I = create(new AC()); A.ready = true; I.setMute(muted, 0); I.setMusicOn(musOn, 0);
         const b = I.ac.createBuffer(1, 1, 22050), s = I.ac.createBufferSource(); s.buffer = b; s.connect(I.ac.destination); s.start(0); // iOS wake
         if (want) I.music(want[0], want[1], now() + .06);
       }
@@ -312,6 +369,12 @@ const A = BB.Audio = {
     try { I.music(name, variant, now() + .06); run(); } catch (e) {}
   },
   mute(on) { muted = !!on; if (!I) return; try { I.setMute(muted, now()); } catch (e) {} },
+  // music only (sfx keep playing). Remembered before unlock; musicOn() with no argument just reports the state.
+  musicOn(on) {
+    if (on === undefined) return musOn;
+    musOn = !!on; if (I) try { I.setMusicOn(musOn, now()); } catch (e) {}
+    return musOn;
+  },
   hidden(on) {
     hid = !!on; if (!I) return;
     try {

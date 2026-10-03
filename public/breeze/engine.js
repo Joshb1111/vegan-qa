@@ -1,7 +1,8 @@
 /* Berry Breeze — engine.js (ENGINE): the fixed 60 Hz loop, layout and render scale, input (keys, touch pad, local P2
    drop-in), screens and render order, sound and music, one-time hints, and the four ways to play: solo, local co-op
    (host mode with a second local ship), online host (Sprig) and online guest (Marigold). Debug: ?stage ?t ?boss ?god
-   ?bot ?mute ?debug, and window.__bb. Simulation: world.js (World, Ship). Online plumbing: net.js (BB.Net). SPEC 1, 5, 6. */
+   ?bot ?mute ?debug, and window.__bb. Simulation: world.js (World, Ship). Online plumbing: net.js (BB.Net). SPEC 1, 5, 6.
+   v2 (SPEC2 A, B, G): music on/off apart from sound (N), difficulty on the title (the host's applies online), weapon HUD. */
 'use strict';
 (function () {
 const C = BB.C, SH = C.SHIP, NC = C.NET, FR = C.FRUIT, TICK = C.TICK, A = BB.Art, TCZ = BB.TC.zap;
@@ -14,16 +15,20 @@ const store = { get(k) { try { return localStorage.getItem(k); } catch (_) { ret
 const errors = [];
 function report(e) { const m = String((e && e.stack) || e).split('\n').slice(0, 3).join(' | '); if (errors.length < 40 && errors.indexOf(m) < 0) { errors.push(m); console.error('[breeze]', e); } }
 
-/* ---------- sound (nothing is ever touched with ?mute=1) ---------- */
+/* ---------- sound and music (nothing is ever touched with ?mute=1: the title chips still toggle, nothing is stored or posted) ---------- */
 const AU = BB.Audio || {};
-let muted = SILENT || store.get('breeze-mute') === '1', unlocked = false, mus = '', chg = null;
+let muted = SILENT || store.get('breeze-mute') === '1', musicOn = store.get('breeze-music') !== '0', unlocked = false, mus = '', chg = null;
 function au(fn, a, b) { if (!SILENT && typeof AU[fn] === 'function') try { AU[fn](a, b); } catch (e) { report(e); } }
 function unlock() { if (!SILENT && !unlocked) { unlocked = true; au('unlock'); } }
 function sfx(n, a) { if (!muted) au('play', n, a); }
-function music(n, v) { const k = n ? n + (v | 0) : ''; if (k !== mus) { mus = k; au('music', n || null, v | 0); } }
+function music(n, v) {   /* without BB.Audio.musicOn, music off simply asks for no song */
+  if (!musicOn && typeof AU.musicOn !== 'function') n = null;
+  const k = n ? n + (v | 0) : ''; if (k !== mus) { mus = k; au('music', n || null, v | 0); }
+}
 function chargeSnd(l) { if (l !== chg) { chg = l; au('charge', l); } }
-function setMute(on, quiet) { if (SILENT) return; muted = !!on; au('mute', muted); store.set('breeze-mute', muted ? 1 : 0); if (!quiet) post({ ty: 'mute', on: muted }); }
-au('mute', muted);
+function setMute(on, quiet) { muted = !!on; if (SILENT) return; au('mute', muted); store.set('breeze-mute', muted ? 1 : 0); if (!quiet) post({ ty: 'mute', on: muted }); }
+function setMusic(on, quiet) { musicOn = !!on; if (SILENT) return; au('musicOn', musicOn); store.set('breeze-music', musicOn ? 1 : 0); if (!quiet) post({ ty: 'music', on: musicOn }); }
+au('mute', muted); au('musicOn', musicOn);
 
 /* ---------- net.js, with tiny local stand-ins only if a piece is missing ---------- */
 const N = BB.Net || {};
@@ -125,6 +130,9 @@ let w = null, p1 = null, p2 = null, me = null, gIt = null, run = 0, gtCarry = 0,
 let joinT = 0, p2Lock = false; const lastIn = [0, 0], JOIN_HOLD = 30, IDLE_HOME = 900;   /* local P2: hold ENTER 0.5 s; 15 s idle flies home */
 let ut = 0, titleUt = 0, curSt = -1, stUt = 0, lastPh = -1, phUt = 0, pauseUt = 0, tallyNow = null, calm = 0;
 let best = clamp((+store.get('breeze-best') | 0) || 1, 1, 3);
+let diff = (v => v === '0' || v === '1' || v === '2' ? +v : 1)(store.get('breeze-diff'));   /* the title's choice (0-2), MEDIUM by default */
+function setDiff(d) { diff = ((d % 3) + 3) % 3; store.set('breeze-diff', diff); sfx('select'); }
+const diffName = d => (C.DIFF[d] || C.DIFF[1]).name;
 const hidden = () => !forceVis && !!document.hidden;
 const curPh = () => mode === 'guest' ? V.ph : w ? w.ph : 0;
 const stageName = st => (BB.STAGES[st] && BB.STAGES[st].name) || '';
@@ -132,15 +140,19 @@ const bossName = st => { const S0 = BB.STAGES[st], D = S0 && BB.ENEMY[S0.boss]; 
 
 function startRun(st, t) {
   const host = mode === 'host';
-  w = new BB.World({ stage: st, t: t || 0, coop: host, auto: true, god: DBG.god, gt: gtCarry });
+  w = new BB.World({ stage: st, t: t || 0, coop: host, auto: true, god: DBG.god, gt: gtCarry, diff });
   const sp = host ? SH.start.p1 : SH.start.solo;
-  p1 = me = new BB.Ship(0, sp[0], sp[1]); p1.local = true; w.ships.push(p1); p2 = null;
-  if (host) { p2 = new BB.Ship(1, SH.start.p2[0], SH.start.p2[1]); p2.remote = true; p2.away = true; w.ships.push(p2); if (!gIt) gIt = mkInterp('ship'); }
+  p1 = me = new BB.Ship(0, sp[0], sp[1], diff); p1.local = true; w.ships.push(p1); p2 = null;
+  if (host) { p2 = new BB.Ship(1, SH.start.p2[0], SH.start.p2[1], diff); p2.remote = true; p2.away = true; w.ships.push(p2); if (!gIt) gIt = mkInterp('ship'); }
   state = 'play'; paused = false; curSt = -1; lastPh = -1; tallyNow = null; hint = null; hintNext = null; hintAt = null; IN[0].mx = IN[0].my = 0; joinT = 0; au('hidden', hidden());
   if (DBG.debug) console.log('[breeze] run', run, 'stage', st + 1, mode);
 }
 function titleGo(st) { if (online || st > best - 1) return; sfx('select'); mode = 'solo'; startRun(st, 0); }
 function titleTap(x, y) {
+  const inR = r => !!r && x >= r.x && x <= r.x + r.w && y >= r.y && y <= r.y + r.h, SN = A.titleSnd || [], DF = A.titleDiff || [];
+  if (inR(SN[0])) { setMute(!muted); sfx('select'); return; }
+  if (inR(SN[1])) { setMusic(!musicOn); sfx('select'); return; }
+  for (let i = 0; i < DF.length; i++) if (inR(DF[i])) { if (!(online && mode === 'guest')) setDiff(i); return; }   /* online: the host picks */
   if (online) return;
   const P = A.titlePips || [];
   for (let i = 0; i < P.length; i++) if ((x - P[i].x) ** 2 + (y - P[i].y) ** 2 < (P[i].r + 6) ** 2) { if (i <= best - 1) titleGo(i); return; }
@@ -160,7 +172,7 @@ function setPause(on) {   /* banner / screen ages stand still while paused */
 function joinP2() {
   if (mode !== 'solo' || state !== 'play' || paused || !w || p2 || w.ph >= 4) return;
   const who = p1.who ? 0 : 1;
-  p2 = new BB.Ship(who, clamp(p1.x + 30, SH.xMin, SH.xMax), clamp(p1.y, 200, SH.yMax)); p2.local = true; p2.inv = SH.invRevive;
+  p2 = new BB.Ship(who, clamp(p1.x + 30, SH.xMin, SH.xMax), clamp(p1.y, 200, SH.yMax), w.diff); p2.local = true; p2.inv = SH.invRevive;
   w.fxList = w.fxList.filter(f => f.s !== 'Hold ENTER to join!');
   w.ships.push(p2); w.coop = true; joinT = 0; p2Lock = true; lastIn[0] = lastIn[1] = ut;   /* boss HP x1.5 from the next boss */
   sfx('join'); w.fxl('sticker', p2.x, p2.y - 22, (who ? 'MARIGOLD' : 'SPRIG') + ' JOINED!');
@@ -181,8 +193,10 @@ function idleWatch() {   /* two on one keyboard: a player idle for 15 s while th
 }
 function onKey(c) {
   if (c === 'KeyM') { setMute(!muted); return; }
+  if (c === 'KeyN') { setMusic(!musicOn); return; }
   if (state === 'title') {
     if (c === 'Space' || c === 'Enter' || c === 'NumpadEnter') titleGo(0);
+    else if (c === 'ArrowLeft' || c === 'KeyA' || c === 'ArrowRight' || c === 'KeyD') { if (!(online && mode === 'guest')) setDiff(diff + (c === 'ArrowLeft' || c === 'KeyA' ? -1 : 1)); }
     else if (c === 'Digit2' || c === 'Numpad2') titleGo(1); else if (c === 'Digit3' || c === 'Numpad3') titleGo(2);
     return;
   }
@@ -249,7 +263,7 @@ function sendSnap() {
 }
 
 /* ---------- online guest: the view, its own ship, cosmetic shots, self-hits, grants, events ---------- */
-const VE = new Map(), VB = new Map(), VI = new Map(), V = { ok: false, t: 0, st: 0, ph: 0, sc: 0, bk: 0, bm: 0, sk: 0, held: false, extra: 0 };
+const VE = new Map(), VB = new Map(), VI = new Map(), V = { ok: false, t: 0, st: 0, ph: 0, sc: 0, bk: 0, bm: 0, sk: 0, df: 1, held: false, extra: 0 };
 let vIt = null, newest = null, hs = null, vs = 0, gfx = [], evQ = [], gShake = 0, gRun = -1, gSt = -1, gga = 0, quiet = 0, lastP = 0;
 const gTal = { boss: false, cheer: false, toys: 0, gift: false, bk0: 0, hb0: 0, mb0: 0 };
 function pushG(f) { if (gfx.length >= 128) gfx.shift(); gfx.push(f); }
@@ -268,8 +282,10 @@ function onSnap(o) {
   quiet = 0; lastP = o.p | 0;
   if (alone && state === 'wait') { alone = false; state = 'play'; }
   const sn = BB.World.unpack(o);
+  if (me.diff !== sn.df) { const full = !me.down && me.hp >= me.hpMax; me.setDiff(sn.df); if (full) me.hp = me.hpMax; }   /* the host's difficulty: our hearts */
+  if (hs.diff !== sn.df) hs.setDiff(sn.df);
   if (sn.run !== gRun) { if (gRun >= 0) { me.reset(SH.start.p2[0], SH.start.p2[1]); gfx.length = 0; evQ.length = 0; } gRun = sn.run; gSt = sn.st; }
-  else if (sn.st > gSt) { me.heal(SH.hpStageHeal); gfxAt('heart', me.x, me.y - 10); gSt = sn.st; }
+  else if (sn.st > gSt) { me.heal(me.healN); gfxAt('heart', me.x, me.y - 10); gSt = sn.st; }
   else if (sn.st < gSt) gSt = sn.st;
   vIt.push(o.t * TICK, sn, o._at);
   newest = sn;
@@ -281,17 +297,17 @@ function onSnap(o) {
 }
 function applyGrant(code, arg) {
   if (!me) return;
-  if (code === 'f') { const k = arg | 0; if (k >= 1 && k <= 5) me.grab(k); }
-  else if (code === 'h') { if (!me.down) me.hp = Math.min(SH.hpMax, me.hp + 1); pushG({ k: 'heart', x: hs ? hs.x : me.x, y: hs ? hs.y : me.y, x2: me.x, y2: me.y, born: ut }); sfx('gift'); }
+  if (code === 'f') { const k = arg | 0; if (k >= 1 && k <= 12 && k !== 6) me.grab(k); }   /* power-ups, hearts, super star, packets, bubbles */
+  else if (code === 'h') { if (!me.down) me.hp = Math.min(me.hpMax, me.hp + 1); pushG({ k: 'heart', x: hs ? hs.x : me.x, y: hs ? hs.y : me.y, x2: me.x, y2: me.y, born: ut }); sfx('gift'); }
   else if (code === 'r') { if (me.down) { me.revive(); gfxAt('revive', me.x, me.y); sfx('revive'); } }
-  else if (code === 'w') { me.hp = SH.hpMax; me.shield = 3; }
+  else if (code === 'w') { me.hp = me.hpMax; me.shield = 3; }
 }
 function buildView() {
   const r = vIt ? vIt.at(now()) : null;
   if (!r || !r.b) { V.held = true; return V.ok; }
   const a = r.a, b = r.b, k = r.k; vs++;
   V.ok = true; V.held = !!r.held; V.extra = r.extra || 0; V.t = a.t + (b.t - a.t) * k;
-  V.st = b.st; V.ph = b.ph; V.sc = b.sc; V.bk = b.bk; V.bm = b.bm; V.sk = b.sk;
+  V.st = b.st; V.ph = b.ph; V.sc = b.sc; V.bk = b.bk; V.bm = b.bm; V.sk = b.sk; V.df = b.df;
   hs.unpack(b.h);
   if (a !== b && Math.abs(b.h[0] - a.h[0]) + Math.abs(b.h[1] - a.h[1]) < 320) { hs.x = (a.h[0] + (b.h[0] - a.h[0]) * k) / 4; hs.y = (a.h[1] + (b.h[1] - a.h[1]) * k) / 4; }
   hs.away = hs.hidden || lastP === 1 || quiet > 90;
@@ -335,7 +351,12 @@ function viewShots(s, mine) {
     if (mine && sh.cancelR) for (const b of VB.values()) if (!b.gone && (b.x - sh.x) ** 2 + (b.y - sh.y) ** 2 < sh.cancelR * sh.cancelR) { b.gone = true; gfxAt('cancel', b.x, b.y); }
     if (sh.kind === 'sun') continue;
     let hit = false;
-    for (const v of VE.values()) { const d = v.def; if (!d.shootable || v.tc === TCZ || v.y < 4) continue; const rr = (d.r || 8) + sh.r; if ((v.x - sh.x) ** 2 + (v.y - sh.y) ** 2 < rr * rr) { hit = true; break; } }
+    for (const v of VE.values()) {
+      const d = v.def; if (!d.shootable || v.tc === TCZ || v.y < 4) continue; const rr = (d.r || 8) + sh.r;
+      if ((v.x - sh.x) ** 2 + (v.y - sh.y) ** 2 >= rr * rr) continue;
+      if (sh.hitIds) { if (sh.hitIds.indexOf(v.id) >= 0) continue; sh.hitIds.push(v.id); if (--sh.pierce > 0) { if (mine) gfxAt('spark', sh.x, sh.y - 2); continue; } }   /* bolts and stars pierce */
+      hit = true; break;
+    }
     if (!hit && sh.kind !== 'seedlet') for (const f of VI.values()) if (f.fall && f.k < 5 && (f.x - sh.x) ** 2 + (f.y - sh.y) ** 2 < (FR.r + sh.r) ** 2) { hit = true; if (mine) { f.sq = 1; sfx('bump', 1); } break; }
     if (hit) { sh.dead = true; if (mine) gfxAt('spark', sh.x, sh.y - 2); }
   }
@@ -365,7 +386,7 @@ function viewBonk() {   /* the knock-back is ours; the 4 damage is dealt by the 
     if (dx * dx + dy * dy < rr * rr) { BB.World.knock(me, dx, dy); gfxAt('boinged', (me.x + v.x) / 2, (me.y + v.y) / 2); sfx('boing'); }
   }
 }
-const FXOK = { pot: 1, sparkle: 1, sticker: 1, calm: 1 }, EV_STALE = 300;   /* 'F' kinds the host's world sends; events older than 300 ms are not shown */
+const FXOK = { pot: 1, sparkle: 1, sticker: 1, calm: 1, unwind: 1, pop: 1 }, EV_STALE = 300;   /* 'F' kinds the host's world sends; events older than 300 ms are not shown */
 function playEvent(e, stale) {
   const c = e[1];
   if (stale) { if (c === 'K') { if (BB.TYPE_LIST[e[2]] === 'present') gTal.gift = true; else gTal.toys++; } else if (c === 'B' && gTal.cheer) gTal.toys++; return; }
@@ -375,7 +396,7 @@ function playEvent(e, stale) {
   else if (c === 'P') { gfxAt('pop', e[2] / 4, e[3] / 4); sfx('pop'); }
   else if (c === 'C') { const f = VI.get(e[2]); if (f) gfxAt('ripen', f.x, f.y); sfx('ripen'); }
   else if (c === 'G') { const x = e[2] / 4, y = e[3] / 4, k = e[4] | 0, lab = BB.FRUITS[k] && BB.FRUITS[k].label;
-    gfxAt('grab', x, y); if (lab) pushG({ k: 'sticker', x, y: y - 10, s: lab, born: ut }); sfx(k === 0 ? 'grab' : k === 1 ? 'shield' : k >= 5 ? 'heart' : 'power'); }
+    gfxAt('grab', x, y); const gk = BB.World.grabFx(k); if (gk) gfxAt(gk, x, y, k >= 8 && k <= 11 ? k - 8 : undefined); if (lab) pushG({ k: 'sticker', x, y: y - 10, s: lab, born: ut }); sfx(BB.World.grabSnd(k)); }
   else if (c === 'Q') sfx('cancel');
   else if (c === 'S') sfx('start');
   else if (c === 'W') sfx('warning');
@@ -386,6 +407,8 @@ function playEvent(e, stale) {
     const k = e[2]; if (typeof k !== 'string' || FXOK[k] !== 1) return;
     const f = { k, x: clamp(+e[3] / 4 || 0, -40, 280), y: clamp(+e[4] / 4 || 0, -40, 360), born: ut };
     if (k === 'sticker') f.s = typeof e[5] === 'string' && e[5] ? e[5].slice(0, 24) : '!';
+    else if (k === 'unwind') { if (typeof e[5] !== 'string' || !Object.prototype.hasOwnProperty.call(BB.TC, e[5])) return; f.s = e[5]; }   /* a minion cheered up with its boss: a known toy type only */
+    else if (k === 'pop') f.n = clamp(+e[5] | 0, 1, 2);
     pushG(f); }
 }
 function guestTally() {
@@ -403,7 +426,8 @@ function guestTick() {
   if (wasDown && !me.down) { gfxAt('revive', me.x, me.y); sfx('revive'); }
   if (me.vol) sfx('shot');
   if (me.rel) { sfx(me.rel === 2 ? 'sun' : 'seedlet'); gfxAt('seedburst', me.x, me.y - 12, me.rel); }
-  me.moveShots(); hs.mirror(); hs.moveShots();
+  if (me.supEnd) sfx('superEnd');
+  me.steer(VE.values()); me.moveShots(); hs.mirror(); hs.steer(VE.values()); hs.moveShots();
   viewShots(me, true); viewShots(hs, false);
   if (!(V.held || V.extra > 50 || lastP || DBG.god || upright)) viewHurt();
   if (!upright) viewBonk();
@@ -425,7 +449,7 @@ function flyAlone(fromPeer) {
   if (mode === 'host') { hostAlone('Flying on alone. Keep going!'); return; }
   online = false; mode = 'solo'; alone = false; lastP = 0; verBad = false;
   if (!newest || !me) { toTitle(); return; }
-  w = new BB.World({ stage: newest.st, coop: false, auto: true, god: DBG.god, gt: ut, score: newest.sc, basket: newest.bk });
+  w = new BB.World({ stage: newest.st, coop: false, auto: true, god: DBG.god, gt: ut, score: newest.sc, basket: newest.bk, diff: newest.df });
   me.shots.length = 0; me.away = me.hidden = false; p1 = me; p2 = null; w.ships.push(p1);
   if (newest.ph === 4) w.setPh(4);
   state = 'play'; paused = false; curSt = -1; lastPh = -1; tallyNow = null;
@@ -442,7 +466,7 @@ function onLink(L) {
     if (state === 'title' || state === 'wait') { state = 'title'; titleUt = ut; waiting = false; startAt = now() + (L.startIn || 0); }
     else if (mode === 'host' && w) {   /* linked while already flying: carry on as host */
       if (p2 && p2.local) w.ships.splice(w.ships.indexOf(p2), 1);
-      p2 = new BB.Ship(1, SH.start.p2[0], SH.start.p2[1]); p2.remote = true; p2.away = true; w.ships.push(p2); w.coop = true; if (!gIt) gIt = mkInterp('ship');
+      p2 = new BB.Ship(1, SH.start.p2[0], SH.start.p2[1], w.diff); p2.remote = true; p2.away = true; w.ships.push(p2); w.coop = true; if (!gIt) gIt = mkInterp('ship');
     } else if (mode === 'guest') { state = 'title'; titleUt = ut; waiting = true; startAt = 0; }
   } else if (state === 'title' && startAt) startAt = now() + (L.startIn || 0);   /* startIn is honoured only on the title */
 }
@@ -462,7 +486,7 @@ function hostAlone(msg) {   /* the host carries on solo: the partner left, or a 
   if (state === 'wait') { if (w) state = 'play'; else toTitle(); }
   if (state === 'play') toastMsg(msg);
 }
-if (N.init) N.init({ onLink, onMsg, onPeerLeft, onMute: on => setMute(on, true) });
+if (N.init) N.init({ onLink, onMsg, onPeerLeft, onMute: on => setMute(on, true), onMusic: on => setMusic(on, true) });
 
 /* ---------- ticks ---------- */
 function stageWatch(st, ph) {
@@ -492,7 +516,7 @@ function musicWatch() {
   if (state !== 'play') return;
   const ph = curPh();
   if (ph <= 1) music('stage', Math.max(0, curSt));
-  else if (ph === 2) music((mode === 'guest' ? V.bm === 0 : w.doneT >= 0) ? null : 'boss');
+  else if (ph === 2) music((mode === 'guest' ? V.bm === 0 : w.doneT >= 0) ? null : 'boss', Math.max(0, curSt));
   else music(ph === 3 ? 'clear' : 'title');
 }
 function tick() {
@@ -516,14 +540,14 @@ function tick() {
 
 /* ---------- render (SPEC order): bg, ground, bushes, fruit, air + boss, partner shots, my shots, buddies, ships (mine on
    top), enemy bullets, fx, HUD, overlay. Only the world layer shakes. ---------- */
-const SO = { t: 0, blink: false, down: false, shield: 0, charge: 0, tilt: 0, ghost: false }, EO = { a: 0, t: 0, flash: 0, hpf: 1, vx: 0, vy: 0 }, FO = { t: 0, h: 0, next: 0, squash: 0 };
-const PH = [{}, {}], BO = { name: '', hpf: 1 }, HUD = { t: 0, score: 0, basket: 0, p: PH, boss: null, touch: false, net: null, hint: null };
+const SO = { t: 0, blink: false, down: false, shield: 0, charge: 0, tilt: 0, ghost: false, super: 0 }, EO = { a: 0, t: 0, flash: 0, hpf: 1, vx: 0, vy: 0 }, FO = { t: 0, h: 0, next: 0, squash: 0 };
+const PH = [{}, {}], BO = { name: '', hpf: 1 }, UND = [false, false], HUD = { t: 0, score: 0, basket: 0, p: PH, boss: null, touch: false, net: null, hint: null, diff: '', under: UND };
 const isBoss = t => { const D = BB.ENEMY[t]; return !!(D && D.boss); };
 function drawEnemy(type, x, y, a, t, flash, hpf, vx, vy) { EO.a = a; EO.t = t; EO.flash = flash; EO.hpf = hpf; EO.vx = vx; EO.vy = vy; A.enemy(ctx, type, x, y, EO); }
 function drawFruit(k, x, y, h, sq) { FO.t = ut; FO.h = h; FO.next = k < 5 ? (k + 1) % 5 : 0; FO.squash = sq || 0; A.fruit(ctx, k, x, y, FO); }
 function drawShots(s) { if (s) for (const sh of s.shots) if (!sh.dead) A.shot(ctx, sh.kind, sh.x, sh.y, sh.ang, ut, sh.who); }
 function drawBuddies(s) { if (s && !s.down) for (let i = 0; i < s.buddies; i++) A.buddy(ctx, s.who, s.bx[i], s.by[i], ut + i * 4); }
-function drawShip(s) { if (!s) return; SO.t = ut + s.who * 17; SO.blink = s.inv > 0 && !s.down; SO.down = s.down; SO.shield = s.shield; SO.charge = s.charging ? s.charge : 0; SO.tilt = s.tilt || 0; SO.ghost = !!(s.away || s.hidden); A.ship(ctx, s.who, s.x, s.y, SO); }
+function drawShip(s) { if (!s) return; SO.t = ut + s.who * 17; SO.blink = s.inv > 0 && !s.down; SO.down = s.down; SO.shield = s.shield; SO.charge = s.charging ? s.charge : 0; SO.tilt = s.tilt || 0; SO.ghost = !!(s.away || s.hidden); SO.super = s.superT > 0 && !s.down ? Math.min(1, s.superT / C.SUPER.ticks) : 0; A.ship(ctx, s.who, s.x, s.y, SO); }
 function drawFx(list, age0) { let j = 0; for (let i = 0; i < list.length; i++) { const f = list[i], age = age0 - f.born; if (age < 900 && A.fx(ctx, f, age)) list[j++] = f; } list.length = j; }
 function drawWorld() {
   const E = w.enemies;
@@ -554,9 +578,14 @@ function drawView() {
   for (const b of VB.values()) if (!b.gone) A.bullet(ctx, b.x, b.y, b.big, ut);
   drawFx(gfx, ut);
 }
-function fillP(P, s, joined) { P.name = s.who ? 'MARIGOLD' : 'SPRIG'; P.who = s.who; P.hp = s.hp; P.shield = s.shield; P.buddies = s.buddies; P.spd = s.spd; P.spread = s.spread; P.charge = s.charging ? s.charge : 0; P.down = s.down; P.joined = joined; P.local = !s.remote; }
+function fillP(P, s, joined) {
+  P.name = s.who ? 'MARIGOLD' : 'SPRIG'; P.who = s.who; P.hp = s.hp; P.hpMax = s.hpMax; P.shield = s.shield; P.buddies = s.buddies; P.spd = s.spd;
+  P.wt = s.wt; P.spread = s.spread; P.super = s.superT > 0 ? Math.min(1, s.superT / C.SUPER.ticks) : 0; P.charge = s.charging ? s.charge : 0; P.down = s.down; P.joined = joined; P.local = !s.remote;
+  if (s.y < 36 && !s.down) { if (s.x < 104) UND[0] = true; if (s.x > 136) UND[1] = true; }   /* a ship under a pill: the pill fades */
+}
 function hud() {
-  const H = HUD; H.t = ut; H.touch = touchMode; H.net = DBG.debug && online && N.meter ? N.meter() : null; H.boss = null;
+  const H = HUD; H.t = ut; H.touch = touchMode; H.net = DBG.debug && online && N.meter ? N.meter() : null; H.boss = null; UND[0] = UND[1] = false;
+  H.diff = diffName(mode === 'guest' ? V.df : w.diff);
   if (mode === 'guest') {
     H.score = V.sc; H.basket = V.bk; fillP(PH[0], hs, true); fillP(PH[1], me, true); PH[0].local = false;
     for (const v of VE.values()) if (v.def.boss) { BO.name = v.def.name || v.type; BO.hpf = v.hp < 0 ? 1 : v.hp / (V.bm || 1); H.boss = BO; }
@@ -586,7 +615,8 @@ function render() {
   if (LH > C.H) { ctx.fillStyle = band; ctx.fillRect(0, C.H, C.W, LH - C.H); }
   const world = state !== 'title' && (mode === 'guest' ? V.ok && !!hs : !!w);
   if (!world) {
-    A.screen(ctx, 'title', { t: ut, best: online ? 0 : best - 1, online, opp, waiting: online && (waiting || mode === 'guest' && !startAt), touch: touchMode });
+    A.screen(ctx, 'title', { t: ut, best: online ? 0 : best - 1, online, opp, waiting: online && (waiting || mode === 'guest' && !startAt), touch: touchMode,
+      diff, diffBy: online && mode === 'guest' ? opp : null, sound: !muted, music: musicOn });
     if (online && startAt) { const n = Math.ceil((startAt - now()) / 1000); if (n > 0) A.text(ctx, String(n), 120, 116, 24, '#ffd93b'); }
     if (state === 'wait') A.screen(ctx, 'wait', { text: waitText });
   } else {
@@ -649,12 +679,12 @@ let botT = 0;
 function botDrive(s, inp, bullets, enemies, fruits) {
   botT++; inp.mx = inp.my = 0; inp.fire = curPh() < 4;
   if (s.down) { inp.dx = inp.dy = 0; inp.charge = false; return; }
-  const want = s.shield < 2 ? 1 : s.buddies < 2 ? 2 : s.spread < 2 ? 3 : 0;
+  const want = s.shield < 2 ? 1 : s.buddies < 2 ? 2 : s.spread < SH.powerMax ? 3 : 0;   /* pickups 5-12 are always taken (below) */
   let gx = 120, gy = 272, tf = null, td = 1e9, boss = null;
   for (const f of fruits) { if (f.taken || f.y < 8 || f.y > 300) continue; const d = Math.abs(f.x - s.x) + Math.abs(f.y - s.y) * 0.4; if (d < td) { td = d; tf = f; } }
   for (const e of enemies) if (!e.dead && isBoss(e.type)) boss = e;
   if (tf) {
-    if (tf.k === want || tf.k >= 5 || (s.hp <= 2 && tf.k === 0)) {   /* grab: come in from the side so our shots do not bump it on */
+    if (tf.k === want || tf.k >= 5 || (s.hp <= 2 && tf.k === 0)) {   /* grab (hearts, rainbow, starfruit, packets, bubbles too): come in from the side so our shots do not bump it on */
       const side = Math.abs(s.y - tf.y) < 12; gx = side ? tf.x : tf.x + (s.x < tf.x ? -22 : 22); gy = tf.y;
       if (gx < SH.xMin + 4) gx = tf.x + 22; else if (gx > SH.xMax - 4) gx = tf.x - 22;
     } else { gx = tf.x + (tf.x < 120 ? 3 : -3); gy = clamp(tf.y + 80, 150, 300); }
@@ -701,7 +731,8 @@ window.__bb = {
   tap(x, y) { titleTap(x, y); },
   start(st, t) { mode = online ? mode : 'solo'; startRun(st | 0, t || 0); },
   join: joinP2, flyAlone: () => flyAlone(false), layout, frame, get R() { return R; }, get dyn() { return { rCap, probe, noProbe, raises }; }, get pad() { return { padMode, upright, LH, S, coarse }; },
-  bot(on) { DBG.bot = on !== false; }, god(on) { DBG.god = on !== false; if (w) w.god = DBG.god; }
+  bot(on) { DBG.bot = on !== false; }, god(on) { DBG.god = on !== false; if (w) w.god = DBG.god; },
+  get diff() { return diff; }, set diff(d) { diff = clamp(d | 0, 0, 2); }, get music() { return musicOn; }, get muted() { return muted; }, setMusic, setMute
 };
 post({ ty: 'ready' });
 })();

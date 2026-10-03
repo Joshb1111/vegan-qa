@@ -75,6 +75,39 @@ function render() {
     A.shot(ctx, 'p', x, y, -Math.PI / 2 - .35, 0, 0); label(ctx, 'angled', x, y + 10); x += 26;
     for (const big of [0, 1]) for (const f of [0, 8]) { A.bullet(ctx, x, y, big, f); label(ctx, big ? 'big' : 'bullet', x, y + 10); x += 22; }
   });
+  section('v2', 'v2: pickups (starfruit, 4 seed packets, shield bubble) at t 0/20/40/80, weapon shots, SUPER ship glow', 520, 310, '#bfe6c4', ctx => {
+    const names = ['starfruit', 'pea packet', 'petal packet', 'sun packet', 'seeker packet', 'bubble'];
+    for (let k = 7; k < 13; k++) [0, 20, 40, 80].forEach((t, i) => { const x = 26 + (k - 7) * 82 + (i & 1) * 36, y = 30 + (i >> 1) * 46; A.fruit(ctx, k, x, y, { t, h: 0 }); if (!i) label(ctx, names[k - 7], x + 18, y + 18 + 46); });
+    let x = 18; const y = 150;
+    for (const [k, who, ang, t] of [['pbig', 0], ['pbig', 1], ['petal', 0], ['petal', 0, -Math.PI / 2 - .5, 7], ['beam', 0], ['beam', 0, -Math.PI / 2 + .3], ['seeker', 0], ['seeker', 0, -Math.PI / 2 + .9], ['seeker', 0, 0.4], ['p', 0], ['p', 1], ['b', 0]]) { A.shot(ctx, k, x, y, ang == null ? -Math.PI / 2 : ang, t || 4, who); label(ctx, k + (k === 'pbig' || k === 'p' ? who : ''), x, y + 16); x += 26; }
+    for (let i = 0; i < 9; i++) { const ang = -Math.PI / 2 + (i - 4) * (60 / 8) * Math.PI / 180; A.shot(ctx, 'star', 330 + i * 20, y, ang, i * 3, 0); } label(ctx, 'super star 9-way spread (rainbow, spinning)', 410, y + 16);
+    for (let who = 0; who < 2; who++) [[1, 'super 1'], [.5, 'super .5'], [.15, 'super .15 (blinks)'], [.15, 'blink off frame']].forEach(([su, n], i) => { const sx = 40 + i * 70 + who * 280 * 0, sy = 214 + who * 56; A.ship(ctx, who, sx, sy, { t: i === 3 ? 4 : 0, super: su, shield: i === 1 ? 2 : 0 }); label(ctx, n, sx, sy + 22); });
+    for (let wt = 0; wt < 4; wt++) { ctx.fillStyle = 'rgba(43,33,64,.38)'; ctx.beginPath(); ctx.arc(330 + wt * 34, 214, 12, 0, 7); ctx.fill(); A.shot(ctx, ['pbig', 'petal', 'beam', 'seeker'][wt], 330 + wt * 34, 214, -Math.PI / 2, 0, 0); label(ctx, BB.C.WEAPON.names[wt], 330 + wt * 34, 230); }
+    label(ctx, 'Sprig / Marigold with SUPER STAR glow', 140, 300);
+  });
+  section('v2fx', 'v2 fx: super (starfruit grabbed), weapon n0-3 (packet grabbed), bubblepop, at ages 0, 4, 10, 18, 28', 420, 330, '#8fc4a0', ctx => {
+    const fxs = [['super', {}], ['weapon', { n: 0 }], ['weapon', { n: 1 }], ['weapon', { n: 2 }], ['weapon', { n: 3 }], ['bubblepop', {}]], ages = [0, 4, 10, 18, 28];
+    fxs.forEach(([k, o], r) => { const y = 30 + r * 50; label(ctx, k + (o.n != null ? ' ' + o.n : ''), 30, y - 4);
+      ages.forEach((age, i) => { const x = 100 + i * 70; ctx.save(); ctx.beginPath(); ctx.rect(x - 35, y - 25, 70, 50); ctx.clip(); A.fx(ctx, Object.assign({ k, x, y }, o), age); ctx.restore(); if (!r) label(ctx, 'age ' + age, x, 2); }); });
+  });
+  section('hud', 'v2 HUD pills: 5 hearts (MEDIUM/HARD) and 8 hearts (EASY), weapon icon + power 0-4 per type, SUPER bar, difficulty label', 500, 250, '#7fa8c8', ctx => {
+    const P = (o, x, y) => { ctx.save(); ctx.translate(x, y); A.hud(ctx, Object.assign({ t: 6, score: 0, basket: 0 }, o)); ctx.restore(); };
+    const base = { name: 'SPRIG', who: 0, hp: 5, hpMax: 5, shield: 1, buddies: 1, spd: 1, spread: 2, wt: 0, charge: 0 };
+    const rows = [
+      [{ hp: 5 }, { hp: 3, who: 1, name: 'MARIGOLD', wt: 1, spread: 4 }],
+      [{ hp: 8, hpMax: 8 }, { hp: 5, hpMax: 8, who: 1, name: 'MARIGOLD', wt: 2, spread: 3 }],
+      [{ hp: 7, hpMax: 8, wt: 3, spread: 1, charge: 40 }, { hp: 2, hpMax: 8, who: 1, name: 'MARIGOLD', wt: 0, spread: 0 }],
+      [{ hp: 4, super: .9, wt: 2, spread: 4 }, { hp: 6, hpMax: 8, who: 1, name: 'MARIGOLD', super: .35, wt: 3, spread: 2 }],
+      [{ hp: 1, wt: 1, spread: 0, super: .12 }, { hp: 0, hpMax: 8, down: 1, who: 1, name: 'MARIGOLD' }],
+      [{ hp: 3, hpMax: 6, wt: 0, spread: 4 }, { hp: 7, hpMax: 7, who: 1, name: 'MARIGOLD', wt: 1, spread: 1 }]];
+    const diffs = ['MEDIUM', 'EASY', 'EASY', 'HARD', 'EASY', 'EASY'];
+    rows.forEach((r, i) => { const y = 4 + i * 40, x = 4 + 0; ctx.fillStyle = '#9fd9a0'; ctx.fillRect(x, y, 240, 38);
+      P({ diff: diffs[i], score: 12340 * (i + 1), basket: i, p: r.map(o => Object.assign({}, base, o, { joined: true })) }, x, y); label(ctx, JSON.stringify(r.map(o => [o.hp + '/' + (o.hpMax || 5), 'wt' + (o.wt == null ? 0 : o.wt), 'p' + (o.spread == null ? 2 : o.spread)])).replace(/"/g, ''), 370, y + 12); });
+  });
+  section('wgrid', 'Weapon icon + power pips: rows pea / petal / sunbeam / seekers, power 0 to 4', 500, 136, '#9fd9a0', ctx => {
+    for (let wt = 0; wt < 4; wt++) for (let pw = 0; pw < 5; pw++) { const x = 2 + pw * 99, y = 2 + wt * 33; ctx.save(); ctx.beginPath(); ctx.rect(x, y, 97, 31); ctx.clip(); ctx.translate(x - 2, y - 2);
+      A.hud(ctx, { t: 0, touch: true, p: [{ name: BB.C.WEAPON.names[wt], who: 0, hp: 5, hpMax: 5, shield: 0, buddies: 0, spd: 0, spread: pw, wt }] }); ctx.restore(); }
+  });
   section('fruit', 'Fruit (no faces): k 0-6 with ring h 0/1/2, squash; berry bush; gift box', 470, 150, '#bfe6c4', ctx => {
     for (let k = 0; k < 7; k++) for (let h = 0; h < 3; h++) { const x = 22 + k * 60 + h * 0, y = 22 + h * 40; if (k >= 5 && h) continue; A.fruit(ctx, k, x + (h ? 0 : 0), y, { t: 10, h }); label(ctx, BB.FRUITS[k].id + ' h' + h, x, y + 14); }
     A.fruit(ctx, 0, 330, 102, { t: 0, h: 1, squash: 1 }); label(ctx, 'squash 1', 330, 116);
@@ -103,7 +136,7 @@ function render() {
         const f = Object.assign({ k: name.split(' ')[0], x, y: y + (name === 'unwind' || name === 'calm' ? 10 : 0) }, o); if (f.x2 != null) { f.x2 = x + 24; f.y2 = y - 10; f.x = x - 20; f.y = y + 10; } if (name === 'rainbow') f.y = y - 60;
         A.fx(ctx, f, age * (name === 'rainbow' ? 3 : 1)); ctx.restore(); if (!r) label(ctx, 'age ' + age, x, 2); }); });
   });
-  section('panels', 'In-game frames + HUD, and every screen (240×320 each)', 1000, 1648, '#2b2140', ctx => {
+  section('panels', 'In-game frames + HUD, and every screen (240×320 each); v2: titles MEDIUM / online host HARD / online guest / EASY music off / HARD touch sound off, and two v2 frames', 1000, 1976, '#2b2140', ctx => {
     const P = [];
     P.push(c => { A.setStage(0); const o = busy(0); o.hud.p = [o.hud.p[0]]; o.hud.hint = 'Shoot the fruit to change it ↻'; o.hud.net = null; o.ships = [o.ships[0]]; o.buddies = o.buddies.slice(0, 2); scene(c, 0, 400, o); });
     P.push(c => { A.setStage(1); const o = busy(1); o.enemies = o.enemies.slice(10); o.enemies.push({ type: 'thunderpuff', x: 120, y: 80, hpf: .45, a: 1, boss: 1 }, { type: 'zap', x: 60, a: 1 }, { type: 'zap', x: 180, a: 2 }); o.hud.boss = { name: 'Thunderpuff', hpf: .45 }; o.fx = [{ k: 'zapwarn', x: 90, y: 280, age: 4 }]; scene(c, 1, 900, o); });
@@ -111,8 +144,8 @@ function render() {
     P.push(c => { A.setStage(0); const o = busy(0); o.enemies = o.enemies.slice(12); o.enemies.push({ type: 'clanky', x: 120, y: 72, hpf: .7, a: 1, boss: 1 }); o.hud.boss = { name: 'Big Clanky', hpf: .7 }; o.hud.touch = true; o.hud.p = [o.hud.p[0]]; o.ships = [o.ships[0]]; scene(c, 0, 1600, o); });
     P.push(c => { A.setStage(1); scene(c, 1, 300, { calm: 1, fx: [{ k: 'rainbow', x: 120, y: 120, age: 80 }], enemies: [{ type: 'thunderpuff', x: 120, y: 80, a: 3, hpf: 0, boss: 1 }] }); });
     P.push(c => { A.setStage(2); scene(c, 2, 500, { calm: 1 }); });
-    P.push(c => A.screen(c, 'title', { t: 30, best: 1 }));
-    P.push(c => A.screen(c, 'title', { t: 90, best: 2, online: 1, opp: 'Lou' }));
+    P.push(c => A.screen(c, 'title', { t: 30, best: 1, diff: 1, sound: true, music: true }));   // MEDIUM, sound + music on
+    P.push(c => { A.screen(c, 'title', { t: 90, best: 2, online: 1, opp: 'Lou', diff: 2, sound: true, music: false }); A.text(c, '2', 120, 116, 24, '#ffd93b'); });   // online host picks (HARD), countdown
     P.push(c => { A.bg(c, 0, 0, 0, {}); A.screen(c, 'banner', { stage: 0, name: 'Patchwork Meadows', age: 40 }); });
     P.push(c => { A.bg(c, 1, 0, 0, {}); A.screen(c, 'warning', { name: 'Thunderpuff', age: 10 }); });
     P.push(c => { A.bg(c, 0, 0, 0, {}); A.screen(c, 'tally', { rows: [['Boss bonus', 5000], ['Hearts left', 1500], ['Fruit grabbed', 12], ['Toys cheered up', 41], ['Bubbles', 1]], stars: 3, age: 260 }); });
@@ -122,9 +155,24 @@ function render() {
     P.push(c => A.screen(c, 'upright', { t: 40 }));
     P.push(c => { A.setStage(0); const o = busy(0); o.enemies = o.enemies.slice(12); o.hud.p[0].local = o.hud.p[1].local = true; o.hud.net = null; o.hud.under = [true, false]; o.hud.t = 1e5; scene(c, 0, 700, o); });   // local co-op keys + faded pill
     P.push(c => A.screen(c, 'ending', { age: 60, score: 234560, duo: true, who: 1 }));   // online guest: no restart prompt
-    P.push(c => { A.screen(c, 'title', { t: 50, best: 0, online: 1, opp: 'Lou', waiting: 0 }); A.text(c, '3', 120, 116, 24, '#ffd93b'); });   // the engine's countdown digit
+    P.push(c => { A.screen(c, 'title', { t: 50, best: 0, online: 1, opp: 'Lou', waiting: 0, diffBy: 'Lou', sound: true, music: true }); A.text(c, '3', 120, 116, 24, '#ffd93b'); });   // online guest: the host picks
     P.push(c => { A.setStage(2); scene(c, 2, 900, { enemies: [{ type: 'smoggins', x: 120, y: 72, hpf: .6, a: 0, boss: 1, flash: 2 }], hud: { score: 5000, basket: 2, touch: true, p: [{ name: 'SPRIG', who: 0, hp: 5, shield: 0, buddies: 0, spd: 0, spread: 0 }], boss: { name: 'Old Smoggins', hpf: .6 } } }); });
     P.push(c => { c.fillStyle = A.stageColor(0); c.fillRect(0, 0, 240, 320); c.save(); c.translate(0, -200); A.bg(c, 0, 0, 0, {}); c.restore(); A.touchPad(c, { rect: { x: 0, y: 130, w: 240, h: 190 }, seedDown: false, seedX: 200, seedY: 230 }); A.touchPad(c, { seedDown: true, seedX: 60, seedY: 290 }); });
+    P.push(c => A.screen(c, 'title', { t: 140, best: 2, diff: 0, sound: true, music: false }));   // EASY, music off
+    P.push(c => A.screen(c, 'title', { t: 200, best: 2, diff: 2, sound: false, music: true, touch: true }));   // HARD, sound off, touch
+    P.push(c => { A.setStage(0); const o = busy(0); o.enemies = o.enemies.slice(4); o.bullets = o.bullets.slice(0, 30);
+      o.fruit = [{ k: 7, x: 60, y: 150 }, { k: 8, x: 180, y: 120 }, { k: 9, x: 40, y: 230 }, { k: 12, x: 200, y: 240 }, { k: 2, x: 130, y: 200, h: 1 }];
+      o.shots = []; for (let r = 0; r < 5; r++) for (let i = 0; i < 9; i++) { const ang = -Math.PI / 2 + (i - 4) * 7.5 * Math.PI / 180; o.shots.push({ k: 'star', x: 90 + Math.cos(ang) * (20 + r * 30), y: 270 + Math.sin(ang) * (20 + r * 30), ang }); }
+      o.ships = [{ who: 0, x: 90, y: 284, super: .7 }, { who: 1, x: 170, y: 280 }]; o.fx = [{ k: 'super', x: 90, y: 270, age: 14 }, { k: 'weapon', x: 170, y: 270, n: 1, age: 6 }];
+      o.hud = { score: 48210, basket: 3, diff: 'EASY', p: [{ name: 'SPRIG', who: 0, hp: 7, hpMax: 8, shield: 1, buddies: 2, spd: 1, spread: 3, wt: 0, super: .7 }, { name: 'MARIGOLD', who: 1, hp: 8, hpMax: 8, shield: 3, buddies: 0, spd: 0, spread: 1, wt: 1, joined: true }] };
+      scene(c, 0, 520, o); });
+    P.push(c => { A.setStage(2); const o = busy(2); o.enemies = o.enemies.slice(8); o.bullets = o.bullets.slice(0, 40);
+      o.fruit = [{ k: 10, x: 60, y: 140 }, { k: 11, x: 190, y: 170 }, { k: 12, x: 120, y: 300 }];
+      o.shots = []; for (let i = 0; i < 6; i++) o.shots.push({ k: 'beam', x: 110 + (i & 1) * 20, y: 250 - (i >> 1) * 60 }); for (let i = 0; i < 6; i++) o.shots.push({ k: 'seeker', x: 160 + i * 9, y: 230 - i * 22, ang: -Math.PI / 2 + (i - 2) * .35 });
+      for (let i = 0; i < 8; i++) o.shots.push({ k: i & 1 ? 'petal' : 'pbig', x: 40 + i * 6, y: 250 - i * 18, ang: -Math.PI / 2 + (i - 4) * .12, who: 1 });
+      o.ships = [{ who: 0, x: 120, y: 284 }, { who: 1, x: 60, y: 280, shield: 3 }]; o.fx = [{ k: 'bubblepop', x: 60, y: 280, age: 5 }];
+      o.hud = { score: 99120, basket: 9, diff: 'HARD', p: [{ name: 'SPRIG', who: 0, hp: 5, hpMax: 5, shield: 0, buddies: 1, spd: 2, spread: 4, wt: 2 }, { name: 'MARIGOLD', who: 1, hp: 2, hpMax: 5, shield: 3, buddies: 0, spd: 1, spread: 2, wt: 3, joined: true }] };
+      scene(c, 2, 1100, o); });
     P.forEach((fn, i) => panel(ctx, 4 + (i % 4) * 248, 4 + Math.floor(i / 4) * 328, fn));
   });
   A.setStage(0);
