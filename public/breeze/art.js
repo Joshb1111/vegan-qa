@@ -911,11 +911,16 @@ const FX = {
     for (let i = 0; i < 8; i++) { const an = i * TAU / 8, d = 10 + 14 * e; ctx.fillStyle = i & 1 ? '#fff' : '#bfe6ff'; circle(ctx, f.x + Math.cos(an) * d, f.y + Math.sin(an) * d, 1.6 * (1 - e) + .5); ctx.fill(); }
     if (a < 10) { ctx.fillStyle = '#fff'; ctx.beginPath(); shieldP(ctx, f.x, f.y - a * .6, 3.4); ctx.fill(); ctx.fillStyle = PAL.blue; ctx.beginPath(); shieldP(ctx, f.x, f.y - a * .6 + .3, 1.8); ctx.fill(); }
     ctx.globalAlpha = 1; return a < L;
+  },
+  wend(ctx, f, a) { // v4: a timed weapon ran out (f.n = its type): a small pop in its colour
+    const L = 22, c = WCOL[Math.max(0, Math.min(3, f.n | 0))], e = easeOut(a / L);
+    pop(ctx, f.x, f.y, a / L, .55, [c]); ctx.globalAlpha = 1 - a / L; ctx.strokeStyle = c; ctx.lineWidth = 2; circle(ctx, f.x, f.y, 14 + 8 * e); ctx.stroke();
+    ctx.globalAlpha = 1; return a < L;
   }
 };
 const LIFE = { pop: f => (f.n || 1) >= 2 ? 36 : 24, popBig: 36, unwind: 78, calm: 60, sparkle: 14, spark: 7, tink: 8, sticker: f => f.life || 50, heart: f => f.x2 != null ? 32 : 40,
   pot: 1200, rainbow: 300, zapwarn: f => f.n || 60, zaplive: 14, seedburst: f => (f.n || 2) >= 2 ? 20 : 14, basket: 64, boinged: 18, ripen: 14, grab: 12, revive: 30, shield: 16,
-  bubble: 24, hurt: 10, confetti: 50, zz: f => f.n || 120, flower: 50, super: 44, weapon: 28, bubblepop: 22 };
+  bubble: 24, hurt: 10, confetti: 50, zz: f => f.n || 120, flower: 50, super: 44, weapon: 28, bubblepop: 22, wend: 22 };
 ['cancel', 'text', 'score', 'gift', 'heal'].forEach((k, i) => { LIFE[k] = [LIFE.sparkle, LIFE.sticker, LIFE.sticker, LIFE.heart, LIFE.heart][i]; });
 FX.cancel = FX.sparkle; FX.text = FX.sticker; FX.score = FX.sticker; FX.gift = FX.heart; FX.heal = FX.heart;
 function drawBasket(g) { outlined(g, [P(M.WOOD, g2 => { g2.moveTo(1, 4); g2.lineTo(15, 4); g2.lineTo(13, 11.5); g2.lineTo(3, 11.5); g2.closePath(); }, 5, 8, 7)], 1.2);
@@ -958,7 +963,8 @@ function drawPlayerPill(ctx, p, x, y, t) {
   else if (hm <= 5) { const h1 = GC.heart1, h0 = GC.heart0; for (let i = 0; i < hm; i++) put(ctx, i < hp ? h1 : h0, x + 54 + (5 - hm + i) * 8.2, y + 7.5); }
   else { const h1 = GC.heart1s, h0 = GC.heart0s, n1 = Math.ceil(hm / 2), x0 = x + 88.6 - (n1 - 1) * 7.3;   // 6-8 hearts: two rows of smaller ones
     for (let i = 0; i < hm; i++) { const r = i < n1 ? 0 : 1; put(ctx, i < hp ? h1 : h0, x0 + (r ? i - n1 : i) * 7.3, y + 5.3 + r * 6.9); } }
-  if (p.out) { putS(ctx, GC.dandG, x + 47, y + 17, .45); text(ctx, 'resting', x + 56, y + 18, 8, '#cfc9e3', 'left'); }   // v3: OUT (no lives left)
+  if (p.out) { const n = p.outS | 0, s = n > 0 ? 'resting · back in ' + n : 'resting', wide = n > 0 && tw8(s, 7) < 74;   // v3: OUT (no lives left); v4: back in N s
+    putS(ctx, GC.dandG, wide ? x + 9 : x + 47, y + 17, .45); text(ctx, wide ? s : n > 0 ? 'back ' + n : 'resting', wide ? x + 16 : x + 56, y + 18, wide ? 7 : 8, '#cfc9e3', 'left'); }
   else if (p.down) { putS(ctx, GC.dand, x + 47, y + 17, .45); text(ctx, 'floating…', x + 56, y + 18, 8, '#fff', 'left'); }
   else {
     const iy = y + 18.5;
@@ -970,6 +976,9 @@ function drawPlayerPill(ctx, p, x, y, t) {
     // weapon: type icon + 4 power pips in its colour
     const wt = Math.max(0, Math.min(3, p.wt | 0)), pw = Math.max(0, Math.min(4, p.spread | 0)), wc = WCOL[wt];
     ctx.fillStyle = 'rgba(255,255,255,.16)'; circle(ctx, x + 55, iy, 5.4); ctx.fill(); put(ctx, GC['wico' + wt], x + 55, iy);
+    const wf = Math.max(0, Math.min(1, +p.wtT || 0));   // v4: a timed weapon's draining bar under its icon, in its colour (blinks near the end)
+    if (wt > 0 && wf > 0) { ctx.fillStyle = PAL.ink; ctx.beginPath(); rrect(ctx, x + 48.5, y + 23.2, 13, 3.4, 1.7); ctx.fill();
+      if (wf > .2 || ((t >> 2) & 1)) { ctx.fillStyle = wc; ctx.beginPath(); rrect(ctx, x + 49.3, y + 23.9, Math.max(1.6, 11.4 * wf), 2, 1); ctx.fill(); } }
     for (let i = 0; i < 4; i++) { const px = x + 64.5 + i * 6.2, on = i < pw, h = 1.5 + i * .5;
       ctx.fillStyle = PAL.ink; ctx.beginPath(); rrect(ctx, px - 2, iy + 2.6 - h * 2 - 1, 4, h * 2 + 2, 1.6); ctx.fill();
       ctx.fillStyle = on ? wc : 'rgba(255,255,255,.22)'; ctx.beginPath(); rrect(ctx, px - 1.1, iy + 2.6 - h * 2, 2.2, h * 2, 1); ctx.fill(); }
@@ -1177,7 +1186,10 @@ BB.Art = {
     const tilt = Math.max(-1, Math.min(1, o.tilt || 0)), bob = Math.sin(t * .084) * 1.5, img = shipImg(who, (t / 5 | 0) & 3);
     const su = Math.min(1, +o.super || 0), ga = ctx.globalAlpha;
     if (su > 0 && (su > .2 || ((t >> 2) & 1))) { const k = 1 + Math.sin(t * .2) * .06; ctx.globalAlpha = ga * .9; putS(ctx, GC.aura, x, y + bob, k, k, t * .05); ctx.globalAlpha = ga; }
+    const wfl = o.wfl | 0, wfo = wfl > 0 && o.wt > 0 && ((wfl / (wfl < 90 ? 4 : 8)) | 0) & 1;   // v4: the last 3 s of a timed weapon: flashes its colour
+    if (wfo) { ctx.globalAlpha = ga * .5; ctx.fillStyle = WCOL[o.wt & 3]; circle(ctx, x, y + bob, 14); ctx.fill(); ctx.globalAlpha = ga; }
     if (tilt) putS(ctx, img, x, y - 1.5 + bob, 1 - .08 * Math.abs(tilt), 1, tilt * .14); else put(ctx, img, x, y - 1.5 + bob);
+    if (wfo) { ctx.strokeStyle = WCOL[o.wt & 3]; ctx.lineWidth = 2; circle(ctx, x, y + bob, 14); ctx.stroke(); }
     const ch = o.charge | 0;
     if (ch > 0) { const full = ch >= 60, r = full ? 15 + Math.sin(t * .3) : 15, sw = Math.min(1, ch / 60) * TAU;
       ctx.lineCap = 'round'; ctx.strokeStyle = PAL.ink; ctx.lineWidth = 3.6; ctx.beginPath(); ctx.arc(x, y + bob, r, -PI / 2, -PI / 2 + sw); ctx.stroke();

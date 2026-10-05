@@ -20,7 +20,10 @@ button{font:inherit;margin:0 6px 6px 0;padding:4px 10px}pre{white-space:pre-wrap
    v3: ships use DIFF.hp / invHit / reviveHp / lives (shared counter; down with 0 lives left = OUT, all OUT = GAME OVER); the
    power bot respects C.POWER_CAP; a world that does not read DIFF.safeR yet gets C.SAFE_R swapped for the run ("safeR emulated").
    'human' = a human-like bot: sees bullets 12 ticks late (RT), misjudges positions a little, moves at normal speed, holds still
-   now and then, no upgrades; 'humanp' = the same, but it grabs power pickups it notices (about half of them). */
+   now and then, no upgrades; 'humanp' = the same, but it grabs power pickups it notices (about half of them).
+   v4 (SPEC4): an OUT ship comes back after SH.outTicks (co-op; solo is still GAME OVER); v4Checks: boss at 100 s, wave density
+   per second at least v3's (x1.2 from the shorter timeline), bushes / bubbles per stage as v3, HARD-only waves added; the human
+   table splits hits into timeline / boss so the waves' share of the danger shows. */
 (function () {
 const C = BB.C, SH = C.SHIP, DIFF = C.DIFF || [{ name: 'MEDIUM', hp: 5, reviveHp: 3, bMul: 1, eHp: 1, extra: 0 }];
 const H = {};
@@ -111,7 +114,7 @@ function bot(w, s) {
   s.x = Math.max(SH.xMin, Math.min(SH.xMax, s.x)); s.y = Math.max(SH.yMin, Math.min(SH.yMax, s.y));
 }
 function shipStep(w, s, R) {
-  if (s.out) return;
+  if (s.out) { if (SH.outTicks && !(R.lives && R.lives.over) && ++s.outT >= SH.outTicks) { s.out = false; s.down = 0; s.outT = 0; s.hp = s.revHp; s.inv = SH.invRevive; } return; }   /* v4: back after 60 s */
   if (s.down) { if (--s.down === 0) { s.hp = s.revHp; s.inv = SH.invRevive; } s.y = Math.max(SH.downYMin, s.y - SH.downRise); return; }
   bot(w, s);
   if (s.inv > 0) s.inv--;
@@ -145,7 +148,7 @@ function shipStep(w, s, R) {
   if (s.hp > 0) return;
   s.bubbles++; s.shield = 0;
   const L = R.lives;
-  if (L && L.n <= 0) { s.out = true; s.down = 1e9; if (R.ships.every(o => o.out)) { L.over = true; R.overAt = w.tick; } }
+  if (L && L.n <= 0) { s.out = true; s.outT = 0; s.down = 1e9; if (R.ships.every(o => o.out)) { L.over = true; R.overAt = w.tick; } }
   else { if (L) { L.n--; L.lost++; } s.down = SH.downTicks; }
 }
 /* the v1 world has no difficulty: set w.diff and apply DIFF.bMul / DIFF.eHp here the way the v2 world does */
@@ -355,8 +358,23 @@ function v2Checks() {
   const fm = out.formation.MEDIUM, fh = out.formation.HARD;
   out.ok = fm.escapedDrops === 0 && fh.escapedDrops === 0 && fm.clearDropRate > 0.15 && fm.clearDropRate < 0.25 && fh.clearDropRate > 0.08 && fh.clearDropRate < 0.16 &&
     out.deterministic && out.star1 === 0 && out.wave1ok && out.flags.EASY && out.flags.EASY.bubbles > out.flags.MEDIUM.bubbles && out.flags.MEDIUM.bubbles === 4 &&
-    out.flags.HARD.bubbles === 2 && out.flags.MEDIUM.toys > out.flags.EASY.toys && out.flags.HARD.toys >= out.flags.MEDIUM.toys &&
-    out.flags.HARD.bushes < out.flags.MEDIUM.bushes;   // v3 tuning: MEDIUM gets the extra waves too (extra 1); HARD keeps fewer bushes
+    out.flags.HARD.bubbles === 2 && out.flags.MEDIUM.toys >= out.flags.EASY.toys && out.flags.HARD.toys >= out.flags.MEDIUM.toys &&
+    out.flags.HARD.bushes < out.flags.MEDIUM.bushes;   // MEDIUM has EASY's waves (extra 0 since v3; it fires more often instead); HARD keeps fewer bushes
+  return out;
+}
+/* v4 checks (SPEC4 3): the scheduled waves per difficulty (flags as BB.spawnWave reads them). V3 = the v3 numbers per stage
+   [toys EASY, MEDIUM, HARD, bushes EASY/MEDIUM, HARD, bubbles EASY, MEDIUM, HARD, HARD-only waves] with bossAt 120 */
+const V3 = [[133, 133, 157, 15, 9, 7, 4, 2, 8], [122, 122, 145, 16, 10, 7, 4, 2, 11], [115, 115, 147, 16, 10, 7, 4, 2, 12]];
+function v4Checks() {
+  const out = { rows: [], ok: true }, on = (fl, df) => !((fl === 'H' && df !== 2) || (fl === 'E' && df !== 0) || (fl === 'N' && df === 2));
+  for (let st = 0; st < 3; st++) {
+    const S = BB.STAGES[st], R = V3[st], T = S.bossAt, toys = [0, 0, 0], bush = [0, 0, 0], bub = [0, 0, 0];
+    for (let df = 0; df < 3; df++) for (const v of S.waves) if (on(v[6], df)) { const n = v[3] || 1; if (v[1] === 'bush') bush[df] += n; else if (v[1] === 'bubble') bub[df] += n; else toys[df] += n; }
+    const hw = S.waves.filter(v => v[6] === 'H').length, dens = toys.map((n, df) => n / T >= R[df] / 120 - 1e-9);
+    const ok = T === 100 && dens.every(Boolean) && toys[0] === R[0] && bush[0] === R[3] && bush[1] === R[3] && bush[2] === R[4] && bub[0] === R[5] && bub[1] === R[6] && bub[2] === R[7] && hw > R[8];
+    out.ok = out.ok && ok;
+    out.rows.push(`S${st + 1} boss at ${T} s · toys/s ${toys.map((n, df) => (n / T).toFixed(2) + ' (v3 ' + (R[df] / 120).toFixed(2) + ')').join(' / ')} · bushes ${bush.join('/')} · bubbles ${bub.join('/')} · HARD-only waves ${hw} (v3 ${R[8]})${ok ? '' : '  PROBLEM'}`);
+  }
   return out;
 }
 function defsCheck() {
@@ -419,6 +437,7 @@ H.runAll = function (seed, diffs) {
   data.fixes = fixChecks(); lines.push((data.fixes.ok ? 'fix checks ok: ' : 'fix checks PROBLEMS: ') + JSON.stringify(data.fixes));
   data.v2 = v2Checks(); lines.push((data.v2.ok ? 'v2 checks ok: ' : 'v2 checks PROBLEMS: ') + JSON.stringify(Object.assign({}, data.v2, { drops: undefined })));
   lines.push('drop tables:\n  ' + data.v2.drops.join('\n  '));
+  data.v4 = v4Checks(); lines.push((data.v4.ok ? 'v4 checks ok:' : 'v4 checks PROBLEMS:') + '\n  ' + data.v4.rows.join('\n  '));
   lines.push('\nSUMMARY (solo bots unless noted; hits = bullet/zap hits incl. shield pops)\n' + summary(data.stages));
   data.human = H.human([1, 2, 3, 4], diffs); lines.push('\n' + data.human.text);
   data.run = H.campaign([1, 2, 3, 4, 5, 6], diffs); lines.push('\n' + data.run.text);
@@ -445,17 +464,17 @@ H.human = function (seeds, diffs) {
   seeds = seeds || [1, 2, 3, 4, 5, 6];
   const m = a => a.reduce((x, y) => x + y, 0) / a.length, f = v => (Math.round(v * 10) / 10).toString(), rows = [], data = [];
   rows.push(`HUMAN BOT (reaction ${RT} ticks) over seeds ${seeds.join(',')}, solo, each stage from full hearts${safeEmu() ? ' · safeR emulated (world has no DIFF.safeR yet)' : ''}`);
-  rows.push('stage diff   | bullets/min tl / boss | peak b | human: hits | hearts lost tl+boss | downs | lives lost | game over | boss s (tired) | humanp: hearts lost | end power | drops (all seeds, human runs)');
+  rows.push('stage diff   | bullets/min tl / boss | peak b | human: hits tl+boss | hearts lost tl+boss | downs | lives lost | game over | boss s (tired) | humanp: hearts lost | end power | drops (all seeds, human runs)');
   for (let st = 0; st < 3; st++) for (const df of diffs || [0, 1, 2]) {
     const A = seeds.map(sd => runStage(st, ['human'], sd, df)), P = seeds.map(sd => runStage(st, ['humanp'], sd, df)), dr = {};
     for (const r of A) for (const k in r.fruit) dr[k] = (dr[k] | 0) + r.fruit[k];
     const lt = r => r.lostAt.filter(t => t <= BB.STAGES[st].bossAt * 60 + C.STAGE.warnTicks).length;
-    const row = { st, df, perMin: m(A.map(r => r.perMinTimeline)), boss: m(A.map(r => r.perMinBoss)), peakB: Math.max(...A.map(r => r.peakB)), hits: m(A.map(r => r.hits[0])),
+    const row = { st, df, perMin: m(A.map(r => r.perMinTimeline)), boss: m(A.map(r => r.perMinBoss)), peakB: Math.max(...A.map(r => r.peakB)), hits: m(A.map(r => r.hits[0])), hitsTl: m(A.map(r => r.hitsTimeline[0])),
       lostTl: m(A.map(lt)), lost: m(A.map(r => r.lost[0])), downs: m(A.map(r => r.bubbles[0])), livesLost: m(A.map(r => r.livesLost)), over: A.filter(r => r.gameOver).length,
       hitBy: A.reduce((o, r) => { for (const k in r.hitBy) o[k] = (o[k] | 0) + r.hitBy[k]; return o; }, {}),
       bossS: m(A.map(r => r.bossTicks / 60)), tired: A.filter(r => !r.bossBeaten).length, lostP: m(P.map(r => r.lost[0])), pw: m(P.map(r => r.pw[0])), drops: dr, star: dr[7] | 0 };
     data.push(row);
-    rows.push(`S${st + 1} ${(DIFF[df].name + '      ').slice(0, 6)} | ${f(row.perMin).padStart(5)} / ${f(row.boss).padStart(5)} | ${String(row.peakB).padStart(2)}/${C.MAX_EBUL} | ${f(row.hits).padStart(5)} | ${f(row.lostTl)}+${f(row.lost - row.lostTl)} = ${f(row.lost)} | ${f(row.downs)} | ${f(row.livesLost)} | ${row.over}/${seeds.length} | ${f(row.bossS)} (${row.tired}) | ${f(row.lostP)} | ${f(row.pw)} | ${kinds(dr)}`);
+    rows.push(`S${st + 1} ${(DIFF[df].name + '      ').slice(0, 6)} | ${f(row.perMin).padStart(5)} / ${f(row.boss).padStart(5)} | ${String(row.peakB).padStart(2)}/${C.MAX_EBUL} | ${f(row.hitsTl)}+${f(row.hits - row.hitsTl)} | ${f(row.lostTl)}+${f(row.lost - row.lostTl)} = ${f(row.lost)} | ${f(row.downs)} | ${f(row.livesLost)} | ${row.over}/${seeds.length} | ${f(row.bossS)} (${row.tired}) | ${f(row.lostP)} | ${f(row.pw)} | ${kinds(dr)}`);
   }
   rows.push('hits by shooter (all seeds; "<rt" = the bullet was younger than the reaction delay):');
   for (const r of data) if (r.df === 2 || r.hits > 1) rows.push(`  S${r.st + 1} ${DIFF[r.df].name}: ` + Object.entries(r.hitBy).sort((a, b) => b[1] - a[1]).map(([k, v]) => k + ' ' + v).join(', '));

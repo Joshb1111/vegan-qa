@@ -7,7 +7,11 @@
    v2 (SPEC2): w.diff (0 easy, 1 medium, 2 hard; DIFF.bMul in w.bullet, DIFF.eHp at spawn, no kind assist when DIFF.kind is
    false), weapons (Ship.volley/seekers/stars, piercing bolts, homing), SUPER STAR, pickups 7-12 (pickMove; never juggled).
    v3 (SPEC3): power capped per stage (C.POWER_CAP, Ship.cap), DIFF superTicks / invHit / safeR, team LIVES (w.lives, null when
-   off): going down costs a life, going down at 0 is OUT (never revives); every ship OUT → GAME OVER (ph 5). Pack f bit 64 = OUT.
+   off): going down costs a life, going down at 0 is OUT; every ship OUT → GAME OVER (ph 5). Pack f bit 64 = OUT.
+   v4: an OUT ship rests SH.outTicks (60 s; no partner revive) and then comes back (Ship.outT; the host's record of the guest: outAt).
+   v4 (SPEC4 1): weapons 1-3 are TIMED (Ship.wtT ticks of wtMax = DIFF.weaponTicks; paused by the super star and by wtHold, set
+   from ph >= 3); a pea packet is +1 power; going down ends the timed weapon and costs a power level. A remote ship's wtT is an
+   estimate from its packs (the guest owns its own timer; its pack shows wt 0 when it ends).
    Keep every w API name and signature. Plain objects in w.ships (the content harness) are left alone. */
 'use strict';
 (function () {
@@ -39,32 +43,36 @@ class Ship {
   /* a difficulty (0 easy, 1 medium, 2 hard): hearts max/start, stage-clear heal, revive; invulnerability after a hit; super star length */
   setDiff(d) {
     const D = C.DIFF[d] || C.DIFF[1]; this.diff = C.DIFF[d] ? d | 0 : 1;
-    this.hpMax = D.hp; this.healN = D.heal; this.reviveHp = D.reviveHp; this.invHit = D.invHit || SH.invHit; this.superMax = D.superTicks || SU.ticks;
+    this.hpMax = D.hp; this.healN = D.heal; this.reviveHp = D.reviveHp; this.invHit = D.invHit || SH.invHit; this.superMax = D.superTicks || SU.ticks; this.wtMax = D.weaponTicks || 1200;
     this.shMax = clamp(D.shield == null ? 3 : D.shield | 0, 1, 3);   /* v3: most shield layers (EASY 3, MEDIUM 2, HARD 1) */
     if (this.hp > this.hpMax) this.hp = this.hpMax; if (this.shield > this.shMax) this.shield = this.shMax;
   }
   reset(x, y) {
     if (x != null) { this.x = x; this.y = y; }
     this.hp = this.hpMax; this.shield = 0; this.buddies = 0; this.spd = 0; this.spread = 0; this.wt = 0; this.superT = 0; this.charge = 0; this.cool = 0;
-    this.inv = 0; this.down = false; this.out = false; this.downT = 0; this.bub = 0; this.sn = 0; this.sl = 0; this.f = 0;
+    this.inv = 0; this.down = false; this.out = false; this.downT = 0; this.outT = 0; this.bub = 0; this.sn = 0; this.sl = 0; this.f = 0;
     this.firing = false; this.charging = false; this.hidden = false; this.away = false;
     this.fireT = 0; this.budT = 0; this.seekT = 0; this.bonkT = 0; this.tilt = 0; this.t = 0; this.vol = false; this.rel = 0; this.supEnd = false; this.ow = 0;
+    this.wtT = 0; this.wEnd = 0; this.wtHold = false; this.lwt = 0; this.noRev = 0;
     this.lastSn = -1; this.lastBub = -1; this.revAt = -99; this.shots.length = 0;
     this.bx[0] = this.bx[1] = this.x; this.by[0] = this.by[1] = this.y;
   }
   /* one tick of a ship this device controls. inp {dx,dy (-1..1 keys), mx,my (touch drag px, consumed), fire, charge} */
   step(inp, partner) {
-    inp = inp || NOIN; this.t++; this.vol = false; this.rel = 0; this.supEnd = false;
+    inp = inp || NOIN; this.t++; this.vol = false; this.rel = 0; this.supEnd = false; this.wEnd = 0;
     if (this.inv > 0) this.inv--;
+    if (this.noRev > 0) this.noRev--;
     if (this.bonkT > 0) this.bonkT--;
     if (this.cool > 0) this.cool--;
     if (this.superT > 0 && --this.superT === 0) this.supEnd = true;
+    if (this.wt > 0 && !this.down && !this.superT && !this.wtHold && --this.wtT <= 0) { this.wEnd = this.wt; this.wt = 0; this.wtT = 0; }   /* v4: a timed weapon runs out: back to PEA, power kept */
     if (this.down) {
       this.downT++; this.firing = this.charging = false; this.charge = 0;
       if (this.y > SH.downYMin) this.y = Math.max(SH.downYMin, this.y - SH.downRise);
       this.x = clamp(this.x + (inp.dx || 0) * 0.5, SH.xMin, SH.xMax);         /* a gentle sideways steer under the parachute */
       if (inp !== NOIN) inp.mx = inp.my = 0;
-      if (!this.out && (this.downT >= SH.downTicks || (partner && !partner.down && !partner.away && (partner.x - this.x) ** 2 + (partner.y - this.y) ** 2 < SH.reviveR * SH.reviveR))) this.revive();   /* OUT: never */
+      if (this.out) { if (++this.outT >= (SH.outTicks || 3600)) { this.out = false; this.revive(); } }   /* v4 OUT: resting, back after 60 s */
+      else if (!this.noRev && (this.downT >= SH.downTicks || (partner && !partner.down && !partner.away && (partner.x - this.x) ** 2 + (partner.y - this.y) ** 2 < SH.reviveR * SH.reviveR))) this.revive();   /* noRev: an online guest that went down at 0 lives waits for the host's OUT */
     } else {
       const v = SH.speeds[this.spd] || SH.speeds[0];
       let dx = inp.dx || 0, dy = inp.dy || 0;
@@ -89,9 +97,12 @@ class Ship {
   }
   /* a ship known only from its packs: same volley cadence from the fire flag, seeds from sn/sl; the super bar drains locally */
   mirror() {
-    this.t++; this.vol = false; this.rel = 0; this.supEnd = false;
+    this.t++; this.vol = false; this.rel = 0; this.supEnd = false; this.wEnd = 0;
     if (this.bonkT > 0) this.bonkT--;
     if (this.superT > 1) this.superT--;
+    if (this.wt !== this.lwt) { if (this.wt > 0) this.wtT = this.wtMax; else if (this.lwt > 0 && !this.down) this.wEnd = this.lwt; this.lwt = this.wt; }   /* v4: a new timed weapon in its packs: estimate */
+    if (this.wt > 0) { if (!this.superT && !this.down && !this.wtHold && this.wtT > 1) this.wtT--; } else this.wtT = 0;
+    this.outT = this.out ? (this.outT | 0) + 1 : 0;   /* v4: how long it has rested as we see it (the HUD's 'back in N'; never revives it) */
     if (this.px != null) this.tilt += (clamp((this.x - this.px) / 1.5, -1, 1) - this.tilt) * 0.25;
     this.px = this.x;
     this.fireTick();
@@ -199,23 +210,25 @@ class Ship {
     if (this.hp <= 0) { this.goDown(); return 3; }
     return 2;
   }
-  /* down keeps weapon type and power; loses buddies, shield and the super star */
-  goDown() { this.down = true; this.downT = 0; this.hp = 0; this.buddies = 0; this.shield = 0; this.superT = 0; this.charge = 0; this.charging = false; this.inv = 0; this.bub++; this.flags(); }
-  revive() { if (this.out) return; this.down = false; this.downT = 0; this.hp = this.reviveHp; this.inv = SH.invRevive; this.flags(); }
+  /* down loses buddies, shield and the super star; v4: the timed weapon ends (back to PEA) and one power level goes */
+  goDown() { this.down = true; this.downT = 0; this.hp = 0; this.buddies = 0; this.shield = 0; this.superT = 0; this.charge = 0; this.charging = false; this.inv = 0; this.bub++;
+    this.wt = 0; this.wtT = 0; this.spread = Math.max(0, (this.spread | 0) - 1); this.flags(); }
+  revive() { if (this.out) return; this.down = false; this.downT = 0; this.noRev = 0; this.hp = this.reviveHp; this.inv = SH.invRevive; this.flags(); }
   heal(n) { if (this.down) this.revive(); else this.hp = Math.min(this.hpMax, this.hp + n); }
-  /* OUT (SPEC3 2): down for good; no timer, partner or stage-clear revive */
-  goOut() { if (!this.down) this.goDown(); this.out = true; this.flags(); }
+  /* OUT (SPEC3 2): no partner or stage-clear revive; v4: back after SH.outTicks (60 s) */
+  goOut() { if (!this.down) this.goDown(); this.out = true; this.outT = 0; this.flags(); }
   /* v3: power stops at the stage's cap (C.POWER_CAP); a strawberry or same-type packet there gives +500 */
   pcap() { return clamp(this.cap == null ? PMAX : this.cap | 0, 0, PMAX); }
   maxed(k) {
     return k === 1 ? this.shield >= this.shMax : k === 2 ? this.buddies >= 2 : k === 3 ? this.spread >= this.pcap() : k === 4 ? this.spd >= 2
-      : k >= 8 && k <= 11 ? this.wt === k - 8 && this.spread >= this.pcap() : k === 12 ? this.shield >= this.shMax : false;
+      : k === 8 ? this.spread >= this.pcap() : k >= 9 && k <= 11 ? this.wt === k - 8 && this.spread >= this.pcap() : k === 12 ? this.shield >= this.shMax : false;
   }
   /* apply a fruit or pickup: returns {pts, label, full}. full = a Heart Peach at max hearts (the world decides gift or +200) */
   grab(k) {
     const lab = (BB.FRUITS[k] && BB.FRUITS[k].label) || '';
     if (k === 0) return { pts: FR.sunPts, label: '+' + FR.sunPts };
     if (k === 12) { if (this.shield >= this.shMax) return { pts: PK.bubblePts, label: '+' + PK.bubblePts }; this.shield++; return { pts: 0, label: lab }; }
+    if (k >= 9 && k <= 11 && this.wt === k - 8) this.wtT = this.wtMax;   /* v4: the same timed weapon again: a full timer (+1 power or +500) */
     if (this.maxed(k)) return { pts: PK.maxPts || FR.maxPts, label: '+' + (PK.maxPts || FR.maxPts) };
     if (k >= 1 && k <= 4) {
       if (k === 1) this.shield = this.shMax;
@@ -227,9 +240,9 @@ class Ship {
     if (k === 5) { if (this.hp >= this.hpMax) return { pts: 0, label: '', full: true }; this.hp++; return { pts: 0, label: lab }; }
     if (k === 6) { this.hp = this.hpMax; this.shield = this.shMax; return { pts: 0, label: lab }; }   /* Rainbow Peach */
     if (k === 7) { if (!this.down) this.superT = this.superMax; return { pts: 0, label: lab }; }   /* SUPER STAR (DIFF superTicks) */
-    if (k >= 8 && k <= 11) {   /* seed packet: same type → +1 power; another type → switch, keeping the power */
-      const t = k - 8; if (t === this.wt) { this.spread++; return { pts: 0, label: '+POWER' }; }
-      this.wt = t; return { pts: 0, label: lab };
+    if (k >= 8 && k <= 11) {   /* seed packet: PEA (8) or the same type → +1 power; another timed type → switch with a full timer, keeping the power */
+      const t = k - 8; if (t === 0 || t === this.wt) { this.spread++; return { pts: 0, label: '+POWER' }; }
+      this.wt = t; this.wtT = this.wtMax; return { pts: 0, label: lab };
     }
     return { pts: 0, label: '' };
   }
@@ -493,7 +506,7 @@ class World {
   lifeLost(s) {
     if (this.lives == null || !s) return;
     if (this.lives > 0) { this.lives--; this.event('L', this.lives); return; }
-    if (s.remote) { if (!s.outH) this.grantsOut.push(['o', this.run % 10000]); s.down = s.out = s.outH = true; }   /* outH: the host's own record */
+    if (s.remote) { if (!s.outH) { this.grantsOut.push(['o', this.run % 10000]); s.outAt = this.gt; } s.down = s.out = s.outH = true; }   /* outH: the host's own record */
     else s.goOut();
     this.fxl('sticker', s.x, s.y - 20, 'RESTING'); this.event('L', 0);   /* kind words: the ship is resting */
   }
@@ -565,20 +578,23 @@ class World {
     let shot = false;
     for (let i = 0; i < ss.length; i++) {
       const s = ss[i]; if (!(s instanceof Ship)) continue;
-      s.cap = cap;
+      s.cap = cap; s.wtHold = this.ph >= 3;
       if (s.remote) {
         s.awayT = s.away || s.hidden ? (s.awayT | 0) + 1 : 0;
+        if (s.outH && this.ph !== 5 && this.gt - (s.outAt | 0) >= (SH.outTicks || 3600)) { s.outH = s.out = false; this.fxl('sticker', s.x, s.y - 20, 'BACK!'); }   /* v4: the guest's rest is over (it revives itself) */
         if (s.awayT === AWAY_SOLO) this.soloBoss();                                               /* gone quiet: this boss for one */
-        s.mirror();
+        s.mirror(); if (s.wEnd) this.fxl('wend', s.x, s.y, s.wEnd);
         if (s.lastBub < 0 || s.bub < s.lastBub) s.lastBub = s.bub;                               /* guest bubbles → kind assist */
         else if (s.bub > s.lastBub) { this.bubbled(null, s.bub - s.lastBub); for (let n = s.bub - s.lastBub; n > 0; n--) this.lifeLost(s); s.lastBub = s.bub; }
       } else {
-        const wasDown = s.down;
+        const wasDown = s.down, wasOut = s.out;
+        if (wasOut && this.ph === 5) s.outT = 0;   /* GAME OVER: nobody comes back behind the card */
         s.step(s.input, this.partnerOf(s));
-        if (wasDown && !s.down) { this.fxl('revive', s.x, s.y); this.sfx('revive'); }
+        if (wasDown && !s.down) { this.fxl('revive', s.x, s.y); this.sfx('revive'); if (wasOut) this.fx('sticker', s.x, s.y - 20, 'BACK!'); }
         if (s.vol) shot = true;
         if (s.rel) { this.sfx(s.rel === 2 ? 'sun' : 'seedlet'); this.fxl('seedburst', s.x, s.y - 12, s.rel); }
         if (s.supEnd) this.sfx('superEnd');
+        if (s.wEnd) { this.sfx('superEnd'); this.fxl('wend', s.x, s.y, s.wEnd); }   /* v4: the timed weapon ran out */
       }
       s.steer(this.enemies); s.moveShots();
     }
@@ -736,8 +752,8 @@ class World {
       else if (k === 5) { if (s.hp < s.hpMax) this.grantsOut.push(['f', 5]); else full = true; }
       else if (k === 6) this.grantsOut.push(['w', 0]);
       else if (k === 12 && s.shield >= s.shMax) pts = C.PICK.bubblePts;
-      else if (s.maxed(k)) pts = C.PICK.maxPts;
-      else { this.grantsOut.push(['f', k]); if (k >= 8 && k <= 11 && k - 8 === s.wt) label = '+POWER'; }
+      else if (s.maxed(k)) { pts = C.PICK.maxPts; if (k >= 9 && k <= 11) { this.grantsOut.push(['f', k]); s.wtT = s.wtMax; } }   /* v4: at the cap the same packet still refills the guest's timer */
+      else { this.grantsOut.push(['f', k]); if (k >= 8 && k <= 11 && (k === 8 || k - 8 === s.wt)) label = '+POWER'; if (k >= 9 && k <= 11) s.wtT = s.wtMax; }
       if (k === 7 && s.down) snd = 'grab';
     } else {
       const r = s.grab(k); pts = r.pts; label = r.label; full = !!r.full;

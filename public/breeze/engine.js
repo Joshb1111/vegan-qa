@@ -4,7 +4,9 @@
    ?bot ?mute ?debug, and window.__bb. Simulation: world.js (World, Ship). Online plumbing: net.js (BB.Net). SPEC 1, 5, 6.
    v2 (SPEC2 A, B, G): music on/off apart from sound (N), difficulty on the title (the host's applies online), weapon HUD.
    v3 (SPEC3): team lives and OUT ships on HARD, GAME OVER (ph 5: SPACE / tap tries the same stage again, Esc to the title),
-   power capped per stage, ?bot=2 (a human-like autopilot for tuning; ?bot=1 is the old perfect dodger). */
+   power capped per stage, ?bot=2 (a human-like autopilot for tuning; ?bot=1 is the old perfect dodger).
+   v4 (SPEC4): an OUT ship rests 60 s then comes back ('resting · back in N'); no local join while lives are 0 or a ship is OUT;
+   timed special weapons (HUD bar p.wtT, the ship flashes in the last 3 s, 'superEnd' + a 'wend' pop when one runs out). */
 'use strict';
 (function () {
 const C = BB.C, SH = C.SHIP, NC = C.NET, FR = C.FRUIT, TICK = C.TICK, A = BB.Art, TCZ = BB.TC.zap;
@@ -183,8 +185,9 @@ function setPause(on) {   /* banner / screen ages stand still while paused */
   if (on) pauseUt = ut; else { const d = ut - pauseUt; stUt += d; phUt += d; }
   paused = on; au('hidden', paused || hidden());
 }
+const joinLock = () => !!w && w.lives != null && (w.lives <= 0 || w.ships.some(s => s && s.out));   /* v4: no fresh ship while the team has no lives / one is resting */
 function joinP2() {
-  if (mode !== 'solo' || state !== 'play' || paused || !w || p2 || w.ph >= 4) return;
+  if (mode !== 'solo' || state !== 'play' || paused || !w || p2 || w.ph >= 4 || joinLock()) return;
   const who = p1.who ? 0 : 1;
   p2 = new BB.Ship(who, clamp(p1.x + 30, SH.xMin, SH.xMax), clamp(p1.y, 200, SH.yMax), w.diff); p2.local = true; p2.inv = SH.invRevive;
   w.fxList = w.fxList.filter(f => f.s !== 'Hold ENTER to join!');
@@ -193,13 +196,14 @@ function joinP2() {
 }
 function joinWatch() {   /* a deliberate join: ENTER held for 0.5 s after a fresh press in play; a tap only shows how */
   if (!joinT) return;
-  if (p2 || mode !== 'solo' || w.ph >= 4) { joinT = 0; return; }
+  if (p2 || mode !== 'solo' || w.ph >= 4 || joinLock()) { joinT = 0; return; }
   if (keys.Enter || keys.NumpadEnter || keys.Slash) { if (++joinT > JOIN_HOLD) joinP2(); }
   else { joinT = 0; w.pushFx({ k: 'sticker', x: 176, y: 42, s: 'Hold ENTER to join!', n: 8, life: 90, born: w.gt }); }
 }
 function idleWatch() {   /* two on one keyboard: a player idle for 15 s while the other plays flies home; the other keeps every key */
   if (!p2 || !p2.local || DBG.bot || w.ph > 2) return;
-  for (let i = 0; i < 2; i++) if (ut - lastIn[i] > IDLE_HOME && ut - lastIn[1 - i] < 120) {
+  if (p1.down) lastIn[0] = ut; if (p2.down) lastIn[1] = ut;   /* v4: a floating or resting (OUT) player is not idle, nor "the one still playing" */
+  for (let i = 0; i < 2; i++) if (ut - lastIn[i] > IDLE_HOME && ut - lastIn[1 - i] < 120 && !(i ? p1 : p2).down) {
     const gone = i ? p2 : p1, stay = i ? p1 : p2;
     w.partnerLeft(gone); w.fxl('sticker', gone.x, gone.y - 22, (gone.who ? 'MARIGOLD' : 'SPRIG') + ' FLEW HOME');
     p1 = me = stay; p2 = null; stay.local = true; joinT = 0; return;
@@ -384,7 +388,7 @@ function hurtMe() {
   const r = me.hurt(); if (!r) return;
   if (r === 1) { gfxAt('shield', me.x, me.y); sfx('shield'); }
   else if (r === 2) { gfxAt('hurt', me.x, me.y); sfx('hurt'); gShake = Math.max(gShake, 0.5); }
-  else { gfxAt('bubble', me.x, me.y); sfx('bubble'); gShake = Math.max(gShake, 0.6); }
+  else { gfxAt('bubble', me.x, me.y); sfx('bubble'); gShake = Math.max(gShake, 0.6); if (V.lv === 0) me.noRev = 600; }   /* v4: down at 0 lives: no self-revive, the host's OUT is coming (10 s safety) */
 }
 function viewHurt() {   /* each player checks their own ship against what they see; new bullets are ignored for 12 ticks */
   if (me.down || me.inv > 0) return;
@@ -415,6 +419,7 @@ function playEvent(e, stale) {
   else if (c === 'P') { gfxAt('pop', e[2] / 4, e[3] / 4); sfx('pop'); }
   else if (c === 'C') { const f = VI.get(e[2]); if (f) gfxAt('ripen', f.x, f.y); sfx('ripen'); }
   else if (c === 'G') { const x = e[2] / 4, y = e[3] / 4, k = e[4] | 0, lab = BB.FRUITS[k] && BB.FRUITS[k].label;
+    if (hs && (e[5] | 0) === hs.who && k >= 9 && k <= 11 && k - 8 === hs.wt) hs.wtT = hs.wtMax;   /* v4: the host's same packet: its timer is full again */
     gfxAt('grab', x, y); const gk = BB.World.grabFx(k); if (gk) gfxAt(gk, x, y, k >= 8 && k <= 11 ? k - 8 : undefined); if (lab) pushG({ k: 'sticker', x, y: y - 10, s: lab, born: ut }); sfx(BB.World.grabSnd(k)); }
   else if (c === 'Q') sfx('cancel');
   else if (c === 'S') sfx('start');
@@ -439,14 +444,17 @@ function guestTick() {
   if (!buildView()) return;
   readInput();
   if (DBG.bot) botDrive(me, IN[0], Array.from(VB.values()), Array.from(VE.values()), Array.from(VI.values()));
-  const wasDown = me.down;
+  const wasDown = me.down, wasOut = me.out;
+  if (wasOut && V.ph === 5) me.outT = 0;   /* v4: GAME OVER holds the 60 s rest */
+  me.wtHold = hs.wtHold = V.ph >= 3;   /* v4: weapon timers wait during the tally */
   me.hidden = upright;   /* on its side: flagged hidden (16), so the host shows a ghost and nobody aims at it */
   me.step(IN[0], hs);
-  if (wasDown && !me.down) { gfxAt('revive', me.x, me.y); sfx('revive'); }
+  if (wasDown && !me.down) { gfxAt('revive', me.x, me.y); sfx('revive'); if (wasOut) pushG({ k: 'sticker', x: me.x, y: me.y - 20, s: 'BACK!', born: ut }); }
   if (me.vol) sfx('shot');
   if (me.rel) { sfx(me.rel === 2 ? 'sun' : 'seedlet'); gfxAt('seedburst', me.x, me.y - 12, me.rel); }
   if (me.supEnd) sfx('superEnd');
-  me.steer(VE.values()); me.moveShots(); hs.mirror(); hs.steer(VE.values()); hs.moveShots();
+  if (me.wEnd) { sfx('superEnd'); gfxAt('wend', me.x, me.y, me.wEnd); }   /* v4: our timed weapon ran out (the pack now says wt 0) */
+  me.steer(VE.values()); me.moveShots(); hs.mirror(); if (hs.wEnd) gfxAt('wend', hs.x, hs.y, hs.wEnd); hs.steer(VE.values()); hs.moveShots();
   viewShots(me, true); viewShots(hs, false);
   if (!(V.held || V.extra > 50 || lastP || DBG.god || upright)) viewHurt();
   if (!upright) viewBonk();
@@ -560,7 +568,7 @@ function tick() {
 
 /* ---------- render (SPEC order): bg, ground, bushes, fruit, air + boss, partner shots, my shots, buddies, ships (mine on
    top), enemy bullets, fx, HUD, overlay. Only the world layer shakes. ---------- */
-const SO = { t: 0, blink: false, down: false, out: false, shield: 0, charge: 0, tilt: 0, ghost: false, super: 0 }, EO = { a: 0, t: 0, flash: 0, hpf: 1, vx: 0, vy: 0 }, FO = { t: 0, h: 0, next: 0, squash: 0 };
+const SO = { t: 0, blink: false, down: false, out: false, shield: 0, charge: 0, tilt: 0, ghost: false, super: 0, wt: 0, wfl: 0 }, EO = { a: 0, t: 0, flash: 0, hpf: 1, vx: 0, vy: 0 }, FO = { t: 0, h: 0, next: 0, squash: 0 };
 const PH = [{}, {}], BO = { name: '', hpf: 1 }, UND = [false, false], HUD = { t: 0, score: 0, basket: 0, p: PH, boss: null, touch: false, net: null, hint: null, diff: '', under: UND, lives: null };
 const isBoss = t => { const D = BB.ENEMY[t]; return !!(D && D.boss); };
 function drawEnemy(type, x, y, a, t, flash, hpf, vx, vy) { EO.a = a; EO.t = t; EO.flash = flash; EO.hpf = hpf; EO.vx = vx; EO.vy = vy; A.enemy(ctx, type, x, y, EO); }
@@ -569,6 +577,7 @@ function drawShots(s) { if (s) for (const sh of s.shots) if (!sh.dead) A.shot(ct
 function drawBuddies(s) { if (s && !s.down) for (let i = 0; i < s.buddies; i++) A.buddy(ctx, s.who, s.bx[i], s.by[i], ut + i * 4); }
 function drawShip(s) {
   if (!s) return; SO.t = ut + s.who * 17; SO.blink = s.inv > 0 && !s.down; SO.down = s.down; SO.out = !!s.out; SO.shield = s.shield; SO.charge = s.charging ? s.charge : 0; SO.tilt = s.tilt || 0; SO.ghost = !!(s.away || s.hidden); SO.super = s.superT > 0 && !s.down ? Math.min(1, s.superT / (s.superMax || C.SUPER.ticks)) : 0;
+  SO.wt = s.wt | 0; SO.wfl = s.wt > 0 && !s.down && !(s.superT > 0) && s.wtT > 0 && s.wtT <= 180 ? s.wtT : 0;   /* v4: the last 3 s of a timed weapon */
   const fade = s.out && !artV3(); if (fade) ctx.globalAlpha = 0.4;   /* an older art.js: OUT is simply faded */
   A.ship(ctx, s.who, s.x, s.y, SO); if (fade) ctx.globalAlpha = 1;
 }
@@ -610,9 +619,11 @@ function drawView() {
   for (const b of VB.values()) if (!b.gone) A.bullet(ctx, b.x, b.y, b.big, ut);
   drawFx(gfx, ut);
 }
+/* v4: whole seconds until an OUT ship is back (Ship.outT: exact for our own ships, from when we first saw it resting for a remote one) */
+const outLeft = s => s.out ? Math.max(1, Math.ceil(((SH.outTicks || 3600) - (s.outT | 0)) / 60)) : 0;
 function fillP(P, s, joined) {
   P.name = s.who ? 'MARIGOLD' : 'SPRIG'; P.who = s.who; P.hp = s.hp; P.hpMax = s.hpMax; P.shield = s.shield; P.shMax = s.shMax || 3; P.buddies = s.buddies; P.spd = s.spd;
-  P.wt = s.wt; P.spread = s.spread; P.super = s.superT > 0 ? Math.min(1, s.superT / (s.superMax || C.SUPER.ticks)) : 0; P.charge = s.charging ? s.charge : 0; P.down = s.down; P.out = !!s.out; P.joined = joined; P.local = !s.remote;
+  P.wt = s.wt; P.wtT = s.wt > 0 && s.wtT > 0 ? Math.min(1, s.wtT / (s.wtMax || 1200)) : 0; P.spread = s.spread; P.super = s.superT > 0 ? Math.min(1, s.superT / (s.superMax || C.SUPER.ticks)) : 0; P.charge = s.charging ? s.charge : 0; P.down = s.down; P.out = !!s.out; P.outS = outLeft(s); P.joined = joined; P.local = !s.remote;
   if (s.y < 36 && !s.down) { if (s.x < 104) UND[0] = true; if (s.x > 136) UND[1] = true; }   /* a ship under a pill: the pill fades */
 }
 function hud() {

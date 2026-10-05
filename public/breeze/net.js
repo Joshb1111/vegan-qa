@@ -5,7 +5,8 @@
    v2 (SPEC2.md, PROTO 2): pack index 7 = weapon wt*5+power (0..19), f bit 32 = super star, fruit k 0..12, snapshot df (difficulty),
    'f' grants 1..12, and the parent's {ty:'music', on}.
    v3 (SPEC3.md, PROTO 3): snapshot ph 0..5 (5 = GAME OVER), optional lv (team lives 0..9, left out when lives are off),
-   pack f 0..127 with bit 64 = OUT, grant 'o' (the guest is OUT; arg = the host's run % 10000). */
+   pack f 0..127 with bit 64 = OUT, grant 'o' (the guest is OUT; arg = the host's run % 10000).
+   v4 (SPEC4.md, PROTO 4): nothing new on the wire: timed weapons ride in index 7 (wt 0 when the guest's timer ends). */
 'use strict';
 (function () {
 const C = BB.C, N = C.NET, TICK = C.TICK, MAXMSG = N.maxMsg || 6000, I31 = 2147483647;
