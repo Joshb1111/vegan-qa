@@ -36,7 +36,7 @@ function breezeRoom(body, ctx) {
   const play = q => {
     window.__duck = 1; /* the game has its own music */
     dropFrame(); el.innerHTML = '';
-    frame = document.createElement('iframe'); frame.className = 'tyframe'; frame.title = 'Berry Breeze'; frame.src = 'breeze/index.html?v=3' + (q || ''); frame.allow = 'autoplay; fullscreen'; el.appendChild(frame);
+    frame = document.createElement('iframe'); frame.className = 'tyframe'; frame.title = 'Berry Breeze'; frame.src = 'breeze/index.html?v=5' + (q || ''); frame.allow = 'autoplay; fullscreen'; el.appendChild(frame);
     if (st) { const tag = document.createElement('div'); tag.className = 'net'; st.tag = tag; el.appendChild(tag); showTag(); }
     const SPK = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M4 9h4l5-4v14l-5-4H4z" fill="currentColor"/>';
     const btn = sndBtn = document.createElement('button'); btn.type = 'button'; btn.className = 'snd';
@@ -216,7 +216,8 @@ window.breezeRoom = breezeRoom;
   }
   let mats = null, tries = 0;
   function apply() {
-    const A = window.__arcade; if (!window.THREE || !A || !Array.isArray(A.cabs) || !Array.isArray(A.doors) || A.doors.length < A.cabs.length) return 0;
+    const A = window.__arcade; if (A && A.models) return -1; /* the modelled cabinets (planet-dress.js) bring their own art and set the doors */
+    if (!window.THREE || !A || !Array.isArray(A.cabs) || !Array.isArray(A.doors) || A.doors.length < A.cabs.length) return 0;
     if (!mats) mats = { scr: new THREE.MeshBasicMaterial({ map: paintBreezeScreen() }), mq: new THREE.MeshBasicMaterial({ map: paintBreezeMarquee() }) };
     let n = 0;
     A.cabs.forEach((cb, k) => {

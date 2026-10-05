@@ -854,15 +854,24 @@ const _zq=new T.Quaternion(),_zx=V3(1,0,0),_zy=V3(0,1,0);
 const zPluckCache=new Map();function zPluck(ctx,freq,bright){const key=freq.toFixed(1)+'|'+bright;if(zPluckCache.has(key))return zPluckCache.get(key);const sr=ctx.sampleRate,len=Math.floor(sr*2.2),buf=ctx.createBuffer(1,len,sr),d=buf.getChannelData(0);const N=Math.max(2,Math.round(sr/freq));const ring=new Float32Array(N);for(let i=0;i<N;i++)ring[i]=Math.random()*2-1;let idx=0,prev=0;const damp=bright?.996:.994;
   for(let i=0;i<len;i++){const v=ring[idx];const nv=damp*.5*(v+ring[(idx+1)%N]);ring[idx]=nv;d[i]=v*(i<40?i/40:1);idx=(idx+1)%N;}zPluckCache.set(key,buf);return buf;}
 const NOTE=s=>{const m={C:0,D:2,E:4,F:5,G:7,A:9,B:11}[s[0]];const sh=s[1]==='#'?1:0;const oct=+s[s.length-1];return 261.63*Math.pow(2,(m+sh+(oct-4)*12)/12);};
-const SONG_FIRE={bpm:84,bars:[['C3','E4','G4','C5'],['A2','E4','A4','C5'],['F2','C4','F4','A4'],['G2','D4','G4','B4']],pat:[0,1,2,3,2,1,2,3]};
+/* Kofi's fire song: a fingerpicked cover of Josh's track "1004" (analysed from the record: 90 bpm, C with open fifths, a C5|Fsus2 groove,
+   a Cm/Eb bridge, the lead sitting on C and lifting to D / Eb). form = one token per half bar, chord[:melody] (s = sharp); pat = which string
+   on each 16th (0 bass, -1 rest) in the record's 3+3+2 feel; gap = beats of quiet before it loops. Checked offline against the record: 81/86 half-bar chords agree. */
+const SONG_FIRE={bpm:90,div:4,gap:4,ch:{C:['C3','G3','C4','G4'],F:['F2','C4','F4','G4'],Cm:['C3','G3','D#4','G4'],Cm7:['C3','A#3','D#4','G4'],Eb:['D#3','A#3','D#4','G4'],Bb:['A#2','F3','A#3','D4'],Fs4:['F2','C4','F4','A#4']},pat:[0,-1,-1,2,-1,-1,1,-1,0,-1,-1,3,2,-1,1,-1],
+  form:/* groove, bars 1-30 */'C:C5 C:D5 F:C5 F:D5 C:C5 C F:C5 F:D5 C:C5 C F:C5 F:D5 C:C5 C F:G5 F:D5 C:C5 Cm F:C5 F:D5 C:C5 C F:C5 F:D5 C:C5 C F:C5 F:D5 C:C5 C F:C5 F C:C5 C F:C5 F:D5 C:C5 C F:C5 F C:C5 Cm7:Ds5 F:G5 F:C5 C:C5 C F:C5 F:D5 C:C5 C F:C5 F C:C5 C F:C5 F C:C5 C F:C5 F:D5'
+    +/* bridge, bars 31-40 */' C:C5 Eb:Ds5 Eb:Ds5 C:C5 C:C5 Cm Eb:Ds5 Cm:Ds5 C:C5 C C:C5 Cm7:Ds5 Eb:Ds5 Cm:Ds5 C:C5 C Cm:Ds5 Eb:As5 Bb:As5 C:C5'+/* ending, bars 41-43 */' C:C5 Fs4:As5 F:C5 C Cm:Ds5 Eb:Ds5'};
+(s=>{const ch={};for(const k in s.ch)ch[k]=s.ch[k].map(NOTE);s.hc=[];s.hm=[];for(const t of s.form.split(' ')){const [c,m]=t.split(':');s.hc.push(ch[c]);s.hm.push(m?NOTE(m.replace('s','#')):0);}s.len=s.hc.length*s.pat.length/2+s.gap*s.div;})(SONG_FIRE);
+function zPick(ctx,f,br,g0,when,out){const src=ctx.createBufferSource();src.buffer=zPluck(ctx,f,br);const g=ctx.createGain();g.gain.value=g0*(.85+Math.random()*.3);src.connect(g);g.connect(out);src.start(when+Math.random()*.012);}
+function zFireStep(ctx,s,st,when,out){const hl=s.pat.length>>1,n=st%s.len;if(n>=s.hc.length*hl)return;const h=(n/hl)|0,pos=n%s.pat.length,i=s.pat[pos],c=s.hc[h];
+  if(i>=0)zPick(ctx,c[i],false,i===0?(pos===0?.9:.7):.5,when,out);if(n%hl===0&&s.hm[h])zPick(ctx,s.hm[h],true,.7,when,out);}
 const SONG_BEACH={bpm:104,bars:[['G3','B4','D5','G5'],['E3','B4','E5','G5'],['C4','E5','G5','C5'],['D4','F#4','A4','D5']],pat:[0,2,1,3,2,1,3,2]};
 function zSound(t){const ctx=G.audio&&G.audio();const me=G.player&&G.player();if(!me){return;}
   const dist=n=>n?me.distanceTo(n.clone().multiplyScalar(gAt(n))):1e9;const vf=Math.pow(Math.max(0,Math.min(1,1-(dist(ZFX.fire&&ZFX.fire.n)-3)/16)),1.4),vb=Math.pow(Math.max(0,Math.min(1,1-(dist(ZFX.radio&&ZFX.radio.n)-2)/14)),1.4);
   window.__duck=Math.max(vf*.9,vb*.8);if(!ctx){return;}
   if(!zAudio){zAudio={next:{fire:0,beach:0},step:{fire:0,beach:0},gain:{fire:ctx.createGain(),beach:ctx.createGain()}};for(const k in zAudio.gain){zAudio.gain[k].gain.value=0;const lp=ctx.createBiquadFilter();lp.type='lowpass';lp.frequency.value=k==='fire'?2600:3400;zAudio.gain[k].connect(lp);lp.connect(ctx.destination);}}
   zAudio.gain.fire.gain.setTargetAtTime(vf*.5,ctx.currentTime,.3);zAudio.gain.beach.gain.setTargetAtTime(vb*.32,ctx.currentTime,.3);
-  for(const [k,song,v] of [['fire',SONG_FIRE,vf],['beach',SONG_BEACH,vb]]){if(v<=.001){zAudio.next[k]=0;continue;}const spb=60/song.bpm/2;if(!zAudio.next[k]||zAudio.next[k]<ctx.currentTime)zAudio.next[k]=ctx.currentTime+.05;
-    while(zAudio.next[k]<ctx.currentTime+.3){const st=zAudio.step[k]++;const bar=song.bars[Math.floor(st/8)%song.bars.length];const which=song.pat[st%8];const notes=[bar[which]];if(st%8===0)notes.push(bar[0]);
+  for(const [k,song,v] of [['fire',SONG_FIRE,vf],['beach',SONG_BEACH,vb]]){if(v<=.001){zAudio.next[k]=0;continue;}const spb=60/song.bpm/(song.div||2);if(!zAudio.next[k]||zAudio.next[k]<ctx.currentTime)zAudio.next[k]=ctx.currentTime+.05;
+    while(zAudio.next[k]<ctx.currentTime+.3){const st=zAudio.step[k]++;if(song.hc){zFireStep(ctx,song,st,zAudio.next[k],zAudio.gain[k]);zAudio.next[k]+=spb;continue;}const bar=song.bars[Math.floor(st/8)%song.bars.length];const which=song.pat[st%8];const notes=[bar[which]];if(st%8===0)notes.push(bar[0]);
       for(const nm of notes){const src=ctx.createBufferSource();src.buffer=zPluck(ctx,NOTE(nm),k==='beach');const g=ctx.createGain();g.gain.value=(nm===bar[0]&&st%8===0?.9:.55)*(.85+Math.random()*.3);src.connect(g);g.connect(zAudio.gain[k]);src.start(zAudio.next[k]+(Math.random()*.012));}
       zAudio.next[k]+=spb*(st%2?.92:1.08);}}} /* a little swing */
 
@@ -871,6 +880,40 @@ function treeSwap(){const keep=sd_;sd_=9090+(window.DRESS.treesSwapped||0);let k
   list.sort((a,b)=>a.position.x-b.position.x||a.position.z-b.position.z); /* a fixed order, so the same crowns come out every visit */
   for(const o of list){o.userData.tree.done=true;o.visible=false;const ci=G.colliders.indexOf(o);if(ci>=0)G.colliders.splice(ci,1);const n=o.position.clone().normalize();const H=Math.max(3.2,Math.min(6.4,o.userData.tree.H*.95));paintedTree(n,H,V3(rr()-.5,0,rr()-.5).addScaledVector(n,-1).cross(n),ch(.5),true);k++;}
   window.DRESS.treesSwapped=(window.DRESS.treesSwapped||0)+k;sd_=keep;if(k)G.dirty();return k;}
+
+/* ---------- the arcade's cabinets: Josh's four models (Tripo, slimmed to 9k triangles and a 1024 texture) stand in for the procedural ones ----------
+   planet.html seats 8 cabinets in window.__arcade.cabs (a group each, in true metres: y 0 the floor, +z its front), with a solid (ARC.solids[5+k])
+   and a door (ARC.doors[k]) at the same index. Their meshes are hidden and a model stands in each group; ARC.models tells breeze-room.js to leave
+   them alone. The models get the props' cartoon material (borrowed from a loaded prop, so it follows __setCartoon) and the props' ink (silhouette only). */
+const CAB_FILES={tyrian:'assets/cab_tyrian.glb',breeze:'assets/cab_breeze.glb',waverun:'assets/cab_waverun.glb',orbit:'assets/cab_orbit.glb'},CAB_H=2.1,CAB_BACK=.42; /* the procedural cabinet's height; its back this far behind the group's centre (the wall is ~.5 m behind it) */
+const CAB_AT=['tyrian','tyrian','breeze','breeze','tyrian','breeze','waverun','orbit']; /* ARC.cabs order: the back wall left to right (facing it), then left and right walls at the back, then left and right by the entrance */
+const CAB_ACT={tyrian:{kind:'tyrian',title:'Tyrian',label:'Play Tyrian'},breeze:{kind:'breeze',title:'Berry Breeze',label:'Play Berry Breeze'}}; /* Wave Run and Orbit have no game: show-pieces by the entrance, no door */
+const CABS={tpl:{},t0:0,tries:0,loading:false};
+function cabSrcMat(){const lib=window.__propLib||{};for(const k in lib){let f=null;lib[k].traverse(m=>{if(!f&&m.isMesh&&m.material&&m.material.userData.cartoon&&m.material.onBeforeCompile&&m.material.map)f=m.material;});if(f)return f;}return null;}
+function cabMat(map,src){map.encoding=T.LinearEncoding;map.anisotropy=8;map.minFilter=T.LinearMipmapLinearFilter;map.needsUpdate=true; /* the texture's colours are the drawing, as the game's asDrawn */
+  const m=new T.MeshBasicMaterial({map});if(!src)return m;m.userData.cartoon=true;
+  m.onBeforeCompile=(sh,r)=>{const keep=src.userData.sh,kp=src.userData.pure;src.onBeforeCompile(sh,r);src.userData.sh=keep;if(keep===undefined)delete src.userData.sh;if(kp===undefined)delete src.userData.pure; /* the game's own shader code, on our uniforms */
+    const C=window.__cartoon||{},im=map.image||{};m.userData.sh=sh;Object.assign(sh.uniforms,{uTexel:{value:new T.Vector2(1/(im.width||1024),1/(im.height||1024))},uPoster:{value:C.poster??.3},uSat:{value:C.sat??1.08},uSunK:{value:.85}});};
+  return m;}
+function cabLoad(){const src=cabSrcMat();if(CABS.loading||!T.GLTFLoader||!src)return;CABS.loading=true;const ld=new T.GLTFLoader();
+  for(const kind in CAB_FILES)ld.load(CAB_FILES[kind],g=>{const root=g.scene;root.updateMatrixWorld(true);const bb=new T.Box3().setFromObject(root),s=CAB_H/(bb.max.y-bb.min.y);
+    root.scale.setScalar(s);root.position.set(-(bb.min.x+bb.max.x)/2*s,-bb.min.y*s,-CAB_BACK-bb.min.z*s);
+    root.traverse(m=>{if(m.isMesh){m.material=m.material.map?cabMat(m.material.map,src):m.material;m.userData.noInk=true;}}); /* lines from its silhouette, like every model prop */
+    const t=new T.Group();t.add(root);const hz=(bb.max.z-bb.min.z)/2*s;Object.assign(t.userData,{hx:(bb.max.x-bb.min.x)/2*s,hz,zc:hz-CAB_BACK});CABS.tpl[kind]=t;cabFit();},undefined,e=>console.warn('arcade cabinet not loaded',kind,e));}
+function cabFit(){const A=window.__arcade;if(!A||!Array.isArray(A.cabs))return 0;let n=0;
+  A.cabs.forEach((cb,k)=>{const t=CABS.tpl[CAB_AT[k]];if(!cb||!cb.g||!t||cb.g.userData.cabModel)return;const old=new T.Group();old.visible=false;old.name='procedural';for(const c of [...cb.g.children])old.add(c);cb.g.add(old); /* the procedural cabinet's meshes, under a hidden group (the horizon cull sets small meshes' own .visible back on); their shared screen and marquee materials untouched */
+    const m=t.clone();m.userData.cabModel=CAB_AT[k];cb.g.add(m);cb.g.userData.cabModel=m;n++;});
+  if(n){cabSolids();G.dirty();}return n;}
+/* the solids: the models are bigger than the procedural cabinets (seatArcade sets 0.84 x 0.8 at 0, 4 and 12 s: set again after each) */
+function cabSolids(){const A=window.__arcade;if(!A||!Array.isArray(A.cabs)||!A.solids)return 0;let n=0;
+  A.cabs.forEach((cb,k)=>{const m=cb&&cb.g&&cb.g.userData.cabModel,sd=A.solids[5+k];if(!m||!sd||!sd.X)return;const u=m.userData;cb.g.updateMatrixWorld(true);
+    Object.assign(sd,{c:cb.g.localToWorld(V3(0,0,u.zc)).normalize().multiplyScalar(R),hx:u.hx*.95,hz:u.hz*.95,top:CAB_H});n++;});return n;}
+function cabDoors(A){A.cabs.forEach((cb,k)=>{const d=A.doors[k];if(!d)return;const kind=CAB_AT[k],act=CAB_ACT[kind],i=DOORS.indexOf(d);
+  if(act){d.act=act;d.key=kind;if(i<0)DOORS.push(d);}else{d.act={kind:'decor',title:kind,label:''};d.key='decor'+k;if(i>=0)DOORS.splice(i,1);}});} /* a door of an unknown kind would open an empty room: the show-pieces have none (kept in ARC.doors, so seatArcade never makes another) */
+function arcadeModels(){const A=window.__arcade;CABS.tries++;
+  if(A){A.models=true;cabLoad();if(Array.isArray(A.cabs)&&Array.isArray(A.doors)&&A.doors.length>=A.cabs.length){if(!CABS.t0){CABS.t0=performance.now();cabDoors(A);for(const ms of [1000,4500,8000,12500,16000,25000])setTimeout(cabSolids,ms);}
+    cabFit();if(A.cabs.every(cb=>cb&&cb.g&&cb.g.userData.cabModel))return;}}
+  if(CABS.tries<600)setTimeout(arcadeModels,A&&A.cabs?500:250);}
 /* ---------- start: once the street's buildings are in ---------- */
 /* ===== STREET 01, LOCAL SHOPPING / RESIDENTIAL HILL: LOCKED 27 Sep 2026 =====
    Approved by Josh. Do not change these numbers, seeds or the code paths they drive (street, junctionKit,
@@ -896,4 +939,5 @@ function poll(){if(built)return;if(ready())build();else setTimeout(poll,700);}
 window.DRESS={frame(dt,now){UT.value=now/1000;try{zonesFrame(dt,now/1000);}catch(e){}},glb,look(v){LOOKU.value=v;return v;},rebuild(){location.reload();},
   async calls(){const ri=renderer.info;ri.autoReset=false;ri.reset();await new Promise(r=>requestAnimationFrame(()=>requestAnimationFrame(r)));const c={calls:ri.render.calls,tris:ri.render.triangles};ri.autoReset=true;return c;},buckets:BUCKETS,bills:BILLS};
 setTimeout(poll,1500);
+arcadeModels();window.DRESS.cabs=CABS; /* the arcade's cabinet models: on their own poll (the arcade is seated whenever its model loads) */
 })();
