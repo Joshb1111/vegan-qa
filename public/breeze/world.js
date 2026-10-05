@@ -12,6 +12,9 @@
    v4 (SPEC4 1): weapons 1-3 are TIMED (Ship.wtT ticks of wtMax = DIFF.weaponTicks; paused by the super star and by wtHold, set
    from ph >= 3); a pea packet is +1 power; going down ends the timed weapon and costs a power level. A remote ship's wtT is an
    estimate from its packs (the guest owns its own timer; its pack shows wt 0 when it ends).
+   v6: the boss 'tired' clock (w.bossTT) only runs while the boss is in and some ship is up and playing (anyPlaying), and runs
+   x4/3 on HARD (tiredLimit: 120 s). A tired exit is not a win: no pops / bossDown / shake / 'B' event, a w.toast message, a few
+   Sunberries instead of the Heart Peach shower; the snapshot keeps the tired boss's real hp (0 only for a cheered-up one).
    Keep every w API name and signature. Plain objects in w.ships (the content harness) are left alone. */
 'use strict';
 (function () {
@@ -300,7 +303,7 @@ class World {
     this.waveIdx = 0;
     while (this.waveIdx < this.waves.length && this.waves[this.waveIdx][0] * 60 < this.tick) this.waveIdx++; /* ?t= jumps the script, pre-spawning nothing */
     this.boss = null;
-    this.stats = { fruit: 0, toys: 0, gift: false }; this.showerQ = []; this.doneT = -1; this.bossT0 = 0; this.dyingT = 0;
+    this.stats = { fruit: 0, toys: 0, gift: false }; this.showerQ = []; this.doneT = -1; this.bossT0 = 0; this.dyingT = 0; this.bossTT = 0;
     this.bossBonus = 0; this.bossTired = false; this.bossName = ''; this.tally = null; this.sweep = 0;
     for (const s of this.ships) if (s && s.shots) { s.shots.length = 0; if (s instanceof Ship) s.cap = this.powerCap(); }
     this.event('S', st);
@@ -367,6 +370,8 @@ class World {
   }
   zap(x, warn, live) { return this.spawn('zap', x, 160, { d: { warn: warn == null ? 60 : warn, live: live == null ? 24 : live } }); }
   fx(kind, x, y, arg) { this.fxl(kind, x, y, arg); this.event('F', kind, X4(x), X4(y), arg == null ? 0 : arg); }
+  /* v6: a message across the middle of the sky that stays a while (the guest gets an 'F' sticker; long texts stay longer there) */
+  toast(s, life, y) { s = String(s).slice(0, 24); y = y == null ? 112 : y; this.pushFx({ k: 'sticker', x: 120, y, s, n: 9, life: life || 150, born: this.gt }); this.event('F', 'sticker', X4(120), X4(y), s); }
   sfx(name, arg) { this.sfxList.push(name); this.sfxArg.push(arg); }
   shake(a) { this.shakeAmt = Math.max(this.shakeAmt, a); }
   event(code, ...args) { this.events.push({ code, args }); }
@@ -376,15 +381,16 @@ class World {
     e.doneCalled = true; e.dead = true; e.dying = true;
     if (this.boss === e) this.boss = null;
     const x = e.x, y = e.y, def = BB.ENEMY[e.type] || {};
-    this.fxl('pop', x, y); this.later(11, () => this.fxl('pop', x + 12, y - 10)); this.later(22, () => this.fxl('popBig', x, y));
-    this.shake(1); this.sfx('bossDown');
+    const name = def.name || e.type;
+    if (tired) { this.sfx('superEnd'); this.toast('...and floated away', 150, 124); }   /* v6: not a win: no pops, no fanfare, no shake (the guest gets the sticker) */
+    else { this.fxl('pop', x, y); this.later(11, () => this.fxl('pop', x + 12, y - 10)); this.later(22, () => this.fxl('popBig', x, y)); this.shake(1); this.sfx('bossDown'); }
     const pts = tired ? C.BOSS.tiredBonus : C.BOSS.bonus;
     this.addScore(pts, x, y + e.r * 0.5, true);
-    this.bossBonus = pts; this.bossTired = !!tired; this.bossName = def.name || e.type;
+    this.bossBonus = pts; this.bossTired = !!tired; this.bossName = name;
     if (!tired) { this.stats.toys++; this.runToys++; if (this.stage >= 1) this.fxl('rainbow', 120, 70); }
-    this.event('B', X4(x), X4(y));
+    if (!tired) this.event('B', X4(x), X4(y));   /* the guest's pops + fanfare: only for a cheered-up boss */
     for (const b of this.bullets) if (!b.dead) { b.dead = true; this.fxl('cancel', b.x, b.y); }
-    this.showerQ = [5, this.diff === 2 ? 0 : 5, 0, 0, 0, 0, 0, 0];   /* HARD: one Heart Peach */ this.showerX = clamp(x, 40, 200); this.showerY = clamp(y, 40, 160); this.showerAt = this.gt + 24;   /* after the big pop */
+    this.showerQ = tired ? [0, 0, 0] : [5, this.diff === 2 ? 0 : 5, 0, 0, 0, 0, 0, 0];   /* HARD: one Heart Peach; a tired boss leaves only a few Sunberries */ this.showerX = clamp(x, 40, 200); this.showerY = clamp(y, 40, 160); this.showerAt = this.gt + 24;   /* after the big pop */
     this.doneT = 150;
     if (this.onBossDone) this.onBossDone(e, tired);
   }
@@ -475,7 +481,11 @@ class World {
       const b = this.boss;
       if (b) {
         if (b.dead) { if (!b.doneCalled) this.bossDone(b, !!b.d.tired); }                     /* removed without bossDone */
-        else if (!b.dying && this.tick - this.bossT0 >= C.BOSS.tiredTicks) { b.dying = true; b.d.tired = true; }
+        else if (!b.dying) {   /* v6: the 'tired' clock only runs while the boss is in and a ship is up and playing (not while everyone is
+                                  down, resting or away), and HARD gives it a third longer (90 s → 120 s) */
+          if (!(b.d && b.d.inv) && this.anyPlaying()) this.bossTT++;
+          if (this.bossTT >= this.tiredLimit()) { b.dying = true; b.d.tired = true; }
+        }
         else if (b.dying && ++this.dyingT > 900) this.bossDone(b, !!b.d.tired);              /* safety: content never finished */
       }
       if (this.doneT >= 0 && this.phT % 8 === 0) this.calmOne();                               /* leftover toys calm down too */
@@ -495,6 +505,14 @@ class World {
     else if (ph === 3) this.makeTally();
     else if (ph === 4) this.ending = { score: this.score, toys: this.runToys, fruit: this.runFruit };
     else if (ph === 5) { this.over = { stage: this.stage, score: this.score, toys: this.runToys }; this.showerQ.length = 0; this.sfx('gameover'); }
+  }
+  tiredLimit() { return Math.round(C.BOSS.tiredTicks * (this.diff === 2 ? 4 / 3 : 1)); }
+  /* v6: some ship is up and playing (not down / OUT, not a silent or hidden remote guest, not a hidden host). A world without
+     Ship objects (the content harness) always counts as playing. */
+  anyPlaying() {
+    let n = 0;
+    for (const s of this.ships) { if (!(s instanceof Ship)) continue; n++; if (!s.down && !s.out && !s.hidden && !s.away) return true; }
+    return n === 0;
   }
   /* v3 lives: every ship counted is OUT (a remote guest silent for 5 s does not hold the run open) */
   allOut() {
@@ -538,7 +556,7 @@ class World {
     this._nd = bd; return best;
   }
   bossArrive(S) {
-    this.setPh(2); this.bossT0 = this.tick; this.dyingT = 0; this.doneT = -1;
+    this.setPh(2); this.bossT0 = this.tick; this.bossTT = 0; this.dyingT = 0; this.doneT = -1;
     const def = S.boss && BB.ENEMY[S.boss];
     this.bossName = def ? (def.name || S.boss) : '';
     const e = def ? this.spawn(S.boss, 120, -60) : null;
@@ -787,7 +805,7 @@ class World {
     for (const en of this.enemies) {
       if (en.dead) continue;
       const def = BB.ENEMY[en.type];
-      const hp = en.dying ? 0 : (!def || !def.shootable || en.inv || (en.d && en.d.inv)) ? -1 : Math.max(0, Math.ceil(en.hp));
+      const hp = en.dying && !(en.d && en.d.tired) ? 0 : en.dying ? Math.max(0, Math.ceil(en.hp)) : (!def || !def.shootable || en.inv || (en.d && en.d.inv)) ? -1 : Math.max(0, Math.ceil(en.hp));
       e.push(en.id, en.tc | 0, X4(en.x), X4(en.y), hp, en.a | 0);
     }
     for (const bu of this.bullets) if (!bu.dead) b.push(bu.id * 2 + (bu.big ? 1 : 0), X4(bu.x), X4(bu.y));

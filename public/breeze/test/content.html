@@ -357,7 +357,7 @@ function v2Checks() {
   }
   const fm = out.formation.MEDIUM, fh = out.formation.HARD;
   out.ok = fm.escapedDrops === 0 && fh.escapedDrops === 0 && fm.clearDropRate > 0.15 && fm.clearDropRate < 0.25 && fh.clearDropRate > 0.08 && fh.clearDropRate < 0.16 &&
-    out.deterministic && out.star1 === 0 && out.wave1ok && out.flags.EASY && out.flags.EASY.bubbles > out.flags.MEDIUM.bubbles && out.flags.MEDIUM.bubbles === 4 &&
+    out.deterministic && out.star1 === 0 && out.wave1ok && out.flags.EASY && out.flags.EASY.bubbles > out.flags.MEDIUM.bubbles && out.flags.MEDIUM.bubbles === 3 &&   /* v6: MEDIUM 3 */
     out.flags.HARD.bubbles === 2 && out.flags.MEDIUM.toys >= out.flags.EASY.toys && out.flags.HARD.toys >= out.flags.MEDIUM.toys &&
     out.flags.HARD.bushes < out.flags.MEDIUM.bushes;   // MEDIUM has EASY's waves (extra 0 since v3; it fires more often instead); HARD keeps fewer bushes
   return out;
@@ -366,12 +366,12 @@ function v2Checks() {
    [toys EASY, MEDIUM, HARD, bushes EASY/MEDIUM, HARD, bubbles EASY, MEDIUM, HARD, HARD-only waves] with bossAt 120 */
 const V3 = [[133, 133, 157, 15, 9, 7, 4, 2, 8], [122, 122, 145, 16, 10, 7, 4, 2, 11], [115, 115, 147, 16, 10, 7, 4, 2, 12]];
 function v4Checks() {
-  const out = { rows: [], ok: true }, on = (fl, df) => !((fl === 'H' && df !== 2) || (fl === 'E' && df !== 0) || (fl === 'N' && df === 2));
+  const out = { rows: [], ok: true }, on = (fl, df) => !((fl === 'H' && df !== 2) || (fl === 'M' && df < 1) || (fl === 'E' && df !== 0) || (fl === 'N' && df === 2));   /* v6 'M': MEDIUM + HARD */
   for (let st = 0; st < 3; st++) {
     const S = BB.STAGES[st], R = V3[st], T = S.bossAt, toys = [0, 0, 0], bush = [0, 0, 0], bub = [0, 0, 0];
     for (let df = 0; df < 3; df++) for (const v of S.waves) if (on(v[6], df)) { const n = v[3] || 1; if (v[1] === 'bush') bush[df] += n; else if (v[1] === 'bubble') bub[df] += n; else toys[df] += n; }
-    const hw = S.waves.filter(v => v[6] === 'H').length, dens = toys.map((n, df) => n / T >= R[df] / 120 - 1e-9);
-    const ok = T === 100 && dens.every(Boolean) && toys[0] === R[0] && bush[0] === R[3] && bush[1] === R[3] && bush[2] === R[4] && bub[0] === R[5] && bub[1] === R[6] && bub[2] === R[7] && hw > R[8];
+    const hw = S.waves.filter(v => v[6] === 'H' || v[6] === 'M').length, dens = toys.map((n, df) => n / T >= R[df] / 120 - 1e-9);
+    const ok = T === 100 && dens.every(Boolean) && toys[0] === R[0] && bush[0] === R[3] && bush[1] === R[3] && bush[2] === R[4] && bub[0] === R[5] && bub[1] === R[6] - 1 && bub[2] === R[7] && hw > R[8];
     out.ok = out.ok && ok;
     out.rows.push(`S${st + 1} boss at ${T} s · toys/s ${toys.map((n, df) => (n / T).toFixed(2) + ' (v3 ' + (R[df] / 120).toFixed(2) + ')').join(' / ')} · bushes ${bush.join('/')} · bubbles ${bub.join('/')} · HARD-only waves ${hw} (v3 ${R[8]})${ok ? '' : '  PROBLEM'}`);
   }
@@ -395,7 +395,7 @@ function defsCheck() {
     for (const wv of S.waves) {
       if (wv[1] === 'bubble' ? wv[2] !== 'rise' : !BB.ENEMY[wv[1]]) bad.push(S.name + ': unknown type ' + wv[1]);
       if (wv[2] === 'vee') bad.push(S.name + ': vee');
-      if (wv[6] != null && wv[6] !== 'H' && wv[6] !== 'E' && wv[6] !== 'N') bad.push(S.name + ': flag ' + wv[6]);
+      if (wv[6] != null && wv[6] !== 'H' && wv[6] !== 'M' && wv[6] !== 'E' && wv[6] !== 'N') bad.push(S.name + ': flag ' + wv[6]);
       if (wv[0] * 2 !== Math.round(wv[0] * 2) || wv[0] >= S.bossAt) bad.push(S.name + ': time ' + wv[0]);
     }
   }

@@ -430,7 +430,7 @@ function playEvent(e, stale) {
   else if (c === 'F') {   /* never a peer-chosen kind or count: known kinds only, text for stickers only */
     const k = e[2]; if (typeof k !== 'string' || FXOK[k] !== 1) return;
     const f = { k, x: clamp(+e[3] / 4 || 0, -40, 280), y: clamp(+e[4] / 4 || 0, -40, 360), born: ut };
-    if (k === 'sticker') f.s = typeof e[5] === 'string' && e[5] ? e[5].slice(0, 24) : '!';
+    if (k === 'sticker') { f.s = typeof e[5] === 'string' && e[5] ? e[5].slice(0, 24) : '!'; if (f.s.length > 12) f.life = 150; }   /* v6: a message (w.toast) stays a while */
     else if (k === 'unwind') { if (typeof e[5] !== 'string' || !Object.prototype.hasOwnProperty.call(BB.TC, e[5])) return; f.s = e[5]; }   /* a minion cheered up with its boss: a known toy type only */
     else if (k === 'pop') f.n = clamp(+e[5] | 0, 1, 2);
     pushG(f); }
@@ -532,6 +532,7 @@ function stageWatch(st, ph) {
 function tallyRows(t) {
   const rows = [];
   if (t.boss) rows.push([t.tired ? t.name + ' got sleepy' : t.name + ' cheered up!', t.boss]);
+  if (t.boss && t.tired) rows.push(['(not cheered up this time)', '']);   /* v6: a tired exit is not a win */
   rows.push(['Hearts left ×' + t.hearts, t.heartPts]);
   if (t.noBub) rows.push(['No bubbles!', t.noBub]);
   rows.push(['Fruit grabbed', t.fruit]);
@@ -647,7 +648,7 @@ function overlays() {
   if (hint && hintAt && alive(hintAt)) A.text(ctx, hint, clamp(hintAt.x, 70, 170), clamp(hintAt.y - 24 + Math.sin(ut * 0.1) * 1.5, 46, 296), 9, '#fff');
   if (ph === 0 && ut - stUt < C.STAGE.bannerTicks) A.screen(ctx, 'banner', { stage: curSt, name: stageName(curSt), age: ut - stUt });
   else if (ph === 1) A.screen(ctx, 'warning', { name: bossName(curSt), age });
-  else if (ph === 3 && tallyNow) A.screen(ctx, 'tally', { rows: tallyNow.rows, stars: tallyNow.stars, age });
+  else if (ph === 3 && tallyNow) A.screen(ctx, 'tally', { rows: tallyNow.rows, stars: tallyNow.stars, age, title: tallyNow.boss && tallyNow.tired ? 'ON YOU GO!' : '' });
   else if (ph === 4) {
     A.screen(ctx, 'ending', { age, score: mode === 'guest' ? V.sc : w.score, toys: mode === 'guest' ? 0 : w.runToys, duo: mode === 'guest' || !!p2, who: me ? me.who : 0, guest: mode === 'guest' });
     if (mode === 'guest') A.text(ctx, opp + ' can start a new flight', 120, 303, 8, '#fff');

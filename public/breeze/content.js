@@ -31,9 +31,9 @@ BB.C = {
   /* v2: difficulty (EASY = MEDIUM's enemies with more health; HARD = faster bullets, tougher toys, extra bullets, no kind assist) */
   /* v3: HARD is a real challenge: 3 hearts, 3 lives then GAME OVER, fast dense bullets, tough toys, short invulnerability.
      MEDIUM keeps v2's enemies (only the later upgrades change it); shield = most shield layers a ship can hold (a Blueberry fills
-     it, a bubble adds one): EASY 3, MEDIUM 2, HARD 1 */
+     it, a bubble adds one): EASY 3, MEDIUM 1, HARD 1 */
   DIFF: [{ id: 'easy', name: 'EASY', hp: 8, heal: 3, reviveHp: 4, bMul: 1, eHp: 1, extra: 0, kind: true, lives: 0, invHit: 90, safeR: 40, superTicks: 720, dropMul: 1, shield: 3, weaponTicks: 1500 },
-         { id: 'medium', name: 'MEDIUM', hp: 5, heal: 2, reviveHp: 3, bMul: 1.1, eHp: 1.15, extra: 0, kind: true, lives: 0, invHit: 90, safeR: 40, superTicks: 600, dropMul: 1, shield: 2, weaponTicks: 1200 },
+         { id: 'medium', name: 'MEDIUM', hp: 5, heal: 2, reviveHp: 3, bMul: 1.2, eHp: 1.25, extra: 0, kind: true, lives: 0, invHit: 90, safeR: 40, superTicks: 600, dropMul: 1, shield: 1, weaponTicks: 1200 },
          { id: 'hard', name: 'HARD', hp: 3, heal: 1, reviveHp: 3, bMul: 1.45, eHp: 1.75, extra: 2, kind: false, lives: 3, invHit: 60, safeR: 26, superTicks: 420, dropMul: 0.6, shield: 1, weaponTicks: 900 }],
   /* v3: weapon power is capped per stage, so the big upgrades come later (stage 1: power 2, stage 2: 3, stage 3: 4) */
   POWER_CAP: [2, 3, 4],
@@ -78,7 +78,11 @@ BB.mulberry32 = function (a) { return function () { a |= 0; a = a + 0x6D2B79F5 |
    extra pattern per boss phase. v4 (SPEC4): stages reach the boss at 100 s (wave times x100/120), MEDIUM toys fire x0.9 as
    often (and stage 1 aims sooner), HARD toys x0.66 with more aimed fire (every glider, twice from stage 2; tinbots 3-4 shots;
    an aimed bolt from twirlies and a fan from tick-tocks instead of their biggest rings), one or two more HARD-only waves per
-   stage (they leave 3 enemy slots free), so the waves are a danger of their own. Bosses: HARD clock x0.85 (v3 0.8). */
+   stage (they leave 3 enemy slots free), so the waves are a danger of their own. Bosses: HARD clock x0.85 (v3 0.8).
+   v6: boss-fight help (bossHelp: seed packets / strawberries from the sides every 15-20 s, HARD 19-25 s, sooner while nobody has
+   an upgrade, one out of the boss at each phase break; a HARD shield bubble at 40 s), HARD Big Clanky x0.9 hp, a tired float-away
+   says so (w.toast). MEDIUM a bit harder: cadence x0.8, boss clock x0.93 with HARD's extra pattern in phases B and C, the aimed
+   HARD extras (double taps, twirlie bolt, tick-tock fan, +1 grumble / grumblet / boinger), 'M' waves and one bubble fewer. */
 (function () {
 const C = BB.C, PI = Math.PI, TAU = PI * 2, DOWN = PI / 2, D2R = PI / 180;
 const SPD = [1.3, 1.45, 1.6];                          // base enemy bullet speed per stage (px/t, before kind assist / DIFF.bMul)
@@ -92,19 +96,20 @@ const XB = w => Math.max(0, Math.min(2, DF(w).extra | 0)); // extra bullets and 
 const XN = w => XB(w) > 0 ? 1 : 0;                         // extras yes/no (HARD and MEDIUM; for extras that must not scale with the number)
 const HD = w => dif(w) === 2;                              // HARD only: fewer bubbles, bushes and Heart Peaches (v3 tuning)
 const MH = w => dif(w) > 0;                                // v4: MEDIUM and HARD (MEDIUM's stage 1 starts aiming and shooting sooner)
+const XM = w => MH(w) ? 1 : 0;                             // v6: MEDIUM gets the aimed HARD extras too (double taps, the twirlie bolt, the tick-tock fan)
 const prog = w => Math.min(1, w.tick / (((BB.STAGES[w.stage] || {}).bossAt || C.STAGE.bossAt) * 60));   // 0..1 through the stage
 const aimOn = w => w.stage > 0 || XB(w) > 0 || prog(w) > (MH(w) ? 0.2 : 0.4);   // stage 1 fires straight down at first, aims later (MEDIUM sooner, HARD from the start)
 /* telegraph helper: a = 1 for `len` ticks before `at`; true on the shot tick */
 function tele(e, c, at, len) { if (c >= at - (len || 20) && c < at) e.a = 1; return c === at; }
-/* tele, plus on HARD a second shot 10 ticks later (a double tap) */
-function tele2(e, w, c, at) { return tele(e, c, at) || (XB(w) > 0 && c === at + 10); }
-/* the toys' cadence clock: it runs 1/k as fast, so every interval is xk (v4: EASY 1, MEDIUM 0.9, HARD 0.66; v3 HARD 0.7).
+/* tele, plus on HARD (v6: and MEDIUM) a second shot 10 ticks later (a double tap) */
+function tele2(e, w, c, at) { return tele(e, c, at) || (XM(w) > 0 && c === at + 10); }   /* v6: MEDIUM too */
+/* the toys' cadence clock: it runs 1/k as fast, so every interval is xk (v6: EASY 1, MEDIUM 0.8 (v4 0.9), HARD 0.66; v3 HARD 0.7).
    ck(w, c, L) → {k now, p last tick, f}, both mod L. tk() is tele() on that clock: the shot fires on the tick the clock passes
    `at`, the telegraph keeps its real length (len x f clock units). With f = 1 (EASY) it is exactly tele(e, c % L, at, len). */
-const CADF = [1, 1 / 0.9, 1 / 0.66], cf = w => w.sm.boss && dif(w) === 2 ? 1 / 0.7 : CADF[dif(w)] || 1;   // HARD boss minions keep v3's x0.7
+const CADF = [1, 1 / 0.8, 1 / 0.66], cf = w => w.sm.boss && dif(w) === 2 ? 1 / 0.7 : CADF[dif(w)] || 1;   // HARD boss minions keep v3's x0.7
 function ck(w, c, L, f) { f = f || cf(w); L = L || 1e9; return { k: c * f % L, p: (c - 1) * f % L, f }; }
 /* bosses: x0.85 on HARD (v3 0.8: v4's faster bullets and tougher bosses carry the boss danger; the toys' clock is x0.66) */
-const BCAD = 1 / 0.85, bf = w => 1 + (BCAD - 1) * XB(w) / 2, bk = (w, c, L) => ck(w, c, L, bf(w));
+const BCAD = 1 / 0.85, bf = w => dif(w) === 1 ? 1 / 0.93 : 1 + (BCAD - 1) * XB(w) / 2, bk = (w, c, L) => ck(w, c, L, bf(w));   /* v6: MEDIUM x0.93 */
 const past = (K, at) => K.p < K.k ? K.p < at && at <= K.k : K.p < at || at <= K.k;
 function tk(e, K, at, len) { if (K.k >= at - (len || 20) * K.f && K.k < at) e.a = 1; return past(K, at); }
 /* fires on every `step` from a up to b (a smoke spiral): the clock passed a + i*step */
@@ -153,7 +158,7 @@ E.smudge = def({ hp: 1, r: 6, score: 50,
 E.glider = def({ hp: 1, r: 6, score: 60,
   init(e, w) {
     e.d.x0 = e.x; if (e.pat === 'swoopL' || e.pat === 'swoopR') swoopInit(e, e.pat === 'swoopL');
-    const x = XB(w), g = w.stage === 0 ? (x ? 3 - x : MH(w) ? 3 : prog(w) > 0.3 ? 4 : 0) : Math.max(1, 3 - x);
+    const x = XB(w), g = w.stage === 0 ? (x ? 3 - x : MH(w) ? 3 : prog(w) > 0.3 ? 4 : 0) : Math.max(1, 3 - Math.max(x, XM(w)));   // v6: MEDIUM every 2nd plane from stage 2
     e.d.gun = g > 0 && (e.idx | 0) % g === 0;
   },
   tick(e, w) {
@@ -189,7 +194,7 @@ E.grumble = def({ hp: 10, r: 12, score: 250,
   tick(e, w) {
     e.a = 0; const h = hoverMove(e, w, 240);
     if (h <= 0 || !may(e, w)) return;
-    const st = w.stage, three = st === 0 && prog(w) > 0.7, K = ck(w, h), x = XB(w);
+    const st = w.stage, three = st === 0 && prog(w) > 0.7, K = ck(w, h), x = Math.max(XB(w), XM(w));   // v6: MEDIUM as x 1
     if (three ? tk(e, K, 60, 30) || tk(e, K, 140, 30) || tk(e, K, 220, 24) || (x && tk(e, K, 300, 24))
               : tk(e, K, 70, 30) || tk(e, K, 170, 30) || (x && tk(e, K, 270, 24)))
       w.fan(e.x, e.y + 8, (st ? 5 : 3) + 2 * x, ((st ? 44 : 30) + 6 * x) * D2R, sp(w), aimOn(w) ? aim(w, e) : DOWN);
@@ -207,7 +212,7 @@ E.twirlie = def({ hp: 6, r: 9, score: 150,
     if (!may(e, w)) return;
     const n = (w.stage === 2 ? 8 : 6) + 2 * XN(w);
     if (tele(e, t, 120)) w.ring(e.x, e.y, n, sp(w, 0.95), e.d.off);
-    else if (XN(w) && tele(e, t, 162)) w.bullet(e.x, e.y + 6, sp(w, 1.05), aim(w, e));
+    else if (XM(w) && tele(e, t, 162)) w.bullet(e.x, e.y + 6, sp(w, 1.05), aim(w, e));   // v6: MEDIUM too
     else if (XN(w) && tele(e, t, 204)) w.ring(e.x, e.y, n, sp(w, 0.95), e.d.off + PI / n);
   } }, 'twirlie');
 
@@ -215,7 +220,7 @@ E.twirlie = def({ hp: 6, r: 9, score: 150,
    HARD: +2 shots (max 3 in stage 1, 4 later) and pops x0.66 as often (MEDIUM x0.9). */
 E.boinger = def({ hp: 8, r: 10, score: 200, ground: true, contact: false,
   tick(e, w) {
-    const t = w.T(e), st = w.stage, P = per(w, st === 0 ? 180 : st === 1 ? 140 : 130), c = (t - 60 + P * 4) % P, n = Math.min(st ? 4 : 3, (st ? 2 : 1) + XB(w)); e.a = 0;
+    const t = w.T(e), st = w.stage, P = per(w, st === 0 ? 180 : st === 1 ? 140 : 130), c = (t - 60 + P * 4) % P, n = Math.min(st ? 4 : 3, (st ? 2 : 1) + Math.max(XB(w), XM(w))); e.a = 0;   // v6: MEDIUM +1 shot
     if (t < 40 || !may(e, w)) return;
     if (c >= P - 20) e.a = 1; else if (c < 12 * n + 14) e.a = 2;
     if (c < 12 * n && c % 12 === 0) w.bullet(e.x, e.y - 6, sp(w, 1.05), aim(w, e));
@@ -228,7 +233,7 @@ E.vent = def({ hp: 6, r: 9, score: 150, ground: true, contact: false,
     if ((st > 0 || MH(w) || prog(w) > 0.5) && t >= 40 && may(e, w)) {
       const P = per(w, st === 0 ? 200 : st === 1 ? 160 : 140), c = (t - 60 + P * 4) % P, x = XB(w);
       if (c >= P - 20) e.a = 1;
-      if (c === 0 || (x && c === 10) || (x > 1 && st > 0 && c === 20)) w.bullet(e.x, e.y - 6, sp(w, 0.9), aim(w, e));   // HARD: a double tap (triple from stage 2), x0.66 period
+      if (c === 0 || ((x || XM(w)) && c === 10) || (x > 1 && st > 0 && c === 20)) w.bullet(e.x, e.y - 6, sp(w, 0.9), aim(w, e));   // HARD: a double tap (triple from stage 2), x0.66 period
     }
   },
   onDeath(e, w) {
@@ -248,7 +253,7 @@ E.ticktock = def({ hp: 14, r: 11, score: 300,
     if (tk(e, K, 60, 40)) w.ring(e.x, e.y, n, sp(w, 0.9), 0);
     else if (w.stage === 2 && tk(e, K, 125, 30)) w.ring(e.x, e.y, n, sp(w, 0.9), PI / n * 0.5);
     else if (tk(e, K, 190, 40)) w.ring(e.x, e.y, n, sp(w, 0.9), PI / n);
-    else if (XN(w) && tk(e, K, 255, 30)) w.fan(e.x, e.y + 8, 5, 30 * D2R, sp(w), aim(w, e));
+    else if (XM(w) && tk(e, K, 255, 30)) w.fan(e.x, e.y + 8, 5, 30 * D2R, sp(w), aim(w, e));   // v6: MEDIUM too
     else if (XN(w) && tk(e, K, 320, 40)) w.ring(e.x, e.y, n, sp(w, 0.9), PI / n * 1.5);
   } }, 'ticktock');
 
@@ -279,6 +284,7 @@ E.zap = def({ hp: 1, r: 12, score: 0, shootable: false, contact: false,
   hit(e, px, py) { return e.a === 2 && Math.abs(px - e.x) < 10; } }, 'zap');
 
 /* ---------- bosses: three phases each (66 % / 33 %), every attack telegraphed (a = 1), harder stage by stage ----------
+   v6: MEDIUM bosses add HARD's extra pattern in phases B and C (not A), on a x0.93 clock.
    HARD: every phase cycle runs on the x0.8 boss clock (bk), and each phase adds one pattern; Thunderpuff and Smoggins also
    get +2 bullets per fan / ring. */
 function bossInit(e, w) { e.d.y0 = e.y; e.d.x0 = e.x; e.d.ph = 0; e.d.c = 0; e.d.p = 0; e.d.bb = 0; w.sm.boss = e; }
@@ -292,7 +298,11 @@ function entering(e, w) {   /* slide in from above; cannot be un-grumped yet (an
 function ending(e, w) {     /* world set e.dying: cheer-up hop (a=3) or the tired float-away; never shoots */
   if (!e.dying) return false;
   const d = e.d;
-  if (d.dt == null) { d.dt = 0; d.ey = e.y; if (d.tired) w.fx('sticker', e.x, e.y - e.r - 6, 'Zzz...'); else cheerAll(w); }
+  if (d.dt == null) {
+    d.dt = 0; d.ey = e.y;
+    if (d.tired) { w.fx('sticker', e.x, e.y - e.r - 6, 'Zzz...'); const m = (BB.ENEMY[e.type].name || 'The boss') + ' got sleepy'; if (w.toast) w.toast(m, 140, 104); else w.fx('sticker', 120, 104, m); }   /* v6: not a win */
+    else cheerAll(w);
+  }
   const k = ++d.dt;
   if (d.tired) {
     e.a = 0; e.y -= Math.min(1.5, 0.15 + k * 0.015); e.x += (120 - e.x) * 0.02;
@@ -314,11 +324,47 @@ function cheerAll(w) {      /* the boss cheers up, so do its leftover minions: e
 function phaseOf(e, a, b) { const f = e.hp / e.maxHp; return f <= b ? 2 : f <= a ? 1 : 0; }
 function cough(e, w) { if (e.d.cough) return; e.d.cough = 1; w.fruit(e.x, e.y + e.r * 0.6, 5, 0, -0.8); w.fx('sticker', e.x, e.y + e.r, 'cough!'); }
 function bubbleUp(w) { return w.fruit(30 + w.rng() * 180, 334, 12, 0, C.PICK.bubbleVy); }   // a shield bubble rises from below
-function bossBubble(e, w) { /* during the fight a shield bubble floats up now and then (EASY more often); HARD: none */
+function bossBubble(e, w) { /* during the fight a shield bubble floats up now and then (EASY more often); v6: HARD one at 40 s, then every 45 s */
   const n = ++e.d.bb;
-  if (HD(w)) return;
-  const P = dif(w) === 0 ? 1200 : 1680;
-  if (n % P === P >> 1) bubbleUp(w);
+  if (HD(w)) { if (n % 2700 === 2400) bubbleUp(w); }
+  else { const P = dif(w) === 0 ? 1200 : 1680; if (n % P === P >> 1) bubbleUp(w); }
+  bossHelp(e, w);
+}
+/* v6 (Josh: weapon upgrades to grab during the boss fight). Every 15-20 s (HARD 19-25 s) a seed packet (now and then a
+   strawberry) glides in from a side of the sky; within 8 s while no ship has any upgrade; and the boss shakes one out of
+   itself when a phase breaks (66 % / 33 %). Below the stage's power cap: +1 power (pea packet / strawberry, never past the cap,
+   see Ship.maxed); at the cap: a timed weapon packet of this stage (the same type refills its timer). Host-only, w.rng(). */
+const HELP = [[900, 1200], [900, 1200], [1140, 1500]];
+function helpNeed(w) {   /* 0: every ship at the cap, 1: someone below it, 2: nobody has any upgrade (power 0, pea) */
+  const P = C.POWER_CAP, cap = P ? P[Math.max(0, Math.min(P.length - 1, w.stage | 0))] | 0 : 4;
+  let n = 0, low = false, none = true;
+  for (const s of w.ships || []) {
+    if (!s || s.spread == null || s.out || s.away) continue; n++;
+    if ((s.spread | 0) < cap) low = true;
+    if ((s.spread | 0) > 0 || (s.wt | 0) > 0 || s.superT > 0) none = false;
+  }
+  return !n ? 1 : none ? 2 : low ? 1 : 0;
+}
+function helpKind(w, need, side) {
+  const A = PACKS[Math.max(0, Math.min(2, w.stage | 0))], T = A.filter(k => k !== 8);
+  if (need === 0) return T[Math.min(T.length - 1, Math.floor(w.rng() * T.length))];   /* at the cap: a timed weapon */
+  return side && w.rng() < 0.3 ? 3 : 8;                                             /* +1 power: a pea packet (never juggled), sometimes a strawberry */
+}
+function helpGap(w) { const H = HELP[dif(w)] || HELP[1]; return H[0] + Math.floor(w.rng() * (H[1] - H[0])); }
+function bossHelp(e, w) {
+  const d = e.d, c = d.hc = (d.hc | 0) + 1;
+  if (d.hn == null) { d.hn = helpGap(w); d.hph = 0; }
+  const need = helpNeed(w);
+  if (need === 2 && d.hn - c > 480) d.hn = c + 480;                                  /* nobody has anything: help comes sooner */
+  const ph = phaseOf(e, 0.66, 0.33);
+  if (ph > d.hph) {                                                                  /* a phase broke: one shakes out of the boss */
+    d.hph = ph;
+    if (w.fruit(e.x + (w.rng() * 2 - 1) * 12, e.y + e.r * 0.5, helpKind(w, need, false), (w.rng() * 2 - 1) * 0.8, -1.2)) { w.fx('sparkle', e.x, e.y + e.r * 0.5); d.hn = Math.max(d.hn, c + (helpGap(w) >> 1)); }
+  }
+  if (c < d.hn) return;
+  const L = w.rng() < 0.5, x = L ? 12 : 228, y = 150 + w.rng() * 60, k = helpKind(w, need, true);
+  if (w.fruit(x, y, k, L ? 2.2 : -2.2, k === 3 ? -0.6 : 0)) { w.fx('sparkle', x, y); d.hn = c + helpGap(w); }
+  else d.hn = c + 60;                                                                /* no room for it yet: try again in a second */
 }
 function drizzle(e, w, n, v) {   /* a row of straight-down drops across the sky with one wide gap */
   const gx = 50 + w.rng() * 140, dx = 200 / (n - 1);
@@ -332,11 +378,12 @@ function zapAll(w) { for (const p of w.players()) { w.zap(p.x, 60, 24); w.fx('st
 /* 11 BIG CLANKY (stage 1): giant wind-up tin robot. A: fan + hand bolts; B: big rings + hand bolts + tinbots; C: rings + fans + smudges.
    HARD (stage 1 stays learnable): the x0.8 boss clock, aimed fans +2, rings as MEDIUM, hand bolts become 3-fans, and each phase
    adds one pattern, A: a slow ring, B: a narrow aimed fan, C: a small spin of big bolts. */
+const CLANKY_HARD = 0.9;   /* v6: HARD Big Clanky has x0.9 of the HARD hp (x1.575 instead of DIFF.eHp 1.75: 819 solo) */
 E.clanky = def({ hp: 520, r: 30, score: 0, boss: true, name: 'Big Clanky',
-  init: bossInit,
+  init(e, w) { if (HD(w)) { e.hp = e.maxHp = Math.max(1, Math.round(e.maxHp * CLANKY_HARD)); } bossInit(e, w); },
   tick(e, w) {
     if (ending(e, w) || entering(e, w)) return true;
-    const d = e.d, ph = phaseOf(e, 0.66, 0.33), x = HD(w);
+    const d = e.d, ph = phaseOf(e, 0.66, 0.33), x = HD(w) || (dif(w) === 1 && ph > 0);
     if (ph !== d.ph) { d.ph = ph; d.c = 0; d.rot = 0; }
     bossBubble(e, w);
     d.p += ph === 0 ? 1 : ph === 1 ? 1.3 : 1.6; e.x = 120 + 60 * Math.sin(TAU * d.p / 300);
@@ -371,7 +418,7 @@ E.thunderpuff = def({ hp: 760, r: 34, score: 0, boss: true, name: 'Thunderpuff',
   init: bossInit,
   tick(e, w) {
     if (ending(e, w) || entering(e, w)) return true;
-    const d = e.d, ph = phaseOf(e, 0.66, 0.33), x = HD(w), dn = 6 + XN(w);
+    const d = e.d, ph = phaseOf(e, 0.66, 0.33), x = HD(w) || (dif(w) === 1 && ph > 0), dn = 6 + XN(w);
     if (ph !== d.ph) { d.ph = ph; d.c = 0; d.rot = 0; if (ph === 2) cough(e, w); }
     bossBubble(e, w);
     d.p += ph === 0 ? 1 : ph === 1 ? 1.3 : 1.6; e.x = 120 + 40 * Math.sin(TAU * d.p / 420);
@@ -409,7 +456,7 @@ E.smoggins = def({ hp: 1000, r: 36, score: 0, boss: true, name: 'Old Smoggins',
   init(e, w) { bossInit(e, w); e.d.sa = 0; },
   tick(e, w) {
     if (ending(e, w) || entering(e, w)) return true;
-    const d = e.d, ph = phaseOf(e, 0.66, 0.33), x = HD(w);
+    const d = e.d, ph = phaseOf(e, 0.66, 0.33), x = HD(w) || (dif(w) === 1 && ph > 0);
     if (ph !== d.ph) { d.ph = ph; d.c = 0; if (ph === 2) cough(e, w); }
     bossBubble(e, w);
     d.p += ph === 0 ? 1 : ph === 1 ? 1.25 : 1.5; e.x = 120 + 50 * Math.sin(TAU * d.p / 360) + (ph === 2 ? 6 * Math.sin(d.c * 0.9) : 0);
@@ -446,7 +493,7 @@ E.smoggins = def({ hp: 1000, r: 36, score: 0, boss: true, name: 'Old Smoggins',
 E.grumblet = def({ hp: 6, r: 10, score: 150,
   init(e, w) { e.d.ty = Math.max(e.y + 24, 92 + w.rng() * 26); e.d.st = 0; },
   tick(e, w) {
-    e.a = 0; const h = hoverMove(e, w, 200), x = XB(w), K = ck(w, h);
+    e.a = 0; const h = hoverMove(e, w, 200), x = Math.max(XB(w), XM(w)), K = ck(w, h);   // v6: MEDIUM as x 1
     if (h > 0 && may(e, w) && (tk(e, K, 60, 24) || (x && tk(e, K, 140, 24))))
       w.fan(e.x, e.y + 6, 3 + 2 * XN(w), (28 + 4 * x) * D2R, sp(w, 0.95), aim(w, e));
   } }, 'grumblet');
@@ -486,8 +533,9 @@ BB.dropKind = function (w, src) {
 };
 
 /* ---------- stage timelines: [sec, type, pattern, n, x, gapTicks, flag] ----------
-   v1 times x0.8 plus extra waves; bigger formations; v4: every time x100/120 (rounded to 0.5 s), boss at 100 s. flag 'H': HARD only, 'E': EASY only, 'N': not on HARD (v3: HARD gets
-   2 shield bubbles per stage, MEDIUM 4, EASY 7, and 6 fewer Berry Bushes: juggled Sunberries ripen into 3-layer shields).
+   v1 times x0.8 plus extra waves; bigger formations; v4: every time x100/120 (rounded to 0.5 s), boss at 100 s. flag 'H': HARD only, 'M' (v6): MEDIUM and HARD
+   (the four v2 extras of each stage), 'E': EASY only, 'N': not on HARD (v3: HARD gets
+   2 shield bubbles per stage, MEDIUM 4 (v6: 3), EASY 7, and 6 fewer Berry Bushes: juggled Sunberries ripen into 3-layer shields).
    type 'bubble' (pattern 'rise'): a shield bubble rising from below the screen (x null = random). */
 BB.STAGES = [
   { name: 'Patchwork Meadows', bg: 'meadow', music: 'stage', boss: 'clanky', bossAt: 100, waves: [
@@ -495,17 +543,17 @@ BB.STAGES = [
     [11, 'tinbot', 'row', 3], [14, 'bush', 'drop', 1, 70], [16, 'glider', 'row', 6],
     [17.5, 'bubble', 'rise', 1, null, 0, 'N'], [19, 'vent', 'ground', 2, 120], [21, 'tinbot', 'col', 3, 60, 40], [21.5, 'bush', 'drop', 1, 120, 0, 'N'],
     [22.5, 'tinbot', 'col', 3, 180, 40], [26, 'grumble', 'hover', 1, 120], [26.5, 'bubble', 'rise', 1, null, 0, 'E'],
-    [27.5, 'glider', 'row', 6, 0, 0, 'H'], [29, 'bush', 'drop', 1, 170], [31, 'smudge', 'swoopL', 6, 0, 12], [34, 'smudge', 'swoopR', 6, 0, 12],
+    [27.5, 'glider', 'row', 6, 0, 0, 'M'], [29, 'bush', 'drop', 1, 170], [31, 'smudge', 'swoopL', 6, 0, 12], [34, 'smudge', 'swoopR', 6, 0, 12],
     [36, 'bush', 'drop', 1, 60, 0, 'N'], [36.5, 'bubble', 'rise', 1], [37.5, 'tinbot', 'row', 5], [39, 'vent', 'ground', 3, 120],
     [40, 'glider', 'col', 5, 180, 18], [41, 'present', 'ground', 1, 204], [42.5, 'grumble', 'hover', 2, 120], [46, 'bush', 'drop', 2, 120, 60],
-    [49, 'boinger', 'ground', 2, 120], [50, 'tinbot', 'row', 4, 0, 0, 'H'], [52, 'glider', 'row', 7],
-    [54, 'bush', 'drop', 1, 180, 0, 'N'], [55, 'tinbot', 'col', 4, 60, 30], [56.5, 'smudge', 'sineR', 8, 120, 12], [57.5, 'bubble', 'rise', 1, null, 0, 'N'],
+    [49, 'boinger', 'ground', 2, 120], [50, 'tinbot', 'row', 4, 0, 0, 'M'], [52, 'glider', 'row', 7],
+    [54, 'bush', 'drop', 1, 180, 0, 'N'], [55, 'tinbot', 'col', 4, 60, 30], [56.5, 'smudge', 'sineR', 8, 120, 12], [57.5, 'bubble', 'rise', 1, null, 0, 'E'],
     [60, 'tinbot', 'row', 5], [62, 'bush', 'drop', 1, 60], [63.5, 'twirlie', 'bounceR', 2, 60, 40], [65.5, 'grumble', 'hover', 1, 70],
     [66.5, 'smudge', 'sineL', 6, 190, 14], [67.5, 'bubble', 'rise', 1, null, 0, 'E'], [69, 'bush', 'drop', 1, 170, 0, 'N'], [71, 'vent', 'ground', 3, 140],
     [72, 'boinger', 'ground', 1, 50], [73.5, 'tinbot', 'col', 4, 180, 30], [76, 'glider', 'swoopL', 6, 0, 14], [77.5, 'glider', 'swoopR', 6, 0, 14],
-    [78.5, 'bubble', 'rise', 1], [80, 'twirlie', 'bounceR', 2, 60, 40, 'H'], [81, 'bush', 'drop', 2, 120, 50], [82.5, 'grumble', 'hover', 1, 170],
+    [78.5, 'bubble', 'rise', 1], [80, 'twirlie', 'bounceR', 2, 60, 40, 'M'], [81, 'bush', 'drop', 2, 120, 50], [82.5, 'grumble', 'hover', 1, 170],
     [85.5, 'glider', 'col', 5, 60, 18], [86.5, 'grumble', 'hover', 2, 120], [88.5, 'bubble', 'rise', 1, null, 0, 'E'], [89, 'tinbot', 'row', 4],
-    [90, 'bush', 'drop', 1, 60, 0, 'N'], [93.5, 'smudge', 'sineR', 10, 120, 10], [95, 'grumble', 'hover', 1, 60, 0, 'H'],
+    [90, 'bush', 'drop', 1, 60, 0, 'N'], [93.5, 'smudge', 'sineR', 10, 120, 10], [95, 'grumble', 'hover', 1, 60, 0, 'M'],
     [97.5, 'bush', 'drop', 1, 120],
     /* v3 HARD-only: denser, on top of the waves above */
     [13.5, 'tinbot', 'col', 3, 180, 40, 'H'], [44, 'glider', 'swoopR', 5, 0, 14, 'H'], [70, 'grumble', 'hover', 1, 60, 0, 'H'], [90.5, 'twirlie', 'bounceL', 2, 180, 40, 'H'],
@@ -515,17 +563,17 @@ BB.STAGES = [
     [1.5, 'bush', 'drop', 1, 120], [3.5, 'glider', 'col', 5, 80, 16], [4.5, 'glider', 'col', 5, 160, 16], [8, 'twirlie', 'bounceR', 2, 60, 40],
     [9, 'bush', 'drop', 1, 60, 0, 'N'], [11, 'smudge', 'sineL', 6, 180, 12], [13.5, 'bush', 'drop', 1, 170], [14.5, 'grumble', 'hover', 2, 120],
     [16.5, 'bubble', 'rise', 1, null, 0, 'N'], [19, 'tinbot', 'row', 5], [20, 'bush', 'drop', 1, 120, 0, 'N'],
-    [21.5, 'ticktock', 'hover', 1, 120], [22.5, 'twirlie', 'bounceL', 2, 180, 40, 'H'], [25.5, 'bush', 'drop', 1, 60],
+    [21.5, 'ticktock', 'hover', 1, 120], [22.5, 'twirlie', 'bounceL', 2, 180, 40, 'M'], [25.5, 'bush', 'drop', 1, 60],
     [26.5, 'smudge', 'swoopL', 6, 0, 12], [27.5, 'bubble', 'rise', 1, null, 0, 'E'], [29, 'smudge', 'swoopR', 6, 0, 12], [32, 'twirlie', 'bounceL', 3, 180, 30],
     [34, 'bush', 'drop', 1, 170, 0, 'N'], [36, 'vent', 'ground', 3, 120], [36.5, 'bubble', 'rise', 1], [39, 'glider', 'row', 7],
     [41.5, 'bush', 'drop', 1, 120], [42.5, 'grumble', 'hover', 1, 60], [44, 'grumble', 'hover', 1, 180], [46, 'tinbot', 'col', 4, 120, 30],
-    [47.5, 'bush', 'drop', 2, 120, 50], [49, 'grumble', 'hover', 1, 120, 0, 'H'], [51, 'ticktock', 'hover', 2, 120], [53.5, 'twirlie', 'bounceR', 3, 60, 30],
-    [55.5, 'bush', 'drop', 1, 60, 0, 'N'], [56, 'boinger', 'ground', 2, 120], [57.5, 'smudge', 'sineR', 6, 60, 12], [58.5, 'bubble', 'rise', 1, null, 0, 'N'],
+    [47.5, 'bush', 'drop', 2, 120, 50], [49, 'grumble', 'hover', 1, 120, 0, 'M'], [51, 'ticktock', 'hover', 2, 120], [53.5, 'twirlie', 'bounceR', 3, 60, 30],
+    [55.5, 'bush', 'drop', 1, 60, 0, 'N'], [56, 'boinger', 'ground', 2, 120], [57.5, 'smudge', 'sineR', 6, 60, 12], [58.5, 'bubble', 'rise', 1, null, 0, 'E'],
     [59, 'present', 'ground', 1, 36], [61.5, 'tinbot', 'row', 5], [63.5, 'bush', 'drop', 1, 120], [65, 'glider', 'col', 5, 180, 16],
-    [66.5, 'twirlie', 'bounceR', 4, 60, 30], [68.5, 'bubble', 'rise', 1, null, 0, 'E'], [71, 'bush', 'drop', 1, 180, 0, 'N'], [70, 'ticktock', 'hover', 1, 60, 0, 'H'],
+    [66.5, 'twirlie', 'bounceR', 4, 60, 30], [68.5, 'bubble', 'rise', 1, null, 0, 'E'], [71, 'bush', 'drop', 1, 180, 0, 'N'], [70, 'ticktock', 'hover', 1, 60, 0, 'M'],
     [72, 'glider', 'swoopL', 7, 0, 12], [73.5, 'glider', 'swoopR', 7, 0, 12], [77.5, 'bush', 'drop', 2, 120, 50],
     [79, 'bubble', 'rise', 1], [81, 'tinbot', 'row', 5], [82.5, 'ticktock', 'hover', 1, 120], [84, 'grumble', 'hover', 2, 120],
-    [86.5, 'tinbot', 'row', 5, 0, 0, 'H'], [87.5, 'bush', 'drop', 1, 60, 0, 'N'], [89, 'vent', 'ground', 3, 120], [89.5, 'bubble', 'rise', 1, null, 0, 'E'],
+    [86.5, 'tinbot', 'row', 5, 0, 0, 'M'], [87.5, 'bush', 'drop', 1, 60, 0, 'N'], [89, 'vent', 'ground', 3, 120], [89.5, 'bubble', 'rise', 1, null, 0, 'E'],
     [91, 'smudge', 'sineL', 8, 180, 10], [94.5, 'tinbot', 'row', 4], [97.5, 'bush', 'drop', 1, 120],
     /* v3 HARD-only */
     [6.5, 'grumblet', 'hover', 2, 120, 0, 'H'], [16, 'tinbot', 'col', 4, 60, 30, 'H'], [30, 'grumble', 'hover', 1, 120, 0, 'H'], [40, 'twirlie', 'bounceL', 2, 180, 40, 'H'],
@@ -536,17 +584,17 @@ BB.STAGES = [
     [1.5, 'bush', 'drop', 1, 120], [3.5, 'tinbot', 'col', 4, 60, 40], [4.5, 'tinbot', 'col', 4, 180, 40], [7.5, 'bush', 'drop', 1, 120, 0, 'N'],
     [9, 'smudge', 'sineR', 6, 80, 12], [11.5, 'boinger', 'ground', 1, 120], [14.5, 'bush', 'drop', 1, 60],
     [16, 'tinbot', 'row', 5], [16.5, 'bubble', 'rise', 1, null, 0, 'N'], [18.5, 'grumblet', 'hover', 2, 120], [20, 'glider', 'row', 7],
-    [22, 'bush', 'drop', 1, 170, 0, 'N'], [22.5, 'grumblet', 'hover', 2, 120, 0, 'H'], [24, 'twirlie', 'bounceL', 3, 180, 30], [26.5, 'grumble', 'hover', 2, 120],
+    [22, 'bush', 'drop', 1, 170, 0, 'N'], [22.5, 'grumblet', 'hover', 2, 120, 0, 'M'], [24, 'twirlie', 'bounceL', 3, 180, 30], [26.5, 'grumble', 'hover', 2, 120],
     [27.5, 'bubble', 'rise', 1, null, 0, 'E'], [30, 'bush', 'drop', 1, 180], [32, 'vent', 'ground', 3, 120],
     [33.5, 'boinger', 'ground', 2, 120], [36, 'bubble', 'rise', 1], [36.5, 'bush', 'drop', 1, 60, 0, 'N'], [37.5, 'tinbot', 'col', 5, 120, 30],
     [39, 'twirlie', 'bounceR', 3, 60, 30], [41.5, 'ticktock', 'hover', 1, 120], [45.5, 'bush', 'drop', 2, 120, 50],
-    [48, 'boinger', 'ground', 2, 120], [48.5, 'glider', 'row', 7, 0, 0, 'H'], [50, 'tinbot', 'row', 5], [52, 'smudge', 'swoopL', 6, 0, 12],
-    [53.5, 'smudge', 'swoopR', 6, 0, 12], [56, 'bush', 'drop', 1, 170, 0, 'N'], [56.5, 'bubble', 'rise', 1, null, 0, 'N'], [57.5, 'tinbot', 'row', 5],
+    [48, 'boinger', 'ground', 2, 120], [48.5, 'glider', 'row', 7, 0, 0, 'M'], [50, 'tinbot', 'row', 5], [52, 'smudge', 'swoopL', 6, 0, 12],
+    [53.5, 'smudge', 'swoopR', 6, 0, 12], [56, 'bush', 'drop', 1, 170, 0, 'N'], [56.5, 'bubble', 'rise', 1, null, 0, 'E'], [57.5, 'tinbot', 'row', 5],
     [59, 'glider', 'col', 6, 120, 16], [62.5, 'bush', 'drop', 1, 120], [64, 'grumble', 'hover', 1, 70], [65.5, 'ticktock', 'hover', 1, 170],
-    [66.5, 'present', 'ground', 1, 200], [67, 'bubble', 'rise', 1, null, 0, 'E'], [67.5, 'tinbot', 'row', 5, 0, 0, 'H'], [69, 'bush', 'drop', 1, 60, 0, 'N'],
+    [66.5, 'present', 'ground', 1, 200], [67, 'bubble', 'rise', 1, null, 0, 'E'], [67.5, 'tinbot', 'row', 5, 0, 0, 'M'], [69, 'bush', 'drop', 1, 60, 0, 'N'],
     [71, 'tinbot', 'col', 5, 120, 30], [72.5, 'grumblet', 'hover', 2, 120], [74.5, 'twirlie', 'bounceR', 3, 60, 30], [76.5, 'bubble', 'rise', 1],
     [79, 'bush', 'drop', 2, 120, 50], [84, 'boinger', 'ground', 1, 80],
-    [85.5, 'vent', 'ground', 2, 170], [86.5, 'ticktock', 'hover', 1, 60, 0, 'H'], [87, 'bubble', 'rise', 1, null, 0, 'E'], [87.5, 'bush', 'drop', 1, 60, 0, 'N'],
+    [85.5, 'vent', 'ground', 2, 170], [86.5, 'ticktock', 'hover', 1, 60, 0, 'M'], [87, 'bubble', 'rise', 1, null, 0, 'E'], [87.5, 'bush', 'drop', 1, 60, 0, 'N'],
     [89, 'glider', 'swoopL', 7, 0, 12], [91, 'smudge', 'sineR', 9, 120, 10], [92.5, 'grumble', 'hover', 1, 120], [93.5, 'bush', 'drop', 1, 180],
     [94.5, 'tinbot', 'row', 4], [97.5, 'bush', 'drop', 1, 120],
     /* v3 HARD-only */
@@ -579,13 +627,13 @@ function isleWave(w, type, pat, n) {
 }
 BB.spawnWave = function (w, wave) {
   const type = wave[1], pat = wave[2], n = wave[3] || 1, gap = wave[5] || 12, fl = wave[6];
-  if ((fl === 'H' && !XB(w)) || (fl === 'E' && dif(w) !== 0) || (fl === 'N' && HD(w))) return;   // HARD + MEDIUM extras / EASY-only / not-HARD waves
+  if ((fl === 'H' && !XB(w)) || (fl === 'M' && !MH(w)) || (fl === 'E' && dif(w) !== 0) || (fl === 'N' && HD(w))) return;   // HARD extras / v6 'M': MEDIUM and HARD / EASY-only / not-HARD waves
   if (type === 'bubble') { for (let i = 0; i < n; i++) w.later(gap * i, () => { if (wave[4] == null) bubbleUp(w); else w.fruit(wave[4], 334, 12, 0, C.PICK.bubbleVy); }); return; }
   const x0 = wave[4] == null ? 120 : wave[4];
   if (type === 'bush' || type === 'cloud' || pat === 'drop') { for (let i = 0; i < n; i++) w.later(gap * i, () => w.bush(x0, -20)); return; }
   if (pat === 'ground' && (BB.STAGES[w.stage] || {}).bg === 'sky') return isleWave(w, type, pat, n);
   const rec = n >= 4 ? { n, k: 0 } : null;                                       // a formation: drop on a full clear (see formation)
-  const room = fl === 'H' ? C.MAX_ENEMY - 3 : 1e9;   // v4: HARD-only members leave 3 slots free, so bushes, the Gift Box and the regular waves still fit
+  const room = fl === 'H' || fl === 'M' ? C.MAX_ENEMY - 3 : 1e9;   // v4: HARD-only members leave 3 slots free, so bushes, the Gift Box and the regular waves still fit
   for (let i = 0; i < n; i++) {
     let x = x0, dly = gap * i;
     if (pat === 'row') { x = n > 1 ? 40 + 160 * i / (n - 1) : 120; dly = 0; }

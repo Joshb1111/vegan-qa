@@ -1109,7 +1109,7 @@ const SCREENS = {
     if (a > 20 && curStage >= 0) prefetch(curStage + 1);   // the next stage's background, a piece per frame
     ctx.fillStyle = 'rgba(43,33,64,.25)'; ctx.fillRect(0, 0, 240, 320);
     card(ctx, 22, 60, 196, 76 + rows.length * 16);
-    text(ctx, 'STAGE CLEAR!', 120, 78, 16, PAL.sun);
+    text(ctx, S.title || 'STAGE CLEAR!', 120, 78, 16, PAL.sun);   // v6: a tired boss's stage says 'ON YOU GO!' instead
     rows.forEach((r, i) => { const t0 = 14 + i * 22; if (a < t0) return; const y = 102 + i * 16, v = r[1], k = Math.min(1, (a - t0) / 18);
       text(ctx, String(r[0]).replace(/ x(\d+)$/, ' ×$1'), 36, y, 9, '#fff', 'left'); text(ctx, typeof v === 'number' ? String(Math.round(v * k)) : String(v), 204, y, 9, PAL.sun, 'right'); });
     const sy = 102 + rows.length * 16 + 18, t1 = 14 + rows.length * 22;
