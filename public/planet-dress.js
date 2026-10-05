@@ -39,16 +39,20 @@ const doorNear=(n,r)=>typeof DOORS!=='undefined'&&DOORS.some(d=>Math.acos(Math.m
 
 /* ---------- merged meshes: one per material ---------- */
 const BUCKETS=[],BILLS=[];let flushT=0;
+/* OWN: the ground point(s) (unit vectors) of the piece being built, so a tree, a pole or a planter can be taken out whole later (arcClear) */
+let OWN=null,ADDS=0;const owned=(f,tag,ai)=>function(){const s=OWN,n=arguments[ai||0];OWN=OWN||(n&&n.isVector3?Object.assign([n.clone().normalize()],tag?{[tag]:1}:{}):null);try{return f.apply(this,arguments);}finally{OWN=s;}};
 function schedule(){clearTimeout(flushT);flushT=setTimeout(flushAll,120);}
-function flushAll(){for(const b of BUCKETS)b.flush();for(const b of BILLS)b.flush();}
+function flushAll(){arcClear();for(const b of BUCKETS)b.flush();for(const b of BILLS)b.flush();}
 class Bucket{
-  constructor(name,mat,o){this.name=name;this.mat=mat;this.o=o||{};this.P=[];this.N=[];this.U=[];this.C=[];this.mesh=null;this.dirty=false;BUCKETS.push(this);}
-  add(geo,m4,color,uvr,jit){const g=geo.index?geo.toNonIndexed():geo;const pa=g.attributes.position,na=g.attributes.normal,ua=g.attributes.uv;const nm=new T.Matrix3().getNormalMatrix(m4);const p=new T.Vector3(),q=new T.Vector3();
+  constructor(name,mat,o){this.name=name;this.mat=mat;this.o=o||{};this.P=[];this.N=[];this.U=[];this.C=[];this.I=[];this.mesh=null;this.dirty=false;BUCKETS.push(this);}
+  add(geo,m4,color,uvr,jit){const v0=this.P.length/3;ADDS++;this.I.push([v0,0,OWN||Object.assign([V3(m4.elements[12],m4.elements[13],m4.elements[14]).normalize()],{anon:1})]);this._add(geo,m4,color,uvr,jit);this.I[this.I.length-1][1]=this.P.length/3;}
+  _add(geo,m4,color,uvr,jit){const g=geo.index?geo.toNonIndexed():geo;const pa=g.attributes.position,na=g.attributes.normal,ua=g.attributes.uv;const nm=new T.Matrix3().getNormalMatrix(m4);const p=new T.Vector3(),q=new T.Vector3();
     const c=new T.Color(color===undefined?0xffffff:color);const k=1+(rr()-.5)*2*(jit===undefined?.05:jit);const cr_=Math.min(1,c.r*k),cg=Math.min(1,c.g*k),cb=Math.min(1,c.b*k);
     for(let i=0;i<pa.count;i++){p.fromBufferAttribute(pa,i).applyMatrix4(m4);this.P.push(p.x,p.y,p.z);if(na){q.fromBufferAttribute(na,i).applyMatrix3(nm).normalize();this.N.push(q.x,q.y,q.z);}else this.N.push(0,1,0);
       if(ua){let u=ua.getX(i),v=ua.getY(i);if(uvr){u=uvr[0]+(uvr[2]-uvr[0])*u;v=uvr[1]+(uvr[3]-uvr[1])*v;}this.U.push(u,v);}else this.U.push(0,0);this.C.push(cr_,cg,cb);}
     if(g!==geo)g.dispose();geo.dispose();this.dirty=true;schedule();}
-  addRaw(P,N,U,color){const c=new T.Color(color===undefined?0xffffff:color);for(let i=0;i<P.length/3;i++){this.P.push(P[i*3],P[i*3+1],P[i*3+2]);this.N.push(N?N[i*3]:0,N?N[i*3+1]:1,N?N[i*3+2]:0);this.U.push(U?U[i*2]:0,U?U[i*2+1]:0);this.C.push(c.r,c.g,c.b);}this.dirty=true;schedule();}
+  addRaw(P,N,U,color){const v0=this.P.length/3;ADDS++;let an=OWN;if(!an){const m=V3(0,0,0);for(let i=0;i<P.length;i+=3){m.x+=P[i];m.y+=P[i+1];m.z+=P[i+2];}an=Object.assign([m.normalize()],{anon:1});}this.I.push([v0,v0+P.length/3,an]);
+    const c=new T.Color(color===undefined?0xffffff:color);for(let i=0;i<P.length/3;i++){this.P.push(P[i*3],P[i*3+1],P[i*3+2]);this.N.push(N?N[i*3]:0,N?N[i*3+1]:1,N?N[i*3+2]:0);this.U.push(U?U[i*2]:0,U?U[i*2+1]:0);this.C.push(c.r,c.g,c.b);}this.dirty=true;schedule();}
   flush(){if(!this.dirty)return;this.dirty=false;if(!this.P.length)return;const g=new T.BufferGeometry();g.setAttribute('position',new T.Float32BufferAttribute(this.P,3));g.setAttribute('normal',new T.Float32BufferAttribute(this.N,3));g.setAttribute('uv',new T.Float32BufferAttribute(this.U,2));g.setAttribute('color',new T.Float32BufferAttribute(this.C,3));g.computeBoundingSphere();
     if(!this.mesh){const m=new T.Mesh(g,this.mat);m.matrixAutoUpdate=false;Object.assign(m.userData,this.o.ud||{});if(this.o.hideN)hideInNormals.push(m);if(this.o.order!==undefined)m.renderOrder=this.o.order;m.name='dress:'+this.name;scene.add(m);this.mesh=m;}
     else{const old=this.mesh.geometry;this.mesh.geometry=g;old.dispose();}G.dirty();}
@@ -78,7 +82,7 @@ const CUT_VS='varying vec2 vUv;varying vec3 vTint;void main(){vUv=uv;vTint=vec3(
 class Bill{
   constructor(name,tex,cell,o){this.name=name;this.tex=tex;this.cell=cell;this.o=Object.assign({tilt:.35,sway:.05},o||{});this.list=[];this.mesh=null;this.dirty=false;BILLS.push(this);
     const un={map:{value:tex},uTilt:{value:this.o.tilt},uT:UT,uSway:{value:this.o.sway}};this.mat=new T.ShaderMaterial({uniforms:un,vertexShader:BB_VS,fragmentShader:BB_FS,side:T.DoubleSide});this.ink=new T.ShaderMaterial({uniforms:un,vertexShader:BB_VS,fragmentShader:INK_FS,side:T.DoubleSide});}
-  add(n,w,h,tint,lift){if(STAIR&&STAIR.covers(n,.5))return;this.list.push({n:n.clone(),w,h,tint:tint===undefined?1:tint,lift:lift||0});this.dirty=true;schedule();}
+  add(n,w,h,tint,lift){if(STAIR&&STAIR.covers(n,.5))return;ADDS++;this.list.push({n:n.clone(),w,h,tint:tint===undefined?1:tint,lift:lift||0,a:OWN});this.dirty=true;schedule();}
   flush(){if(!this.dirty)return;this.dirty=false;if(this.mesh){scene.remove(this.mesh);this.mesh.geometry.dispose();this.mesh=null;}if(!this.list.length)return;
     const g=new T.PlaneGeometry(1,1);g.translate(0,.5,0);const [u0,v0,u1,v1]=this.cell,ua=g.attributes.uv;for(let i=0;i<ua.count;i++)ua.setXY(i,u0+(u1-u0)*ua.getX(i),v0+(v1-v0)*ua.getY(i));
     const im=new T.InstancedMesh(g,this.mat,this.list.length);const m=new T.Matrix4(),q=new T.Quaternion(),s=new T.Vector3(),c=new T.Color(),ctr=new T.Vector3();let rad=0;
@@ -174,12 +178,14 @@ function plant(n,lift,big){const t=rr(),k=big?1.25:1;
 const SC=(i,w,h,W,H)=>{/* a rectangle of the sign atlas, in pixels, as uv */return [i[0]/1024,1-(i[1]+h)/512,(i[0]+w)/1024,1-i[1]/512];};
 
 /* a builder for small parts in a local frame (a Matrix4): boxes, cylinders, rods between two points */
-function kit(base,bk){bk=bk||STAT;return{
+function kit(base,bk){bk=bk||STAT;return ownKit(base,{
   box(w,h,d,c,x,y,z,ry,rx,rz){bk.add(new T.BoxGeometry(w,h,d),mul(base,mRot(x,y,z,ry,rx,rz)),c);return this;},
   cyl(rt,rb,h,c,x,y,z,seg,rx,rz,ry){bk.add(new T.CylinderGeometry(rt,rb,h,seg||8),mul(base,mRot(x,y,z,ry,rx,rz)),c);return this;},
   tor(r,t,c,x,y,z,ry,rx){bk.add(new T.TorusGeometry(r,t,5,18),mul(base,mRot(x,y,z,ry,rx)),c);return this;},
   rod(a,b,r,c,seg){const d=b.clone().sub(a),len=d.length();const q=new T.Quaternion().setFromUnitVectors(V3(0,1,0),d.normalize());const m=new T.Matrix4().compose(a.clone().add(b).multiplyScalar(.5),q,V3(1,1,1));bk.add(new T.CylinderGeometry(r,r,len,seg||6),mul(base,m),c);return this;},
-  quad(w,h,uvr,x,y,z,ry,rx){SIGN.add(new T.PlaneGeometry(w,h),mul(base,mRot(x,y,z,ry,rx)),0xffffff,uvr,0);return this;}};}
+  quad(w,h,uvr,x,y,z,ry,rx){SIGN.add(new T.PlaneGeometry(w,h),mul(base,mRot(x,y,z,ry,rx)),0xffffff,uvr,0);return this;}});}
+/* every part a kit adds belongs to the kit's base point (or the piece being built round it), not to wherever the part sits */
+function ownKit(base,o){const an=OWN||[V3(base.elements[12],base.elements[13],base.elements[14]).normalize()];for(const k in o){const f=o[k];o[k]=function(){const s=OWN;OWN=an;try{f.apply(o,arguments);}finally{OWN=s;}return o;};}return o;}
 
 /* ground-hugging geometry: every vertex laid on the ground under it */
 function groundQuad(bk,n,f,w,h,uvr,lift,col,seg){seg=seg||4;const Y=n.clone(),Z=f.clone().addScaledVector(n,-f.dot(n)).normalize(),X=new T.Vector3().crossVectors(Y,Z);const P=[],N=[],U=[];const pt=(i,j)=>{const x=(i/seg-.5)*w,z=(j/seg-.5)*h;const q=tn(n,X.clone().multiplyScalar(x).addScaledVector(Z,z));return {p:onG(q,lift),n:q,u:uvr[0]+(uvr[2]-uvr[0])*(i/seg),v:uvr[1]+(uvr[3]-uvr[1])*(j/seg)};};
@@ -865,12 +871,25 @@ function zPick(ctx,f,br,g0,when,out){const src=ctx.createBufferSource();src.buff
 function zFireStep(ctx,s,st,when,out){const hl=s.pat.length>>1,n=st%s.len;if(n>=s.hc.length*hl)return;const h=(n/hl)|0,pos=n%s.pat.length,i=s.pat[pos],c=s.hc[h];
   if(i>=0)zPick(ctx,c[i],false,i===0?(pos===0?.9:.7):.5,when,out);if(n%hl===0&&s.hm[h])zPick(ctx,s.hm[h],true,.7,when,out);}
 const SONG_BEACH={bpm:104,bars:[['G3','B4','D5','G5'],['E3','B4','E5','G5'],['C4','E5','G5','C5'],['D4','F#4','A4','D5']],pat:[0,2,1,3,2,1,3,2]};
+/* Josh's own recording of "1004" plays from the fire. An <audio> element streams it through the planet's audio graph (no 40 MB decode);
+   it only loads once someone comes near the fire, pauses when nobody is (or the music is off, or the town stops drawing), and picks up
+   where it left off. The guitar cover above plays while it loads, or if it can't play. */
+const FIRE_REC={url:'assets/fire-1004.mp3?v=1',el:null,g:null,ok:false,bad:false,far:0,last:0};
+function zRecord(ctx,v){const F=FIRE_REC;F.last=performance.now();if(F.bad)return false;
+  if(!F.el){if(v<=.001)return false;
+    try{const el=new Audio();el.src=F.url;el.loop=true;el.preload='auto';const src=ctx.createMediaElementSource(el);F.g=ctx.createGain();F.g.gain.value=0;src.connect(F.g);F.g.connect(ctx.destination);
+      el.addEventListener('playing',()=>{F.ok=true;});el.addEventListener('error',()=>{F.bad=true;F.ok=false;});F.el=el;
+      setInterval(()=>{if(!F.el.paused&&performance.now()-F.last>1500)F.el.pause();},1000);}catch(_){F.bad=true;return false;}} /* zSound stopped (a room is open, or the music is off) */
+  const el=F.el;F.g.gain.setTargetAtTime(v*.55,ctx.currentTime,.3);
+  if(v>.001){F.far=0;if(el.paused)el.play().catch(()=>{});}else if(!el.paused&&++F.far>180)el.pause();
+  return F.ok&&!el.paused;}
 function zSound(t){const ctx=G.audio&&G.audio();const me=G.player&&G.player();if(!me){return;}
   const dist=n=>n?me.distanceTo(n.clone().multiplyScalar(gAt(n))):1e9;const vf=Math.pow(Math.max(0,Math.min(1,1-(dist(ZFX.fire&&ZFX.fire.n)-3)/16)),1.4),vb=Math.pow(Math.max(0,Math.min(1,1-(dist(ZFX.radio&&ZFX.radio.n)-2)/14)),1.4);
   window.__duck=Math.max(vf*.9,vb*.8);if(!ctx){return;}
   if(!zAudio){zAudio={next:{fire:0,beach:0},step:{fire:0,beach:0},gain:{fire:ctx.createGain(),beach:ctx.createGain()}};for(const k in zAudio.gain){zAudio.gain[k].gain.value=0;const lp=ctx.createBiquadFilter();lp.type='lowpass';lp.frequency.value=k==='fire'?2600:3400;zAudio.gain[k].connect(lp);lp.connect(ctx.destination);}}
-  zAudio.gain.fire.gain.setTargetAtTime(vf*.5,ctx.currentTime,.3);zAudio.gain.beach.gain.setTargetAtTime(vb*.32,ctx.currentTime,.3);
-  for(const [k,song,v] of [['fire',SONG_FIRE,vf],['beach',SONG_BEACH,vb]]){if(v<=.001){zAudio.next[k]=0;continue;}const spb=60/song.bpm/(song.div||2);if(!zAudio.next[k]||zAudio.next[k]<ctx.currentTime)zAudio.next[k]=ctx.currentTime+.05;
+  const rec=zRecord(ctx,vf),vg=rec?0:vf; /* the record playing: Kofi's plucked cover rests */
+  zAudio.gain.fire.gain.setTargetAtTime(vg*.5,ctx.currentTime,.3);zAudio.gain.beach.gain.setTargetAtTime(vb*.32,ctx.currentTime,.3);
+  for(const [k,song,v] of [['fire',SONG_FIRE,vg],['beach',SONG_BEACH,vb]]){if(v<=.001){zAudio.next[k]=0;continue;}const spb=60/song.bpm/(song.div||2);if(!zAudio.next[k]||zAudio.next[k]<ctx.currentTime)zAudio.next[k]=ctx.currentTime+.05;
     while(zAudio.next[k]<ctx.currentTime+.3){const st=zAudio.step[k]++;if(song.hc){zFireStep(ctx,song,st,zAudio.next[k],zAudio.gain[k]);zAudio.next[k]+=spb;continue;}const bar=song.bars[Math.floor(st/8)%song.bars.length];const which=song.pat[st%8];const notes=[bar[which]];if(st%8===0)notes.push(bar[0]);
       for(const nm of notes){const src=ctx.createBufferSource();src.buffer=zPluck(ctx,NOTE(nm),k==='beach');const g=ctx.createGain();g.gain.value=(nm===bar[0]&&st%8===0?.9:.55)*(.85+Math.random()*.3);src.connect(g);g.connect(zAudio.gain[k]);src.start(zAudio.next[k]+(Math.random()*.012));}
       zAudio.next[k]+=spb*(st%2?.92:1.08);}}} /* a little swing */
@@ -914,6 +933,45 @@ function arcadeModels(){const A=window.__arcade;CABS.tries++;
   if(A){A.models=true;cabLoad();if(Array.isArray(A.cabs)&&Array.isArray(A.doors)&&A.doors.length>=A.cabs.length){if(!CABS.t0){CABS.t0=performance.now();cabDoors(A);for(const ms of [1000,4500,8000,12500,16000,25000])setTimeout(cabSolids,ms);}
     cabFit();if(A.cabs.every(cb=>cb&&cb.g&&cb.g.userData.cabModel))return;}}
   if(CABS.tries<600)setTimeout(arcadeModels,A&&A.cabs?500:250);}
+/* ---------- the walk-in arcade: nothing scattered grows or stands inside it ----------
+   The dressing waits for the arcade to be seated (ready), but when its model comes in late the street is dressed first, while
+   ARC.covers still says "not covered", and plants, trees and props land in it (half under its floor, through its cabinets).
+   So once it is seated, again after each re-seat (0, 4 and 12 s), and whenever more dressing or props come in, everything whose
+   ground point is inside its footprint, forecourt and ramp (plus ARC_PAD) goes: billboards from their instanced lists, whole
+   pieces (a tree, a pole, a planter: OWN) from the merged buckets, the wires of a pole taken out, the town's scattered props
+   from the scene, and their solids and colliders. The street's own ground work (paths, gutters, markings, decals) is left alone. */
+const ARC_PAD=.3,ARCB=new Set(['props','signs','wires','leafshade','shadows','wallplants']);
+const AC={o:null,adds:-1,kids:-1,runs:0,seats:0,polls:0,bills:{},tris:{},groups:[],solids:0,at:[]};
+paintedTree=owned(paintedTree);pole=owned(pole,'pole');glb=owned(glb,0,1);
+cable=(f=>function(A_,B_){const s=OWN;OWN=OWN||Object.assign([A_.clone().normalize(),B_.clone().normalize()],{cab:1});try{return f.apply(this,arguments);}finally{OWN=s;}})(cable);
+function arcClear(force){const A=window.__arcade;if(!A||!A.on||!A.covers||!A.o)return 0;
+  if(!force&&A.o===AC.o&&ADDS===AC.adds&&scene.children.length===AC.kids)return 0; /* nothing new since the last pass */
+  if(A.o!==AC.o){AC.seats++;AC.t1=AC.t1||performance.now();}AC.o=A.o;AC.adds=ADDS;AC.runs++;
+  const hit=a=>{for(const n of a)if(A.covers(n,ARC_PAD))return true;return false;};const lat=(a,b)=>Math.acos(Math.min(1,a.dot(b)))*R;
+  const goneO=[],goneP=[];let k=0;
+  /* the merged buckets: whole pieces, then the wires of any pole that went */
+  const drops=BUCKETS.map(b=>{if(!ARCB.has(b.name)||!b.I.length)return null;const rm=new Uint8Array(b.I.length);
+    b.I.forEach((r,i)=>{const a=r[2];if(a.cab||(b.name==='wires'&&a.anon))return; /* wires: only whole pieces (a pole's parts), never a loose fitting such as a service drop's bracket on a façade */if(hit(a)){rm[i]=1;if(a.pole)goneP.push(a[0]);}});return rm;});
+  BUCKETS.forEach((b,j)=>{const rm=drops[j];if(!rm)return;b.I.forEach((r,i)=>{const a=r[2];if(a.cab&&goneP.some(p=>lat(p,a[0])<1.2||lat(p,a[1])<1.2))rm[i]=1;});
+    let n=0;for(const r of rm)n+=r;if(!n)return;const P=[],N=[],U=[],C=[],I=[];let tri=0;
+    b.I.forEach((r,i)=>{const [v0,v1,a]=r;if(rm[i]){tri+=(v1-v0)/3;arcLog(b.name,a[0],(v1-v0)/3);if(!a.anon&&!a.cab)goneO.push(a[0]);return;}const nv=P.length/3;
+      for(let v=v0;v<v1;v++){P.push(b.P[v*3],b.P[v*3+1],b.P[v*3+2]);N.push(b.N[v*3],b.N[v*3+1],b.N[v*3+2]);U.push(b.U[v*2],b.U[v*2+1]);C.push(b.C[v*3],b.C[v*3+1],b.C[v*3+2]);}I.push([nv,P.length/3,a]);});
+    Object.assign(b,{P,N,U,C,I});AC.tris[b.name]=(AC.tris[b.name]||0)+tri;k+=n;
+    if(!P.length){b.dirty=false;if(b.mesh){const old=b.mesh.geometry;b.mesh.geometry=new T.BufferGeometry();old.dispose();}}else b.dirty=true;});
+  /* the billboards: rebuilt from their lists at the next flush */
+  for(const b of BILLS){const keep=[];let n=0;for(const it of b.list){if(hit(it.a||[it.n])){n++;arcLog(b.name,it.n,0);if(it.a)goneO.push(it.a[0]);}else keep.push(it);}if(n){b.list=keep;b.dirty=true;AC.bills[b.name]=(AC.bills[b.name]||0)+n;k+=n;}}
+  /* the town's scattered props (and the dressing's model trees): any group built from a loaded prop model */
+  const lib=window.__propLib||{},libG=new Set();for(const kd in lib)lib[kd].traverse(m=>{if(m.isMesh)libG.add(m.geometry);});
+  const keepG=new Set([...(window.BLDGS||[]).map(b=>b.inst),...G.npcs.map(n=>n.model&&n.model.holder).filter(Boolean),...(window.__POLES||[])]);
+  for(const c of [...scene.children]){if(!c.isGroup||keepG.has(c)||c.userData.zone||c.position.lengthSq()<1)continue;const n=c.position.clone().normalize();if(!A.covers(n,ARC_PAD))continue;
+    let p=false;c.traverse(m=>{if(!p&&m.isMesh&&libG.has(m.geometry))p=true;});if(!p||(!c.userData.tree&&new T.Box3().setFromObject(c).getSize(V3()).length()>9))continue; /* a tree goes whatever its size (its crown alone is ~8.5 m across corners) */
+    scene.remove(c);const ci=G.colliders.indexOf(c);if(ci>=0)G.colliders.splice(ci,1);goneO.push(n);let nm='';c.traverse(m=>{if(!nm&&m.name&&m.name!=='Scene')nm=m.name;});AC.groups.push((c.userData.tree?'tree ':'')+nm.slice(0,24));arcLog('group',n,0);k++;}
+  /* their solids: a circle inside the footprint, or where a piece was taken out (never the arcade's own walls and cabinets, which are boxes) */
+  for(let i=solids.length-1;i>=0;i--){const so=solids[i];if(so.r===undefined||so.r>1)continue;const n=so.c.clone().normalize();if(A.covers(n,0)||(A.covers(n,ARC_PAD)&&goneO.some(q=>lat(q,n)<.6))){solids.splice(i,1);AC.solids++;}}
+  AC.kids=scene.children.length;if(k)G.dirty();return k;}
+function arcLog(what,n,tri){const A=window.__arcade;if(AC.at.length>=80)return;const d=n.clone().multiplyScalar(R).sub(A.o);AC.at.push([what,+d.dot(A.X).toFixed(1),+d.dot(A.Z).toFixed(1),tri]);} /* what went, where: x across the arcade, z out of its front (DRESS.arcClear.at) */
+function arcWatch(){const A=window.__arcade;if(A&&A.on&&A.o!==AC.o)flushAll();AC.polls++;if(AC.seats<3&&!(AC.t1&&performance.now()-AC.t1>30000))setTimeout(arcWatch,AC.polls<400?500:3000);} /* until the last re-seat (12 s after the first; two can fall between polls on a busy page) */
+window.addEventListener('planet:prop',()=>setTimeout(()=>{arcClear(true);flushAll();},50)); /* the props it places come in after this event */
 /* ---------- start: once the street's buildings are in ---------- */
 /* ===== STREET 01, LOCAL SHOPPING / RESIDENTIAL HILL: LOCKED 27 Sep 2026 =====
    Approved by Josh. Do not change these numbers, seeds or the code paths they drive (street, junctionKit,
@@ -922,7 +980,7 @@ function arcadeModels(){const A=window.__arcade;CABS.tries++;
 const S2CFG={houseKey:'25',house:[292.1,7.1],yardPole:[287.75,5.35],poles:[271,285]}; /* Street 02: the levels and slots come from the game's S2 terrain (GAME.S2) */
 const PROTO={locked:true,road:'main',order:['1v2','7','9','12','8','17'],s0:144,s1:208,build:1,rail:-1,junction:'skate',seedB:1340171692,seedC:1071038393,poleS1:236,railS1:216,branch:{road:'side2',from:5,to:44},crest:{road:'main',c0:203,c1:222,trees:7,r0:186,r1:224,tower:null, /* the lookout tower broke the silhouette but did not belong here (27 Sep); trees, roofs, poles and wires carry the skyline */flood:[209,214],floodH:15,streetTrees:[[206,3.35],[209,-3.85]],seed:777},stair:{side:-1,s0:190,s1:206,pref:198,len:4.6,W:1.5},lawn:{side:1,s0:144,s1:206,trees:4,groups:8,seed:555}};
 let built=false,t0=performance.now();
-function ready(){const T_=window.__town;if(!T_)return false;const road=MAIN;const want=T_.modelSlots.filter(sl=>{const n=sphere(sl.lon,sl.lat);const bs=nearest(road,n);return bs&&bs.s>=PROTO.s0-3&&bs.s<=Math.max(PROTO.s1,PROTO.crest.r1)+3;}).length;const have=(window.BLDGS||[]).filter(b=>{const bs=nearest(road,b.inst.position.clone().normalize());return bs&&bs.s>=PROTO.s0-3&&bs.s<=Math.max(PROTO.s1,PROTO.crest.r1)+3;}).length;const lib=window.__propLib||{};return (have>=want&&lib.upole&&lib.tree1)||performance.now()-t0>25000;}
+function ready(){const T_=window.__town;if(!T_)return false;{const A=window.__arcade;if(A&&!A.on&&performance.now()-t0<=25000)return false;} /* the arcade seated first, so ARC.covers keeps the street's planting out of it (arcClear tidies up if it comes in later than that) */const road=MAIN;const want=T_.modelSlots.filter(sl=>{const n=sphere(sl.lon,sl.lat);const bs=nearest(road,n);return bs&&bs.s>=PROTO.s0-3&&bs.s<=Math.max(PROTO.s1,PROTO.crest.r1)+3;}).length;const have=(window.BLDGS||[]).filter(b=>{const bs=nearest(road,b.inst.position.clone().normalize());return bs&&bs.s>=PROTO.s0-3&&bs.s<=Math.max(PROTO.s1,PROTO.crest.r1)+3;}).length;const lib=window.__propLib||{};return (have>=want&&lib.upole&&lib.tree1)||performance.now()-t0>25000;}
 function build(){if(built)return;built=true;const t=performance.now();setup();{const br=ROADS.find(r=>r.name===PROTO.branch.road);if(br){const toSpawn=atS(MAIN,PROTO.s0).n.clone().sub(atS(br,5).n);PROTO.branch.side=Math.sign(atS(br,5).side.dot(toSpawn))||1;}} /* poles down the side street on the side that faces the spawn, so they read against the sky */
   STAIR=stairSite(PROTO.stair);if(STAIR){const w=window.DRESS.treeAt=window.DRESS.treeAt||[];for(const f of [0,.5,1])w.push(tn(STAIR.top,STAIR.dir.clone().multiplyScalar(STAIR.L*f)));} /* keep trees off the stair */
   const P=street(PROTO);junctionKit(PROTO.junction);const nb=buildingSide(PROTO);if(PROTO.crest.towerAt){const [ts,tl]=PROTO.crest.towerAt;(window.DRESS.treeAt=window.DRESS.treeAt||[]).push(offsetFrom(atS(MAIN,ts),tl));} /* keep the tower's corner clear of trees */
@@ -939,5 +997,5 @@ function poll(){if(built)return;if(ready())build();else setTimeout(poll,700);}
 window.DRESS={frame(dt,now){UT.value=now/1000;try{zonesFrame(dt,now/1000);}catch(e){}},glb,look(v){LOOKU.value=v;return v;},rebuild(){location.reload();},
   async calls(){const ri=renderer.info;ri.autoReset=false;ri.reset();await new Promise(r=>requestAnimationFrame(()=>requestAnimationFrame(r)));const c={calls:ri.render.calls,tris:ri.render.triangles};ri.autoReset=true;return c;},buckets:BUCKETS,bills:BILLS};
 setTimeout(poll,1500);
-arcadeModels();window.DRESS.cabs=CABS; /* the arcade's cabinet models: on their own poll (the arcade is seated whenever its model loads) */
+arcadeModels();window.DRESS.cabs=CABS;arcWatch();window.DRESS.arcClear=AC; /* the arcade's cabinet models: on their own poll (the arcade is seated whenever its model loads) */
 })();
