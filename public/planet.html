@@ -268,7 +268,15 @@ body.intro #game{background:#5abfb2}
 'use strict';
 const $=s=>document.querySelector(s), $$=s=>Array.from(document.querySelectorAll(s));
 const clamp=(x,a,b)=>Math.max(a,Math.min(b,x));
-if(!window.THREE){$('#title-p').className='err';$('#title-p').textContent='The 3D library could not load. Check the connection and reload.';return;}
+function showGraphicsError(message){
+  const title=$('#title'), text=$('#title-p'), button=$('#enter');
+  title.classList.remove('gone');text.className='err';text.setAttribute('role','alert');text.textContent=message;
+  $('#title-gfx').hidden=true;$('#title-gfx').style.display='none';
+  button.textContent='Reload';button.style.animation='none';button.focus();
+  button.addEventListener('keydown',e=>{if(e.key==='Enter'||e.key===' ')e.stopPropagation();});
+  button.addEventListener('click',e=>{e.preventDefault();e.stopImmediatePropagation();location.reload();},{capture:true,once:true});
+}
+if(!window.THREE){showGraphicsError('The 3D library could not load. Check your connection and reload.');return;}
 const API='/api/ask'; // hosted inside the vegan-qa project, so this is same-origin
 const ANSWERS={}; // pre-generated answers for the suggested questions (public/planet-answers.json) — free and instant
 fetch('planet-answers.json').then(r=>r.ok?r.json():{}).then(j=>Object.assign(ANSWERS,j)).catch(()=>{});
@@ -283,7 +291,9 @@ const ROOFS=[0x8fb07a,0xc8785a,0x5f7e8c,0x7d6540,0x6d905a];
    ===================================================================== */
 const R=50;
 const game=$('#game'), canvas=$('#c');
-const renderer=new THREE.WebGLRenderer({canvas,antialias:false});
+let renderer;
+try{renderer=new THREE.WebGLRenderer({canvas,antialias:false});}
+catch(error){console.warn('Graphics startup failed',error);showGraphicsError('This browser could not start the 3D world. Try enabling graphics acceleration in your browser settings, or open the game in another browser.');return;}
 const COARSE=matchMedia('(pointer:coarse)').matches&&!matchMedia('(any-hover:hover)').matches;
 /* lite mode for phones and tablets: 1x pixel ratio, lighter models (assets/lite), fewer scattered props and shadows. ?lite / ?full force it; the menu remembers a choice */
 /* three graphics tiers: full (computers), lite (phones: slimmer models), min (tablets and old devices: lite plus small textures).
@@ -299,7 +309,14 @@ function capTextures(g,max){if(!max||!g||!g.scene)return;const seen=new Set();g.
       try{c.getContext('2d').drawImage(im,0,0,c.width,c.height);t.image=c;t.needsUpdate=true;if(im.close)im.close();}catch(_){}}});}
 function liteLoader(ld){const raw=ld.load.bind(ld);ld.load=(url,ok0,prog,err)=>{const ok=g=>{try{capTextures(g,texCap(url));}catch(_){}ok0(g);};const lf=A(url);raw(lf,ok,prog,e=>{if(lf!==url){console.warn('lite model missing, using the full one',lf);raw(url,ok,prog,err);}else if(err)err(e);});};return ld;} /* a missing lite file falls back to the full one */
 /* if the graphics context is lost (out of memory on an old device), drop one tier and reload, once per tier */
-renderer.domElement.addEventListener('webglcontextlost',e=>{e.preventDefault();const next=QUALITY==='full'?'lite':QUALITY==='lite'?'min':null;if(next){try{localStorage.setItem('planet-quality',next);}catch(_){}location.reload();}});
+renderer.domElement.addEventListener('webglcontextlost',e=>{
+  e.preventDefault();const next=QUALITY==='full'?'lite':QUALITY==='lite'?'min':null;
+  if(!next){showGraphicsError('The 3D world stopped even at Low graphics. Close other tabs and reload, or try another browser.');return;}
+  try{localStorage.setItem('planet-quality',next);}catch(_){}
+  // URL overrides beat storage. Replace them too, including when storage is unavailable.
+  const url=new URL(location.href);for(const tier of ['full','lite','min'])url.searchParams.delete(tier);
+  url.searchParams.set(next,'');location.replace(url.href);
+});
 const DPR=Math.min(devicePixelRatio||1,LITE?1:2);let introRes=true;const INTRO_SCALE=LITE?.6:1; /* the spinning globe renders smaller on phones */renderer.setPixelRatio(DPR); /* phones render at 1.5x at most: the ink pass is three full-screen passes */
 const scene=new THREE.Scene(); scene.background=new THREE.Color(P.sky);
 const camera=new THREE.PerspectiveCamera(64,1,0.3,900); scene.add(camera);
@@ -372,10 +389,22 @@ function refreshMeshes(){meshList=[];cullList=[];scene.traverse(o=>{if(o.isMesh&
   if(farState!==null)for(const o of cullList)for(const m of o.userData.smallParts)m.visible=!farState;sceneDirty=false;}
 function cullHorizon(){_cn.copy(camera.position);const camH=_cn.length()-R;_cn.normalize();const lim=Math.acos(R/(R+Math.max(.3,camH)));const far=camH>60;if(far!==farState){farState=far;for(const o of cullList)for(const m of o.userData.smallParts)m.visible=!far;}for(const o of cullList){_on.copy(o.position).normalize();o.visible=_on.dot(_cn)>Math.cos(lim+o.userData.hAng)&&!(far&&o.userData.hTop<2.4);}} /* from the globe view the small props are too tiny to see, so they are skipped */
 const hideInNormals=[];
-function renderInk(){if(sceneDirty)refreshMeshes();cullHorizon();renderer.shadowMap.needsUpdate=true;renderer.setRenderTarget(rt);renderer.render(scene,camera);shadowCap.visible=false;for(const o of hideInNormals)o.visible=false;
-  if(sceneDirty)refreshMeshes();for(const m of meshList){m.userData.mat=m.material;m.material=m.userData.inkMat?m.userData.inkMat:m.userData.roadInk?nmRoad:m.userData.noInk?(m.isSkinnedMesh?nmFlatSkin:nmFlat):(m.isSkinnedMesh?nmSkin:nmPlain);}
-  scene.background=normalBg;renderer.setRenderTarget(rtN);renderer.render(scene,camera);
-  for(const m of meshList)m.material=m.userData.mat;shadowCap.visible=true;for(const o of hideInNormals)o.visible=true;scene.background=skyCol;renderer.setRenderTarget(null);renderer.render(quadScene,quadCam);}
+function renderInk(){
+  if(sceneDirty)refreshMeshes();cullHorizon();renderer.shadowMap.needsUpdate=true;
+  scene.background=skyCol;renderer.setRenderTarget(rt);renderer.render(scene,camera);
+  if(sceneDirty)refreshMeshes();
+  const shadowVisible=shadowCap.visible,background=scene.background;
+  const hiddenStates=hideInNormals.filter(o=>o.visible);
+  shadowCap.visible=false;for(const o of hiddenStates)o.visible=false;
+  for(const m of meshList){m.userData.mat=m.material;m.material=m.userData.inkMat?m.userData.inkMat:m.userData.roadInk?nmRoad:m.userData.noInk?(m.isSkinnedMesh?nmFlatSkin:nmFlat):(m.isSkinnedMesh?nmSkin:nmPlain);}
+  try{scene.background=normalBg;renderer.setRenderTarget(rtN);renderer.render(scene,camera);}
+  finally{
+    for(const m of meshList)m.material=m.userData.mat;
+    shadowCap.visible=shadowVisible;for(const o of hiddenStates)o.visible=true;
+    scene.background=background;renderer.setRenderTarget(null);
+  }
+  renderer.render(quadScene,quadCam);
+}
 
 
 let seed=5;const rnd=()=>{seed=(seed*16807)%2147483647;return seed/2147483647;};
@@ -2144,9 +2173,30 @@ async function mpTick(){clearTimeout(MP.timer);const again=ms=>{MP.timer=setTime
     for(const [id,o] of MP.others)if(!seen.has(id)){mpDrop(o);MP.others.delete(id);}
     MP.alone=MP.others.size===0;const chip=$('#online');chip.hidden=MP.alone;if(!MP.alone)chip.textContent=(MP.others.size+1)+' here';again(MP.alone?MP.SLOW:MP.FAST);}
   catch(_){MP.fails++;again(Math.min(20000,2000*MP.fails));}}
-function mpDrop(o){if(o.av){scene.remove(o.av.holder);const i=mixers.indexOf(o.av.mixer);if(i>=0)mixers.splice(i,1);if(o.av.label.material.map)o.av.label.material.map.dispose();o.av=null;sceneDirty=true;}}
+function mpDrop(o){
+  const av=o.av;if(!av)return;
+  scene.remove(av.holder);
+  const i=mixers.indexOf(av.mixer);if(i>=0)mixers.splice(i,1);
+  av.mixer.stopAllAction();av.mixer.uncacheRoot(av.root);
+  const removed=new Set();av.holder.traverse(node=>removed.add(node));
+  for(let j=hideInNormals.length-1;j>=0;j--)if(removed.has(hideInNormals[j]))hideInNormals.splice(j,1);
+  // Avatar materials are cloned; geometry and outfit/emote textures are shared.
+  const materials=new Set(),skeletons=new Set();
+  av.root.traverse(node=>{
+    if(node.isMesh)for(const material of (Array.isArray(node.material)?node.material:[node.material]))if(material)materials.add(material);
+    if(node.skeleton)skeletons.add(node.skeleton);
+  });
+  for(const material of materials)material.dispose();
+  for(const skeleton of skeletons)if(skeleton.dispose)skeleton.dispose();
+  if(av.label.material.map)av.label.material.map.dispose();av.label.material.dispose();
+  if(av.emote)av.emote.material.dispose();
+  av.deck.geometry.dispose();
+  // Model wings share their geometry; procedural fallback wings allocate their own.
+  if(av.wings&&!av.wings.model)av.wings.g.traverse(node=>{if(node.isMesh)node.geometry.dispose();});
+  o.av=null;sceneDirty=true;
+}
 function mpLabel(text){const c=document.createElement('canvas');c.width=256;c.height=64;const g=c.getContext('2d');g.font='700 34px "Patrick Hand","Segoe Print",cursive';g.textAlign='center';g.textBaseline='middle';g.lineWidth=7;g.lineJoin='round';g.strokeStyle='rgba(29,42,58,.9)';g.strokeText(text,128,34);g.fillStyle='#f3efe4';g.fillText(text,128,34);return new THREE.CanvasTexture(c);}
-function mpAvatar(o){if(!kidModel||!THREE.SkeletonUtils||!clips.walk)return null;const src=kidModel.userData.root;const root=THREE.SkeletonUtils.clone(src);root.traverse(m=>{if(m.isMesh){m.material=m.material.clone();m.material.map=kidSkin.orig||m.material.map;m.frustumCulled=false;m.castShadow=true;}});
+function mpAvatar(o){if(!kidModel||!THREE.SkeletonUtils||!clips.walk)return null;const src=kidModel.userData.root;const root=THREE.SkeletonUtils.clone(src);root.traverse(m=>{if(m.isMesh){m.material=Array.isArray(m.material)?m.material.map(mt=>mt.clone()):m.material.clone();for(const mt of (Array.isArray(m.material)?m.material:[m.material]))mt.map=kidSkin.orig||mt.map;m.frustumCulled=false;m.castShadow=true;}});
   const holder=new THREE.Group();holder.add(root);holder.userData.noCull=true;const mixer=new THREE.AnimationMixer(root);const act={};for(const k of ['idle','walk','run']){if(!clips[k])continue;act[k]=mixer.clipAction(clips[k].getClip());if(k==='idle')act[k].setLoop(THREE.LoopPingPong,Infinity);act[k].play();act[k].setEffectiveWeight(k==='idle'?1:0);}
   const label=new THREE.Sprite(new THREE.SpriteMaterial({map:null,depthWrite:false,transparent:true}));label.scale.set(1.7,.425,1);label.position.set(0,2.25,0);label.userData.noInk=true;label.userData.skipInk=true;holder.add(label);hideInNormals.push(label);
   const deck=new THREE.Mesh(new THREE.BoxGeometry(.28,.05,.95),toon(0x2f3b44));deck.position.y=.09;deck.visible=false;holder.add(deck);
@@ -2167,13 +2217,13 @@ function mpUpdate(dt){if(!MP.others.size)return;wearMine();const now=Date.now()+
     av.deck.visible=!!(mode&3);});}
 /* ---- the fast link: Ably. Positions go out about seven times a second, only while someone else is in the world
    (presence says who is here). If it cannot connect, the slower polling above carries on instead. ---- */
-const LIVE={on:false,rt:null,ch:null,others:0,lastSend:0,lastKey:'',lastMoveAt:0};
+const LIVE={on:false,rt:null,loading:false,ch:null,others:0,lastSend:0,lastKey:'',lastMoveAt:0};
 function mpTakeState(pid,s,n,k,t){if(pid===MP.id||!Array.isArray(s)||s.length<8||s.some(x=>typeof x!=='number'||!isFinite(x)))return;let o=MP.others.get(pid);if(!o){if(MP.others.size>=40)return;o={id:pid,snaps:[],av:null,name:null,look:null};MP.others.set(pid,o);}
   const last=o.snaps[o.snaps.length-1];if(last&&t<=last.t)t=last.t+1;o.snaps.push({t,up:new THREE.Vector3(s[0],s[1],s[2]).normalize(),fwd:new THREE.Vector3(s[3],s[4],s[5]).normalize(),v:s[6],mode:s[7]|0});if(o.snaps.length>12)o.snaps.shift();o.seenAt=Date.now();
   o.wantName=String(n||'').replace(/[^\w \-'.]/g,'').trim().slice(0,16)||'Visitor';const kk=String(k||'0.0.0.0').replace(/[^0-9.:-]/g,'').slice(0,40).split(':');o.wantLook=kk[0]||'0.0.0.0';if(kk[1]&&o.emSeq!==kk[1]){o.emSeq=kk[1];o.emote=clamp(kk[1].split('-')[0]|0,0,EMOTES.length-1);o.emoteNew=true;}}
 function mpChip(){MP.alone=MP.others.size===0;const chip=$('#online');chip.hidden=MP.alone;if(!MP.alone)chip.textContent=(MP.others.size+1)+' here';}
-function liveStart(){if(LIVE.rt||window.__noLive)return;const sc=document.createElement('script');sc.src='https://cdn.jsdelivr.net/npm/ably@2/build/ably.min.js';sc.onerror=()=>{};
-  sc.onload=()=>{try{const rt=new Ably.Realtime({authUrl:'/api/ably-token',authParams:{clientId:MP.id},clientId:MP.id,echoMessages:false,transportParams:{heartbeatInterval:15000}});LIVE.rt=rt;const ch=rt.channels.get('planet:world');LIVE.ch=ch;
+function liveStart(){if(LIVE.rt||LIVE.loading||window.__noLive)return;LIVE.loading=true;const sc=document.createElement('script');sc.src='https://cdn.jsdelivr.net/npm/ably@2/build/ably.min.js';sc.onerror=()=>{LIVE.loading=false;sc.remove();};
+  sc.onload=()=>{LIVE.loading=false;try{const rt=new Ably.Realtime({authUrl:'/api/ably-token',authParams:{clientId:MP.id},clientId:MP.id,echoMessages:false,transportParams:{heartbeatInterval:15000}});LIVE.rt=rt;const ch=rt.channels.get('planet:world');LIVE.ch=ch;
       const count=()=>ch.presence.get().then(m=>{LIVE.others=m.filter(x=>x.clientId!==MP.id).length;}).catch(()=>{});
       ch.subscribe('s',msg=>{const d=msg.data||{};mpTakeState(String(msg.clientId||''),d.s,d.n,d.k,Date.now()+MP.offset);mpChip();});
       ch.presence.subscribe(['enter','leave','present'],m=>{count();if(m.action==='leave'){const o=MP.others.get(m.clientId);if(o){mpDrop(o);MP.others.delete(m.clientId);mpChip();}}else LIVE.lastSend=0; /* someone arrived: say where we are straight away */});
@@ -2604,7 +2654,7 @@ function applyJump(){if(!jump.on||!kidModel||ride.on)return;const bones=kidModel
   for(const k of ['L_Thigh','R_Thigh']){const b=bones[k];if(b)b.quaternion.multiply(_sq.setFromAxisAngle(_sx,.7*bell));}
   for(const k of ['L_Calf','R_Calf']){const b=bones[k];if(b)b.quaternion.multiply(_sq.setFromAxisAngle(_sx,-1.1*bell));}}
 function startTalk(n){
-  talking=n;n.paused=true;autoTarget=null;for(const k in hold)hold[k]=false;v=0;pendingMove=0;
+  cancelAsk();talking=n;n.paused=true;autoTarget=null;for(const k in hold)hold[k]=false;v=0;pendingMove=0;
   autoFace=npcWorld(n).sub(player.group.position).normalize();
   $('#prompt').classList.add('off');$('#ba').classList.add('off');
   $('#chat-name').textContent=n.name;$('#chat-sub').textContent=n.sub;
@@ -2612,29 +2662,42 @@ function startTalk(n){
   q.value='';chat.classList.remove('off');say(n.greet,n,n.greet);
   if(!isTouch)setTimeout(()=>q.focus(),350);
 }
-function endTalk(){if(!talking)return;const n=talking;talking=null;n.paused=false;chat.classList.add('off');hideBubbles();stopSpeech();if(typer){clearInterval(typer);typer=null;}game.focus();}
+function endTalk(){cancelAsk();if(!talking)return;const n=talking;talking=null;n.paused=false;chat.classList.add('off');hideBubbles();stopSpeech();if(typer){clearInterval(typer);typer=null;}game.focus();}
 $('#bye').addEventListener('click',endTalk);
 const esc=s=>s.replace(/[&<>]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;'}[c]));
+let activeAsk=null;
+function cancelAsk(){
+  const request=activeAsk;activeAsk=null;
+  if(request){clearTimeout(request.timer);request.ctrl.abort();}
+  send.disabled=false;chips.hidden=false;
+}
 async function ask(text){unlockAudio();
-  const n=talking;if(!n)return;const query=(text||'').trim();if(!query)return;
+  const n=talking;if(!n||activeAsk)return;const query=(text||'').trim();if(!query)return;
+  const request={ctrl:new AbortController(),timer:null};activeAsk=request;
+  const current=()=>activeAsk===request&&talking===n;
   q.value='';send.disabled=true;chips.hidden=true;
   meBubble(query);thinkingBubble(n);stopSpeech();
-  const pre=ANSWERS[normQ(query)];
-  if(pre&&pre.answer){await new Promise(r=>setTimeout(r,900));say(esc(pre.answer),n,pre.answer,pre.key||'');send.disabled=false;chips.hidden=false;return;}
-  const ctrl=new AbortController();const to=setTimeout(()=>ctrl.abort(),58000);
   try{
-    const r=await fetch(API,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({query,mode:'game',sessionId:n.session,who:n.name}),signal:ctrl.signal});
-    clearTimeout(to);
-    if(r.status===429){const j=await r.json().catch(()=>({}));say(esc(j.error||'That’s all the questions the town can take today. Come back tomorrow.'),n);return;}
+    const pre=ANSWERS[normQ(query)];
+    if(pre&&pre.answer){say(esc(pre.answer),n,pre.answer,pre.key||'');return;}
+    request.timer=setTimeout(()=>request.ctrl.abort(),58000);
+    const r=await fetch(API,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({query,mode:'game',sessionId:n.session,who:n.name}),signal:request.ctrl.signal});
+    if(!current())return;
+    if(r.status===429){const j=await r.json().catch(()=>({}));if(current())say(esc(j.error||'That’s all the questions the town can take today. Come back tomorrow.'),n);return;}
     if(!r.ok)throw new Error('bad status');
-    const j=await r.json();const answer=(j.answer||'').trim();const key=(j.key||'').trim();
+    const j=await r.json();if(!current())return;
+    const answer=(j.answer||'').trim();const key=(j.key||'').trim();
     if(!answer)throw new Error('empty');
     say(esc(answer),n,answer,key);
   }catch(e){
-    clearTimeout(to);
-    const msg=e.name==='AbortError'?'Sorry, that took too long. Ask me again?':'I can’t reach my notes from here. The planet needs to be hosted alongside the chatbot for me to answer.';
+    if(!current())return;
+    const msg=e.name==='AbortError'?'Sorry, that took too long. Ask me again?':'I can’t reach my notes right now. Please try again in a moment.';
     say(esc(msg),n,msg);
-  }finally{send.disabled=false;chips.hidden=false;}
+  }finally{
+    clearTimeout(request.timer);
+    // An old response must not unlock the controls for a newer conversation.
+    if(activeAsk===request){activeAsk=null;send.disabled=false;chips.hidden=false;}
+  }
 }
 $('#ask').addEventListener('submit',e=>{e.preventDefault();ask(q.value);});
 })();
