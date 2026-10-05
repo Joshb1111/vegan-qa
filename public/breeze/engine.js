@@ -6,7 +6,8 @@
    v3 (SPEC3): team lives and OUT ships on HARD, GAME OVER (ph 5: SPACE / tap tries the same stage again, Esc to the title),
    power capped per stage, ?bot=2 (a human-like autopilot for tuning; ?bot=1 is the old perfect dodger).
    v4 (SPEC4): an OUT ship rests 60 s then comes back ('resting · back in N'); no local join while lives are 0 or a ship is OUT;
-   timed special weapons (HUD bar p.wtT, the ship flashes in the last 3 s, 'superEnd' + a 'wend' pop when one runs out). */
+   timed special weapons (HUD bar p.wtT, the ship flashes in the last 3 s, 'superEnd' + a 'wend' pop when one runs out).
+   v7: the guest's power cap follows the host's difficulty (capOf(st, df) → BB.powerCap); its timer is DIFF.weaponTicks via setDiff. */
 'use strict';
 (function () {
 const C = BB.C, SH = C.SHIP, NC = C.NET, FR = C.FRUIT, TICK = C.TICK, A = BB.Art, TCZ = BB.TC.zap;
@@ -191,7 +192,7 @@ function joinP2() {
   const who = p1.who ? 0 : 1;
   p2 = new BB.Ship(who, clamp(p1.x + 30, SH.xMin, SH.xMax), clamp(p1.y, 200, SH.yMax), w.diff); p2.local = true; p2.inv = SH.invRevive;
   w.fxList = w.fxList.filter(f => f.s !== 'Hold ENTER to join!');
-  w.ships.push(p2); w.coop = true; joinT = 0; p2Lock = true; lastIn[0] = lastIn[1] = ut;   /* boss HP x1.5 from the next boss */
+  w.ships.push(p2); w.coop = true; joinT = 0; p2Lock = true; lastIn[0] = lastIn[1] = ut;   /* boss HP x DIFF.coopBoss from the next boss */
   sfx('join'); w.fxl('sticker', p2.x, p2.y - 22, (who ? 'MARIGOLD' : 'SPRIG') + ' JOINED!');
 }
 function joinWatch() {   /* a deliberate join: ENTER held for 0.5 s after a fresh press in play; a tap only shows how */
@@ -285,7 +286,7 @@ function sendSnap() {
 
 /* ---------- online guest: the view, its own ship, cosmetic shots, self-hits, grants, events ---------- */
 const VE = new Map(), VB = new Map(), VI = new Map(), V = { ok: false, t: 0, st: 0, ph: 0, sc: 0, bk: 0, bm: 0, sk: 0, df: 1, lv: null, held: false, extra: 0 };
-const capOf = st => { const P = C.POWER_CAP; return P ? P[clamp(st | 0, 0, P.length - 1)] | 0 : SH.powerMax; };
+const capOf = (st, df) => BB.powerCap ? BB.powerCap(df, st) : SH.powerMax;   /* v7: the host's difficulty too (MEDIUM stage 3: 3) */
 let vIt = null, newest = null, hs = null, vs = 0, gfx = [], evQ = [], gShake = 0, gRun = -1, gSt = -1, gga = 0, quiet = 0, lastP = 0;
 const gTal = { boss: false, cheer: false, toys: 0, gift: false, bk0: 0, hb0: 0, mb0: 0 };
 function pushG(f) { if (gfx.length >= 128) gfx.shift(); gfx.push(f); }
@@ -331,7 +332,7 @@ function buildView() {
   const a = r.a, b = r.b, k = r.k; vs++;
   V.ok = true; V.held = !!r.held; V.extra = r.extra || 0; V.t = a.t + (b.t - a.t) * k;
   V.st = b.st; V.ph = b.ph; V.sc = b.sc; V.bk = b.bk; V.bm = b.bm; V.sk = b.sk; V.df = b.df; V.lv = b.lv;
-  hs.unpack(b.h); me.cap = hs.cap = capOf(V.st);
+  hs.unpack(b.h); me.cap = hs.cap = capOf(V.st, V.df);
   if (a !== b && Math.abs(b.h[0] - a.h[0]) + Math.abs(b.h[1] - a.h[1]) < 320) { hs.x = (a.h[0] + (b.h[0] - a.h[0]) * k) / 4; hs.y = (a.h[1] + (b.h[1] - a.h[1]) * k) / 4; }
   hs.away = hs.hidden || lastP === 1 || quiet > 90;
   if (hs.away) { hs.firing = false; hs.lastSn = -1; }

@@ -15,6 +15,7 @@
    v6: the boss 'tired' clock (w.bossTT) only runs while the boss is in and some ship is up and playing (anyPlaying), and runs
    x4/3 on HARD (tiredLimit: 120 s). A tired exit is not a win: no pops / bossDown / shake / 'B' event, a w.toast message, a few
    Sunberries instead of the Heart Peach shower; the snapshot keeps the tired boss's real hp (0 only for a cheered-up one).
+   v7: MEDIUM co-op scaling and power cap from DIFF (coopOn, coopBossMul, DIFF.coopHp for toys, BB.powerCap(diff, stage)).
    Keep every w API name and signature. Plain objects in w.ships (the content harness) are left alone. */
 'use strict';
 (function () {
@@ -308,7 +309,10 @@ class World {
     for (const s of this.ships) if (s && s.shots) { s.shots.length = 0; if (s instanceof Ship) s.cap = this.powerCap(); }
     this.event('S', st);
   }
-  powerCap() { const P = C.POWER_CAP; return P ? clamp(P[clamp(this.stage | 0, 0, P.length - 1)] | 0, 0, PMAX) : PMAX; }   /* v3: by stage */
+  powerCap() { return BB.powerCap ? BB.powerCap(this.diff, this.stage) : PMAX; }   /* v3: by stage; v7: and difficulty (DIFF.powerCap, MEDIUM [2, 3, 3]) */
+  /* v7: two ships in play (co-op, the partner not away): content's fire clock, toy hp (DIFF.coopHp) and boss hp (DIFF.coopBoss) */
+  coopOn() { return this.coop && !this.partnerAway(); }
+  coopBossMul() { const m = this.D.coopBoss; return m >= 1 && m <= 3 ? m : C.BOSS.coopHp; }
   later(ticks, fn) { if (ticks <= 0) fn(); else this.timers.push({ at: this.tick + ticks, fn }); }
   T(e) { return this.tick - e.born; }
   /* ---------- the w API ---------- */
@@ -354,7 +358,8 @@ class World {
     this.nextId = this.nextId % 999 + 1;
     if (init) for (const k in init) if (k !== 'pat' && k !== 'idx') e[k] = init[k];
     if (this.D.eHp !== 1 && type !== 'bush' && type !== 'present' && type !== 'zap') { e.hp = Math.max(1, Math.round(e.hp * this.D.eHp)); e.maxHp = e.hp; }   /* HARD: tougher toys */
-    if (def.boss && this.coop && !this.partnerAway()) { e.hp = Math.round(e.hp * C.BOSS.coopHp); e.maxHp = e.hp; e.coopHp = true; }
+    if (!def.boss && this.coopOn() && type !== 'bush' && type !== 'present' && type !== 'zap') { const m = this.D.coopHp; if (m > 0 && m !== 1) { e.hp = Math.max(1, Math.round(e.hp * m)); e.maxHp = e.hp; } }   /* v7: DIFF.coopHp (MEDIUM x1.3) */
+    if (def.boss && this.coopOn()) { const m = this.coopBossMul(); e.hp = Math.round(e.hp * m); e.maxHp = e.hp; e.coopHp = m; }   /* v7: x DIFF.coopBoss (MEDIUM 1.9; was 1.5); e.coopHp keeps the factor used */
     if (def.init) def.init(e, this);
     this.enemies.push(e);
     if (def.boss) this.boss = e;
@@ -588,7 +593,8 @@ class World {
   }
   soloBoss() {
     const b = this.boss;
-    if (b && !b.dead && b.coopHp) { b.coopHp = false; b.maxHp = Math.max(1, Math.round(b.maxHp / C.BOSS.coopHp)); if (!b.dying && b.hp > 0 && !(b.d && b.d.inv)) b.hp = Math.max(1, Math.round(b.hp / C.BOSS.coopHp)); else if (b.d && b.d.inv) b.hp = b.maxHp; }
+    if (b && !b.dead && b.coopHp) { const m = b.coopHp > 0 && b.coopHp !== true ? b.coopHp : C.BOSS.coopHp; b.coopHp = false;   /* v7: the factor it was given */
+      b.maxHp = Math.max(1, Math.round(b.maxHp / m)); if (!b.dying && b.hp > 0 && !(b.d && b.d.inv)) b.hp = Math.max(1, Math.round(b.hp / m)); else if (b.d && b.d.inv) b.hp = b.maxHp; }
   }
   partnerAway() { for (const s of this.ships) if (s instanceof Ship && s.remote && s.awayT >= AWAY_SOLO) return true; return false; }
   stepShips() {

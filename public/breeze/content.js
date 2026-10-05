@@ -32,10 +32,15 @@ BB.C = {
   /* v3: HARD is a real challenge: 3 hearts, 3 lives then GAME OVER, fast dense bullets, tough toys, short invulnerability.
      MEDIUM keeps v2's enemies (only the later upgrades change it); shield = most shield layers a ship can hold (a Blueberry fills
      it, a bubble adds one): EASY 3, MEDIUM 1, HARD 1 */
-  DIFF: [{ id: 'easy', name: 'EASY', hp: 8, heal: 3, reviveHp: 4, bMul: 1, eHp: 1, extra: 0, kind: true, lives: 0, invHit: 90, safeR: 40, superTicks: 720, dropMul: 1, shield: 3, weaponTicks: 1500 },
-         { id: 'medium', name: 'MEDIUM', hp: 5, heal: 2, reviveHp: 3, bMul: 1.2, eHp: 1.25, extra: 0, kind: true, lives: 0, invHit: 90, safeR: 40, superTicks: 600, dropMul: 1, shield: 1, weaponTicks: 1200 },
-         { id: 'hard', name: 'HARD', hp: 3, heal: 1, reviveHp: 3, bMul: 1.45, eHp: 1.75, extra: 2, kind: false, lives: 3, invHit: 60, safeR: 26, superTicks: 420, dropMul: 0.6, shield: 1, weaponTicks: 900 }],
-  /* v3: weapon power is capped per stage, so the big upgrades come later (stage 1: power 2, stage 2: 3, stage 3: 4) */
+  DIFF: [{ id: 'easy', name: 'EASY', hp: 8, heal: 3, reviveHp: 4, bMul: 1, eHp: 1, extra: 0, kind: true, lives: 0, invHit: 90, safeR: 40, superTicks: 720, dropMul: 1, shield: 3, weaponTicks: 1500, coopHp: 1, coopFire: 1, coopBoss: 1.5 },
+         { id: 'medium', name: 'MEDIUM', hp: 5, heal: 2, reviveHp: 3, bMul: 1.2, eHp: 1.25, extra: 0, kind: true, lives: 0, invHit: 90, safeR: 40, superTicks: 600, dropMul: 0.85, shield: 1, weaponTicks: 900, powerCap: [2, 3, 3], coopHp: 1.3, coopFire: 0.85, coopBoss: 1.9 },
+         { id: 'hard', name: 'HARD', hp: 3, heal: 1, reviveHp: 3, bMul: 1.45, eHp: 1.75, extra: 2, kind: false, lives: 3, invHit: 60, safeR: 26, superTicks: 420, dropMul: 0.6, shield: 1, weaponTicks: 900, coopHp: 1, coopFire: 1, coopBoss: 1.5 }],
+  /* v7 (Josh: MEDIUM two-player too easy, guns a bit OP; HARD and EASY unchanged): MEDIUM weaponTicks 1200 → 900 (15 s),
+     dropMul 1 → 0.85 (packets, starfruit, strawberries, blueberries a bit rarer; boss-fight help unchanged), powerCap [2, 3, 3].
+     Co-op (two ships in play): coopHp = toy hp x (spawned while both fly), coopFire = toys' and bosses' fire intervals x
+     (0.85: about 18 % more shots), coopBoss = boss hp x (was BOSS.coopHp 1.5 for every difficulty; MEDIUM 1.9). */
+  /* v3: weapon power is capped per stage, so the big upgrades come later (stage 1: power 2, stage 2: 3, stage 3: 4);
+     v7: a DIFF row's powerCap overrides it (MEDIUM [2, 3, 3]); read it through BB.powerCap(diff, stage) */
   POWER_CAP: [2, 3, 4],
   /* v2: weapon types (wt) x power 0..4. pea uses SHIP.spreadDeg (power 3: big twin shots, power 4: +-30 deg) */
   WEAPON: { names: ['PEA SHOT', 'PETAL FAN', 'SUNBEAM', 'SEEKERS'],
@@ -70,6 +75,11 @@ BB.FRUITS = [
 BB.mulberry32 = function (a) { return function () { a |= 0; a = a + 0x6D2B79F5 | 0; let t = Math.imul(a ^ a >>> 15, 1 | a); t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t; return ((t ^ t >>> 14) >>> 0) / 4294967296; }; };
 
 /* ===== CONTENT BELOW ===== */
+/* v7: the power cap for a difficulty (0-2) and stage (0-2): DIFF[d].powerCap if it has one, else C.POWER_CAP (world, guest, content) */
+BB.powerCap = function (d, st) {
+  const C = BB.C, D = C.DIFF[d] || C.DIFF[1], P = Array.isArray(D.powerCap) ? D.powerCap : C.POWER_CAP, M = C.SHIP.powerMax || 4;
+  return P ? Math.max(0, Math.min(M, P[Math.max(0, Math.min(P.length - 1, st | 0))] | 0)) : M;
+};
 /* Enemies, bosses, stage timelines, the wave spawner and the random drop tables. Host-only simulation: everything random
    comes from w.rng(). 'a' byte: 0 idle, 1 telegraph (always ~20+ ticks before a shot), 2 alt (key spinning / live zap /
    phase B), 3 defeated. v2 (SPEC2): busier waves that ramp through each stage, HARD extras (DIFF.extra), 3-phase bosses,
@@ -106,10 +116,15 @@ function tele2(e, w, c, at) { return tele(e, c, at) || (XM(w) > 0 && c === at + 
 /* the toys' cadence clock: it runs 1/k as fast, so every interval is xk (v6: EASY 1, MEDIUM 0.8 (v4 0.9), HARD 0.66; v3 HARD 0.7).
    ck(w, c, L) → {k now, p last tick, f}, both mod L. tk() is tele() on that clock: the shot fires on the tick the clock passes
    `at`, the telegraph keeps its real length (len x f clock units). With f = 1 (EASY) it is exactly tele(e, c % L, at, len). */
-const CADF = [1, 1 / 0.8, 1 / 0.66], cf = w => w.sm.boss && dif(w) === 2 ? 1 / 0.7 : CADF[dif(w)] || 1;   // HARD boss minions keep v3's x0.7
+/* v7: two ships in play (w.coopOn: co-op and the partner not away) → every interval x DIFF.coopFire (MEDIUM 0.85; EASY / HARD 1) */
+const CO = w => !!w.coop && (typeof w.coopOn === 'function' ? w.coopOn() : true);
+/* latched per stage and again when the boss arrives (the field is clear then): read live, a partner leaving or joining jumped every
+   toy's fire clock and some shots came with almost no warning */
+const CFIRE = w => { const s = w.sm, key = s.boss || null; if (s.cfL == null || s.cfKey !== key) { const f = DF(w).coopFire; s.cfKey = key; s.cfL = CO(w) && f > 0.5 && f < 1 ? 1 / f : 1; } return s.cfL; };
+const CADF = [1, 1 / 0.8, 1 / 0.66], cf = w => (w.sm.boss && dif(w) === 2 ? 1 / 0.7 : CADF[dif(w)] || 1) * CFIRE(w);   // HARD boss minions keep v3's x0.7
 function ck(w, c, L, f) { f = f || cf(w); L = L || 1e9; return { k: c * f % L, p: (c - 1) * f % L, f }; }
 /* bosses: x0.85 on HARD (v3 0.8: v4's faster bullets and tougher bosses carry the boss danger; the toys' clock is x0.66) */
-const BCAD = 1 / 0.85, bf = w => dif(w) === 1 ? 1 / 0.93 : 1 + (BCAD - 1) * XB(w) / 2, bk = (w, c, L) => ck(w, c, L, bf(w));   /* v6: MEDIUM x0.93 */
+const BCAD = 1 / 0.85, bf = w => (dif(w) === 1 ? 1 / 0.93 : 1 + (BCAD - 1) * XB(w) / 2) * CFIRE(w), bk = (w, c, L) => ck(w, c, L, bf(w));   /* v6: MEDIUM x0.93; v7: x coopFire */
 const past = (K, at) => K.p < K.k ? K.p < at && at <= K.k : K.p < at || at <= K.k;
 function tk(e, K, at, len) { if (K.k >= at - (len || 20) * K.f && K.k < at) e.a = 1; return past(K, at); }
 /* fires on every `step` from a up to b (a smoke spiral): the clock passed a + i*step */
@@ -336,7 +351,7 @@ function bossBubble(e, w) { /* during the fight a shield bubble floats up now an
    see Ship.maxed); at the cap: a timed weapon packet of this stage (the same type refills its timer). Host-only, w.rng(). */
 const HELP = [[900, 1200], [900, 1200], [1140, 1500]];
 function helpNeed(w) {   /* 0: every ship at the cap, 1: someone below it, 2: nobody has any upgrade (power 0, pea) */
-  const P = C.POWER_CAP, cap = P ? P[Math.max(0, Math.min(P.length - 1, w.stage | 0))] | 0 : 4;
+  const cap = BB.powerCap(dif(w), w.stage);   /* v7: the difficulty's cap (MEDIUM stage 3: 3) */
   let n = 0, low = false, none = true;
   for (const s of w.ships || []) {
     if (!s || s.spread == null || s.out || s.away) continue; n++;
