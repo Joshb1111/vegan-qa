@@ -72,6 +72,9 @@ function macros(ab) {
       } });
     }
     L.push({ name: 'up' + d, f: (t, p) => t === 0 ? IN.JUMP : (t < 40 ? IN.JUMP : 0) | (t > 14 ? D : 0) });
+    /* walk off a ledge one way, then steer back under it (onto a ledge below, into a side passage) */
+    const B = d < 0 ? IN.R : IN.L;
+    for (const wait of [0, 8, 20]) L.push({ name: 'off' + d + '/' + wait, maxT: 260, f: (t, p, m) => { if (!m.off) { if (!p.ground && t > 1) m.off = t; return D; } return t - m.off >= wait ? B : 0; } });
     L.push({ name: 'drop' + d, f: t => t === 0 ? IN.D : t === 1 ? IN.D | IN.JUMP : t > 6 ? D : 0 });
     const stroke = (t, p) => (!p.swim && p.vy < 0) ? IN.JUMP : (t % 8 < 3 ? IN.JUMP : 0);   /* pulse in the water, hold the jump out of it */
     L.push({ name: 'swim' + d, maxT: 300, f: (t, p) => D | stroke(t, p) });

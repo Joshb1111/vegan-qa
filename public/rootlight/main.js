@@ -51,13 +51,16 @@ function layout() {
 let screen = 'title', sel = 0, scrT = 0, ut = 0, sim = null, players = 1, slot = 1, over = null, overSel = 0, overT = 0, paused = false;
 let touchMode = false, forceVis = false, areaCard = null, toastMsg = null, toastT = 0, pendingStart = null, eraseArm = -1, storyPage = 0, endT = 0, lastCalm = 0;
 const queue = [];   /* overlays waiting their turn (a 'get' card after a dialog, ...) */
-function go(s) { screen = s; sel = 0; scrT = 0; }
+function go(s) { screen = s; sel = 0; scrT = 0; slotCache = null; endStats = null; }
+let endStats = null;
 function toast(text, ms) { toastMsg = text; toastT = Math.round((ms || 3200) / 1000 * 60); }
 
 /* ---------- saves ---------- */
 function loadSlot(n) { const v = store.get('root-save-' + n); if (!v) return null; try { const s = JSON.parse(v); return s && typeof s === 'object' ? s : null; } catch (_) { return null; } }
 function writeSave() { if (!sim || sim.noSave) return; try { store.set('root-save-' + sim.save.slot, JSON.stringify(sim.save)); } catch (e) { report(e); } }
+let slotCache = null;
 function slotRows() {
+  if (slotCache) return slotCache;
   const rows = [];
   for (let n = 1; n <= 3; n++) {
     const s = loadSlot(n);
@@ -66,7 +69,7 @@ function slotRows() {
     let pct = 0; try { pct = RL.Sim.prototype.pct.call({ save: fx, W }); } catch (_) {}
     rows.push({ empty: false, n, name: d ? (W.areas[d.area] || {}).name : 'Rootgate', room: d ? d.name : '', pct, time: fmtTime(fx.time), leaves: st.maxLeaves, maxLeaves: st.maxLeaves, dew: fx.dew, gentle: fx.gentle, ab: Object.assign({}, fx.ab), done: !!fx.done });
   }
-  return rows;
+  return (slotCache = rows);
 }
 function fmtTime(t) { const s = Math.floor(t / 60), h = Math.floor(s / 3600), m = Math.floor(s / 60) % 60; return h ? h + 'h ' + String(m).padStart(2, '0') + 'm' : m + 'm ' + String(s % 60).padStart(2, '0') + 's'; }
 
@@ -255,7 +258,7 @@ function onKey(c) {
   if (screen === 'slots') {
     if (BACK(c) && c !== 'KeyX' && c !== 'KeyK') { sfx('back'); go('title'); return; }
     if (UPK(c)) { sel = (sel + 2) % 3; eraseArm = -1; sfx('menu'); } else if (DNK(c)) { sel = (sel + 1) % 3; eraseArm = -1; sfx('menu'); }
-    else if (c === 'Delete' || c === 'KeyE' || c === 'KeyX') { const rows = slotRows(); if (!rows[sel].empty) { if (eraseArm === sel) { store.del('root-save-' + (sel + 1)); eraseArm = -1; sfx('back'); } else { eraseArm = sel; sfx('menu'); } } }
+    else if (c === 'Delete' || c === 'KeyE' || c === 'KeyX') { const rows = slotRows(); if (!rows[sel].empty) { if (eraseArm === sel) { store.del('root-save-' + (sel + 1)); eraseArm = -1; slotCache = null; sfx('back'); } else { eraseArm = sel; sfx('menu'); } } }
     else if (GO(c)) { const rows = slotRows(); sfx('select'); eraseArm = -1; if (rows[sel].empty) { pendingStart = sel + 1; go('newgame'); } else startGame(sel + 1, { players }); }
     return;
   }
@@ -434,7 +437,7 @@ function render() {
     else if (screen === 'slots') scr('slots', { t: scrT, sel, rows: slotRows(), erase: eraseArm, two: players > 1 });
     else if (screen === 'newgame') scr('newgame', { t: scrT, sel });
     else if (screen === 'story') scr('story', { t: scrT, page: storyPage });
-    else if (screen === 'ending') scr('ending', { t: scrT, stats: sim ? { time: fmtTime(sim.save.time), pct: sim.pct(), life: sim.save.life, charms: Object.keys(sim.save.charms).length } : {} });
+    else if (screen === 'ending') { if (!endStats && sim) endStats = { time: fmtTime(sim.save.time), pct: sim.pct(), life: sim.save.life, charms: Object.keys(sim.save.charms).length }; scr('ending', { t: scrT, stats: endStats || {} }); }
   }
   if (RL.Main.hooks.draw) try { RL.Main.hooks.draw(ctx, LW, VH); } catch (e) { report(e); }   /* NET HOOK */
   if (DEBUG) { ctx.fillStyle = '#fff'; ctx.font = '10px monospace'; ctx.fillText(fps + ' fps R' + R + ' ' + screen + (sim ? ' ' + sim.room.id : '') + (errors.length ? ' ERR ' + errors.length : ''), 6, LH - 6); }
@@ -446,7 +449,7 @@ function keysCard() {
 function touchS() { const m = touchMask(); const L = TL; return { band: L.band, stick: L.stick, knob: stick ? { x: stick.x, y: stick.y, ox: stick.ox, oy: stick.oy } : null, btn: L.btn.map(b => Object.assign({}, b, { down: (b.id === 'jump' && m & IN.JUMP) || (b.id === 'swing' && m & IN.SWING) || (b.id === 'dash' && m & IN.DASH) || (b.id === 'focus' && m & IN.FOCUS) })) }; }
 function drawOver(scr) {
   const o = over, n = o.name, s = sim.save;
-  if (n === 'map') scr('map', mapS());
+  if (n === 'map') { if (!o.data) o.data = mapS(); o.data.t = overT; scr('map', o.data); }
   else if (n === 'dialog') scr('dialog', { t: overT, who: o.who, name: o.name2 || (o.who === 'peddler' ? 'The Peddler' : ''), text: o.pages[o.i || 0] || '', more: (o.i || 0) < o.pages.length - 1 });
   else if (n === 'get') scr('get', { t: overT, kind: o.kind, id: o.id, title: o.title, text: o.text, keys: o.keys });
   else if (n === 'shop') scr('shop', { t: overT, sel: overSel, list: shopRows(), dew: s.dew, line: o.line || '' });
