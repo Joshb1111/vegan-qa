@@ -112,6 +112,8 @@ function explore(id, ab, opened, calm, opts) {
   opts = opts || {};
   const c = makeCtx(id, ab, opened, calm), def = c.def, doors = plan.doors[id], things = thingCells(def);
   const M = macros(ab), phases = PHASES(c);
+  /* arriving in mid-air (through a floor or ceiling hole): also try to climb, puff or drift there */
+  const airMacs = M.filter(m => /^climb/.test(m.name) || /^puff/.test(m.name) || /^jdash.*apex/.test(m.name));
   const seen = new Map(), queue = [], exits = new Map(), reached = new Set(), lever = new Set();
   const doorOf = (x, y) => { /* which planned doorway a position just outside the room belongs to */
     const tx = Math.floor(x / TILE), ty = Math.floor((y - 13) / TILE); let best = -1, bd = 1e9;
@@ -129,9 +131,10 @@ function explore(id, ab, opened, calm, opts) {
   };
   const addState = (x, y) => { const k = Math.floor(x / TILE) + ',' + Math.floor((y - 1) / TILE); if (!seen.has(k)) { seen.set(k, { x, y }); queue.push(k); } };
   const settle = (x, y, vx, vy, mask) => {   /* run from an arrival until standing, leaving or giving up */
-    resetP(c, x, y, vx, vy); let air = 0;
-    for (let t = 0; t < 400; t++) {
-      c.p.prev = c.p.in; c.p.in = typeof mask === 'function' ? mask(t, c.p) : mask; physTick(c);
+    resetP(c, x, y, vx, vy); let air = 0; const mm = {};
+    if (c.r.boxSolid(x - 7, y - 26, x + 7, y - 1)) return null;   /* a shut gate (or a wall) right at the doorway */
+    for (let t = 0; t < 900; t++) {
+      c.p.prev = c.p.in; c.p.in = typeof mask === 'function' ? mask(t, c.p, mm) : mask; physTick(c);
       if (c.sim.events.some(e => e[0] === 'thorn')) return null;
       const ex = c.getExit(); if (ex) { const di = doorOf(ex.x, ex.y); if (di >= 0) exits.set(di, 'entry'); return null; }
       touchThings(c.p);
@@ -144,8 +147,8 @@ function explore(id, ab, opened, calm, opts) {
   for (const i of entries) {
     const d = doors[i];
     if (d.side === 'W' || d.side === 'E') { const x = d.side === 'W' ? 12 : c.r.pw - 12, y = (d.at + d.len) * TILE; for (const m of [d.side === 'W' ? IN.R : IN.L, 0]) settle(x, y, 0, 0, m); }
-    else if (d.side === 'N') { for (let k = 0; k < d.len; k++) settle((d.at + k) * TILE + 10, 30, 0, 2, 0); }
-    else { for (let k = 0; k < d.len; k++) for (const m of [IN.L, IN.R, 0]) settle((d.at + k) * TILE + 10, c.r.ph + 8, 0, -7.2, (t) => m | (t < 30 ? IN.JUMP : 0)); }
+    else if (d.side === 'N') { for (let k = 0; k < d.len; k++) { settle((d.at + k) * TILE + 10, 30, 0, 2, 0); for (const mac of airMacs) settle((d.at + k) * TILE + 10, 30, 0, 2, mac.f); } }
+    else { for (let k = 0; k < d.len; k++) { for (const m of [IN.L, IN.R, 0]) settle((d.at + k) * TILE + 10, c.r.ph + 8, 0, -7.2, (t) => m | (t < 30 ? IN.JUMP : 0)); for (const mac of airMacs) settle((d.at + k) * TILE + 10, c.r.ph + 8, 0, -7.2, mac.f); } }
     if (opts.from) break;
   }
   if (opts.fromXY) addState(opts.fromXY.x, opts.fromXY.y);

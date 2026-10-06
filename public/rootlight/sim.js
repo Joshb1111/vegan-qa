@@ -688,6 +688,7 @@ class Sim {
       p.sun = Math.min(p.sunMax, p.sun + this.st.sunHit);
       if (sw.dir === 'd') bounce = true; else if (sw.dir === 'f') recoil = true;
       if (this.hooks.swingFoe && this.hooks.swingFoe(p, f, sw) === false) continue;   /* NET HOOK: a guest asks the host */
+      this.hitFoe(f, 1, p, p.x);
     }
     const g = r.guard;
     if (g && g.awake && !g.done && g.st !== 'wake' && ov(bx, by, bw, bh, g.x - g.w / 2, g.y - g.h / 2, g.w, g.h) && hitOnce(g)) {

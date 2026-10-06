@@ -57,4 +57,28 @@ for (const [kind, w, h, gy, ab] of [['knot', 64, 18, 14, {}], ['boiler', 64, 18,
   ok('guardian ' + kind + ' calmed by the auto-fighter', calmT > 0, 'in ' + (calmT / 60).toFixed(0) + ' s, hazards ' + hazards + ', shortest tell ' + minTell + ' ticks, gate shut during fight ' + shut + ', gate open after ' + !s.room.gates[0].shut + ', reward ' + (it ? it.id : kind === 'heart' ? 'ending ' + s.ending : 'none'));
   ok('guardian ' + kind + ' tells >= 30 ticks', hazards === 0 || minTell >= 30, '' + minTell);
 }
+
+/* 15. local co-op: the tether brings a straggler back; a fainted player is a bubble the other revives; both faint -> wake at the spot with a puddle */
+{ const d = room(flat(96, 18)); const save = RL.Sim.newSave(1, false); save.started = 1; save.spot = { room: d.id, x: 200, y: 300 }; save.dew = 40;
+  const s = new RL.Sim({ save, players: 2 }); s.enterRoom(d.id, 200, 300, {}); s.fade = 0; const [a, b] = s.players;
+  for (let i = 0; i < 400; i++) s.step([IN.R, 0]);
+  ok('co-op tether pulls the other along', Math.abs(a.x - b.x) < 640, 'a ' + (a.x | 0) + ' b ' + (b.x | 0));
+  b.leaves = 1; s.hurt(b, b.x + 10, 'test'); for (let i = 0; i < 80; i++) s.step([0, 0]);
+  const wasBubble = b.st === 'bubble';
+  for (let i = 0; i < 300 && b.st === 'bubble'; i++) s.step([b.x > a.x ? IN.R : IN.L, 0]);
+  ok('fainted partner becomes a bubble and is revived by touch', wasBubble && b.alive && b.leaves >= 2, 'bubble ' + wasBubble + ' alive ' + b.alive + ' leaves ' + b.leaves);
+  s.ext[1] = false; a.inv = 0; b.inv = 0; a.leaves = 1; b.leaves = 1; s.hurt(a, a.x + 5, 't'); s.hurt(b, b.x + 5, 't');
+  let woke = false; for (let i = 0; i < 400 && !woke; i++) { s.step([0, 0]); if (s.events.some(e => e[0] === 'wake')) woke = true; }
+  ok('both nod off: wake at the spot, dew left in a puddle', woke && a.alive && b.alive && save.puddle && save.puddle.v === 40 && save.dew === 0, 'woke ' + woke + ' puddle ' + JSON.stringify(save.puddle));
+  const it = s.room.items.find(i => i.kind === 'puddle'); if (it) { a.x = it.x - 30; a.y = 300; } for (let i = 0; i < 40; i++) s.step([IN.R, 0]);
+  ok('the puddle gives the dew back', save.dew === 40 && !save.puddle, 'dew ' + save.dew);
+}
+/* 16. the save survives JSON and a new Sim continues at the spot */
+{ const save = RL.Sim.newSave(2, true); const s1 = new RL.Sim({ save }); for (let i = 0; i < 100; i++) s1.step([0]); const txt = JSON.stringify(s1.save); const s2 = new RL.Sim({ save: JSON.parse(txt) });
+  ok('save round trip', s2.save.gentle && s2.room && s2.players[0].maxLeaves === 7, 'room ' + s2.room.id + ' leaves ' + s2.players[0].maxLeaves + ' bytes ' + txt.length); }
+/* 17. the Peddler: buying a map and a charm, wearing charms within notches */
+{ const save = RL.Sim.newSave(3, false); save.dew = 500; const s = new RL.Sim({ save });
+  const r1 = s.buy('map_mossy'), r2 = s.buy('compass'), r3 = s.buy('map_mossy'); save.charms.long = 1; save.charms.swift = 1;
+  const w1 = s.wear('compass', true), w2 = s.wear('long', true), w3 = s.wear('swift', true);
+  ok('shop and charms', r1 === 'ok' && r2 === 'ok' && r3 === 'sold' && w1 && w2 && !w3 && s.st.reach === 42 && save.maps.mossy, [r1, r2, r3, w1, w2, w3, s.st.reach, save.dew].join(' ')); }
 console.log(out.join('\n')); if (out.some(l => l.startsWith('FAIL'))) process.exitCode = 1;
