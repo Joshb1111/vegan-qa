@@ -24,7 +24,7 @@ ROOM({ id: 'cp_1', area: 'pipes', name: "Pipe Mouth", cx: 30, cy: 0, cw: 4, ch: 
     '##############################################KK....KK##########',
     '##############################################KK....KK##########'
   ],
-  signs: ['Rust-cogs charge when they see you! Hop up out of the way, then bloom them while they are dizzy.', 'A smooth metal chimney. Much too slippy to climb... for now.'] });
+  signs: ["Rust-cogs charge when you come close! Hop up out of the way, then bloom them while they are dizzy.","A smooth metal chimney. Much too slippy to climb... for now."] });
 
 ROOM({ id: 'cp_11', area: 'pipes', name: "Rusty Attic", cx: 30, cy: -2, cw: 4, ch: 2,
   /* BACKTRACK (Vine Grip): a LIFE SEED L among old gears. S doorway.

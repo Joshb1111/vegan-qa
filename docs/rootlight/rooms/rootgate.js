@@ -42,9 +42,7 @@ ROOM({ id: 'rg_fall', area: 'rootgate', name: "Seedfall", cx: 22, cy: -4, cw: 2,
     '############....################',
     '############....################'
   ],
-  signs: [
-    "X or K: swing your staff. Try it on a flower bud!"
-  ] });
+  signs: ["{swing}: swing your staff. Try it on a flower bud!"] });
 
 ROOM({ id: 'rg_hub', area: 'rootgate', name: "Rootgate", cx: 20, cy: 0, cw: 6, ch: 2,
   /* THE HUB. Watering Spot W near the middle, the Peddler P on a little stall to the right of it, 2 signs (controls: jump with Z/J, hold A or I near a Watering Spot? no: "Press UP at a Watering Spot to rest and save"). Big calm hall, wide floor. Doorways: W (to West Burrow), E (to the Long Gap), a hole in the floor near the east end down to the Seal Door Hall (put a one-tile lip so you do not fall in by accident), and a shaft in the ceiling at the west end up to the Old Well (needs Vine Grip later: the shaft above is smooth). The hole down from Seedfall arrives from the top middle: give a soft landing.
@@ -69,10 +67,7 @@ ROOM({ id: 'rg_hub', area: 'rootgate', name: "Rootgate", cx: 20, cy: 0, cw: 6, c
     '################################################################################====############',
     '################################################################################....############'
   ],
-  signs: [
-    "Press Up at a Watering Spot to rest and save. Press Up near the Peddler to talk.",
-    "Z or J: jump. Hold it longer to jump higher."
-  ] });
+  signs: ["Press {up} at a Watering Spot to rest and save. Press {up} near the Peddler to talk.","{jump}: jump. Hold it longer to jump higher."] });
 
 ROOM({ id: 'rg_west', area: 'rootgate', name: "West Burrow", cx: 16, cy: 0, cw: 4, ch: 2,
   /* A short root tunnel west to the Mossy Hollows. 2 smog puffs s (the first glooms: easy), a dew cluster *. A sign: "Swing at glooms to bloom them back into flowers".
@@ -97,7 +92,7 @@ ROOM({ id: 'rg_west', area: 'rootgate', name: "West Burrow", cx: 16, cy: 0, cw: 
     '################################################################',
     '################################################################'
   ],
-  signs: ["Swing at glooms to bloom them back into flowers. Hold Up while you swing to reach above you."] });
+  signs: ["Swing at glooms to bloom them back into flowers. Hold {up} while you swing to reach above you."] });
 
 ROOM({ id: 'rg_gap', area: 'rootgate', name: "The Long Gap", cx: 26, cy: 0, cw: 4, ch: 2,
   /* DASH GATE. An 8-tile chasm (the doorway in the floor) splits the room; no ceiling to climb along. The far side leads E to Clatter Pipes. A sign at the edge: "Too far to jump... maybe a dash?". Falling in drops harmlessly into Under the Gap.

@@ -48,7 +48,7 @@ ROOM({ id: 'cs_2', area: 'crystal', name: "Spring Pools", cx: 34, cy: 4, cw: 6, 
     '################~~~~~~~~~~~~########....##~~~~~KKK~~~~~KKK~~~~~KK~~~~~~~~~~~~~~~~~~~~~~~~~~KK###',
     '####################################....########################################################'
   ],
-  signs: ["Press jump to swim up. To go west, dive under the big crystal."] });
+  signs: ["Press {jump} to swim up and hold {down} to dive. To go west, dive under the big crystal."] });
 
 ROOM({ id: 'cs_3', area: 'crystal', name: "Current Run", cx: 40, cy: 4, cw: 4, ch: 2,
   /* Water with currents < > pushing you; swim against them or ride them. W to Spring Pools, E to the Watering Spring.
@@ -189,7 +189,7 @@ ROOM({ id: 'cs_9', area: 'crystal', name: "Glass Hollows", cx: 36, cy: 8, cw: 4,
     '################################################################',
     '################################################################'
   ],
-  signs: ["Gloom knights hide behind a shield. Wait for the shove, then swing while the shield is down!"] });
+  signs: ["Gloom knights hide behind a shield. Wait for the big push, then swing while the shield is down!"] });
 
 ROOM({ id: 'cs_8', area: 'crystal', name: "Glass Garden", cx: 32, cy: 8, cw: 4, ch: 2,
   /* Charm room: SWIFT SWING charm C; a NOTCH N too (a little seed-shaped socket). E doorway.
@@ -263,7 +263,7 @@ ROOM({ id: 'cs_7', area: 'crystal', name: "Knight's Hall", cx: 30, cy: 4, cw: 4,
     '################################################################',
     '################################################################'
   ],
-  signs: ["Gloom knights hide behind a shield. Wait for the shove, then swing while the shield is down!"] });
+  signs: ["Gloom knights hide behind a shield. Wait for the big push, then swing while the shield is down!"] });
 
 ROOM({ id: 'cs_10', area: 'crystal', name: "Lever Tunnel", cx: 26, cy: 4, cw: 4, ch: 2,
   /* SHORTCUT: a lever h opens the hatch in the ceiling (N doorway: a LEVER gate on this side) up into Under the Gap (Rootgate). E doorway to the Knight's Hall. Ledges up to the hatch.
@@ -271,7 +271,7 @@ ROOM({ id: 'cs_10', area: 'crystal', name: "Lever Tunnel", cx: 26, cy: 4, cw: 4,
   map: [
     '####################################gggg########################',
     '#################################KK.......K#####################',
-    '#################################KK......hK#####################',
+    '#################################KK.....h.K#####################',
     '#################################..======.K#####################',
     '#################################........K######################',
     '#################################........K######################',

@@ -53,6 +53,12 @@ function fixSave(s) {
   return s;
 }
 function wears(save, id) { return save.worn.indexOf(id) >= 0; }
+/* how bloomed an area is (for rooms with nothing of their own to bloom) */
+function areaColour(W, save, area) {
+  if (!W) return 0.5; let tot = 0, got = 0;
+  for (const d of W.list) { if (d.area !== area) continue; for (const row of d.map) for (const ch of row) if ('stdclkb'.indexOf(ch) >= 0) tot++; got += (save.bloom[d.id] || []).length + (save.buds[d.id] || []).length; }
+  return tot ? 0.2 + 0.8 * Math.min(1, got / tot) : 0.6;
+}
 function stats(save) {
   const w = id => wears(save, id);
   return {
@@ -137,7 +143,7 @@ class Room {
       const solidBelow = this.solid(x, y + 1) || this.code(x, y + 1) === T.ONEWAY, solidAbove = this.solid(x, y - 1);
       if (FOE_LETTER[ch]) {
         const kind = FOE_LETTER[ch], F = FOE[kind], id = foeN++;
-        if (bloomed.has(id)) { const b = bloomed.get(id); this.flowers.push({ x: b[1], y: b[2], kind: F.fl, ceil: !!b[3], t: 999, seed: id * 7 + 3 }); this.total++; continue; }
+        if (bloomed.has(id)) { const b = bloomed.get(id); if (b[1] >= 0) this.flowers.push({ x: b[1], y: b[2], kind: b[4] != null ? b[4] : F.fl, ceil: !!b[3], t: 999, seed: id * 7 + 3 }); else this.noFlower = (this.noFlower | 0) + 1; this.total++; continue; }
         const f = { id, kind, x: cx, y: fy - F.h / 2, vx: 0, vy: 0, face: -1, hp: F.hp, maxHp: F.hp, st: 'idle', t: 0, hurt: 0, ceil: false, alive: true, w: F.w, h: F.h, hx: cx, hy: 0, hit: -1, n: 0 };
         if (kind === 'smog') { f.y = top + TILE / 2; f.st = 'drift'; }
         else if (kind === 'drip') { f.y = top + F.h / 2; f.ceil = true; f.st = 'hang'; }
@@ -227,16 +233,18 @@ class Room {
       else if (gt.kind === 'seal') shut = !calmAll;
       else if (gt.kind === 'arena') shut = !!(g && g.awake && !g.done);
       else if (gt.kind === 'calm') shut = !(g && g.done && (!GIVES[g.kind] || save.ab[GIVES[g.kind]]));   /* the way on opens once the seed is taken */
+      if (gt.kind === 'seal') { gt.seals = [!!save.calm.knot, !!save.calm.boiler, !!save.calm.cloud]; gt.lit = gt.seals.filter(Boolean).length; }   /* a socket lights for each calmed guardian */
       if (gt.shut !== shut && !now) this.sim.ev('gate', gt.kind, gt.x + gt.w / 2, gt.y + gt.h / 2, shut ? 0 : 1);
       gt.shut = shut; if (now) gt.o = shut ? 0 : 1;
     }
   }
   recolour(save, now) {
     const g = this.guard;
-    let done = 0; for (const f of this.foes) if (!f.alive) done++;
-    done += this.flowers.length - (this.flowers.filter(f => f.temp).length);
+    let done = this.noFlower | 0; for (const f of this.flowers) if (!f.temp) done++;
+    for (const f of this.foes) if (!f.alive && !f.temp && f.flowerless) done++;
     const tot = this.total + (g ? 6 : 0); if (g && g.done) done += 6;
-    const want = tot ? 0.12 + 0.88 * Math.min(1, done / tot) : (save.visited[this.id] ? 0.55 : 0.4);
+    if (!tot && this.areaCol === undefined) this.areaCol = areaColour(this.sim ? this.sim.W : RL.World, save, this.area);
+    const want = tot ? 0.12 + 0.88 * Math.min(1, done / tot) : this.areaCol;   /* nothing to bloom here: as bloomed as its area */
     this.colourWant = want; if (now) this.colour = want;
   }
 }
@@ -749,14 +757,21 @@ class Sim {
   bloom(f) {
     const r = this.room, s = this.save;
     f.alive = false; f.hp = 0;
-    /* the flower settles on the nearest surface: the floor below, or the ceiling for hanging glooms */
-    let fx = Math.round(f.x), fy = Math.round(f.y), ceil = false;
+    /* the flower settles on the nearest surface: the floor below (a lily on water), or the ceiling for hanging glooms */
+    let fx = Math.round(f.x), fy = Math.round(f.y), ceil = false, kind = FOE[f.kind].fl, place = true;
     const tx = clamp(Math.floor(fx / TILE), 0, r.w - 1);
     if (f.ceil && f.st !== 'ooze') { let ty = Math.floor(f.y / TILE); while (ty > 0 && !r.solid(tx, ty - 1)) ty--; fy = ty * TILE; ceil = true; }
-    else { let ty = Math.floor(f.y / TILE), n = 0; while (ty < r.h - 1 && !r.solid(tx, ty + 1) && !r.oneway(tx, ty + 1) && n < 14) { ty++; n++; } if (n < 14 && ty < r.h - 1 && !r.water(fx, ty * TILE + 10)) fy = (ty + 1) * TILE; else { ceil = false; fy = Math.round(f.y + 10); } }
-    r.flowers.push({ x: fx, y: fy, kind: FOE[f.kind].fl, ceil, t: 0, seed: f.id * 7 + 3, temp: !!f.temp });
-    if (!f.temp) { (s.bloom[r.id] = s.bloom[r.id] || []).push([f.id, fx, fy, ceil ? 1 : 0]); }
-    this.ev('bloom', f.kind, f.x, f.y, FOE[f.kind].fl, fx, fy, ceil ? 1 : 0, f.id, f.temp ? 1 : 0);
+    else {
+      let ty = clamp(Math.floor(f.y / TILE), 0, r.h - 1);
+      while (ty < r.h - 1 && !r.solid(tx, ty + 1) && !r.oneway(tx, ty + 1) && !r.water(fx, (ty + 1) * TILE + 2)) ty++;
+      if (r.water(fx, (ty + 1) * TILE + 2) && !r.water(fx, ty * TILE + 10)) { fy = (ty + 1) * TILE + 4; kind = 2; }   /* floats on the water: a lily */
+      else if (r.water(fx, ty * TILE + 10)) { let wy = ty; while (wy > 0 && r.water(fx, (wy - 1) * TILE + 10)) wy--; fy = wy * TILE + 4; kind = 2; }
+      else if (ty < r.h - 1) fy = (ty + 1) * TILE;
+      else place = false;   /* a bottomless drop: only petals and dew */
+    }
+    if (place) r.flowers.push({ x: fx, y: fy, kind, ceil, t: 0, seed: f.id * 7 + 3, temp: !!f.temp }); else f.flowerless = true;
+    if (!f.temp) { (s.bloom[r.id] = s.bloom[r.id] || []).push(place ? [f.id, fx, fy, ceil ? 1 : 0, kind] : [f.id, -1, -1, 0]); }
+    this.ev('bloom', f.kind, f.x, f.y, kind, place ? fx : -1, fy, ceil ? 1 : 0, f.id, f.temp ? 1 : 0);
     const n = f.temp ? 1 : FOE[f.kind].dew; for (let i = 0; i < n; i++) this.dropDew(f.x, f.y, 1);
     r.recolour(s);
   }

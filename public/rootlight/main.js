@@ -304,7 +304,7 @@ function overKey(c) {
     else if (GO(c)) {
       if (overSel >= rows.length) { closeOver(); sfx('back'); return; }
       const r = sim.buy(rows[overSel].id);
-      if (r === 'ok') { sfx('buy'); o.line = 'Thank you kindly! ' + (rows[overSel].kind === 'map' ? 'Press Tab or M to look at your map.' : rows[overSel].kind === 'charm' ? 'Wear it at a Watering Spot.' : 'There you go.'); writeSave(); }
+      if (r === 'ok') { sfx('buy'); o.line = 'Thank you kindly! ' + (rows[overSel].kind === 'map' ? tok('Press {map} to look at your map.') : rows[overSel].kind === 'charm' ? 'Wear it at a Watering Spot.' : 'There you go.'); writeSave(); }
       else if (r === 'poor') { sfx('nope'); o.line = W.peddler.poor; } else sfx('nope');
     }
     return;
@@ -316,7 +316,7 @@ function overKey(c) {
     if (LFK(c) || RTK(c) || UPK(c) || DNK(c)) { sfx('menu'); return; }
     if (GO(c)) {
       const r = rows[overSel]; if (!r || !r.owned) { sfx('nope'); return; }
-      if (!o.edit) { sfx('nope'); o.line = 'Charms can be changed while resting at a Watering Spot.'; return; }
+      if (!o.edit) { sfx('nope'); o.line = 'Change charms while resting at a Watering Spot.'; return; }
       if (sim.wear(r.id, !r.worn)) sfx(r.worn ? 'back' : 'charm'); else { sfx('nope'); o.line = 'Not enough notches for that one.'; }
     }
     return;
@@ -347,12 +347,12 @@ function onEvents() {
     else if (n === 'calm') { sfx('calm'); music('calm'); lastCalm = ut; }
     else if (n === 'gstart') { sfx('rumble'); }
     if (n === 'talk') talkPeddler();
-    else if (n === 'sign') openOver('dialog', { who: 'sign', pages: [String(e[1] || '')] });
+    else if (n === 'sign') openOver('dialog', { who: 'sign', pages: [tok(e[1])] });
     else if (n === 'rest') {
       sfx('save');
       const seen = s.save.talked.charms || (s.save.talked.charms = []), fresh = Object.keys(s.save.charms).filter(id => seen.indexOf(id) < 0);
       if (fresh.length && (e[1] | 0) === s.me && s.role !== 'guest') { for (const id of fresh) seen.push(id); openOver('charms', { edit: true, line: 'A new seed charm! Choose what to wear, then Esc.' }); }
-      else toast(Object.keys(s.save.charms).length ? 'Your garden is saved. Esc, then Seed charms, to change charms.' : 'Your leaves grew back. Your garden is saved.');
+      else toast(Object.keys(s.save.charms).length ? 'Your garden is saved. Pause, then Seed charms, to change charms.' : 'Your leaves grew back. Your garden is saved.');
     }
     else if (n === 'sealOpen') toast('Far below Rootgate, the great door has opened.', 5000);
     else if (n === 'nosun') { sfx('nope'); if (!s.save.talked.nosun) { s.save.talked.nosun = 1; toast('Not enough Sunlight yet. Bloom glooms to fill your jar.', 4000); } }
@@ -376,10 +376,20 @@ function talkPeddler() {
   }
   sfx('talk');
 }
+/* control names that match how you are playing: keys (arrows or WASD, one or two players), a pad, or touch */
+function ctl(name) {
+  const pad = pads.length > 0 && !touchMode, touch = touchMode || (coarse && !pad);
+  if (touch) return { jump: 'JUMP', swing: 'SWING', dash: 'DASH', focus: 'FOCUS', up: 'Up on the stick', down: 'Down on the stick', map: 'MAP', beam: 'Up on the stick + FOCUS' }[name];
+  if (pad) return { jump: 'A', swing: 'X', dash: 'RB', focus: 'B', up: 'Up', down: 'Down', map: 'Back', beam: 'Y' }[name];
+  if (players === 2) return { jump: 'F or J', swing: 'G or K', dash: 'H or L', focus: 'T or I', up: 'Up (W)', down: 'Down (S)', map: 'Tab', beam: 'Up + T or I' }[name];
+  const w = wasdAt > arrowAt;
+  return (w ? { jump: 'J', swing: 'K', dash: 'L', focus: 'I', up: 'W', down: 'S', map: 'Tab or M', beam: 'W + I' } : { jump: 'Z', swing: 'X', dash: 'C', focus: 'A', up: 'Up', down: 'Down', map: 'Tab or M', beam: 'Up + A' })[name];
+}
+const tok = text => String(text || '').replace(/\{(jump|swing|dash|focus|up|down|map|beam)\}/g, (_, k) => ctl(k));
 function getCard(kind, id) {
   const A = W.abilities[id], C = W.charms[id];
   let title = '', text = '', keys = [];
-  if (kind === 'ability' && A) { title = A.name.toUpperCase(); text = (pads.length && A.pad) ? A.pad : A.how; sfx('ability'); }
+  if (kind === 'ability' && A) { title = A.name.toUpperCase(); text = tok(A.how); sfx('ability'); }
   else if (kind === 'charm' && C) { title = C.name; text = C.desc + ' Wear seed charms at a Watering Spot.'; sfx('charm'); }
   else if (kind === 'life') { title = 'Life Seed'; text = id % 2 ? 'Find another and you will grow a new leaf.' : 'Two seeds together: you grew a new leaf!'; sfx('life'); }
   else if (kind === 'vessel') { title = 'Sun Vessel'; text = 'You can hold more Sunlight now.'; sfx('vessel'); }
@@ -430,7 +440,7 @@ function render() {
   if (screen === 'play' && sim) {
     ctx.save(); ctx.beginPath(); ctx.rect(0, 0, LW, VH); ctx.clip();
     if (D.frame) D.frame(ctx, frameF()); else fallbackFrame();
-    const pp = sim.players.find(p => p.prompt && p.st !== 'sit' && (sim.role === 'solo' || p.i === sim.me)), pr = pp && !over && !paused ? { text: (touchMode ? '' : '↑ ') + pp.prompt, x: pp.near.x, y: pp.near.y - (pp.prompt === 'Talk' ? 70 : 44) } : null;
+    const pp = sim.players.find(p => p.prompt && p.st !== 'sit' && (sim.role === 'solo' || p.i === sim.me)), pr = pp && !over && !paused ? { text: '↑ ' + pp.prompt, x: pp.near.x, y: pp.near.y - (pp.prompt === 'Talk' ? 70 : 44) } : null;
     if (D.hud) D.hud(ctx, { sim, t, touch: touchMode || coarse, two: players > 1, prompt: pr, msg: toastT > 0 ? toastMsg : null, cam: sim.cam }); else fallbackHud();
     if (areaCard) scr('area', { t: areaCard.t, name: areaCard.name, sub: areaCard.sub });
     ctx.restore();

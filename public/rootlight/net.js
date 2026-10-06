@@ -597,7 +597,7 @@ const hooks = {
     if (online && Net.role === 'guest' && !gStarted) {
       ctx.fillStyle = 'rgba(27,21,48,.92)'; rr(ctx, Wd / 2 - 200, H / 2 - 50, 400, 100, 18); ctx.fill();
       fit(ctx, hostSc === 1 ? opp() + ' is picking a garden…' : heardAny ? 'Waiting for ' + opp() + ' to start…' : 'Waiting for ' + opp() + '…', Wd / 2, H / 2 - 16, 20, '#ffd93b', 370);
-      RD.text(ctx, 'You play MARIGOLD, the orange sprout', Wd / 2, H / 2 + 18, 14, '#fff');
+      RD.text(ctx, 'You play MARIGOLD, the orange marigold', Wd / 2, H / 2 + 18, 14, '#fff');
     }
     if (online && Net.role === 'host' && scr === 'title') { ctx.fillStyle = 'rgba(27,21,48,.94)'; rr(ctx, Wd / 2 - 250, H - 34, 500, 26, 13); ctx.fill(); fit(ctx, 'Online with ' + opp() + ' · you pick the garden · you play SPRIG', Wd / 2, H - 21, 13, '#ffd93b', 480); }
     if (online && follow && M.screen === 'play') { const left = Math.max(0, Math.ceil((C.follow - follow.t) / 60 * 10) / 10); ctx.fillStyle = 'rgba(27,21,48,.85)'; rr(ctx, Wd / 2 - 130, 52, 260, 30, 15); ctx.fill(); fit(ctx, (follow.host ? 'Following ' + opp() : 'Catching up with ' + opp()) + '… ' + left.toFixed(1), Wd / 2, 67, 15, '#fff', 240); }
