@@ -51,7 +51,7 @@ function resetP(c, x, y, vx, vy) {
 }
 function physTick(c) {
   const s = c.sim, r = c.r; s.t++; s.events = [];
-  for (const v of r.vents) { v.t = (v.t + 1) % 260; v.on = v.t >= 130; }
+  for (const v of r.vents) { v.t = (s.t + v.ph) % 260; v.on = v.t >= 130; }
   for (const w of r.wind) w.on = w.gust ? Math.max(0, Math.min(1, Math.sin(s.t * Math.PI * 2 / 330) * 2.2 + 0.6)) : 1;
   for (const [i, st] of r.crumble) { st.t++; if (st.st === 'shake' && st.t > 30) { st.st = 'gone'; st.t = 0; } else if (st.st === 'gone' && st.t > 180) r.crumble.delete(i); }
   s.stepPlats();

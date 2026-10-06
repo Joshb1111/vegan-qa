@@ -85,13 +85,13 @@ function startGame(n, o) {
   sim = new RL.Sim(opts);
   if (H.simMade) try { H.simMade(sim); } catch (e) { report(e); }
   if (o.noSave) sim.noSave = true;
-  over = null; queue.length = 0; paused = false; areaCard = null;
+  over = null; queue.length = 0; paused = false; areaCard = null; endT = 0; lastCalm = 0;
   const D = RD(); if (D.room) try { D.room(sim); } catch (e) { report(e); }
   go('play');
   writeSave();
   if (o.fresh) { areaCard = { name: 'ROOTLIGHT', sub: 'the garden above has gone grey', t: 0 }; }
 }
-function quitToTitle() { if (sim) writeSave(); sim = null; over = null; queue.length = 0; paused = false; go('title'); music('title'); }
+function quitToTitle() { if (sim) writeSave(); sim = null; over = null; queue.length = 0; paused = false; endT = 0; go('title'); music('title'); }
 
 /* ---------- input: keyboard ---------- */
 const held = new Set(); let hits = [], wasdAt = 0, arrowAt = 0;
@@ -229,8 +229,8 @@ function pauseChoose(i) {
   if (i === 0) { paused = false; if (sim) sim.freeze = false; sfx('select'); }
   else if (i === 3 && liveNow() && RL.Net && RL.Net.role === 'guest') { sfx('nope'); }
   else if (i === 1) { paused = false; openOver('map'); }
-  else if (i === 2) { paused = false; openOver('charms', { edit: isResting() }); }
-  else if (i === 3) { if (sim) { sim.save.gentle = !sim.save.gentle; sim.applyStats(); writeSave(); } sfx('select'); }
+  else if (i === 2) { paused = false; openOver('charms', { edit: isResting() && sim.role !== 'guest', line: sim.role === 'guest' ? 'Your partner chooses the charms in their garden.' : '' }); }
+  else if (i === 3) { if (sim) { sim.save.gentle = !sim.save.gentle; sim.applyStats(); sim.saveDirty = true; writeSave(); } sfx('select'); }
   else if (i === 4) { setMute(!muted); sfx('select'); }
   else if (i === 5) { setMusic(!musicOn); sfx('select'); }
   else if (i === 6) { paused = false; if (H.quit) H.quit(); quitToTitle(); }
@@ -351,12 +351,12 @@ function onEvents() {
     else if (n === 'rest') {
       sfx('save');
       const seen = s.save.talked.charms || (s.save.talked.charms = []), fresh = Object.keys(s.save.charms).filter(id => seen.indexOf(id) < 0);
-      if (fresh.length) { for (const id of fresh) seen.push(id); openOver('charms', { edit: true, line: 'A new seed charm! Choose what to wear, then Esc.' }); }
+      if (fresh.length && (e[1] | 0) === s.me && s.role !== 'guest') { for (const id of fresh) seen.push(id); openOver('charms', { edit: true, line: 'A new seed charm! Choose what to wear, then Esc.' }); }
       else toast(Object.keys(s.save.charms).length ? 'Your garden is saved. Esc, then Seed charms, to change charms.' : 'Your leaves grew back. Your garden is saved.');
     }
     else if (n === 'sealOpen') toast('Far below Rootgate, the great door has opened.', 5000);
     else if (n === 'nosun') { sfx('nope'); if (!s.save.talked.nosun) { s.save.talked.nosun = 1; toast('Not enough Sunlight yet. Bloom glooms to fill your jar.', 4000); } }
-    else if (n === 'get') getCard(e[1], e[2]);
+    else if (n === 'get') { if (s.role !== 'solo' && e[3] != null && (e[3] | 0) !== s.me && e[1] !== 'ability') { sfx('pickup'); toast((RL.Net && RL.Net.opp || 'Your friend') + ' found ' + ({ life: 'a Life Seed', vessel: 'a Sun Vessel', notch: 'a Charm Notch', charm: 'a seed charm' }[e[1]] || 'something') + '!'); } else getCard(e[1], e[2]); }
     else if (n === 'area') { const a = W.areas[e[1]] || {}; areaCard = { name: a.name || '', sub: a.sub || '', t: 0 }; }
     else if (n === 'autosave') writeSave();
     else if (n === 'wake') { sfx('wake'); toast(s.save.puddle ? 'You woke up at the Watering Spot. Your dew is waiting where you nodded off.' : 'You woke up at the Watering Spot.', 4500); }

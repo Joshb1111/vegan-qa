@@ -11,3 +11,10 @@ const mk = (room, x, y, f) => { const save = RL.Sim.newSave(1); save.started = 1
   const p = s.players[0]; p.x = it.x - 30; p.y = it.y + 10; for (let i = 0; i < 60; i++) s.step([IN.R]); ok('taking it opens the floor gate', s.save.ab.dash && !s.room.gates.find(g => g.kind === 'calm').shut); }
 { const s = mk('rg_under', 760, 300); const p = s.players[0]; for (let i = 0; i < 200; i++) s.step([i < 100 ? IN.R : IN.L]); ok('rg_under: the hatch cover holds', s.room.id === 'rg_under', s.room.id + ' y ' + (p.y | 0)); }
 console.log(out.join('\n'));
+{ /* two on one keyboard walk east out of the West Burrow: one room change, no ping-pong */
+  const save = RL.Sim.newSave(1); save.started = 1; const s = new RL.Sim({ save, players: 2 }); s.enterRoom('rg_west', 1180, 300, {}); s.room.foes = []; s.fade = 0;
+  let changes = 0; for (let i = 0; i < 160; i++) { s.step([IN.R, IN.R]); for (const e of s.events) if (e[0] === 'room') changes++; }
+  console.log((changes === 1 && s.room.id === 'rg_hub' ? 'PASS ' : 'FAIL ') + 'local co-op doorway: one change, no ping-pong  ' + changes + ' ' + s.room.id + ' ' + s.players.map(p => p.x | 0)); }
+{ const save = RL.Sim.newSave(1); save.started = 1; const s = new RL.Sim({ save, players: 2 }); s.enterRoom('rg_hub', 30, 300, {}); s.room.foes = []; s.fade = 0;
+  let changes = 0; for (let i = 0; i < 160; i++) { s.step([IN.L, IN.L]); for (const e of s.events) if (e[0] === 'room') changes++; }
+  console.log((changes === 1 && s.room.id === 'rg_west' ? 'PASS ' : 'FAIL ') + 'local co-op doorway west  ' + changes + ' ' + s.room.id + ' ' + s.players.map(p => p.x | 0)); }

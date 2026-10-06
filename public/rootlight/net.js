@@ -36,7 +36,7 @@ const isI = (v, lo, hi) => Number.isInteger(v) && v >= lo && v <= hi;
 const isN = (v, lo, hi) => typeof v === 'number' && Number.isFinite(v) && v >= lo && v <= hi;
 const nm = (s, d) => String(s || '').replace(/[^\w \-'.]/g, '').slice(0, 16) || d;
 const ri = v => { v = Math.round(+v); return Number.isFinite(v) ? clamp(v, -1e8, 1e8) : 0; };
-const isId = s => typeof s === 'string' && s.length <= 40 && /^[\w:,.\-]*$/.test(s);
+const isId = s => typeof s === 'string' && s.length <= 40 && /^[\w:,.*\-]*$/.test(s);   /* room ids and keys (dew clusters are 'room:*0') */
 
 /* ---------- names ↔ numbers ---------- */
 const PST = ['idle', 'run', 'jump', 'fall', 'cling', 'dash', 'focus', 'hurt', 'faint', 'bubble', 'sit', 'swim', 'enter'];
@@ -99,7 +99,8 @@ const valid = {
   wait(o) { return (common(o) && isI(o.sc, 0, 9)) || no('w'); },
   chunk(o) { return (common(o) && isI(o.sv, 1, I31) && isI(o.n, 1, 64) && isI(o.i, 0, o.n - 1) && typeof o.d === 'string' && o.d.length <= 5000) || no('chunk'); },
   guest(o) {
-    if (!common(o)) return false; if (o.q === undefined) o.q = []; if (o.P === undefined) o.P = 0;
+    if (!common(o)) return false; if (o.q === undefined) o.q = []; if (o.P === undefined) o.P = 0; if (o.b === undefined) o.b = [];
+    if (!Array.isArray(o.b) || o.b.length > 4 || !o.b.every(a => Array.isArray(a) && a.length === 4 && a.every(v => isI(v, -1e8, 1e8)))) return no('b');
     return (isI(o.rv, 0, I31) || no('rv')) && (o.P === 0 || okP(o.P) || no('P')) && ((Array.isArray(o.q) && o.q.length <= 48 && o.q.every(okAsk)) || no('q')) && (isI(o.la, 0, I31) || no('la')) && (isI(o.sv, 0, I31) || no('sv'));
   },
   get why() { return why; }
@@ -272,30 +273,32 @@ function doAsk(s, q) {
   else if (type === 4) { const b = r.breaks.find(b => b.n === q[2] && b.hp > 0); if (b) s.hitBreak(b); }
   else if (type === 5) { const l = r.levers.find(l => l.n === q[2] && !l.on); if (l) s.pullLever(l); }
   else if (type === 6) { const it = r.items.find(i => (i.key || i.id) === q[2] && !i.got && i.kind !== 'cluster'); if (it) s.pickup(G, it); }
-  else if (type === 7) { if (!follow && W().rooms[q[2]]) { follow = { host: true, t: 0, to: q[2], x: +q[3], y: +q[4], vx: +q[5], vy: +q[6], face: q[7] < 0 ? -1 : 1 }; toast(opp() + ' went on ahead', 'following…'); } }
+  else if (type === 7) { if (!follow && W().rooms[q[2]] && q[2] !== s.room.id) { follow = { host: true, t: 0, to: q[2], x: +q[3], y: +q[4], vx: +q[5], vy: +q[6], face: q[7] < 0 ? -1 : 1, dy: q[8] | 0 }; toast(opp() + ' went on ahead', 'following…'); } }
   else if (type === 8) { const sp = r.spots[0]; if (sp) s.rest(G, sp); }
   else if (type === 9) { const sw = r.switches.find(x => x.n === q[2] && !x.on); if (sw) s.flipSwitch(sw); }
   else if (type === 10) { const sh = r.shots.find(x => x.id === q[2] && !x.dead); if (sh) { sh.dead = true; s.ev('pop', sh.kind, sh.x, sh.y); } }
 }
 function doFollow(s, f) {
-  const G = s.players[1]; G.x = f.x; G.y = f.y; G.vx = f.vx; G.vy = f.vy; G.face = f.face;
-  s.changeRoom(f.to, f.x, f.y, G, { vx: 0, vy: 0, face: f.face });
+  const d = W().rooms[f.to], pw = d.cw * 16 * 20, x = clamp(f.x, 12, pw - 12);   /* a step inside the doorway, never on its edge */
+  const G = s.players[1]; G.x = x; G.y = f.y; G.vx = f.vx; G.vy = f.vy; G.face = f.face;
+  s.changeRoom(f.to, x, f.y, G, { vx: f.dy ? 0 : f.vx * 0.5, vy: f.dy < 0 ? f.vy : 0, face: f.face, dy: f.dy });
   T.follows++;
 }
 const W = () => RL.World;
 function hostPost(s) {
+  if (s.saveDirty) { s.saveDirty = false; saveDirty = true; }   /* charms worn, Gentle switched */
   if (s.rv !== hostRv) { hostRv = s.rv; log = []; if (gIt) gIt.clear(); T.rooms++; saveDirty = true; }
   const r = s.room;
   for (const e of s.events) {
     const n = e[0], code = EVN.indexOf(n);
     /* the room's lasting changes go in the log */
-    if (n === 'bloom') { const fl = r.flowers[r.flowers.length - 1]; const f = r.foes.find(f => !f.alive && Math.abs(f.x - e[2]) < 1 && Math.abs(f.y - e[3]) < 1); if (fl && f) logAdd(0, f.id, ri(fl.x), ri(fl.y), fl.ceil ? 1 : 0, fl.kind, f.temp ? 1 : 0); }
-    else if (n === 'bud') { const fl = r.flowers[r.flowers.length - 1]; if (fl) logAdd(1, ri(fl.x), ri(fl.y), fl.ceil ? 1 : 0); }
+    if (n === 'bloom') logAdd(0, e[8] | 0, ri(e[5]), ri(e[6]), e[7] ? 1 : 0, e[4] | 0, e[9] ? 1 : 0);   /* [bloom, kind, x, y, flower kind, fx, fy, ceil, id, temp] */
+    else if (n === 'bud') logAdd(1, ri(e[3]), ri(e[4]), e[5] ? 1 : 0);   /* [bud, x, y, bx, by, ceil] */
     else if (n === 'lever') { const l = r.levers.find(l => l.x === e[1] && l.y === e[2]); if (l) logAdd(3, l.n); }
     else if (n === 'switch') { const sw = r.switches.find(x => x.x === e[1] && x.y === e[2]); if (sw) logAdd(4, sw.n); }
     else if (n === 'rest') logAdd(6);
     else if (n === 'wake') logAdd(7);
-    else if (n === 'get') logAdd(8, String(e[1]), typeof e[2] === 'string' ? e[2] : ri(e[2]));
+    else if (n === 'get') logAdd(8, String(e[1]), typeof e[2] === 'string' ? e[2] : ri(e[2]), e[3] | 0);
     else if (n === 'calm') { logAdd(9, GK.indexOf(e[1])); }
     else if (n === 'ending') logAdd(11);
     if (n === 'autosave' || n === 'bloom' || n === 'bud' || n === 'pickup' || n === 'dew' || n === 'get' || n === 'buy') saveDirty = true;
@@ -314,7 +317,7 @@ function hostPost(s) {
 function sendSnap(s) {
   lastSend = ut;
   const r = s.room; let gs = 0; r.gates.forEach((g, i) => { if (g.shut && i < 30) gs |= 1 << i; });
-  const pend = log.filter(e => e[0] > guestLa).slice(-40);
+  const pend = log.filter(e => e[0] > guestLa).slice(0, 40);   /* oldest first: the guest applies them in order */
   const o = { k: 's', rv: s.rv, rm: r.id, st: s.t, sv: saveVer, P: packP(s.players[0], s.rv), F: r.foes.filter(f => f.alive).slice(0, 60).map(packF), G: r.guard ? packG(r.guard) : 0,
     Z: r.hazards.slice(0, 30).map(packZ), S: r.shots.filter(x => x.kind !== 'beam' || x.own === 0).slice(0, 90).map(packS), D: r.drops.slice(0, 70).map(d => [ri(d.x * 4), ri(d.y * 4)]), gs, L: pend, E: evPending(now()), a: lastAsk };
   if (!send(o)) { o.E = []; o.S = o.S.slice(0, 20); o.D = []; send(o); }
@@ -331,6 +334,7 @@ function onGuest(o) {
   if (o.sv < saveVer && saveVer && ut - saveAt > 60) saveDirty = true;   /* it never got the last save: again */
   const s = sim();
   if (o.P && gIt && s && o.P[22] === s.rv) gIt.push(o.t * TICK, o.P, o._at);
+  if (s && o.rv === s.rv) for (const a of o.b) { const x = a[0] / 4, y = a[1] / 4; if (!s.room.shots.some(q => q.ghost && Math.abs(q.x - x) < 40 && Math.abs(q.y - y) < 4)) s.room.shots.push({ kind: 'beam', x, y, vx: a[2] / 16, vy: 0, r: a[3], t: 0, life: 20, own: 1, ghost: true, hit: new Set(), dmg: 0 }); }   /* the partner's Sunbeam, to see */
   gRv = o.rv;
 }
 function applyP(p, A, B, f) {
@@ -346,6 +350,7 @@ let vIt = null, newestT = -1, latest = null, gStarted = false, chunks = null, ha
 const evSeen = new Int32Array(1024).fill(-1), evIn = [];
 let pendingSave = null, gotSaveAt = 0, waitDoor = null;
 function onChunk(o) {
+  if (o.sv <= haveSv) return;   /* an older save than the one we hold */
   if (!chunks || chunks.sv !== o.sv) chunks = { sv: o.sv, n: o.n, parts: new Array(o.n), got: 0 };
   if (chunks.n !== o.n) return;
   if (chunks.parts[o.i] === undefined) { chunks.parts[o.i] = o.d; chunks.got++; }
@@ -358,7 +363,7 @@ function onChunk(o) {
 function onWait(o) {
   if (o.t <= newestT && newestT - o.t < 3600) { S.old++; return; }
   newestT = o.t; hostSc = o.sc;
-  if (M.screen === 'play' && gStarted) { M.quitToTitle(); gStarted = false; }
+  if (M.screen === 'play' && gStarted) { const g = sim(); if (g && g.ending) M.go('ending'); else M.quitToTitle(); gStarted = false; }   /* the host finished: our ending too */
 }
 function onSnap(o) {
   if (o.t <= newestT && newestT - o.t < 3600) { S.old++; return; }
@@ -398,13 +403,17 @@ function guestRoom(s) {
       const f = follow; follow = null; waitDoor = null;
       const P = L.P, hx = P[0] / 4, hy = P[1] / 4;
       const x = f.door ? f.door.x : hx, y = f.door ? f.door.y : hy;
-      s.enterRoom(L.rm, x, y, {}); s.rv = L.rv; curRm = L.rm; curRv = L.rv; la = 0;
-      const me = s.players[1]; me.x = x; me.y = y; if (!f.door) { me.x = hx - 16; if (!s.okSpot(me.x, me.y)) me.x = hx; }
-      if (f.door) { me.vx = f.door.vx; me.vy = f.door.vy; if (f.door.vy < 0) { me.vy = Math.min(me.vy, -7.2); me.rise = 2; } }
-      me.inv = Math.max(me.inv, 40); s.fade = 0.85; if (me.st === 'enter') s.setSt(me, 'fall');
-      s.room.foes = []; s.room.items = s.room.items.filter(i => i.kind !== 'ability');
+      s.enterRoom(L.rm, x, y, {}); s.rv = L.rv; curRm = L.rm; curRv = L.rv; la = 0; s.ext[1] = false;
+      const me = s.players[1], pw = s.room.pw; me.x = clamp(x, 12, pw - 12); me.y = y;
+      if (!f.door) { me.x = clamp(hx - 16, 12, pw - 12); if (!s.okSpot(me.x, me.y)) me.x = clamp(hx, 12, pw - 12); }
+      if (me.alive) {
+        if (f.door) { me.vx = f.door.vx; me.vy = f.door.vy; if (f.door.dy < 0) { me.vy = Math.min(me.vy, -7.2); me.rise = 2; } }
+        me.inv = Math.max(me.inv, 40); if (me.st === 'enter') s.setSt(me, 'fall');
+      } else if (me.bubble) s.setSt(me, 'bubble');
+      s.fade = 0.85;
+      s.room.foes = []; s.room.items = s.room.items.filter(i => !(i.kind === 'ability' && i.rise));
       if (s.room.guard) s.room.guard.awake = false;
-    } else { const me = s.players[1]; me.st = 'enter'; me.vx = 0; me.vy = 0; return true; }
+    } else { const me = s.players[1]; s.ext[1] = true; if (me.alive) { me.st = 'enter'; me.vx = 0; me.vy = 0; } return true; }   /* waiting to follow: hold still, untouchable */
   }
   for (const e of L.L) {
     if (e[0] <= la) continue;
@@ -415,20 +424,19 @@ function guestRoom(s) {
 }
 function applyLog(s, e) {
   const r = s.room, type = e[1];
-  if (type === 0) { r.flowers.push({ x: e[3], y: e[4], kind: e[6], ceil: !!e[5], t: 0, seed: e[2] * 7 + 3, temp: !!e[7] }); if (!e[7]) { const b = s.save.bloom[r.id] = s.save.bloom[r.id] || []; if (!b.some(x => x[0] === e[2])) b.push([e[2], e[3], e[4], e[5]]); } gone.add(e[2]); r.recolour(s.save); }
+  if (type === 0) { r.flowers.push({ x: e[3], y: e[4], kind: e[6], ceil: !!e[5], t: 0, seed: e[2] * 7 + 3, temp: !!e[7] }); if (!e[7]) { const b = s.save.bloom[r.id] = s.save.bloom[r.id] || []; if (!b.some(x => x[0] === e[2])) b.push([e[2], e[3], e[4], e[5]]); } r.recolour(s.save); }
   else if (type === 1) { const b = r.buds.find(b => Math.abs(b.x - e[2]) < 2 && Math.abs(b.y - e[3]) < 2); if (b) { r.buds.splice(r.buds.indexOf(b), 1); } r.flowers.push({ x: e[2], y: e[3], kind: 6, ceil: !!e[4], t: 0, seed: 5 }); r.recolour(s.save); }
   else if (type === 2) { const i = r.items.findIndex(i => (i.key || i.id) === e[2]); if (i >= 0) r.items.splice(i, 1); s.save.got[e[2]] = 1; }
   else if (type === 3) { const l = r.levers.find(l => l.n === e[2]); if (l) { l.on = true; l.t = 20; if (l.gate) s.save.open[l.gate.key] = 1; } }
   else if (type === 4) { const sw = r.switches.find(x => x.n === e[2]); if (sw) { sw.on = true; sw.t = 30; if (sw.gate) s.save.open[sw.gate.key] = 1; } }
   else if (type === 5) { const br = r.breaks.find(b => b.n === e[2]); if (br) { for (const [a, b] of br.cells) r.t[b * r.w + a] = RL.T.AIR; r.breaks.splice(r.breaks.indexOf(br), 1); s.save.broke[br.key] = 1; } }
-  else if (type === 6) { const me = s.players[1]; me.leaves = me.maxLeaves; if (me.st === 'bubble' || me.st === 'faint') s.revive(me, true); s.ev('rest', 1); }
+  else if (type === 6) { const me = s.players[1]; me.leaves = me.maxLeaves; if (me.st === 'bubble' || me.st === 'faint') s.revive(me, true); s.ev('rest', 0); }
   else if (type === 7) { const me = s.players[1]; me.alive = true; me.bubble = false; me.leaves = me.maxLeaves; me.inv = 60; s.setSt(me, 'sit'); s.ev('wake'); }
-  else if (type === 8) { if (e[2] === 'ability') s.save.ab[e[3]] = 1; s.applyStats(); s.ev('get', e[2], e[3]); }
-  else if (type === 9) { s.save.calm[GK[e[2]]] = 1; s.ev('calm', GK[e[2]]); }
+  else if (type === 8) { if (e[2] === 'ability') s.save.ab[e[3]] = 1; s.applyStats(); s.ev('get', e[2], e[3], e[4] | 0); }
+  else if (type === 9) { s.save.calm[GK[e[2]]] = 1; s.ev('calm', GK[e[2]]); s.calmFlowers(); }
   else if (type === 10) { r.items.push({ kind: e[2], id: e[3], key: e[4], x: e[5], y: e[6], got: false, hp: 0, hurt: 0, rise: 1 }); }
   else if (type === 11) { s.ending = 1; s.ev('ending'); }
 }
-const gone = new Set();
 /* before the guest's step: the host's sprout and the room as they were D ms ago */
 function guestPre(s) {
   if (guestRoom(s)) return;
@@ -493,7 +501,14 @@ function guestSetup(s) {
   H.swingLever = (p, l) => { ask(5, l.n); return false; };
   H.swingShot = (p, sh) => { popped.add(sh.id); sh.dead = true; s.ev('pop', sh.kind, sh.x, sh.y); ask(10, sh.id); return false; };
   H.pickup = (p, it) => { if (it.kind === 'cluster') return false; if (!it.asked) { it.asked = 1; ask(6, it.key || it.id); } return false; };
-  H.door = (p, to) => { if (!waitDoor) { const r = s.room, wx = r.wx * 20 + p.x, wy = r.wy * 20 + p.y; const d = W().rooms[to]; const x = wx - d.cx * 16 * 20, y = wy - d.cy * 9 * 20; waitDoor = { to, x: x + Math.sign(p.vx) * 6, y, vx: p.vx, vy: p.vy }; ask(7, to, ri(x), ri(y), ri(p.vx), ri(p.vy), p.face); toast('You went on ahead', opp() + ' is following…'); } p.x = clamp(p.x, 1, s.room.pw - 1); p.y = clamp(p.y, 26, s.room.ph); p.vx = 0; p.vy = 0; p.st = 'enter'; return false; };
+  H.door = (p, to) => {
+    if (!waitDoor) {
+      const r = s.room, wx = r.wx * 20 + p.x, wy = r.wy * 20 + p.y, d = W().rooms[to], dy = p.y - 13 < 0 ? -1 : p.y - 13 > r.ph ? 1 : 0;
+      const x = wx - d.cx * 16 * 20, y = wy - d.cy * 9 * 20;
+      waitDoor = { to, x: x + Math.sign(p.vx) * 6, y, vx: p.vx, vy: p.vy, dy }; ask(7, to, ri(x), ri(y), ri(p.vx), ri(p.vy), p.face, dy); toast('You went on ahead', opp() + ' is following…');
+    }
+    p.x = clamp(p.x, 1, s.room.pw - 1); p.y = clamp(p.y, 26, s.room.ph); p.vx = 0; p.vy = 0; p.st = 'enter'; return false;
+  };
   H.rest = (p) => { ask(8); return false; };
   H.talk = () => { toast(opp() + ' keeps the dew purse', 'ask them to visit the Peddler'); return false; };
   H.wake = () => false;
@@ -506,7 +521,8 @@ function guestSetup(s) {
 function sendG(s) {
   sendNow = false; lastGSend = ut;
   const o = { k: 'g', rv: s ? s.rv : 0, P: s && gStarted && !follow ? packP(s.players[1], s.rv) : 0, la, sv: haveSv };
-  if (asks.length) o.q = asks.slice(-40);
+  if (s && gStarted) { const b = s.room.shots.filter(x => x.kind === 'beam' && x.own === 1).slice(0, 4); if (b.length) o.b = b.map(x => [ri(x.x * 4), ri(x.y * 4), ri(x.vx * 16), clamp(x.r | 0, 1, 40)]); }
+  if (asks.length) o.q = asks.slice(0, 40);
   send(o);
 }
 function onAcked(a) { if (a > 0) asks = asks.filter(q => q[0] > a); }
@@ -538,7 +554,7 @@ function link(m) {
   if (!first) return;
   online = true; heardAny = false; verBad = quiet = false; Net.rtt = 0; lastRT = -1; sentT.fill(-1); Net.lastIn = now();
   lastAsk = 0; asksIn.length = 0; evQ.q.length = 0; log = []; logSeq = 0; guestLa = 0; saveVer = 0; saveDirty = true; hostRv = -1; follow = null;
-  newestT = -1; latest = null; gStarted = false; chunks = null; haveSv = 0; la = 0; asks = []; askSeq = 0; pendingSave = null; waitDoor = null; gone.clear(); popped.clear();
+  newestT = -1; latest = null; gStarted = false; chunks = null; haveSv = 0; la = 0; asks = []; askSeq = 0; pendingSave = null; waitDoor = null; popped.clear();
   if (M) { M.players = 1; if (M.screen !== 'title') M.quitToTitle(); }
 }
 
@@ -554,11 +570,12 @@ const hooks = {
     if (Net.role === 'host') { if (M.screen !== 'play' && ut - lastIdle >= C.idle) { lastIdle = ut; send({ k: 'w', sc: M.screen === 'title' ? 0 : M.screen === 'slots' ? 1 : 2 }); } }
     else {
       if (latest) onAcked(latest.a);
+      if (gStarted && M.screen !== 'play' && M.screen !== 'ending') gStarted = false;   /* back on the title: ready to join the next garden */
       guestTick();
       if ((M.screen !== 'play' || !gStarted) && ut - lastGSend >= C.idle) sendG(null);
     }
   },
-  simOpts(o) { if (!online) return; o.players = 2; o.role = Net.role; o.me = Net.role === 'guest' ? 1 : 0; },
+  simOpts(o) { if (!online) return; o.players = 2; o.role = Net.role; o.me = Net.role === 'guest' ? 1 : 0; M.players = 1; },
   simMade(s) { if (!online) return; if (Net.role === 'host') hostSetup(s); else guestSetup(s); },
   masks(m) {
     if (!online) return;
@@ -568,7 +585,7 @@ const hooks = {
   key(c) {
     if (!online) return false;
     if (quiet || verBad) { if (c === 'Space' || c === 'Enter' || c === 'NumpadEnter') { playAlone(verBad ? 'version' : 'quiet'); return true; } return false; }
-    if (Net.role === 'guest' && M.screen !== 'play') return !(c === 'Escape' || c === 'Backspace' || c === 'KeyM' || c === 'KeyN');   /* waiting: only leaving and sound */
+    if (Net.role === 'guest' && M.screen !== 'play' && M.screen !== 'ending') return !(c === 'Escape' || c === 'Backspace' || c === 'KeyM' || c === 'KeyN');   /* waiting: only leaving and sound */
     if (M.screen === 'title' && Net.role === 'host' && (c === 'ArrowDown' || c === 'ArrowUp' || c === 'KeyW' || c === 'KeyS')) return true;   /* online: one row, Play */
     return false;
   },
