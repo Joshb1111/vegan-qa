@@ -1,0 +1,2 @@
+Rootlight — an original exploration platformer written for understand-veganism.com's planet. All art, music and sound are generated in code.
+Only the genre (an interconnected underground world to explore, with abilities, rest spots, a map, charms and guardians) is shared with other games; no names, characters, places, art, music, sounds, text or designs are taken from any of them.
