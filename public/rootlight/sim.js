@@ -155,7 +155,7 @@ class Room {
       else if (ch === 'P') this.npcs.push({ kind: 'peddler', x: cx, y: fy, talk: 0 });
       else if (ch === 'i') this.signs.push({ x: cx, y: fy, text: (def.signs || [])[nth('i')] || '' });
       else if (ch === '@') this.start = { x: cx, y: fy };
-      else if (ch === '*') { const k = nth('*'), key = def.id + ':*' + k; if (!save.got[key]) this.items.push({ kind: 'cluster', id: key, x: cx, y: top + TILE / 2, hp: 4, got: false, hurt: 0 }); }
+      else if (ch === '*') { const k = nth('*'), key = def.id + ':*' + k; if (!save.got[key]) this.items.push({ kind: 'cluster', id: key, x: cx, y: top + TILE / 2, hp: 3, got: false, hurt: 0 }); }
       else if (ch === 'o') this.caps.push({ x: cx, y: fy, squash: 0 });
       else if (ch === 'v') { const v = { x: cx, y: fy, h: 0, on: false, tell: 0, t: (x * 53 + y * 17) % 240 }; let yy = y; while (yy > 0 && !this.solid(x, yy - 1)) yy--; v.h = fy - yy * TILE; this.vents.push(v); }
       else if (ch === 'm') { const last = mRuns[mRuns.length - 1]; if (last && last.y === y && last.x1 === x - 1) last.x1 = x; else mRuns.push({ x0: x, x1: x, y }); }
@@ -751,7 +751,7 @@ class Sim {
   }
   hitCluster(it) {
     it.hp--; it.hurt = 8; this.ev('crack', it.x, it.y);
-    const n = it.hp > 0 ? 3 : 6; for (let i = 0; i < n; i++) this.dropDew(it.x, it.y, 1);
+    const n = it.hp > 0 ? 4 : 6; for (let i = 0; i < n; i++) this.dropDew(it.x, it.y, 1);
     if (it.hp <= 0) { it.got = true; this.save.got[it.id] = 1; this.ev('break', it.x, it.y); this.room.items.splice(this.room.items.indexOf(it), 1); }
   }
   hitBreak(br) {
