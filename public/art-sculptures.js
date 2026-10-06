@@ -13,7 +13,8 @@
 
    TO MOVE / TURN / RESIZE ONE: edit its entry in SCULPTURES below (lon/lat, facing, nudge, height). To try values live
    in the console first: ART.set('exploitative-mindset',{facing:40,nudge:[.5,0]}) rebuilds it in place (then copy the
-   numbers here). ART.info('exploitative-mindset') prints what was built. ?art=0 turns every sculpture off.
+   numbers here). ART.info('exploitative-mindset') prints what was built; ART.rebuild(id) remakes it from the files
+   (after swapping an image or editing backFit in ART.config). ?art=0 turns every sculpture off.
    TO ADD ANOTHER ARTWORK: add an entry with its own id, image and spot. Nothing else is needed: the outline,
    textures, plinth, solid and prompt are all made from the image at load.
 
@@ -22,7 +23,8 @@
      2x2-pixel blocks (marching squares with sub-pixel interpolation), simplified (Douglas-Peucker, 1 px) and
      triangulated with holes (THREE.ShapeUtils / earcut). Enclosed gaps under holeMin px² are filled; specks of the
      drawing that float free of the body (the boy's two sweat marks) are kept on the front face only, with no
-     thickness, so nothing hangs in the air from the side. About 10 k triangles, built once in a few tens of ms.
+     thickness, so nothing hangs in the air from the side. About 6.3 k triangles, built once at load in a few short
+     steps (traced, meshed, painted) so no single step holds up a frame for long.
    Front: the original pixels 1:1 on a canvas backed with the drawing's own outline ink (so the few texels between
      the traced edge and the drawn edge read as outline), mipmapped, anisotropic, no lighting maths beyond the
      world's painted warm/cool tint (kept faint here so the drawn colours stay as drawn). No shine anywhere.
@@ -50,11 +52,13 @@ const SCULPTURES=[
     backFit:{dx:4,dy:-12,s:.99},                          // see BACK FIT above (front-image px)
     lon:-1.392, lat:.499,                                 // where it stands: the garden lawn at the ring-road bend, between alley1 and side2
     facing:30,                                            // compass bearing the illustrated front looks toward, degrees from north turning toward east (+lon)
-    nudge:[0,0],                                          // fine shift in metres: [toward the front's right, toward the front]
-    height:3.0,                                           // metres from the bottom of the drawing to its highest branch tip (width follows the image: 2.96 m)
+    nudge:[0,0],                                          // fine shift in metres: [to the right as you face the drawing, toward the front]
+    height:3.0,                                           // metres from the bottom of the drawing to its highest branch tip (width follows the image: 2.98 m)
     depth:.10,                                            // thickness of the cut-out, metres
+    credit:'Art by @littlevegaanartist · Instagram',    // the artist's credit: a plaque on the plinth's front and a line in the viewer (Josh); null = none
     plinth:{w:3.3, d:.6, rise:.2, sink:.08, color:0x9a958c}, // footprint (m); top 'rise' above the highest ground under it, base 'sink' below the lowest; null = no plinth
     edge:0x3a3431,                                        // the cut edges: matte charcoal, a shade off the drawing's ink
+    shadow:true,                                          // a faint painted shadow on the grass, cast by the game's sun like the dressing's own; false = none
     back:{fill:'auto', ink:'auto', line:3.5},             // back face: fill (auto = the back art's branch grey), outline ink (auto = the art's own), outline width in image px
     trace:{alpha:128, grid:2, tol:1, holeMin:200, flatBase:30} // outline tracing (image px): alpha cut, block size, simplification, smallest kept hole, rows squared off at the base
   }
@@ -198,11 +202,11 @@ function poseFor(G,T,s){
 async function build(s){
   const G=window.GAME,T=THREE,r=G.renderer;const t0=performance.now();
   const [img,back]=await Promise.all([loadImg(s.img),s.backImg?loadImg(s.backImg).catch(e=>{console.warn(e.message+': using the plain back');return null;}):null]);
-  const t1=performance.now();
-  const id=pixelsOf(img);const tr=traceOutline(id,s.trace||{});const t2=performance.now();
+  const t1=performance.now();await idle();
+  const id=pixelsOf(img);const tr=traceOutline(id,s.trace||{});const t2=performance.now();await idle(); /* the work is split so no single step holds up a frame for long */
   const path=bodyPath(tr);
   const visH=tr.bbox[3]-tr.bbox[1],mpp=s.height/visH,depth=s.depth||.1;
-  const geo=buildBody(T,tr,{mpp,cx:(tr.bbox[0]+tr.bbox[2])/2,base:tr.bbox[3],depth});const t3=performance.now();
+  const geo=buildBody(T,tr,{mpp,cx:(tr.bbox[0]+tr.bbox[2])/2,base:tr.bbox[3],depth});const t3=performance.now();await idle();
   /* colours */
   const inkF=edgeInk(id);const bid=back?pixelsOf(back):null;const bo=s.back||{};
   const inkB=bo.ink&&bo.ink!=='auto'?hex(bo.ink):rgbHex(edgeInk(bid||id));const fillB=bo.fill&&bo.fill!=='auto'?hex(bo.fill):rgbHex(branchGrey(bid||id));
@@ -214,11 +218,17 @@ async function build(s){
   const backT=finishTex(T,backCanvas(tr,path,back,fit,fillB,inkB,bo.line||3.5,bw,bh),r);
   const t4=performance.now();
   const mats=[painted(T,G,new T.MeshBasicMaterial({map:front}),.22),painted(T,G,new T.MeshBasicMaterial({map:backT}),.3),painted(T,G,new T.MeshBasicMaterial({color:s.edge===undefined?0x3a3431:s.edge}),.6)];
-  const art=new T.Mesh(geo,mats);art.name='art:'+s.id;
   const item={s,tr,geo,mats,tex:[front,backT],img,back,path,fitInfo,colours:{frontInk:rgbHex(inkF),backInk:inkB,backFill:fillB},times:{load:Math.round(t1-t0),trace:Math.round(t2-t1),mesh:Math.round(t3-t2),textures:Math.round(t4-t3)},texSizes:{front:[fw,fh],back:[bw,bh]}};
   ART.items[s.id]=item;place(item);return item;}
 
 /* stand it on the ground: plinth sized to the slope under it, the cut-out on top, a solid, the prompt */
+/* the credit plaque: a cream plate with the line in the planet's hand-lettered font, painted once per text (fonts permitting) */
+function plaque(T,G,text,w,h){const c=document.createElement('canvas'),H=128,Wd=Math.round(H*w/h);c.width=Wd;c.height=H;const tex=new T.CanvasTexture(c);tex.anisotropy=8;
+  const paint=()=>{const g=c.getContext('2d');g.clearRect(0,0,Wd,H);const r=26;g.beginPath();g.moveTo(r,4);g.arcTo(Wd-4,4,Wd-4,H-4,r);g.arcTo(Wd-4,H-4,4,H-4,r);g.arcTo(4,H-4,4,4,r);g.arcTo(4,4,Wd-4,4,r);g.closePath();
+    g.fillStyle='#f3ead6';g.fill();g.lineWidth=7;g.strokeStyle='#3a3431';g.stroke();let fs=74;const font=n=>n+'px "Patrick Hand","Arial Rounded MT Bold","Trebuchet MS",sans-serif';g.font=font(fs);while(g.measureText(text).width>Wd-90&&fs>30){fs-=2;g.font=font(fs);}
+    g.fillStyle='#2e2a33';g.textAlign='center';g.textBaseline='middle';g.fillText(text,Wd/2,H/2+4);tex.needsUpdate=true;};
+  paint();try{document.fonts&&document.fonts.load('74px "Patrick Hand"').then(paint,()=>{});}catch(e){}
+  const m=new T.Mesh(new T.PlaneGeometry(w,h),painted(T,G,new T.MeshBasicMaterial({map:tex,transparent:true}),.5));m.userData.noInk=true;return m;}
 function place(item){
   const G=window.GAME,T=THREE,s=item.s;unplace(item);
   const pose=poseFor(G,T,s);const grp=new T.Group();grp.name='art-sculpture:'+s.id;
@@ -227,27 +237,45 @@ function place(item){
   const fw=pl?pl.w:artW+.1,fd=pl?pl.d:(s.depth||.1)+.1;let lo=1e9,hi=-1e9;
   for(let i=0;i<=10;i++)for(let j=0;j<=4;j++){const y=pose.groundY((i/10-.5)*fw,(j/4-.5)*fd);if(y<lo)lo=y;if(y>hi)hi=y;}
   let top=hi;if(pl){const yb=lo-(pl.sink===undefined?.08:pl.sink),yt=hi+(pl.rise===undefined?.2:pl.rise);
-    const pm=new T.Mesh(new T.BoxGeometry(pl.w,yt-yb,pl.d),painted(T,G,new T.MeshBasicMaterial({color:pl.color===undefined?0x9a958c:pl.color}),.85));pm.position.y=(yb+yt)/2;pm.name='art-plinth:'+s.id;grp.add(pm);top=yt;}
+    const pm=new T.Mesh(new T.BoxGeometry(pl.w,yt-yb,pl.d),painted(T,G,new T.MeshBasicMaterial({color:pl.color===undefined?0x9a958c:pl.color}),.85));pm.position.y=(yb+yt)/2;pm.name='art-plinth:'+s.id;grp.add(pm);top=yt;
+    if(s.credit){const pq=plaque(T,G,s.credit,Math.min(pl.w-.4,1.7),.13);pq.position.set(0,yt-.095,pl.d/2+.004);pq.name='art-plaque:'+s.id;grp.add(pq);}}
   else top=lo; /* no plinth: the base meets the lowest ground and the rest sinks a little into the higher side */
   const art=new T.Mesh(item.geo,item.mats);art.name='art:'+s.id;art.position.y=top-.012;grp.add(art); /* a centimetre into the plinth, so no light shows under it */
   G.scene.add(grp);grp.updateMatrixWorld(true);
+  const shadow=s.shadow===false?null:paintShadow(item,grp,pose,art.position.y);
   /* solid: one box over the footprint (the planet keeps box solids at radius R) */
   const solid={c:pose.n.clone().multiplyScalar(G.R),X:pose.X.clone(),Z:pose.Z.clone(),hx:fw/2,hz:fd/2,art:s.id};G.solids.push(solid);
   /* the prompt: three door points across the front, 1.2 m out from the plinth; the planet shows a door's prompt within 2.1 m
      of it when you face its inward direction, so you get it standing on the lawn or the pavement edge facing the art,
      and never behind it (the back of the plinth is 2.2 m from them) */
-  const act={kind:'art',id:s.id,title:s.title,label:s.label||'Inspect artwork',img:s.img,back:s.backImg||null,alt:s.alt||s.title};
+  const act={kind:'art',id:s.id,title:s.title,label:s.label||'Inspect artwork',img:s.img,back:null,credit:s.credit||'',alt:s.alt||s.title}; /* back:null: the viewer shows the front only, no Front/Back switch (Josh: no need to inspect the back) */
   const doors=[];for(const x of [-1,0,1]){const w0=pose.P.clone().addScaledVector(pose.X,x*Math.min(1,artW/3)).addScaledVector(pose.Z,fd/2+1.2);const dn=w0.normalize();
     const d={n:dn,w:dn.clone().multiplyScalar(G.gAt(dn)),inw:pose.F.clone().negate(),act,key:'art:'+s.id+':'+x};G.DOORS.push(d);doors.push(d);}
-  Object.assign(item,{grp,art,solid,doors,pose,plinthTop:top,ground:{lo:+lo.toFixed(3),hi:+hi.toFixed(3)}});G.dirty();}
-function unplace(item){const G=window.GAME;if(item.grp){G.scene.remove(item.grp);item.grp.traverse(o=>{if(o.isMesh&&o.name.startsWith('art-plinth')){o.geometry.dispose();o.material.dispose();}});item.grp=null;}
+  Object.assign(item,{grp,art,solid,doors,pose,shadow,plinthTop:top,ground:{lo:+lo.toFixed(3),hi:+hi.toFixed(3)}});G.dirty();}
+function unplace(item){const G=window.GAME;if(item.grp){G.scene.remove(item.grp);item.grp.traverse(o=>{if(o.isMesh&&/^art-(plinth|shadow|plaque)/.test(o.name)){if(o.material.map)o.material.map.dispose();}if(o.isMesh&&/^art-(plinth|shadow|plaque)/.test(o.name)){o.geometry.dispose();o.material.dispose();}});item.grp=null;}
+  if(item.shadow){const i=G.hideInNormals.indexOf(item.shadow);if(i>=0)G.hideInNormals.splice(i,1);item.shadow=null;}
   if(item.solid){const i=G.solids.indexOf(item.solid);if(i>=0)G.solids.splice(i,1);item.solid=null;}
   if(item.doors){for(const d of item.doors){const i=G.DOORS.indexOf(d);if(i>=0)G.DOORS.splice(i,1);}item.doors=null;}G.dirty();}
+
+/* its shadow painted on the ground, as planet-dress.js paints the shadows of trees, poles and wires: the front
+   face's own triangles projected along the game's sun (high, from the east-north of wherever you stand) onto the
+   grass, faint and flat, left out of the ink pass so it draws no lines */
+function paintShadow(item,grp,pose,artY){const G=window.GAME,T=THREE;const n=pose.n;
+  const e=new T.Vector3(-n.z,0,n.x).normalize(),no=new T.Vector3().crossVectors(e,n).normalize();const d=n.clone().multiplyScalar(1.6).addScaledVector(e,.7).addScaledVector(no,.5).normalize(),dn=d.dot(n);
+  const pa=item.geo.attributes.position,g0=item.geo.groups[0],out=new Float32Array(g0.count*3),v=new T.Vector3(),q=new T.Vector3();
+  for(let i=0;i<g0.count;i++){const k=g0.start+i;v.set(pa.getX(k),pa.getY(k)+artY,0).applyMatrix4(grp.matrixWorld);const h=q.copy(v).sub(pose.P).dot(n);v.addScaledVector(d,-h/dn);
+    q.copy(v).normalize();v.copy(q).multiplyScalar(G.gAt(q)+.04);grp.worldToLocal(v);out[i*3]=v.x;out[i*3+1]=v.y;out[i*3+2]=v.z;}
+  const g=new T.BufferGeometry();g.setAttribute('position',new T.BufferAttribute(out,3));g.computeBoundingSphere();
+  const m=new T.Mesh(g,new T.MeshBasicMaterial({color:0x1c2a40,transparent:true,opacity:.16,depthWrite:false,side:T.DoubleSide,polygonOffset:true,polygonOffsetFactor:-7,polygonOffsetUnits:-7}));
+  m.name='art-shadow:'+item.s.id;m.renderOrder=2;grp.add(m);G.hideInNormals.push(m);return m;}
+const idle=()=>new Promise(r=>setTimeout(r,0));
 
 /* console helpers for tuning */
 ART.set=(id,patch)=>{const it=ART.items[id];if(!it)return 'no such artwork: '+id;Object.assign(it.s,patch||{});
   if(patch&&(patch.height!==undefined||patch.depth!==undefined)){const T=THREE,tr=it.tr;it.geo.dispose();it.geo=buildBody(T,tr,{mpp:it.s.height/(tr.bbox[3]-tr.bbox[1]),cx:(tr.bbox[0]+tr.bbox[2])/2,base:tr.bbox[3],depth:it.s.depth||.1});}
   place(it);return ART.info(id);};
+ART.rebuild=async id=>{const s=SCULPTURES.find(x=>x.id===id);if(!s)return 'no such artwork: '+id;const it=ART.items[id];if(it){unplace(it);for(const t of it.tex)t.dispose();it.geo.dispose();for(const m of it.mats)m.dispose();delete ART.items[id];}
+  await build(s);return ART.info(id);}; /* from the files again: after replacing an image, or changing backFit / trace in ART.config */
 ART.info=id=>{const it=ART.items[id];if(!it)return null;const b=it.geo.boundingBox;return {id,lon:it.s.lon,lat:it.s.lat,facing:it.s.facing,nudge:it.s.nudge,size_m:[+(b.max.x-b.min.x).toFixed(3),+(b.max.y-b.min.y).toFixed(3),+(b.max.z-b.min.z).toFixed(3)],
   triangles:it.geo.userData.tris,outline:{points:it.tr.points,bodies:it.tr.bodies.length,holes:it.tr.keptHoles,frontOnlySpecks:it.tr.decals.length,filled:it.tr.dropped},ground:it.ground,plinthTop:+it.plinthTop.toFixed(3),
   backFit:it.fitInfo,colours:it.colours,texSizes:it.texSizes,ms:it.times};};
@@ -261,6 +289,7 @@ function css(){if(document.getElementById('art-css'))return;const st=document.cr
 #house .artv-load{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;font-size:24px;opacity:.6}
 #house .artv-load[hidden]{display:none}
 #house .artv-bar{position:absolute;left:50%;bottom:max(12px,env(safe-area-inset-bottom));transform:translateX(-50%);display:flex;align-items:center;gap:8px;padding:6px 8px 6px 14px;max-width:calc(100% - 20px);box-sizing:border-box}
+#house .artv-credit{position:absolute;left:12px;top:10px;padding:4px 12px;border-radius:12px;background:rgba(243,234,214,.92);color:#2e2a33;font-family:var(--hand);font-size:18px;pointer-events:none;z-index:2}
 #house .artv-hint{font-size:17px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0;flex:1 1 auto}
 #house .artv-bar button{font-family:var(--hand);font-size:19px;line-height:1;padding:5px 11px;cursor:pointer;background:#fff;color:#26333a;border:2px solid #26333a;border-radius:6px;flex:none}
 #house .artv-bar button[aria-pressed=true]{background:#f4c945}
@@ -271,13 +300,13 @@ function css(){if(document.getElementById('art-css'))return;const st=document.cr
 function artRoom(body,act){
   css();const touch=matchMedia('(pointer:coarse)').matches;
   const root=document.createElement('div');root.className='artv';
-  root.innerHTML='<div class="artv-stage" tabindex="0" role="img"><img class="artv-img" draggable="false" alt=""><div class="artv-load">Loading the artwork…</div></div>'+
+  root.innerHTML='<div class="artv-stage" tabindex="0" role="img"><img class="artv-img" draggable="false" alt=""><div class="artv-load">Loading the artwork…</div>'+(act.credit?'<div class="artv-credit"></div>':'')+'</div>'+
     '<div class="artv-bar ink"><span class="artv-hint"></span>'+(act.back?'<span class="artv-seg" role="group" aria-label="Side"><button type="button" data-side="front" aria-pressed="true">Front</button><button type="button" data-side="back" aria-pressed="false">Back</button></span>':'')+
     '<button type="button" data-z="out" aria-label="Zoom out">−</button><span class="artv-pct" aria-live="polite"></span><button type="button" data-z="in" aria-label="Zoom in">+</button><button type="button" data-z="fit" aria-label="Fit to screen">Fit</button></div>';
   body.appendChild(root);
   const stage=root.querySelector('.artv-stage'),im=root.querySelector('.artv-img'),load=root.querySelector('.artv-load'),pct=root.querySelector('.artv-pct'),hint=root.querySelector('.artv-hint');
   hint.textContent=touch?'Pinch to zoom · drag to move · double-tap to zoom in':'Scroll to zoom · drag to move · double-click to zoom in · 0 fits · Esc closes';
-  stage.setAttribute('aria-label',act.alt||act.title);im.alt=act.alt||act.title;
+  if(act.credit)root.querySelector('.artv-credit').textContent=act.credit;stage.setAttribute('aria-label',act.alt||act.title);im.alt=act.alt||act.title;
   let alive=true,iw=0,ih=0,z=1,tx=0,ty=0,fitZ=1,anim=0,atFit=true,barH=0;const MAXZ=4,reduce=matchMedia('(prefers-reduced-motion: reduce)').matches;
   const view=()=>{const r=stage.getBoundingClientRect();return {w:r.width,h:r.height,l:r.left,t:r.top};};
   const minZ=()=>Math.min(fitZ,1);
