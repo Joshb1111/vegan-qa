@@ -97,7 +97,7 @@ const FOE = {
 const FOE_LETTER = { s: 'smog', t: 'thorn', d: 'drip', c: 'cog', l: 'lantern', k: 'knight' };
 const GIVES = { knot: 'dash', boiler: 'grip', cloud: 'puff' };   /* what each guardian leaves when calmed */
 const GUARD = {
-  knot: { w: 80, h: 80, hp: 22 }, boiler: { w: 120, h: 110, hp: 26 }, cloud: { w: 150, h: 70, hp: 28 }, heart: { w: 112, h: 112, hp: 36 }
+  knot: { w: 80, h: 80, hp: 26 }, boiler: { w: 120, h: 110, hp: 26 }, cloud: { w: 150, h: 70, hp: 28 }, heart: { w: 112, h: 112, hp: 36 }
 };
 RL.FOE = FOE; RL.GUARD = GUARD;
 
