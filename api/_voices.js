@@ -13,7 +13,7 @@ export const VOICES = {
   Leslie: "goT3UYdM9bhm0n2lmKQx",
   // the Earthlings activists at the street protest (the planet sends n.voice when it is set, so this Sam doesn't borrow the forest Sam's voice)
   Jo: "MuZahdjQfGm43Kkfxdi8",
-  Josh: "yyz00dgHV4PBZ6E2j9xI",
+  Josh: "HAfx1Nwa3oT486RWo6Zc",
   "Sam the activist": "sVsUCT7L71Mt0k0ydAz3",
 };
 export const VOICE_MODEL = "eleven_flash_v2_5"; // cheapest model that still sounds natural
