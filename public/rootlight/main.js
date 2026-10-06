@@ -277,7 +277,7 @@ function onKey(c) {
   /* ---- play ---- */
   if (paused) {
     const rows = pauseRows();
-    if (c === 'Escape' || c === 'KeyP') { paused = false; sim.freeze = !!over && !liveNow(); sfx('back'); return; }
+    if (c === 'Escape' || c === 'KeyP' || c === 'Backspace') { paused = false; sim.freeze = !!over && !liveNow(); sfx('back'); return; }
     if (UPK(c)) { sel = (sel + rows.length - 1) % rows.length; sfx('menu'); } else if (DNK(c)) { sel = (sel + 1) % rows.length; sfx('menu'); }
     else if (GO(c)) pauseChoose(sel);
     else if (c === 'KeyM') { setMute(!muted); } else if (c === 'KeyN') setMusic(!musicOn);
