@@ -440,7 +440,7 @@ function applyLog(s, e) {
     const me = s.players[1], before = me.maxLeaves, kind = e[2], v = e[3];
     if (kind === 'ability') s.save.ab[v] = 1; else if (kind === 'life') s.save.life = Math.max(s.save.life, v | 0); else if (kind === 'vessel') s.save.vessels = Math.max(s.save.vessels, v | 0); else if (kind === 'notch') s.save.notches = Math.max(s.save.notches, v | 0); else if (kind === 'charm' && typeof v === 'string') s.save.charms[v] = 1;
     s.applyStats();
-    if (me.alive && (kind === 'ability' || me.maxLeaves > before)) me.leaves = me.maxLeaves;   /* the same refill the finder had */
+    if (me.alive && (kind === 'ability' || (kind === 'life' && (v | 0) % 2 === 0) || me.maxLeaves > before)) me.leaves = me.maxLeaves;   /* the same refill the finder had (even if the new save came first) */
     if (kind === 'vessel') me.sun = me.sunMax;
     s.ev('get', kind, v, e[4] | 0);
   }
