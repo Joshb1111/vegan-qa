@@ -1,0 +1,199 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>ROOTLIGHT audio test</title>
+<style>
+body{font:14px/1.4 system-ui,sans-serif;margin:16px;background:#f3f0e6;color:#2b2140}
+h1{font-size:18px;margin:0 0 4px} h2{font-size:15px;margin:18px 0 6px}
+button{font:inherit;margin:2px;padding:4px 9px;border:2px solid #2b2140;border-radius:9px;background:#fff;cursor:pointer}
+button.on{background:#a8e07a}
+table{border-collapse:collapse;font:12px ui-monospace,monospace} td,th{padding:2px 8px;border-bottom:1px solid #ddd5c2;text-align:right} td:first-child,th:first-child{text-align:left}
+.ok{color:#1d7a35;font-weight:600}.bad{color:#b3262f;font-weight:600}.note{color:#6d6080;font-size:12px}
+input[type=range]{width:140px;vertical-align:middle}
+</style>
+<script>
+/* count AudioContext constructions and any storage access, before audio.js loads */
+window.__count = { ac: 0, storage: 0 };
+for (const k of ['AudioContext', 'webkitAudioContext']) {
+  const C = window[k]; if (!C) continue;
+  window[k] = function (...a) { window.__count.ac++; return new C(...a); }; window[k].prototype = C.prototype;
+}
+try { for (const m of ['getItem', 'setItem', 'removeItem', 'clear', 'key']) { const f = Storage.prototype[m]; Storage.prototype[m] = function (...a) { window.__count.storage++; return f.apply(this, a); }; } } catch (e) {}
+</script>
+</head><body>
+<h1>ROOTLIGHT — audio test</h1>
+<div class="note">Live buttons make sound (the first click unlocks). <a href="?offline=1">?offline=1</a> renders everything silently into an
+OfflineAudioContext and prints peak / RMS (add &amp;long=1 to also render every tune's whole 32-bar loop). <a href="?mute=1">?mute=1</a> checks that nothing is ever made.</div>
+<div id="checks"></div>
+<div id="live">
+<h2>Music</h2><div id="mus"></div>
+<div>v (intensity): <input id="v" type="range" min="0" max="100" value="0"> <span id="vv">0</span>
+ · <button id="mute">mute</button> <button id="musoff">music off</button> <button id="hid">hidden</button></div>
+<h2>Sounds</h2><div id="sfx"></div>
+<div>arg: land impact / bloom kind <input id="arg" type="range" min="0" max="6" value="3"> <span id="argv">3</span></div>
+</div>
+<div id="off"></div>
+<script src="../../../public/rootlight/audio.js"></script>
+<script>
+'use strict';
+const $ = id => document.getElementById(id), Q = new URLSearchParams(location.search), A = RL.Audio;
+const checks = [];
+function check(name, ok, info) { checks.push([name, !!ok, info]); $('checks').innerHTML = '<h2>Checks</h2>' + checks.map(([n, o, i]) => `<div><span class="${o ? 'ok' : 'bad'}">${o ? 'PASS' : 'FAIL'}</span> ${n} <span class="note">${i || ''}</span></div>`).join(''); }
+window.__checks = checks;
+const WANT_MUSIC = ['title', 'rootgate', 'mossy', 'glowcap', 'pipes', 'crystal', 'cloud', 'heart', 'guardian', 'final', 'calm', 'ending', 'shop'];
+const WANT_SFX = ['step', 'jump', 'land', 'swing', 'hit', 'bloom', 'bud', 'hurt', 'thorn', 'faint', 'wake', 'revive', 'heal', 'focus', 'dash', 'cling', 'walljump', 'puff', 'beam',
+  'bounce', 'pogo', 'dew', 'dewBig', 'pickup', 'life', 'vessel', 'charm', 'ability', 'notch', 'save', 'door', 'gate', 'lever', 'switch', 'crack', 'break', 'splash', 'vent', 'crumble',
+  'spore', 'clang', 'charge', 'wind', 'rain', 'zap', 'slam', 'rumble', 'gtell', 'ghit', 'calm', 'bubble', 'shop', 'buy', 'nope', 'menu', 'select', 'back', 'map', 'talk'];
+
+// ---------- checks that always run ----------
+{ const mm = WANT_MUSIC.filter(n => A.names.music.indexOf(n) < 0), ms = WANT_SFX.filter(n => A.names.sfx.indexOf(n) < 0);
+  check('Every INTERFACE music and sfx name exists; every tune parses', !mm.length && !ms.length && !A._bad.length,
+    (mm.concat(ms).join(' ') || A.names.music.length + ' tunes, ' + A.names.sfx.length + ' sfx') + (A._bad.length ? ' bad: ' + A._bad.join('; ') : '')); }
+try {
+  A.music('title'); A.play('bloom', 2); A.play('focus', true); A.play('focus', false); A.mute(false); A.hidden(true); A.hidden(false); A.music('guardian', .5); A.music(null);
+  const was = A.musicOn(); A.musicOn(false); const off = A.musicOn(); A.musicOn(true); const on = A.musicOn(); A.musicOn(was);
+  check('Before unlock(): every call is a no-op (no AudioContext), musicOn() remembers', A.ready === false && window.__count.ac === 0 && off === false && on === true, 'contexts made: ' + window.__count.ac);
+} catch (e) { check('Before unlock()', false, e.message); }
+fetch('../../../public/rootlight/audio.js').then(r => r.text()).then(src => {
+  const win = { location: { search: '' } };
+  try {
+    new Function('window', src)(win); const X = win.RL.Audio;
+    X.unlock(); X.music('final', 1); X.play('bloom', 3); X.play('focus', true); X.mute(true); X.musicOn(false); X.hidden(true); X.hidden(false); X.music(null); X.play('nope-not-a-sound');
+    check('Without WebAudio: loading and every call is a silent no-op, nothing throws', X.ready === false);
+  } catch (e) { check('Without WebAudio', false, e.message); }
+  const win2 = { location: { search: '?mute=1' }, AudioContext: function () { win2.made++; } }; win2.made = 0;
+  try { new Function('window', src)(win2); const X = win2.RL.Audio; X.unlock(); X.music('title'); X.play('bloom'); X.mute(false); X.hidden(false); X.musicOn(true);
+    check('?mute=1 (sandboxed copy): unlock / music / play make no AudioContext', win2.made === 0 && X.silent === true, 'made ' + win2.made); }
+  catch (e) { check('?mute=1 sandboxed', false, e.message); }
+});
+
+// ---------- ?mute=1 on this page: nothing is ever made ----------
+if (Q.get('mute') === '1') {
+  try {
+    A.unlock(); A.music('title'); A.play('bloom', 1); A.play('focus', true); A.mute(false); A.musicOn(true); A.hidden(false); A.unlock(); A.music('final', 1); A.play('ability');
+    window.__muteRes = { ac: window.__count.ac, storage: window.__count.storage, ready: A.ready, silent: A.silent };
+    check('?mute=1: no AudioContext after unlock / music / play', window.__count.ac === 0 && A.silent === true && A.ready === false, JSON.stringify(window.__muteRes));
+  } catch (e) { check('?mute=1', false, e.message); window.__muteRes = { error: e.message }; }
+}
+
+// ---------- live buttons (for Josh; the tests never press these) ----------
+const vIn = $('v'), argIn = $('arg');
+vIn.oninput = () => { $('vv').textContent = (vIn.value / 100).toFixed(2); if (curTune) A.music(curTune, vIn.value / 100); };
+argIn.oninput = () => $('argv').textContent = argIn.value;
+let curTune = null;
+for (const n of A.names.music.concat([null])) {
+  const b = document.createElement('button'); b.textContent = n || 'fade out';
+  b.onclick = () => { A.unlock(); curTune = n; A.music(n, vIn.value / 100); for (const x of $('mus').children) x.classList.toggle('on', x === b && !!n); }; $('mus').append(b);
+}
+let focusOn = false;
+for (const n of A.names.sfx) {
+  const b = document.createElement('button'); b.textContent = n;
+  b.onclick = () => {
+    A.unlock();
+    if (n === 'focus') { focusOn = !focusOn; b.classList.toggle('on', focusOn); A.play('focus', focusOn); return; }
+    A.play(n, n === 'land' ? argIn.value / 6 : n === 'bloom' ? +argIn.value : n === 'gtell' ? ['knot', 'boiler', 'cloud', 'heart'][argIn.value % 4] : undefined);
+  };
+  $('sfx').append(b);
+}
+let muted = false, hidden = false;
+$('mute').onclick = e => { muted = !muted; e.target.classList.toggle('on', muted); A.mute(muted); };
+$('musoff').onclick = e => { const off = A.musicOn(); e.target.classList.toggle('on', off); A.musicOn(!off); };
+$('hid').onclick = e => { hidden = !hidden; e.target.classList.toggle('on', hidden); A.hidden(hidden); };
+
+// ---------- offline renders (silent) ----------
+const SR = 44100;
+async function render(secs, fn) {
+  const ac = new OfflineAudioContext(2, Math.ceil(SR * secs), SR), I = A._render(ac);
+  const t0 = performance.now(); fn(I, .02); const buf = await ac.startRendering(), ms = performance.now() - t0;
+  const L = buf.getChannelData(0), R = buf.getChannelData(1);
+  let peak = 0, sum = 0, first = -1, last = 0, nan = false, clip = 0;
+  for (let i = 0; i < L.length; i++) for (const x of [L[i], R[i]]) { if (x !== x) { nan = true; continue; } const v = Math.abs(x); if (v > peak) peak = v; sum += v * v; if (v > .001) { if (first < 0) first = i; last = i; } if (v >= .99) clip++; }
+  const n = Math.max(1, last - Math.max(0, first) + 1);
+  return { peak, rms: Math.sqrt(sum / (2 * n)), ms: first < 0 ? 0 : Math.round((last - first) / SR * 1000), nan, clip, L, R, I, cpu: ms / 1000 / secs };
+}
+const win = (r, a, b) => { let p = 0, s = 0, k = 0; for (let i = Math.floor(a * SR), e = Math.min(r.L.length, Math.floor(b * SR)); i < e; i++) for (const x of [r.L[i], r.R[i]]) { const v = Math.abs(x); if (v > p) p = v; s += v * v; k++; } return { peak: p, rms: Math.sqrt(s / Math.max(1, k)) }; };
+const db = v => +(20 * Math.log10(v || 1e-9)).toFixed(1);
+const keep = r => ({ peak: +r.peak.toFixed(4), peakDb: db(r.peak), rmsDb: db(r.rms), ms: r.ms, nan: r.nan, clip: r.clip, cpu: +(r.cpu * 100).toFixed(1) });
+async function offline() {
+  $('live').style.display = 'none';
+  const rows = [], res = window.__res = { sfx: {}, music: {}, mix: {} };
+  const row = (group, name, r) => { rows.push([group, name, r]); $('off').innerHTML = '<h2>Offline renders (peak / RMS over the audible part, dBFS; cpu = render time / audio time)</h2><table><tr><th>item</th><th>peak</th><th>peak dB</th><th>RMS dB</th><th>ms</th><th>clipped</th><th>cpu %</th></tr>' +
+    rows.map(([g, n, r]) => `<tr><td>${g} ${n}</td><td>${r.peak.toFixed(3)}</td><td>${db(r.peak)}</td><td>${db(r.rms)}</td><td>${r.ms}</td><td>${r.clip}</td><td>${(r.cpu * 100).toFixed(1)}</td></tr>`).join('') + '</table>'; };
+  let anyNaN = false, seqErrs = 0; const silent = [];
+  // every sound effect (a few with args)
+  for (const n of A.names.sfx) {
+    const args = n === 'land' ? [0, 1] : n === 'bloom' ? [0, 6] : n === 'focus' ? [true] : [undefined];
+    for (const a of args) {
+      const key = n + (args.length > 1 ? String(a) : '');
+      const r = n === 'focus' ? await render(3, (I, t) => { I.play('focus', true, t); for (let k = 1; k < 80; k++) I.tick(t + k * .02); I.play('focus', false, t + 1.6); })
+        : await render(n === 'ability' || n === 'calm' || n === 'faint' ? 4 : 2.5, (I, t) => I.play(n, a, t));
+      res.sfx[key] = keep(r); row('sfx', key, r); anyNaN = anyNaN || r.nan; if (r.peak < .005) silent.push(key);
+    }
+  }
+  check('Every sound effect renders (none silent, no NaN, none clipped)', !silent.length && !anyNaN && Object.values(res.sfx).every(x => !x.clip && x.peak < .99), silent.join(' ') || Object.keys(res.sfx).length + ' renders, loudest ' + Math.max(...Object.values(res.sfx).map(x => x.peak)).toFixed(3));
+  check('Frequent sounds are soft (step, dew, talk, menu peak ≤ 0.12)', ['step', 'dew', 'talk', 'menu'].every(k => res.sfx[k].peak <= .12), ['step', 'dew', 'talk', 'menu'].map(k => k + ' ' + res.sfx[k].peak).join(', '));
+  // music: ~8 s of each tune; guardian / final at three intensities
+  const pieces = A.names.music.map(n => [n, n, 0]).concat([['guardian v.5', 'guardian', .5], ['guardian v1', 'guardian', 1], ['final v.5', 'final', .5], ['final v1', 'final', 1]]);
+  for (const [key, name, v] of pieces) {
+    const secs = name === 'calm' ? 10 : 8, r = await render(secs, (I, t) => { I.music(name, v, t); I.schedule(t, secs); });
+    res.music[key] = keep(r); row('music', key, r); anyNaN = anyNaN || r.nan; seqErrs += r.I.errs;
+  }
+  check('No exception inside the sequencer in any tune', seqErrs === 0, seqErrs + ' errors');
+  check('Every tune renders, none silent, none clipped', Object.values(res.music).every(x => x.peak > .01 && x.peak < .99 && !x.clip), Object.keys(res.music).map(k => k + ' ' + res.music[k].peak).join(', '));
+  { const g = ['guardian', 'guardian v.5', 'guardian v1'].map(k => res.music[k].rmsDb), f = ['final', 'final v.5', 'final v1'].map(k => res.music[k].rmsDb);
+    check('Guardian and final swell with v (RMS rises stage by stage)', g[1] > g[0] + .5 && g[2] > g[1] + .5 && f[1] > f[0] + .5 && f[2] > f[1] + .5, 'guardian ' + g.join(' / ') + ' dB, final ' + f.join(' / ') + ' dB'); }
+  // whole loops (slow): every bar of every tune, 32 bars each
+  if (Q.get('long') === '1') for (const name of A.names.music) {
+    for (const v of (name === 'guardian' || name === 'final' ? [0, 1] : [0])) {
+      const d = A._songs[name], secs = Math.min(125, d.bars.length * d.spb * d.sd + 2.5), r = await render(secs, (I, t) => { I.music(name, v, t); I.schedule(t, secs); });
+      seqErrs += r.I.errs; res.music[name + ' loop' + (v ? ' v1' : '')] = keep(r); row('loop', name + (v ? ' v1' : '') + ' (' + secs.toFixed(0) + ' s)', r); anyNaN = anyNaN || r.nan;
+    }
+  }
+  // crossfade title → mossy at 3 s: no gap, both fade (the old tune is dropped after its fade)
+  { let seqsAfter = -1;
+    const r = await render(8, (I, t) => { I.music('title', 0, t); I.schedule(t, 3); I.music('mossy', 0, 3); I.schedule(3, 5.5); I.schedule(5.5, 8); seqsAfter = I.seqs.length; });
+    const a = win(r, 2, 3), b = win(r, 3.2, 4), c = win(r, 5, 8); res.mix.xfade = { a: db(a.rms), b: db(b.rms), c: db(c.rms), seqsAfter }; row('mix', 'title → mossy crossfade at 3 s', r);
+    check('Crossfade: no gap between tunes, the old one is dropped after ~1.3 s', a.rms > .003 && b.rms > .003 && c.rms > .003 && seqsAfter === 1, `RMS before ${db(a.rms)}, during ${db(b.rms)}, after ${db(c.rms)} dB; tunes alive after ${seqsAfter}`); }
+  // music(null) fades out
+  { const r = await render(9, (I, t) => { I.music('crystal', 0, t); I.schedule(t, 3); I.music(null, 0, 3); I.schedule(3, 9); }), a = win(r, 2, 3), b = win(r, 6.5, 9);
+    res.mix.fadeOut = { before: db(a.rms), tail: db(b.peak) }; row('mix', 'crystal then music(null) at 3 s', r);
+    check('music(null) fades to silence (reverb tail gone by 3.5 s)', a.rms > .003 && b.peak < .002, 'peak 3.5 s after: ' + b.peak.toFixed(5)); }
+  // the same name again only updates v (no restart: one sequencer, the step count carries on)
+  { let same = null; const r = await render(8, (I, t) => { I.music('guardian', 0, t); I.schedule(t, 4); const q = I.cur; I.music('guardian', 1, 4); same = I.cur === q && I.seqs.length === 1; I.schedule(4, 8); });
+    const a = win(r, 1, 4), b = win(r, 5, 8); res.mix.sameName = { same, v0: db(a.rms), v1: db(b.rms) }; row('mix', 'guardian v0 → v1 at 4 s (same tune)', r);
+    check('Same tune again only updates v: no restart, and it swells', same && b.rms > a.rms * 1.2, `same sequencer ${same}, RMS ${db(a.rms)} → ${db(b.rms)} dB`); }
+  // final stage 3 lifts the key a whole tone: compare the lead's first note frequency via bar config
+  { let tr0 = null, tr1 = null; await render(1, (I, t) => { I.music('final', 0, t); I.schedule(t, .5); tr0 = I.cur.bar.tr; I.music('final', 1, .5); I.cur.bar = null; I.schedule(.5, 1); tr1 = I.cur.bar.tr; });
+    check('Final at v ≥ .67 lifts the key a whole tone', tr1 - tr0 === 2, 'tr ' + tr0 + ' → ' + tr1); }
+  // calm: the cue plays once, then a soft held pad
+  { const r = await render(24, (I, t) => { I.music('calm', 0, t); I.schedule(t, 24); }), a = win(r, 1, 12), b = win(r, 13, 24);
+    res.mix.calm = { cue: db(a.rms), hold: db(b.rms) }; row('mix', 'calm cue then hold (24 s)', r);
+    check('Calm: the cue, then a softer held pad that keeps going', a.rms > b.rms * 1.3 && b.rms > .0015, `cue ${db(a.rms)} dB, hold ${db(b.rms)} dB`); }
+  // music off: the music renders silent, sound effects stay at full level
+  { const play = (I, t) => { I.play('pickup', 0, t + .5); I.play('select', 0, t + 1); I.play('nope', 0, t + 1.5); }; /* sounds with no randomness */
+    const r = await render(5, (I, t) => { I.setMusicOn(false, t); I.music('final', 1, t); I.schedule(t, 5); }), r1 = await render(5, (I, t) => { I.setMusicOn(false, t); I.music('final', 1, t); I.schedule(t, 5); play(I, t); }),
+      r0 = await render(5, (I, t) => { I.sRev.gain.value = A._songs.final.space; play(I, t); }); /* the same room acoustics as the tune sets */
+    row('mix', 'final, music off', r); row('mix', 'final music off + sfx', r1); row('mix', 'same sfx alone', r0);
+    check('Music off: tune silent; sound effects unchanged', r.peak < .001 && Math.abs(r1.peak - r0.peak) < .02 * r0.peak + .002, `music ${r.peak.toFixed(5)}, sfx ${r1.peak.toFixed(4)} vs ${r0.peak.toFixed(4)}`); }
+  // mute silences everything
+  { const r = await render(3, (I, t) => { I.setMute(true, t); I.music('title', 0, t); I.schedule(t, 3); I.play('bloom', 1, t + .5); I.play('focus', true, t + .6); }); row('mix', 'muted', r);
+    check('Mute: silent', r.peak < .001, 'peak ' + r.peak.toFixed(5)); }
+  // sound effects stay audible over the loudest music
+  { const r0 = await render(4, (I, t) => { I.music('final', 1, t); I.schedule(t, 4); }), r1 = await render(4, (I, t) => { I.music('final', 1, t); I.schedule(t, 4); I.play('bloom', 3, 2); I.play('hit', 0, 2); });
+    const m = win(r0, 2, 2.4), s = win(r1, 2, 2.4), sa = await render(1, (I, t) => I.play('bloom', 3, t));
+    res.mix.overMusic = { music: db(m.rms), withSfx: db(s.rms), sfxAlonePeak: db(sa.peak), musicPeak: db(m.peak) };
+    check('Sound effects stand clear of the music (bloom + hit over final v1 add ≥ 4 dB)', db(s.rms) - db(m.rms) >= 4, `music ${db(m.rms)} dB → with bloom + hit ${db(s.rms)} dB`); }
+  // rate limits: 40 steps in 2 s → about 8 a second; 30 dew drops at once → a quick climbing run
+  { let steps = 0, dews = 0; await render(.5, (I, t) => { for (let k = 0; k < 40; k++) if (I.play('step', 0, t + k * .05)) steps++; for (let k = 0; k < 30; k++) if (I.play('dew', 0, t + k * .01)) dews++; });
+    check('Step is rate-limited to ~8 a second; dew to ~25', steps <= 18 && steps >= 14 && dews <= 9, `40 steps in 2 s → ${steps} played; 30 dew in .3 s → ${dews}`); }
+  // stress: the loudest music + a pile of sounds at once never clips
+  { const r = await render(5, (I, t) => {
+      I.noLimits = true; I.music('final', 1, t); I.schedule(t, 5);
+      for (let k = 0; k < 30; k++) I.play('bloom', k % 7, t + 1 + (k % 3) * .001);
+      for (let k = 0; k < 10; k++) I.play('hit', 0, t + 1); for (const n of ['ability', 'calm', 'gate', 'slam', 'rumble', 'life', 'ghit', 'gtell', 'save']) I.play(n, 0, t + 1.02);
+    }); res.mix.stress = keep(r); row('mix', 'stress: final v1 + 30 blooms + 10 hits + big jingles', r);
+    check('Stress: never clips', r.peak < .99 && !r.clip, 'peak ' + r.peak.toFixed(3)); }
+  check('No NaN in any render; no sequencer exceptions (incl. long loops)', !anyNaN && seqErrs === 0, seqErrs + ' sequencer errors');
+  res.done = true;
+}
+if (Q.get('offline') === '1') offline().catch(e => { check('offline run', false, e.message + ' ' + e.stack); window.__res = { error: e.message, done: true }; });
+</script></body></html>
