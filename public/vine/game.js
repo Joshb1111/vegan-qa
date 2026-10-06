@@ -103,7 +103,8 @@ function onKey(c) {
   if (c === 'KeyN') { setMusic(!musicOn); return; }
   const go = c === 'Space' || c === 'Enter' || c === 'NumpadEnter';
   if (online && (quiet || verBad)) { if (c === 'Space' || c === 'Enter') playAlone(); else if (c === 'Escape') post({ ty: 'exit' }); return; }   /* on the title too: a waiting guest was stuck behind them */
-  if (state === 'title') { if (!online) { if (c === 'Space') { sfx('select'); startGame(1); } else if (c === 'Enter' || c === 'NumpadEnter') { sfx('select'); startGame(2); } } return; }
+  if (state === 'title') { if (c === 'Escape') { post({ ty: 'exit' }); return; } if (!online) {   /* Esc on the title: back to the arcade's menu (Esc there goes back to town) */
+    if (c === 'Space') { sfx('select'); startGame(1); } else if (c === 'Enter' || c === 'NumpadEnter') { sfx('select'); startGame(2); } } return; }
   if (state !== 'play') return;
   if (paused) { if (c === 'KeyP' || c === 'Space' || c === 'Escape') paused = false; return; }
   const kd = KEYDIR[c]; if (kd) { turnInput(kd[0], kd[1]); return; }

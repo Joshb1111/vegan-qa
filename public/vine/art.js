@@ -437,7 +437,7 @@ const SCREENS = {
         ctx.fillStyle = 'rgba(43,33,64,.55)'; ctx.beginPath(); rrect(ctx, 40, 384, 400, 64, 18); ctx.fill();
         putS(ctx, SPR.head0, 68, 404, .78); text(ctx, 'SPRIG', 88, 404, 14, VC[0].txt, 'left'); text(ctx, 'W A S D', 186, 404, 14, '#fff', 'left');
         putS(ctx, SPR.head1, 68, 430, .7); text(ctx, 'MARIGOLD', 88, 430, 14, VC[1].txt, 'left'); text(ctx, 'arrow keys', 186, 430, 14, '#fff', 'left');
-        text(ctx, '1 player: either', 424, 404, 12, '#e9e3ff', 'right'); text(ctx, 'P pause  Esc menu', 424, 430, 12, '#e9e3ff', 'right');
+        text(ctx, '1 player: either', 424, 404, 12, '#e9e3ff', 'right'); text(ctx, 'P pause  Esc back', 424, 430, 12, '#e9e3ff', 'right');
       } else text(ctx, 'Swipe to steer your vine', 240, 410, 16, '#fff');
     }
     const y = W + 40;
