@@ -485,11 +485,12 @@ function keysCard() {
 function touchS() { const m = touchMask(); const L = TL; return { band: L.band, stick: L.stick, knob: stick ? { x: stick.x, y: stick.y, ox: stick.ox, oy: stick.oy } : null, btn: L.btn.map(b => Object.assign({}, b, { down: (b.id === 'jump' && m & IN.JUMP) || (b.id === 'swing' && m & IN.SWING) || (b.id === 'dash' && m & IN.DASH) || (b.id === 'focus' && m & IN.FOCUS) })) }; }
 function drawOver(scr) {
   const o = over, n = o.name, s = sim.save;
-  if (n === 'map') { if (!o.data) o.data = mapS(); o.data.t = overT; scr('map', o.data); }
-  else if (n === 'dialog') scr('dialog', { t: overT, who: o.who, name: o.name2 || (o.who === 'peddler' ? 'The Peddler' : ''), text: o.pages[o.i || 0] || '', more: (o.i || 0) < o.pages.length - 1 });
-  else if (n === 'get') scr('get', { t: overT, kind: o.kind, id: o.id, title: o.title, text: o.text, keys: o.keys });
-  else if (n === 'shop') scr('shop', { t: overT, sel: overSel, list: shopRows(), dew: s.dew, line: o.line || '' });
-  else if (n === 'charms') { const used = RL.Sim.notchesUsed(s); scr('charms', { t: overT, sel: overSel, list: charmRows(), notches: s.notches, used, edit: !!o.edit, line: o.line || '' }); }
+  if (n === 'map') { if (!o.data) o.data = mapS(); o.data.t = overT; o.data.touch = touchMode || coarse; scr('map', o.data); }
+  const touch = touchMode || coarse, band = padMode ? { y: VH, h: LH - VH } : null;
+  if (n === 'dialog') scr('dialog', { t: overT, who: o.who, name: o.name2 || (o.who === 'peddler' ? 'The Peddler' : ''), text: o.pages[o.i || 0] || '', more: (o.i || 0) < o.pages.length - 1, touch, band });
+  else if (n === 'get') scr('get', { t: overT, kind: o.kind, id: o.id, title: o.title, text: o.text, keys: o.keys, touch, band });
+  else if (n === 'shop') scr('shop', { t: overT, sel: overSel, list: shopRows(), dew: s.dew, line: o.line || '', touch, band });
+  else if (n === 'charms') { const used = RL.Sim.notchesUsed(s); scr('charms', { t: overT, sel: overSel, list: charmRows(), notches: s.notches, used, edit: !!o.edit, line: o.line || '', touch: touchMode || coarse, band: padMode ? { y: VH, h: LH - VH } : null }); }
 }
 function mapS() {
   const s = sim.save, rooms = [];

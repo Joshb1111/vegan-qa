@@ -9,8 +9,11 @@
              hash. Crumbling ledges, briars, breakable walls and water are drawn live. A chunk is re-baked when a tile changes.
    COLOUR    backgrounds, terrain, glooms, guardians and hazards are drawn, then the colour is faded out by 1 - room.colour
              (one 'saturation' fill), then everything kind is drawn in full colour on top: a grey room fills with colour.
-   LIGHT     dark rooms: a quarter-resolution light map (baked radial sprites, additive) multiplied over the view;
+   LIGHT     dark rooms: a quarter-resolution light map (baked radial sprites, additive) multiplied over the view; without
+             Glow the ambient is dimmed (x0.55) and sprouts carry only a small pool, with Glow a broad warm pool opens the room;
              other rooms: soft additive light pools and god-rays.
+   PHONE     held upright (canvas taller than the 360 view, a control band below): dialog, shop, charms, get card, pause and
+             messages are laid out for the whole tall canvas at a bigger scale (UI hit rects are scaled to match).
    RL.Render: init(R, low), room(sim), tick(sim), fx(sim, ev), frame(ctx, F), hud(ctx, H), screen(ctx, name, S),
    text(ctx, s, x, y, size, fill, align) -> width, UI (hit rects: rows, chips, back). Logical view 640 x 360. */
 'use strict';
@@ -74,21 +77,23 @@ const M3 = { LEAF: ['#86dc5c', '#3f9a3a', '#e6ffd6'], SUN: ['#ffd93b', '#f5a623'
 /* ---------- sticker text (cached per string, size and colour; LRU) ---------- */
 let TXT = new Map(), txtB = 0; let mctx = null;
 function mc() { if (!mctx) mctx = document.createElement('canvas').getContext('2d'); return mctx; }
-function txtCanvas(s, size, fill) {
-  const key = s + '|' + size + '|' + fill; let c = TXT.get(key);
+/* body text (para): the ink is thinner and word gaps a little wider so words never run together */
+const WIDE = s => s.indexOf(' ') < 0 ? s : s.replace(/ /g, ' \u2006');
+function txtCanvas(s, size, fill, body) {
+  const key = s + '|' + size + '|' + fill + (body ? '|b' : ''); let c = TXT.get(key);
   if (c) { TXT.delete(key); TXT.set(key, c); return c; }
   const m = mc(); m.font = font(size); const w = m.measureText(s).width, p = size * 0.3 + 1, lw = w + p * 2, lh = size * 1.25 + p * 2;
   c = document.createElement('canvas'); c.width = Math.max(1, Math.ceil(lw * R)); c.height = Math.max(1, Math.ceil(lh * R)); c.lw = c.width / R; c.lh = c.height / R; c.tw = w;
   const g = c.getContext('2d'); g.scale(R, R); g.font = font(size); g.textAlign = 'left'; g.textBaseline = 'middle'; g.lineJoin = 'round';
-  g.strokeStyle = INK; g.lineWidth = size * 0.3; const ty = lh / 2 - 0.5;
+  g.strokeStyle = INK; g.lineWidth = size * (body ? (size >= 13 ? 0.22 : 0.26) : 0.3); const ty = lh / 2 - 0.5;
   g.strokeText(s, p, ty + size * 0.07); g.strokeText(s, p, ty); g.fillStyle = fill; g.fillText(s, p, ty);
   TXT.set(key, c); txtB += c.width * c.height * 4;
   while (TXT.size > 1 && (TXT.size > 260 || txtB > 10e6)) { const k = TXT.keys().next().value, o = TXT.get(k); txtB -= o.width * o.height * 4; TXT.delete(k); }
   return c;
 }
-function text(ctx, s, x, y, size, fill, align) {
-  s = String(s == null ? '' : s).slice(0, 90); if (!s) return 0; size = Math.round(Math.max(5, Math.min(120, +size || 14)) * 2) / 2; fill = fill || '#fff'; align = align || 'center';
-  const c = txtCanvas(s, size, fill), p = (c.lw - c.tw) / 2, x0 = align === 'center' ? x - c.lw / 2 : align === 'right' ? x - c.tw - p : x - p;
+function text(ctx, s, x, y, size, fill, align, body) {
+  s = String(s == null ? '' : s).slice(0, body ? 140 : 90); if (!s) return 0; size = Math.round(Math.max(5, Math.min(120, +size || 14)) * 2) / 2; fill = fill || '#fff'; align = align || 'center';
+  const c = txtCanvas(s, size, fill, body), p = (c.lw - c.tw) / 2, x0 = align === 'center' ? x - c.lw / 2 : align === 'right' ? x - c.tw - p : x - p;
   ctx.drawImage(c, x0, y - c.lh / 2, c.lw, c.lh); return c.tw;
 }
 const TW = new Map();
@@ -96,16 +101,16 @@ function tw(s, z) { const k = z + '|' + s; let v = TW.get(k); if (v === undefine
 const WR = new Map();
 function wrap(s, size, maxW) {
   const key = size + '|' + maxW + '|' + s; let L = WR.get(key); if (L) return L;
-  L = []; for (const para of String(s || '').split('\n')) { let line = ''; for (const w of para.split(' ')) { const t2 = line ? line + ' ' + w : w; if (line && tw(t2, size) > maxW) { L.push(line); line = w; } else line = t2; } L.push(line); }
+  L = []; for (const para of String(s || '').split('\n')) { let line = ''; for (const w of para.split(' ')) { const t2 = line ? line + ' ' + w : w; if (line && tw(WIDE(t2), size) > maxW) { L.push(line); line = w; } else line = t2; } L.push(line); }
   if (WR.size > 400) WR.clear(); WR.set(key, L); return L;
 }
 /* wrapped sticker text; `reveal` (chars) clips a typewriter reveal without making new cache entries */
 function para(ctx, s, x, y, maxW, size, fill, align, lh, reveal) {
   const L = wrap(s, size, maxW); lh = lh || size * 1.32; let n = reveal == null ? 1e9 : reveal;
   for (let i = 0; i < L.length; i++) {
-    const ln = L[i], yy = y + i * lh; if (n <= 0) break;
-    if (n >= ln.length) text(ctx, ln, x, yy, size, fill, align);
-    else { const w = tw(ln.slice(0, n), size), full = tw(ln, size), x0 = align === 'center' ? x - full / 2 : align === 'right' ? x - full : x; ctx.save(); ctx.beginPath(); ctx.rect(x0 - size, yy - size, w + size * 0.6, size * 2); ctx.clip(); text(ctx, ln, x, yy, size, fill, align); ctx.restore(); }
+    const ln = L[i], wl = WIDE(ln), yy = y + i * lh; if (n <= 0) break;
+    if (n >= ln.length) text(ctx, wl, x, yy, size, fill, align, true);
+    else { const w = tw(WIDE(ln.slice(0, n)), size), full = tw(wl, size), x0 = align === 'center' ? x - full / 2 : align === 'right' ? x - full : x; ctx.save(); ctx.beginPath(); ctx.rect(x0 - size, yy - size, w + size * 0.6, size * 2); ctx.clip(); text(ctx, wl, x, yy, size, fill, align, true); ctx.restore(); }
     n -= ln.length + 1;
   }
   return L.length * lh;
@@ -690,7 +695,15 @@ function bgFor(area) {
     const far = A.far, edge = rgba(tint(far, 0.18), 0.6);
     if (area === 'cloud') {
       for (let i = 0; i < 9; i++) wrapAt(W, H, rnd(i, 1) * W, rnd(i, 2) * H, 90, (x, y) => puff(g, x, y, 22 + rnd(i, 3) * 26, 'rgba(255,255,255,.55)', null, null));
-      for (let i = 0; i < 4; i++) wrapAt(W, H, rnd(i, 4) * W, rnd(i, 5) * H, 80, (x, y) => { g.fillStyle = '#c4c8ec'; g.beginPath(); g.ellipse(x, y, 46, 12, 0, 0, PI); g.fill(); g.beginPath(); g.moveTo(x - 40, y); g.quadraticCurveTo(x, y + 50, x + 40, y); g.fill(); puff(g, x, y - 6, 16, '#dfe2fa', null, null); g.strokeStyle = '#b8b0d8'; g.lineWidth = 2; for (let k = -2; k <= 2; k++) { g.beginPath(); g.moveTo(x + k * 9, y + 16); g.quadraticCurveTo(x + k * 9 + 5, y + 40, x + k * 8, y + 56 + rnd(i, k + 9) * 20); g.stroke(); } });
+      /* far rain clouds: three-circle puffs on a flat base, with short straight slanted rain dashes below */
+      for (let i = 0; i < 4; i++) wrapAt(W, H, rnd(i, 4) * W, rnd(i, 5) * H, 80, (x, y) => {
+        g.fillStyle = '#ccd0f0'; circle(g, x - 20, y - 4, 15); g.fill(); circle(g, x + 2, y - 12, 21); g.fill(); circle(g, x + 23, y - 3, 14); g.fill(); rr(g, x - 36, y - 8, 73, 16, 8); g.fill();
+        g.fillStyle = '#dfe2fa'; circle(g, x - 4, y - 16, 12); g.fill(); circle(g, x - 21, y - 7, 8); g.fill();
+        g.fillStyle = '#b9bde2'; g.fillRect(x - 30, y + 4, 61, 4);
+        g.strokeStyle = 'rgba(160,166,214,.85)'; g.lineWidth = 2; g.lineCap = 'round'; g.beginPath();
+        for (let k = 0; k < 6; k++) { const rx = x - 26 + k * 10.5, o = rnd(i, k + 9) * 8; for (let j = 0; j < 3; j++) { const ry = y + 15 + o + j * 15; if (ry > y + 60) break; g.moveTo(rx - j * 3.2, ry); g.lineTo(rx - j * 3.2 - 2.6, ry + 7); } }
+        g.stroke();
+      });
       return;
     }
     if (area === 'pipes') {
@@ -795,10 +808,12 @@ let LS = null, VIG = null;
 function lightSprites() {
   LS = {};
   for (const k in LCOL) { const c = document.createElement('canvas'); c.width = c.height = 64; const g = c.getContext('2d'), gr = g.createRadialGradient(32, 32, 0, 32, 32, 32); gr.addColorStop(0, rgba(LCOL[k], 1)); gr.addColorStop(0.35, rgba(LCOL[k], 0.6)); gr.addColorStop(0.7, rgba(LCOL[k], 0.18)); gr.addColorStop(1, rgba(LCOL[k], 0)); g.fillStyle = gr; g.fillRect(0, 0, 64, 64); LS[k] = c; }
+  /* the Glow pool: a broad, flat-topped warm light that opens a dark room around a sprout with Glow */
+  { const c = document.createElement('canvas'); c.width = c.height = 64; const g = c.getContext('2d'), gr = g.createRadialGradient(32, 32, 0, 32, 32, 32); gr.addColorStop(0, 'rgba(255,244,222,1)'); gr.addColorStop(0.45, 'rgba(255,236,204,.96)'); gr.addColorStop(0.7, 'rgba(255,220,170,.58)'); gr.addColorStop(0.88, 'rgba(255,214,160,.18)'); gr.addColorStop(1, 'rgba(255,214,160,0)'); g.fillStyle = gr; g.fillRect(0, 0, 64, 64); LS.pool = c; }
   VIG = document.createElement('canvas'); VIG.width = 160; VIG.height = 90; const g = VIG.getContext('2d'), gr = g.createRadialGradient(80, 45, 30, 80, 45, 100);
   gr.addColorStop(0, 'rgba(12,6,24,0)'); gr.addColorStop(0.7, 'rgba(12,6,24,.12)'); gr.addColorStop(1, 'rgba(12,6,24,.5)'); g.fillStyle = gr; g.fillRect(0, 0, 160, 90);
 }
-let LM = null, LMG = null; const LMS = () => LOW ? 5 : 4;
+let LM = null, LMG = null, GLOWK = 0, GLOWT = -99; const LMS = () => LOW ? 5 : 4, AMBD = new Map();
 let CAUS = null, CAUSP = null;
 function causticTile() {
   CAUS = sprite(80, 80, g => {
@@ -1168,7 +1183,7 @@ function frame(ctx, F) {
   /* the gloomy things are grey by their own art; drawn after the fade so their tells (glows, sparks, warnings) keep their colour */
   for (const f of r.foes) if (f.alive && inV(f.x, f.y, 60)) callArt('foe', SI.foe, ctx, f, t);
   if (r.guard) callArt('guardian', SI.guardian, ctx, r.guard, t);
-  for (const h of r.hazards) callArt('hazard', SI.hazard, ctx, h, t);
+  for (const h of r.hazards) { callArt('hazard', SI.hazard, ctx, h, t); if (h.kind === 'vine') vineArrow(ctx, h, cx, cy, t); }
   for (const f of r.flowers) if (inV(f.x, f.y, 40)) callArt('flower', SI.flower, ctx, f, t);
   for (const b of r.buds) if (inV(b.x, b.y, 30)) callArt('bud', SI.bud, ctx, b, t);
   for (const sp of r.spots) if (inV(sp.x, sp.y, 60)) callArt('spot', SI.spot, ctx, sp, t);
@@ -1176,7 +1191,7 @@ function frame(ctx, F) {
   for (const s of r.signs) if (inV(s.x, s.y, 40)) callArt('sign', SI.sign, ctx, s, t);
   for (const l of r.levers) if (inV(l.x, l.y, 40)) callArt('lever', SI.lever, ctx, l, t);
   for (const s of r.switches) if (inV(s.x, s.y, 40)) callArt('switch', SI.switch, ctx, s, t);
-  for (const g of r.gates) if (g.x < cx + VW + 20 && g.x + g.w > cx - 20 && g.y < cy + VH + 20 && g.y + g.h > cy - 20) callArt('gate', SI.gate, ctx, g, t, r.area);
+  for (const g of r.gates) { const up = g.kind === 'seal' ? 90 : 20; if (g.x < cx + VW + 20 && g.x + g.w > cx - 20 && g.y - up < cy + VH && g.y + g.h > cy - 20) callArt('gate', SI.gate, ctx, g, t, r.area); }
   for (const p of r.plats) callArt('plat', SI.plat, ctx, p, t, r.area);
   for (const v of r.vents) if (inV(v.x, v.y, 40)) callArt('vent', SI.vent, ctx, v, t);
   for (const c of r.caps) if (inV(c.x, c.y, 40)) callArt('cap', SI.cap, ctx, c, t);
@@ -1207,6 +1222,20 @@ function frame(ctx, F) {
   }
   bakesThisFrame = 0;
   lastFrameMs = (typeof performance !== 'undefined' ? performance.now() : 0) - t0;
+}
+/* a sweeping vine starts off-screen: a pulsing arrow at the edge of the view on the side it will come from */
+function vineArrow(ctx, h, cx, cy, t) {
+  const d = num(h.vx, 0) < 0 ? -1 : 1, x = num(h.x, 0), w = num(h.w, 60), tell = num(h.tell, 0) > 0;
+  const off = d > 0 ? x + w < cx + 8 : x > cx + VW - 8; if (!off) return;
+  const k = tell ? clamp01(1 - h.tell / 50) : 1, p = 0.5 + 0.5 * Math.sin(t * (0.2 + k * 0.2));
+  const ex = (d > 0 ? cx + 24 : cx + VW - 24) + d * Math.sin(t * 0.3) * 3, ey = clamp(num(h.y, 0) + num(h.h, 26) / 2, cy + 44, cy + VH - 30), rr2 = 15 + p * 2;
+  ctx.save(); ctx.globalCompositeOperation = 'lighter'; ctx.globalAlpha = 0.5 + 0.3 * p; ctx.drawImage(LS.gold, ex - 34, ey - 34, 68, 68); ctx.restore();
+  ctx.fillStyle = INK; circle(ctx, ex, ey + 1.5, rr2 + 3); ctx.fill();
+  ctx.fillStyle = '#ffd24a'; circle(ctx, ex, ey, rr2); ctx.fill();
+  ctx.fillStyle = 'rgba(255,255,255,.5)'; ctx.beginPath(); ctx.ellipse(ex - rr2 * 0.3, ey - rr2 * 0.45, rr2 * 0.4, rr2 * 0.2, -0.4, 0, TAU); ctx.fill();
+  ctx.fillStyle = INK; ctx.beginPath(); ctx.moveTo(ex + d * 9, ey); ctx.lineTo(ex - d * 5, ey - 8); ctx.lineTo(ex - d * 2, ey); ctx.lineTo(ex - d * 5, ey + 8); ctx.closePath(); ctx.fill();
+  ctx.strokeStyle = INK; ctx.lineWidth = 3; ctx.lineCap = 'round'; const tx = ex + d * (rr2 + 9); for (let i = 0; i < 2; i++) { const xx = tx + d * i * 8 + d * ((t * 0.4) % 8); ctx.globalAlpha = 0.8 - i * 0.3; ctx.beginPath(); ctx.moveTo(xx - d * 4, ey - 6); ctx.lineTo(xx + d * 2, ey); ctx.lineTo(xx - d * 4, ey + 6); ctx.stroke(); }
+  ctx.globalAlpha = 1;
 }
 /* fade the colour out by 1 - colour (one 'saturation' fill and a little soot), except, for a moment, around a fresh bloom */
 function greyOut(ctx, r, col, cx, cy) {
@@ -1305,11 +1334,18 @@ function drawParts(ctx, cx, cy, glowPass, dark) {
 function darkLight(ctx, sim, r, t, cx, cy, A) {
   const s = LMS(), lw = Math.ceil(VW / s), lh = Math.ceil(VH / s);
   if (!LM || LM.width !== lw || LM.height !== lh) { LM = document.createElement('canvas'); LM.width = lw; LM.height = lh; LMG = LM.getContext('2d'); }
-  const g = LMG; g.globalCompositeOperation = 'source-over'; g.globalAlpha = 1; g.fillStyle = A.amb; g.fillRect(0, 0, lw, lh);
+  /* without Glow the room is much darker (ambient x0.55) with only small pools; with Glow a big warm pool opens it up */
+  let lit = false; for (const p of sim.players) if (p.glow && (p.alive || p.bubble || p.st === 'faint')) lit = true;
+  GLOWK += ((lit ? 1 : 0) - GLOWK) * 0.08; if (Math.abs(GLOWK - (lit ? 1 : 0)) < 0.01 || Math.abs(t - GLOWT) > 4) GLOWK = lit ? 1 : 0; GLOWT = t;
+  let amb = AMBD.get(A.amb); if (!amb) { amb = [mix(A.amb, '#000000', 0.45), A.amb]; AMBD.set(A.amb, amb); }
+  const g = LMG; g.globalCompositeOperation = 'source-over'; g.globalAlpha = 1; g.fillStyle = amb[0]; g.fillRect(0, 0, lw, lh);
+  if (GLOWK > 0) { g.globalAlpha = GLOWK; g.fillStyle = amb[1]; g.fillRect(0, 0, lw, lh); }
   g.globalCompositeOperation = 'lighter';
   const L = (x, y, rad, key, a) => { const X = (x - cx) / s, Y = (y - cy) / s, q = rad / s; if (X + q < 0 || X - q > lw || Y + q < 0 || Y - q > lh || a <= 0) return; g.globalAlpha = Math.min(1, a); g.drawImage(LS[key] || LS.w, X - q, Y - q, q * 2, q * 2); };
   const fl = 1 + Math.sin(t * 0.09) * 0.03;
-  for (const p of sim.players) { if (!p.alive && !p.bubble && p.st !== 'faint') continue; const rad = (p.glow ? 140 : 44) * fl; L(p.x, p.y - 14, rad, 'warm', 1); L(p.x, p.y - 14, rad * 0.6, 'w', 0.9); if (p.glow) { L(p.x, p.y - 14, rad * 0.8, 'warm', 0.8); L(p.x, p.y - 14, rad * 1.3, 'warm', 0.45); } }
+  for (const p of sim.players) { if (!p.alive && !p.bubble && p.st !== 'faint') continue;
+    if (p.glow) { const k = lit ? Math.max(0.35, GLOWK) : 1; L(p.x, p.y - 14, 178 * fl, 'pool', k); L(p.x, p.y - 14, 96 * fl, 'warm', 0.5 * k); L(p.x, p.y - 14, 40, 'w', 0.6); }
+    else { L(p.x, p.y - 14, 46 * fl, 'warm', 1); L(p.x, p.y - 14, 28 * fl, 'w', 0.85); } }
   const S = RC.lights; for (let i = 0; i < S.length; i += 5) L(S[i], S[i + 1], S[i + 2] * (1 + Math.sin(t * 0.04 + i) * 0.06), S[i + 3], S[i + 4]);
   for (const c of r.caps) L(c.x, c.y - 10, 60, 'cyan', 0.9 + c.squash * 0.4);
   for (const sp of r.spots) L(sp.x, sp.y - 10, sp.lit ? 110 : 80, 'warm', 0.9);
@@ -1328,6 +1364,8 @@ function darkLight(ctx, sim, r, t, cx, cy, A) {
   const H = (x, y, rad, key, a) => { if (x < cx - rad || x > cx + VW + rad || y < cy - rad || y > cy + VH + rad) return; ctx.globalAlpha = a; ctx.drawImage(LS[key], x - rad, y - rad, rad * 2, rad * 2); };
   for (let i = 0; i < S.length; i += 5) H(S[i], S[i + 1], 14, S[i + 3], 0.35);
   for (const c of r.caps) H(c.x, c.y - 12, 20, 'cyan', 0.4);
+  /* Glow: the sprout's own warm light spills over everything near it */
+  if (GLOWK > 0) for (const p of sim.players) if (p.glow && (p.alive || p.bubble || p.st === 'faint')) { H(p.x, p.y - 14, 150 * fl, 'pool', 0.2 * GLOWK); H(p.x, p.y - 14, 60 * fl, 'warm', 0.16 * GLOWK); }
   ctx.restore();
 }
 function poolLight(ctx, sim, r, t, cx, cy, A) {
@@ -1352,27 +1390,39 @@ const LV = [{ n: -1, t: 0, d: 0 }, { n: -1, t: 0, d: 0 }];
 function sunJar(ctx, x, y, r, p, t) {
   const k = clamp01(num(p.sun, 0) / Math.max(1, num(p.sunMax, 99))), ready = num(p.sun, 0) >= 33;
   if (ready) { ctx.save(); ctx.globalCompositeOperation = 'lighter'; ctx.globalAlpha = 0.28 + 0.12 * Math.sin(t * 0.08); ctx.drawImage(LS.gold, x - r * 2.2, y - r * 2.2, r * 4.4, r * 4.4); ctx.restore(); }
-  /* cork and sprout */
-  ctx.fillStyle = INK; rr(ctx, x - r * 0.42 - 2, y - r - 7, r * 0.84 + 4, 10, 3.5); ctx.fill(); ctx.fillStyle = '#c88a5a'; rr(ctx, x - r * 0.42, y - r - 5.5, r * 0.84, 7, 2.5); ctx.fill();
-  leaf(ctx, x + 1, y - r - 6, -PI / 2 + 0.7 + Math.sin(t * 0.05) * 0.1, 8, M3.LEAF, 1.5); leaf(ctx, x - 1, y - r - 6, -PI / 2 - 0.8 + Math.sin(t * 0.05 + 1) * 0.1, 6.5, M3.LEAF, 1.5);
-  ctx.fillStyle = INK; circle(ctx, x, y, r + 2.6); ctx.fill();
-  ctx.fillStyle = '#4a3f78'; circle(ctx, x, y, r); ctx.fill(); ctx.fillStyle = '#3a3064'; circle(ctx, x + 1.5, y + 2, r - 3); ctx.fill();
-  ctx.save(); circle(ctx, x, y, r - 1.2); ctx.clip();
-  const top = y + r - k * r * 2;
-  if (k > 0) {
-    ctx.fillStyle = '#f0a020'; ctx.fillRect(x - r, top, r * 2, r * 2);
-    ctx.fillStyle = '#ffcf3f'; ctx.beginPath(); ctx.moveTo(x - r, y + r); for (let xx = -r; xx <= r; xx += 2) ctx.lineTo(x + xx, top + Math.sin(xx * 0.4 + t * 0.12) * 1.1); ctx.lineTo(x + r, y + r); ctx.closePath(); ctx.fill();
-    ctx.fillStyle = 'rgba(255,248,200,.85)'; ctx.fillRect(x - r, top - 0.6 + Math.sin(t * 0.12) * 0.5, r * 2, 1.4);
-    for (let i = 0; i < 3; i++) { const q = ((t * 0.6 + i * 23) % 40) / 40, bx = x + (i - 1) * r * 0.45; if (top < y + r - 4) { ctx.fillStyle = 'rgba(255,250,210,.7)'; circle(ctx, bx, y + r - 3 - q * (y + r - top - 4), 1); ctx.fill(); } }
+  /* a glass jar of sunlight: straight sides, a short neck and a lid; pale lilac glass, golden light rising inside */
+  const s = r / 18, L = x - 14 * s, Rt = x + 14 * s, nk = 9 * s, top0 = y - 15 * s, sh = y - 11 * s, bot = y + 19 * s, rad = 6 * s;
+  const glass = () => { ctx.beginPath(); ctx.moveTo(x - nk, top0); ctx.lineTo(x - nk, sh - 1 * s); ctx.quadraticCurveTo(L, sh - 0.5 * s, L, sh + 5 * s); ctx.lineTo(L, bot - rad); ctx.quadraticCurveTo(L, bot, L + rad, bot); ctx.lineTo(Rt - rad, bot); ctx.quadraticCurveTo(Rt, bot, Rt, bot - rad); ctx.lineTo(Rt, sh + 5 * s); ctx.quadraticCurveTo(Rt, sh - 0.5 * s, x + nk, sh - 1 * s); ctx.lineTo(x + nk, top0); ctx.closePath(); };
+  glass(); ctx.fillStyle = 'rgba(236,230,255,.62)'; ctx.fill();
+  ctx.save(); glass(); ctx.clip();
+  ctx.fillStyle = 'rgba(190,176,236,.38)'; ctx.fillRect(x + 5 * s, top0, 10 * s, bot - top0);   /* the far side of the glass, a little shaded */
+  const fb = bot - 1.6 * s, ft = top0 + 2 * s, top = fb - k * (fb - ft);
+  if (k > 0.004) {
+    const gr = ctx.createLinearGradient(0, top, 0, bot); gr.addColorStop(0, '#ffe45a'); gr.addColorStop(1, '#f5a020'); ctx.fillStyle = gr;
+    ctx.beginPath(); ctx.moveTo(L - 2, bot + 2); ctx.lineTo(L - 2, top); for (let xx = -15; xx <= 15; xx += 2.5) ctx.lineTo(x + xx * s, top + Math.sin(xx * 0.45 + t * 0.12) * 0.9 * s); ctx.lineTo(Rt + 2, top); ctx.lineTo(Rt + 2, bot + 2); ctx.closePath(); ctx.fill();
+    ctx.fillStyle = 'rgba(255,255,255,.28)'; ctx.fillRect(L, top, 9 * s, bot - top);
+    /* the level line: a bright wavy surface over a darker gold edge */
+    ctx.lineWidth = 2.2 * s; ctx.strokeStyle = '#c87a10'; ctx.beginPath(); for (let xx = -15; xx <= 15; xx += 2.5) ctx.lineTo(x + xx * s, top + 1.2 * s + Math.sin(xx * 0.45 + t * 0.12) * 0.9 * s); ctx.stroke();
+    ctx.lineWidth = 1.6 * s; ctx.strokeStyle = '#fffbe0'; ctx.beginPath(); for (let xx = -15; xx <= 15; xx += 2.5) ctx.lineTo(x + xx * s, top + Math.sin(xx * 0.45 + t * 0.12) * 0.9 * s); ctx.stroke();
+    for (let i = 0; i < 3; i++) { const q = ((t * 0.6 + i * 23) % 40) / 40, bx = x + (i - 1) * 7 * s; if (top < fb - 5) { twinkle(ctx, bx, fb - 2 - q * (fb - top - 4), 1.6 * s, t * 0.05 + i, 'rgba(255,252,220,.9)'); } }
   }
-  /* a tick for each Focus worth of sunlight */
+  /* a tick for each Focus worth of sunlight, on the glass */
   const n = Math.round(num(p.sunMax, 99) / 33);
-  ctx.strokeStyle = 'rgba(43,33,64,.5)'; ctx.lineWidth = 1.2; ctx.beginPath();
-  for (let i = 1; i < n; i++) { const yy = y + r - (i / n) * r * 2, hw = Math.sqrt(Math.max(0, r * r - (yy - y) * (yy - y))); ctx.moveTo(x - hw, yy); ctx.lineTo(x - hw + 5, yy); ctx.moveTo(x + hw - 5, yy); ctx.lineTo(x + hw, yy); }
+  ctx.strokeStyle = 'rgba(43,33,64,.6)'; ctx.lineWidth = 1.4; ctx.beginPath();
+  for (let i = 1; i < n; i++) { const yy = fb - (i / n) * (fb - ft); ctx.moveTo(Rt - 6 * s, yy); ctx.lineTo(Rt, yy); }
   ctx.stroke();
   ctx.restore();
-  ctx.fillStyle = 'rgba(255,255,255,.55)'; ctx.beginPath(); ctx.ellipse(x - r * 0.42, y - r * 0.45, r * 0.26, r * 0.14, -0.7, 0, TAU); ctx.fill();
-  if (p.focus > 0.01) { ctx.strokeStyle = INK; ctx.lineWidth = 4.6; ctx.beginPath(); ctx.arc(x, y, r + 5.5, -PI / 2, -PI / 2 + TAU * p.focus); ctx.stroke(); ctx.strokeStyle = '#c8ffa0'; ctx.lineWidth = 2.4; ctx.stroke(); }
+  /* the glass shines: a strong highlight down the left, a glint on the shoulder */
+  ctx.fillStyle = 'rgba(255,255,255,.9)'; rr(ctx, L + 2.6 * s, sh + 3 * s, 3 * s, 15 * s, 1.5 * s); ctx.fill();
+  circle(ctx, L + 4.1 * s, bot - 4.5 * s, 1.3 * s); ctx.fill();
+  ctx.fillStyle = 'rgba(255,255,255,.7)'; ctx.beginPath(); ctx.ellipse(x + 6 * s, sh + 1 * s, 2.6 * s, 1.1 * s, -0.3, 0, TAU); ctx.fill();
+  glass(); ctx.strokeStyle = INK; ctx.lineWidth = 2.6; ctx.lineJoin = 'round'; ctx.stroke();
+  /* the lid */
+  ctx.fillStyle = INK; rr(ctx, x - 12 * s, y - 22 * s, 24 * s, 9 * s, 3 * s); ctx.fill();
+  ctx.fillStyle = '#b874d8'; rr(ctx, x - 10.6 * s, y - 20.6 * s, 21.2 * s, 6.2 * s, 2.2 * s); ctx.fill();
+  ctx.fillStyle = '#d9a8f0'; rr(ctx, x - 9 * s, y - 20 * s, 18 * s, 2.2 * s, 1.1 * s); ctx.fill();
+  ctx.fillStyle = 'rgba(43,33,64,.35)'; ctx.fillRect(x - 10.6 * s, y - 16.2 * s, 21.2 * s, 1.2 * s);
+  if (p.focus > 0.01) { ctx.strokeStyle = INK; ctx.lineWidth = 4.6; ctx.beginPath(); ctx.arc(x, y, r + 7, -PI / 2, -PI / 2 + TAU * p.focus); ctx.stroke(); ctx.strokeStyle = '#c8ffa0'; ctx.lineWidth = 2.4; ctx.stroke(); }
 }
 function playerHud(ctx, p, side, t, sim) {
   const L = LV[side]; if (L.n < 0) L.n = p.leaves; if (p.leaves !== L.n) { L.d = p.leaves - L.n; L.t = t; L.i = p.leaves < L.n ? p.leaves : p.leaves - 1; L.n = p.leaves; }
@@ -1425,6 +1475,21 @@ function hud(ctx, H) {
    SCREENS
    ===================================================================================================================== */
 const UI = { rows: [], chips: [], back: null, ok: null };
+/* phone held upright: main draws the 640 x 360 view on top and a control band below it (the canvas is taller than 360).
+   The dialog, the shop, the charms, the 'get' card, the pause menu and messages are then laid out for the whole tall canvas at a bigger scale K
+   (so body text is readable on a phone); SW x SH is the screen size in those scaled units, PV the bottom of the view. */
+let SW = VW, SH = VH, PORT = null;
+const PORTRAIT = { dialog: 1, shop: 1, charms: 1, get: 1, pause: 1, msg: 1 };
+function portraitOf(ctx, name, S) {
+  if (!PORTRAIT[name]) return null;
+  let m = null; try { m = ctx.getTransform && ctx.getTransform(); } catch (_) { m = null; }
+  if (!m || !(m.a > 0) || Math.abs(m.b) > 1e-6 || Math.abs(m.c) > 1e-6 || Math.abs(m.e) > 0.5 || Math.abs(m.f) > 0.5 || !ctx.canvas) return null;
+  const lw = ctx.canvas.width / m.a, lh = S && S.band && S.band.h > 0 ? VH + S.band.h : ctx.canvas.height / m.d;
+  if (Math.abs(lw - VW) > 4 || lh < VH + 180) return null;
+  const k = clamp(lh / 720, 1, 1.75);
+  return { k, w: VW / k, h: lh / k, v: VH / k };
+}
+function scaleRect(r, k) { if (r) { r.x *= k; r.y *= k; r.w *= k; r.h *= k; } }
 function resetUI() { UI.rows.length = 0; UI.chips.length = 0; UI.back = null; UI.ok = null; }
 const setR = (x, y, w, h) => ({ x, y, w, h });
 function card(ctx, x, y, w, h, fill, rad) {
@@ -1440,10 +1505,10 @@ function pill(ctx, x, y, w, h, col, sel) {
   ctx.fillStyle = 'rgba(255,255,255,.4)'; rr(ctx, x + h * 0.35, y + 3, w - h * 0.7, Math.max(2, h * 0.16), h * 0.08); ctx.fill();
   if (sel) { ctx.strokeStyle = '#fff'; ctx.lineWidth = 2.5; rr(ctx, x - 5, y - 5, w + 10, h + 10, h / 2 + 5); ctx.stroke(); }
 }
-function dim(ctx, a) { ctx.fillStyle = 'rgba(20,12,36,' + a + ')'; ctx.fillRect(0, 0, VW, VH); }
+function dim(ctx, a) { ctx.fillStyle = 'rgba(20,12,36,' + a + ')'; ctx.fillRect(0, 0, SW, SH); }
 function keycap(ctx, x, y, s, w) { w = Math.max(w || 22, tw(s, 12) + 12); ctx.fillStyle = INK; rr(ctx, x - w / 2, y - 11, w, 22, 5); ctx.fill(); ctx.fillStyle = '#4a3a6b'; rr(ctx, x - w / 2 + 1.5, y - 9.5, w - 3, 17, 4); ctx.fill(); text(ctx, s, x, y - 1, 12, PAL.sun); return w; }
 function backBtn(ctx, touch, t) {
-  const x = 12, y = VH - 40, w = touch ? 86 : 104;
+  const x = 12, y = SH - 40, w = touch ? 86 : 104;
   pill(ctx, x, y, w, 28, 'rgba(90,72,130,.95)', false); text(ctx, touch ? '◀ Back' : 'Esc  Back', x + w / 2, y + 14.5, 13, '#fff');
   UI.back = setR(x - 6, y - 6, w + 12, 40);
 }
@@ -1564,7 +1629,7 @@ const SCREENS = {
         if (r.gentle) { pill(ctx, x + w - 150 - tw(String(r.time || ''), 12), y + 40, 54, 17, '#7ac8a0', false); text(ctx, 'Gentle', x + w - 123 - tw(String(r.time || ''), 12), y + 49, 10, '#fff'); }
         if (r.done) text(ctx, '✿ in bloom', x + 64 + 260, y + 22, 12, '#ffb0e0', 'left');
       }
-      if (er) text(ctx, 'Press Delete again to clear this garden', x + w / 2, y + h + 9, 11, '#ffd0d0');
+      if (er) text(ctx, S.touch ? 'Tap again to clear this garden' : 'Press Delete again to clear this garden', x + w - 20, y + h - 11, 11, '#ffd0d0', 'right');
       UI.rows.push(setR(x, y, w, h));
     });
     text(ctx, S.touch ? 'Tap a garden to play' : '↑ ↓ choose   Enter play   Delete clear', VW / 2, VH - 16, 12, '#fff');
@@ -1605,17 +1670,17 @@ const SCREENS = {
   pause(ctx, S) {
     resetUI(); const t = num(S.t, 0), rows = S.rows || [], sel = S.sel | 0;
     dim(ctx, 0.55);
-    const rh = 27, w = 270, h = 64 + rows.length * (rh + 5), x = VW / 2 - w / 2, y = Math.max(8, VH / 2 - h / 2);
+    const rh = 27, w = 270, h = 64 + rows.length * (rh + 5), x = SW / 2 - w / 2, y = Math.max(8, SH / 2 - h / 2);
     card(ctx, x, y, w, h); sprigCorner(ctx, x + 18, y + 22, 1, t);
-    text(ctx, 'Taking a rest', VW / 2, y + 26, 20, '#fff');
+    text(ctx, 'Taking a rest', SW / 2, y + 26, 20, '#fff');
     if (S.gentle) { pill(ctx, x + w - 72, y + 15, 56, 18, '#7ac8a0', false); text(ctx, 'Gentle', x + w - 44, y + 24.5, 10, '#fff'); }
-    rows.forEach((r, i) => { const yy = y + 50 + i * (rh + 5), on = i === sel; pill(ctx, x + 20, yy, w - 40, rh, on ? '#5cc85a' : 'rgba(255,255,255,.13)', on); text(ctx, typeof r === 'string' ? r : r.label, VW / 2, yy + rh / 2 + 0.5, 13.5, '#fff'); UI.rows.push(setR(x + 16, yy - 2, w - 32, rh + 4)); });
+    rows.forEach((r, i) => { const yy = y + 50 + i * (rh + 5), on = i === sel; pill(ctx, x + 20, yy, w - 40, rh, on ? '#5cc85a' : 'rgba(255,255,255,.13)', on); text(ctx, typeof r === 'string' ? r : r.label, SW / 2, yy + rh / 2 + 0.5, 13.5, '#fff'); UI.rows.push(setR(x + 16, yy - 2, w - 32, rh + 4)); });
   },
   map(ctx, S) { resetUI(); mapScreen(ctx, S); },
-  charms(ctx, S) { resetUI(); charmScreen(ctx, S); },
-  shop(ctx, S) { resetUI(); shopScreen(ctx, S); },
-  dialog(ctx, S) { resetUI(); dialogScreen(ctx, S); },
-  get(ctx, S) { resetUI(); getScreen(ctx, S); },
+  charms(ctx, S) { resetUI(); if (PORT) charmScreenP(ctx, S); else charmScreen(ctx, S); },
+  shop(ctx, S) { resetUI(); if (PORT) shopScreenP(ctx, S); else shopScreen(ctx, S); },
+  dialog(ctx, S) { resetUI(); if (PORT) dialogScreenP(ctx, S); else dialogScreen(ctx, S); },
+  get(ctx, S) { resetUI(); getScreen(ctx, S, PORT ? { cx: SW / 2, cy: SH * 0.3, ty: SH * 0.3 + 96, py: SH * 0.3 + 134, pw: SW - 44, size: 15.5, lh: 22, hint: SH - 30, touch: true } : null); },
   area(ctx, S) {
     const t = num(S.t, 0), a = t < 30 ? easeOut(t / 30) : t > 160 ? clamp01(1 - (t - 160) / 45) : 1; if (a <= 0) return;
     ctx.save(); ctx.globalAlpha = a;
@@ -1639,10 +1704,10 @@ const SCREENS = {
   },
   ending(ctx, S) { resetUI(); endingScreen(ctx, S); UI.ok = setR(0, 0, VW, VH); },
   msg(ctx, S) {
-    resetUI(); const L = wrap(S.text || '', 15, 380), h = L.length * 22 + 34, w = 420, y = VH / 2 - h / 2;
-    dim(ctx, 0.4); card(ctx, VW / 2 - w / 2, y, w, h);
-    L.forEach((s, i) => text(ctx, s, VW / 2, y + 27 + i * 22, i ? 14 : 16, i ? '#fff' : PAL.sun));
-    UI.ok = setR(0, 0, VW, VH);
+    resetUI(); const w = Math.min(420, SW - 20), L = wrap(S.text || '', 15, w - 40), h = L.length * 22 + 34, y = SH / 2 - h / 2;
+    dim(ctx, 0.4); card(ctx, SW / 2 - w / 2, y, w, h);
+    L.forEach((s, i) => text(ctx, s, SW / 2, y + 27 + i * 22, i ? 14 : 16, i ? '#fff' : PAL.sun));
+    UI.ok = setR(0, 0, SW, SH);
   },
   touch(ctx, S) { touchScreen(ctx, S); },
   band(ctx, S) { bandScreen(ctx, S); }
@@ -1704,9 +1769,13 @@ function mapScreen(ctx, S) {
       if (side === 'N' || side === 'T' || side === 'U') ctx.fillRect(x + at, y - 2, len, 5); else if (side === 'S' || side === 'B' || side === 'D') ctx.fillRect(x + at, y + h - 3, len, 5);
       else if (side === 'W' || side === 'L') ctx.fillRect(x - 2, y + at, 5, len); else if (side === 'E' || side === 'R') ctx.fillRect(x + w - 3, y + at, 5, len);
     }
-    if (r.here) { ctx.strokeStyle = PAL.sun; ctx.lineWidth = 2.5 + Math.sin(t * 0.12); rr(ctx, x - 4, y - 4, w + 8, h + 8, rad + 3); ctx.stroke(); }
     const ic = []; if (r.spot) ic.push('spot'); if (r.peddler) ic.push('peddler'); if (r.guard) ic.push(r.calm ? 'flower' : 'guardian');
     ic.forEach((n, k) => { const ix = x + w / 2 + (k - (ic.length - 1) / 2) * 16, iy = y + h / 2; if (n === 'flower') SI.flower(ctx, { x: ix, y: iy + 7, kind: 1, ceil: false, t: 999, seed: 0 }, 0); else icon(ctx, n, ix, iy, 13, t); });
+  }
+  for (const r of rooms) if (r.here) { /* drawn after every room so no neighbour covers it */
+    const x = ox + r.x * sc, y = oy + r.y * sc, w = r.w * sc, h = r.h * sc, rad = Math.min(8, w / 4, h / 4);
+    ctx.strokeStyle = INK; ctx.lineWidth = 5.5 + Math.sin(t * 0.12); rr(ctx, x - 4, y - 4, w + 8, h + 8, rad + 3); ctx.stroke();
+    ctx.strokeStyle = PAL.sun; ctx.lineWidth = 2.8 + Math.sin(t * 0.12); ctx.stroke();
   }
   if (S.puddle) { const x = ox + S.puddle.x * sc, y = oy + S.puddle.y * sc; icon(ctx, 'puddle', x, y, 12, t); }
   if (S.me) S.me.forEach((m, i) => { const x = ox + m.x * sc, y = oy + m.y * sc, b = Math.sin(t * 0.15) * 2; ctx.fillStyle = 'rgba(255,217,59,.35)'; circle(ctx, x, y, 9 + b); ctx.fill(); portrait(ctx, i ? 'marigold' : 'sprig', x, y - 2, 18, t); });
@@ -1751,7 +1820,7 @@ function charmScreen(ctx, S) {
     } else { text(ctx, 'Not found yet', dx + dw / 2, dy + 90, 16, '#d9d3f0'); text(ctx, 'Somewhere in the roots...', dx + dw / 2, dy + 114, 12, '#bdb3d6'); }
   }
   const line = S.line || (S.edit ? '' : 'Rest at a Watering Spot to change your charms.');
-  if (line) text(ctx, line, dx + dw / 2, dy + 232, 11.5, S.line ? '#ffd0a0' : '#e9e3ff');
+  if (line) para(ctx, line, dx + dw / 2, dy + (wrap(line, 11.5, dw - 12).length > 1 ? 224 : 232), dw - 12, 11.5, S.line ? '#ffd0a0' : '#e9e3ff', 'center', 15);
   backBtn(ctx, S.touch, t);
 }
 function shopScreen(ctx, S) {
@@ -1796,13 +1865,7 @@ function dialogScreen(ctx, S) {
   const t = num(S.t, 0), who = S.who || 'sign', txt = String(S.text || ''), rev = Math.floor(t * 1.5), done = rev >= txt.length;
   if (who === 'sign') {
     const L = wrap(txt, 15, 420), h = Math.max(96, L.length * 21 + 46), w = 470, x = VW / 2 - w / 2, y = VH - h - 26;
-    ctx.fillStyle = INK; rr(ctx, VW / 2 - 9, y + h - 4, 18, 30, 4); ctx.fill(); ctx.fillStyle = '#8a5530'; rr(ctx, VW / 2 - 6, y + h - 4, 12, 28, 3); ctx.fill();
-    ctx.fillStyle = INK; rr(ctx, x - 3, y - 3 + 3, w + 6, h + 6, 12); ctx.fill();
-    ctx.fillStyle = '#c88e5a'; rr(ctx, x, y, w, h, 10); ctx.fill();
-    for (let k = 1; k < 3; k++) { ctx.fillStyle = 'rgba(120,70,40,.35)'; ctx.fillRect(x + 6, y + k * h / 3 - 1, w - 12, 2); }
-    ctx.strokeStyle = 'rgba(120,70,40,.4)'; ctx.lineWidth = 1.2; ctx.beginPath(); for (let k = 0; k < 6; k++) { const yy = y + 10 + hash(k, 3) * (h - 20); ctx.moveTo(x + 20 + hash(k, 4) * 200, yy); ctx.lineTo(x + 60 + hash(k, 5) * 300, yy + 1); } ctx.stroke();
-    ctx.fillStyle = 'rgba(255,240,210,.35)'; rr(ctx, x + 8, y + 4, w - 16, 4, 2); ctx.fill();
-    for (const [nx, ny] of [[x + 10, y + 10], [x + w - 10, y + 10], [x + 10, y + h - 10], [x + w - 10, y + h - 10]]) { ctx.fillStyle = INK; circle(ctx, nx, ny, 3); ctx.fill(); ctx.fillStyle = '#d8d0e0'; circle(ctx, nx - 0.5, ny - 0.5, 1.6); ctx.fill(); }
+    signBoard(ctx, x, y, w, h, true);
     para(ctx, txt, VW / 2, y + 26, 420, 15, '#fff8e8', 'center', 21, rev);
     if (done) more(ctx, x + w - 22, y + h - 14, t, S.more);
     UI.ok = setR(0, 0, VW, VH); return;
@@ -1817,25 +1880,130 @@ function dialogScreen(ctx, S) {
   if (done) more(ctx, x + w - 22, y + h - 16, t, S.more);
   UI.ok = setR(0, 0, VW, VH);
 }
+/* a wooden sign board (with its post below when post) */
+function signBoard(ctx, x, y, w, h, post) {
+  const mx = x + w / 2;
+  if (post) { ctx.fillStyle = INK; rr(ctx, mx - 9, y + h - 4, 18, 30, 4); ctx.fill(); ctx.fillStyle = '#8a5530'; rr(ctx, mx - 6, y + h - 4, 12, 28, 3); ctx.fill(); }
+  ctx.fillStyle = INK; rr(ctx, x - 3, y - 3 + 3, w + 6, h + 6, 12); ctx.fill();
+  ctx.fillStyle = '#c88e5a'; rr(ctx, x, y, w, h, 10); ctx.fill();
+  for (let k = 1; k < 3; k++) { ctx.fillStyle = 'rgba(120,70,40,.35)'; ctx.fillRect(x + 6, y + k * h / 3 - 1, w - 12, 2); }
+  ctx.strokeStyle = 'rgba(120,70,40,.4)'; ctx.lineWidth = 1.2; ctx.beginPath(); for (let k = 0; k < 6; k++) { const yy = y + 10 + hash(k, 3) * (h - 20); ctx.moveTo(x + 20 + hash(k, 4) * w * 0.42, yy); ctx.lineTo(x + 60 + hash(k, 5) * w * 0.62, yy + 1); } ctx.stroke();
+  ctx.fillStyle = 'rgba(255,240,210,.35)'; rr(ctx, x + 8, y + 4, w - 16, 4, 2); ctx.fill();
+  for (const [nx, ny] of [[x + 10, y + 10], [x + w - 10, y + 10], [x + 10, y + h - 10], [x + w - 10, y + h - 10]]) { ctx.fillStyle = INK; circle(ctx, nx, ny, 3); ctx.fill(); ctx.fillStyle = '#d8d0e0'; circle(ctx, nx - 0.5, ny - 0.5, 1.6); ctx.fill(); }
+}
+/* ---- phone held upright: the same panels laid out for the tall canvas, bigger (see portraitOf) ---- */
+function dialogScreenP(ctx, S) {
+  const t = num(S.t, 0), who = S.who || 'sign', txt = String(S.text || ''), rev = Math.floor(t * 1.5), done = rev >= txt.length, size = 15.5, lh = 22;
+  const x = 12, w = SW - 24, top = PORT.v + 18;
+  if (who === 'sign') {
+    const L = wrap(txt, size, w - 40), h = Math.max(100, L.length * lh + 50), y = top + 8;
+    signBoard(ctx, x, y, w, h, false);
+    para(ctx, txt, SW / 2, y + 28, w - 40, size, '#fff8e8', 'center', lh, rev);
+    if (done) more(ctx, x + w - 22, y + h - 16, t, S.more);
+    if (done) text(ctx, S.more ? 'Tap for more' : 'Tap to carry on', SW / 2, y + h + 26, 13, '#e9e3ff');
+    UI.ok = setR(0, 0, SW, SH); return;
+  }
+  const heart = who === 'heart', pr = 38, L = wrap(txt, size, w - 36), h = pr * 2 + 34 + L.length * lh + 24, y = top + 14;
+  card(ctx, x, y, w, h, heart ? 'rgba(96,48,96,.97)' : 'rgba(64,48,98,.96)');
+  const px = x + 18 + pr, py = y + 16 + pr;
+  ctx.fillStyle = INK; circle(ctx, px, py, pr + 3); ctx.fill(); ctx.fillStyle = heart ? '#ffe8a8' : '#f6e6c4'; circle(ctx, px, py, pr); ctx.fill();
+  ctx.save(); circle(ctx, px, py, pr); ctx.clip(); portrait(ctx, heart ? 'heart' : who, px, py + 7, pr * 2.1, t, 'talk'); ctx.restore();
+  if (S.name) { const nw = tw(S.name, 15) + 26; pill(ctx, px + pr + 14, py - 14, nw, 28, heart ? '#ffb030' : '#ff9a45', false); text(ctx, S.name, px + pr + 14 + nw / 2, py + 0.5, 15, '#fff'); }
+  para(ctx, txt, x + 20, y + pr * 2 + 46, w - 36, size, '#fff', 'left', lh, rev);
+  if (done) more(ctx, x + w - 22, y + h - 16, t, S.more);
+  if (done) text(ctx, S.more ? 'Tap for more' : 'Tap to carry on', SW / 2, y + h + 26, 13, '#e9e3ff');
+  UI.ok = setR(0, 0, SW, SH);
+}
+function shopScreenP(ctx, S) {
+  const t = num(S.t, 0), list = S.list || [], sel = S.sel | 0, N = list.length + 1, v = PORT.v;
+  dim(ctx, 0.55);
+  /* the Peddler and his line, over the play view */
+  ctx.save(); ctx.globalCompositeOperation = 'lighter'; ctx.globalAlpha = 0.35; ctx.drawImage(LS.warm, -30, v - 170, 190, 190); ctx.restore();
+  portrait(ctx, 'peddler', 64, v - 64, 118, t, 'happy');
+  const bx = 132, bw = SW - bx - 10, line = S.line || 'Have a look, little one.', L = wrap(line, 13.5, bw - 22), bh = L.length * 18 + 18, by = Math.max(10, v - 96 - bh / 2);
+  ctx.fillStyle = INK; ctx.beginPath(); ctx.moveTo(bx + 2, by + bh * 0.45); ctx.lineTo(bx - 14, by + bh * 0.62); ctx.lineTo(bx + 2, by + bh * 0.75); ctx.fill();
+  card(ctx, bx, by, bw, bh, 'rgba(92,72,135,.98)', 14);
+  ctx.fillStyle = 'rgba(92,72,135,.98)'; ctx.beginPath(); ctx.moveTo(bx + 1, by + bh * 0.49); ctx.lineTo(bx - 9, by + bh * 0.62); ctx.lineTo(bx + 1, by + bh * 0.71); ctx.fill();
+  L.forEach((q, i) => text(ctx, q, bx + bw / 2, by + 18 + i * 18, 13.5, '#fff'));
+  /* the wares */
+  const x = 10, w = SW - 20, y0 = v + 6, descH = 76, rh = 34, top = y0 + 46, vis = Math.max(2, Math.min(N, Math.floor((SH - 56 - descH - 24 - top) / (rh + 5)))), y1 = top + vis * (rh + 5) + 12;
+  card(ctx, x, y0, w, y1 - y0);
+  text(ctx, 'The Peddler\'s Cart', x + 16, y0 + 22, 16, PAL.sun, 'left');
+  icon(ctx, 'dew', x + w - 64, y0 + 22, 15, t); text(ctx, String(num(S.dew, 0)), x + w - 52, y0 + 22.5, 16, '#dff6ff', 'left');
+  const first = clamp(sel - Math.floor(vis / 2), 0, Math.max(0, N - vis));
+  for (let i = 0; i < N; i++) {
+    if (i < first || i >= first + vis) { UI.rows.push(setR(0, 0, 0, 0)); continue; }
+    const y = top + (i - first) * (rh + 5), on = i === sel, it = list[i];
+    if (!it) { pill(ctx, x + 10, y, w - 20, rh, on ? '#ff9a45' : 'rgba(255,255,255,.13)', on); text(ctx, 'Say goodbye', x + w / 2, y + rh / 2 + 0.5, 15, '#fff'); UI.rows.push(setR(x + 6, y - 2, w - 12, rh + 4)); continue; }
+    pill(ctx, x + 10, y, w - 20, rh, it.sold ? 'rgba(255,255,255,.07)' : on ? '#5cc85a' : 'rgba(255,255,255,.13)', on);
+    const ic = it.kind === 'map' ? 'map' : it.kind === 'charm' ? 'charm:' + (it.charm || it.id) : it.kind === 'notch' ? 'notch' : it.kind === 'leaf' ? 'leaf' : 'dew';
+    ctx.globalAlpha = it.sold ? 0.5 : 1; icon(ctx, ic, x + 30, y + rh / 2, 18, t);
+    const nm = it.name || it.id, maxw = w - 124, nw = tw(nm, 14);
+    ctx.save(); ctx.translate(x + 46, y + rh / 2 + 0.5); if (nw > maxw) ctx.scale(maxw / nw, 1); text(ctx, nm, 0, 0, 14, '#fff', 'left'); ctx.restore();
+    if (it.sold) text(ctx, 'Sold', x + w - 24, y + rh / 2 + 0.5, 13, '#d9d3f0', 'right');
+    else { const pr = String(it.price), cant = num(S.dew, 0) < it.price; text(ctx, pr, x + w - 24, y + rh / 2 + 0.5, 14, cant ? '#ffb0a0' : '#dff6ff', 'right'); icon(ctx, 'dew', x + w - 33 - tw(pr, 14), y + rh / 2, 12, t); }
+    ctx.globalAlpha = 1;
+    UI.rows.push(setR(x + 6, y - 2, w - 12, rh + 4));
+  }
+  if (first > 0) text(ctx, '▲', x + w / 2, top - 9, 11, '#e9e3ff'); if (first + vis < N) text(ctx, '▼', x + w / 2, top + vis * (rh + 5) - 1, 11, '#e9e3ff');
+  const it = list[sel], dy = y1 + 14;
+  card(ctx, x, dy, w, descH, 'rgba(48,36,74,.96)', 14);
+  para(ctx, it ? (it.sold ? 'Already yours. ' : '') + (it.desc || '') : 'Off you go then. Mind the roots!', x + 16, dy + 22, w - 32, 13.5, '#fff', 'left', 18);
+  backBtn(ctx, true, t);
+}
+function charmScreenP(ctx, S) {
+  const t = num(S.t, 0), list = S.list || [], sel = S.sel | 0, notches = num(S.notches, 3), used = num(S.used, 0);
+  dim(ctx, 0.6);
+  card(ctx, 8, 8, SW - 16, SH - 62);
+  text(ctx, 'Seed charms', 24, 34, 22, PAL.sun, 'left');
+  text(ctx, 'Notches', 24, 62, 13, '#e9e3ff', 'left'); for (let i = 0; i < notches; i++) icon(ctx, i < used ? 'notchFull' : 'notch', 24 + tw('Notches', 13) + 16 + i * 19, 61, 15, t);
+  const cols = 4, gap = 6, cs = Math.min(76, Math.floor((SW - 48 - gap * (cols - 1)) / cols)), gx = (SW - (cols * cs + gap * (cols - 1))) / 2, gy = 84;
+  list.forEach((c, i) => {
+    const x = gx + (i % cols) * (cs + gap), y = gy + Math.floor(i / cols) * (cs + gap), on = i === sel;
+    ctx.fillStyle = INK; rr(ctx, x - 2, y - 2, cs + 4, cs + 4, 14); ctx.fill();
+    ctx.fillStyle = c.worn ? '#6a8a5a' : c.owned ? '#5a4a7b' : '#3a3050'; rr(ctx, x, y, cs, cs, 12); ctx.fill();
+    if (c.worn) { ctx.save(); ctx.globalCompositeOperation = 'lighter'; ctx.globalAlpha = 0.4; ctx.drawImage(LS.green, x - 6, y - 6, cs + 12, cs + 12); ctx.restore(); }
+    if (c.owned) icon(ctx, 'charm:' + c.id, x + cs / 2, y + cs / 2 - 4, cs * 0.55, t); else { ctx.globalAlpha = 0.5; icon(ctx, 'lock', x + cs / 2, y + cs / 2 - 4, 20, t); ctx.globalAlpha = 1; }
+    if (c.owned) for (let k = 0; k < c.cost; k++) icon(ctx, 'notch', x + cs / 2 - (c.cost - 1) * 6.5 + k * 13, y + cs - 9, 10, t);
+    if (c.worn) { ctx.fillStyle = INK; circle(ctx, x + cs - 9, y + 9, 7.5); ctx.fill(); ctx.fillStyle = '#7ed957'; circle(ctx, x + cs - 9, y + 9, 5.6); ctx.fill(); ctx.strokeStyle = '#fff'; ctx.lineWidth = 1.8; ctx.beginPath(); ctx.moveTo(x + cs - 12, y + 9); ctx.lineTo(x + cs - 9.5, y + 11.5); ctx.lineTo(x + cs - 5.5, y + 6.5); ctx.stroke(); }
+    if (on) { ctx.strokeStyle = PAL.sun; ctx.lineWidth = 3; rr(ctx, x - 5, y - 5, cs + 10, cs + 10, 16); ctx.stroke(); }
+    UI.rows.push(setR(x, y, cs, cs));
+  });
+  const c = list[sel], dx = 20, dw = SW - 40, dy = gy + Math.ceil(Math.max(1, list.length) / cols) * (cs + gap) + 10, dh = 168;
+  ctx.fillStyle = 'rgba(30,20,48,.5)'; rr(ctx, dx, dy, dw, dh, 14); ctx.fill();
+  if (c) {
+    if (c.owned) {
+      icon(ctx, 'charm:' + c.id, dx + 34, dy + 34, 44, t);
+      text(ctx, c.name, dx + 66, dy + 24, 17, '#fff', 'left');
+      for (let k = 0; k < c.cost; k++) icon(ctx, 'notchFull', dx + 72 + k * 15, dy + 47, 12, t); text(ctx, c.cost + (c.cost === 1 ? ' notch' : ' notches'), dx + 72 + c.cost * 15, dy + 47.5, 12, '#e9e3ff', 'left');
+      para(ctx, c.desc || '', dx + 16, dy + 80, dw - 32, 15, '#fff', 'left', 20);
+      text(ctx, c.worn ? 'Wearing it' : S.edit ? 'Tap to wear it' : '', dx + 16, dy + dh - 16, 13.5, c.worn ? '#b6f07a' : PAL.sun, 'left');
+    } else { text(ctx, 'Not found yet', dx + dw / 2, dy + 64, 17, '#d9d3f0'); text(ctx, 'Somewhere in the roots...', dx + dw / 2, dy + 92, 13.5, '#bdb3d6'); }
+  }
+  const line = S.line || (S.edit ? '' : 'Rest at a Watering Spot to change your charms.');
+  if (line) para(ctx, line, SW / 2, dy + dh + 22, SW - 56, 14, S.line ? '#ffd0a0' : '#e9e3ff', 'center', 19);
+  backBtn(ctx, true, t);
+}
 function more(ctx, x, y, t, m) { const b = Math.sin(t * 0.15) * 2.5; ctx.fillStyle = INK; ctx.beginPath(); if (m) { ctx.moveTo(x - 7, y - 4 + b); ctx.lineTo(x + 7, y - 4 + b); ctx.lineTo(x, y + 5 + b); } else { ctx.arc(x, y + b * 0.4, 5.5, 0, TAU); } ctx.closePath(); ctx.fill(); ctx.fillStyle = PAL.sun; ctx.beginPath(); if (m) { ctx.moveTo(x - 4.5, y - 2.5 + b); ctx.lineTo(x + 4.5, y - 2.5 + b); ctx.lineTo(x, y + 3 + b); } else ctx.arc(x, y + b * 0.4, 3.5, 0, TAU); ctx.closePath(); ctx.fill(); }
-function getScreen(ctx, S) {
+function getScreen(ctx, S, Lo) {
   const t = num(S.t, 0), a = easeOut(t / 18), k = S.kind;
+  Lo = Lo || { cx: VW / 2, cy: 108, ty: 196, py: 230, pw: 440, size: 14, lh: 19, hint: VH - 22, touch: S.touch };
   dim(ctx, 0.62 * a);
   const name = k === 'ability' ? 'ability:' + S.id : k === 'charm' ? 'charm:' + S.id : k === 'life' ? 'life' : k === 'vessel' ? 'vessel' : k === 'notch' ? 'notchFull' : k === 'map' ? 'map' : String(k || 'life');
-  const cx = VW / 2, cy = 108;
+  const cx = Lo.cx, cy = Lo.cy;
   ctx.save(); ctx.globalAlpha = a;
   ctx.save(); ctx.translate(cx, cy); ctx.rotate(t * 0.01); ctx.fillStyle = 'rgba(255,230,140,.16)'; for (let i = 0; i < 12; i++) { ctx.beginPath(); ctx.moveTo(0, 0); ctx.arc(0, 0, 150, i * TAU / 12, i * TAU / 12 + 0.14); ctx.closePath(); ctx.fill(); } ctx.restore();
   ctx.globalCompositeOperation = 'lighter'; ctx.globalAlpha = a * (0.6 + 0.15 * Math.sin(t * 0.08)); ctx.drawImage(LS.gold, cx - 90, cy - 90, 180, 180); ctx.globalCompositeOperation = 'source-over'; ctx.globalAlpha = a;
   const sc = 0.4 + 0.6 * easeOut(t / 24) + Math.sin(clamp01(t / 30) * PI) * 0.15;
   ctx.save(); ctx.translate(cx, cy + Math.sin(t * 0.06) * 3); ctx.scale(sc, sc); icon(ctx, name, 0, 0, 64, t); ctx.restore();
   for (let i = 0; i < 6; i++) { const an = t * 0.03 + i * TAU / 6, rr2 = 54 + Math.sin(t * 0.05 + i) * 6; twinkle(ctx, cx + Math.cos(an) * rr2, cy + Math.sin(an) * rr2 * 0.8, 3 + Math.sin(t * 0.2 + i) * 1.4, an, '#fff8d0'); }
-  text(ctx, S.title || '', cx, 196, 28, PAL.sun);
-  const h = para(ctx, S.text || '', cx, 230, 440, 14, '#fff', 'center', 19);
+  text(ctx, S.title || '', cx, Lo.ty, 28, PAL.sun);
+  const h = para(ctx, S.text || '', cx, Lo.py, Lo.pw, Lo.size, '#fff', 'center', Lo.lh);
   const keys = Array.isArray(S.keys) ? S.keys : S.keys ? [S.keys] : [];
-  if (keys.length) { const lab = keys.map(kk => String(Array.isArray(kk) ? kk[0] : kk)), ws = lab.map(l => Math.max(28, tw(l, 12) + 16)), tot = ws.reduce((p, v) => p + v + 10, -10); let kx = cx - tot / 2; lab.forEach((l, i) => { icon(ctx, 'key:' + l, kx + ws[i] / 2, 240 + h + 8, 24, t); kx += ws[i] + 10; }); }
-  if (t > 50) { ctx.globalAlpha = a * (0.6 + 0.4 * Math.sin(t * 0.1)); text(ctx, S.touch ? 'Tap to carry on' : 'Press Jump to carry on', cx, VH - 22, 12, '#e9e3ff'); }
+  if (keys.length) { const lab = keys.map(kk => String(Array.isArray(kk) ? kk[0] : kk)), ws = lab.map(l => Math.max(28, tw(l, 12) + 16)), tot = ws.reduce((p, v) => p + v + 10, -10); let kx = cx - tot / 2; lab.forEach((l, i) => { icon(ctx, 'key:' + l, kx + ws[i] / 2, Lo.py + 10 + h + 8, 24, t); kx += ws[i] + 10; }); }
+  if (t > 50) { ctx.globalAlpha = a * (0.6 + 0.4 * Math.sin(t * 0.1)); text(ctx, Lo.touch ? 'Tap to carry on' : 'Press Jump to carry on', cx, Lo.hint, PORT ? 14 : 12, '#e9e3ff'); }
   ctx.restore();
-  UI.ok = setR(0, 0, VW, VH);
+  UI.ok = setR(0, 0, SW, SH);
 }
 let EGARD = null;
 function endingScreen(ctx, S) {
@@ -1937,8 +2105,13 @@ RL.Render = {
   screen(ctx, name, S) {
     const fn = SCREENS[name]; if (!fn) return;
     if (!LS) lightSprites();
+    const P = portraitOf(ctx, name, S);
     ctx.save(); ctx.lineJoin = 'round'; ctx.lineCap = 'round';
-    try { fn(ctx, S || {}); } finally { ctx.restore(); }
+    if (P) { ctx.scale(P.k, P.k); SW = P.w; SH = P.h; PORT = P; }
+    try { fn(ctx, S || {}); } finally {
+      ctx.restore();
+      if (P) { SW = VW; SH = VH; PORT = null; for (const r of UI.rows) scaleRect(r, P.k); for (const r of UI.chips) scaleRect(r, P.k); scaleRect(UI.back, P.k); scaleRect(UI.ok, P.k); }
+    }
   },
   text(ctx, s, x, y, size, fill, align) { return text(ctx, s, x, y, size, fill, align); },
   /* debug: what is cached and how long the last frame took */
