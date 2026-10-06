@@ -2038,7 +2038,8 @@ function enterHouse(act){if(houseOn||!act)return;houseOn=true;paused=true;for(co
   else if(act.kind==='tyrian')houseStop=tyrianRoom(body);
   else if(act.kind==='breeze'&&window.breezeRoom)houseStop=breezeRoom(body,{duelFind,duelSend,duelCancel,duelLeave,DUEL,LIVE,MP,me:myName,musicOn});
   else if(act.kind==='vine'&&window.vineRoom)houseStop=vineRoom(body,{duelFind,duelSend,duelCancel,duelLeave,DUEL,LIVE,MP,me:myName,musicOn});
-  else if(act.kind==='kart'&&window.kartRoom)houseStop=kartRoom(body,{duelFind,duelSend,duelCancel,duelLeave,DUEL,LIVE,MP,me:myName,musicOn});}
+  else if(act.kind==='kart'&&window.kartRoom)houseStop=kartRoom(body,{duelFind,duelSend,duelCancel,duelLeave,DUEL,LIVE,MP,me:myName,musicOn});
+  else if(window.ROOMS&&window.ROOMS[act.kind])houseStop=window.ROOMS[act.kind](body,act);} /* any other kind: a room registered by an external script (art-sculptures.js: 'art') */
 function closeHouse(){if(!houseOn)return;if(houseStop){try{houseStop();}catch(_){}}houseStop=null;$('#house-body').innerHTML='';$('#house').hidden=true;houseOn=false;paused=false;shownN=undefined;game.focus();}
 /* A talk room: a lounge with a television. Kofi reads a short piece taken from the house's page, and the screen shows
    each word as he says it. Audio and word timings come from /api/narrate (ElevenLabs, cached) or the baked copies in
@@ -2708,5 +2709,6 @@ $('#ask').addEventListener('submit',e=>{e.preventDefault();ask(q.value);});
 <script src="breeze-room.js?v=6"></script>
 <script src="vine-room.js?v=2"></script>
 <script src="kart-room.js?v=1620"></script>
+<script src="art-sculptures.js?v=1"></script>
 </body>
 </html>
