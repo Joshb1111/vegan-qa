@@ -1,0 +1,3 @@
+Beet Beat — an original one-button rhythm runner written for understand-veganism.com's planet. All art, music and sound are generated in code.
+Inspired by the one-button rhythm-runner genre; no names, icons, levels, music, sounds, text or object designs are taken from any existing game.
+No animals anywhere; crashing is kind (a "boing!" and a puff of leaves).
