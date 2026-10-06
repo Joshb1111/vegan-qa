@@ -49,7 +49,14 @@ function fixSave(s) {
   for (const k in d.calm) s.calm[k] = s.calm[k] ? 1 : 0;
   if (!Array.isArray(s.worn)) s.worn = [];
   s.worn = s.worn.filter(id => RL.World && RL.World.charms[id] && s.charms[id]);
-  if (!RL.World || !RL.World.rooms[s.room]) s.room = 'rg_fall';
+  const rooms = RL.World ? RL.World.rooms : {};
+  if (!rooms[s.room]) s.room = 'rg_fall';
+  if (!s.spot || typeof s.spot !== 'object' || !rooms[s.spot.room]) s.spot = null;   /* a room that is gone: back to Rootgate's spot */
+  if (!s.puddle || typeof s.puddle !== 'object' || !rooms[s.puddle.room] || !(s.puddle.v > 0)) s.puddle = null;
+  for (const k of ['time', 'dew', 'life', 'vessels', 'notches', 'leafSlots', 'deaths']) { const v = Math.floor(+s[k]); s[k] = Number.isFinite(v) && v >= 0 ? v : d[k]; }
+  s.life = Math.min(s.life, 6); s.vessels = Math.min(s.vessels, 3); s.notches = Math.max(3, Math.min(s.notches, 8)); s.leafSlots = Math.min(s.leafSlots, 3);
+  for (const k of ['bloom', 'buds']) for (const id in s[k]) if (!Array.isArray(s[k][id])) delete s[k][id];
+  s.started = s.started ? 1 : 0; s.gentle = !!s.gentle; s.done = s.done ? 1 : 0;
   return s;
 }
 function wears(save, id) { return save.worn.indexOf(id) >= 0; }
@@ -151,7 +158,7 @@ class Room {
         else if (kind === 'thorn') f.st = 'roll';
         else if (kind === 'cog') f.st = 'walk';
         else if (kind === 'knight') f.st = 'walk';
-        f.hy = f.y; f.face = (id & 1) ? 1 : -1;
+        f.hy = f.y; f.face = (id & 1) ? 1 : -1; f.st0 = f.st; f.ceil0 = f.ceil;
         this.foes.push(f); this.total++;
       } else if (ch === 'b') {
         const id = budN++; const ceil = !solidBelow && solidAbove;
@@ -265,6 +272,7 @@ class Sim {
     if (!s.spot) { const hub = this.W.rooms.rg_hub; s.spot = { room: 'rg_hub', x: null, y: null }; if (hub) hub.map.forEach((row, y) => { const x = row.indexOf('W'); if (x >= 0) s.spot = { room: 'rg_hub', x: x * TILE + TILE / 2, y: (y + 1) * TILE }; }); }
     if (!s.started) { s.started = 1; this.enterRoom(this.W.start, null, null, { start: true }); }
     else this.enterRoom(s.spot.room, s.spot.x, s.spot.y, { spot: true });
+    if (!this.room) this.enterRoom('rg_hub', null, null, { spot: true });   /* never without a room */
     this.fade = 1;
   }
   ev(...a) { this.events.push(a); }
@@ -853,6 +861,10 @@ class Sim {
     const r = this.room, gk = this.save.gentle ? 0.85 : 1;
     for (const f of r.foes) {
       if (!f.alive) continue;
+      if (f.y - f.h / 2 > r.ph + 40 || f.x < -40 || f.x > r.pw + 40) {   /* fell out through a doorway: back home */
+        if (f.temp) { f.alive = false; continue; }
+        f.x = f.hx; f.y = f.hy; f.vx = f.vy = 0; f.st = f.st0 || f.st; f.ceil = !!f.ceil0; f.t = 0;
+      }
       f.t++; if (f.hurt > 0) f.hurt--;
       const k = f.kind;
       if (k === 'smog') {
@@ -1007,7 +1019,7 @@ class Sim {
   calmGuard(g) {
     const s = this.save, r = this.room;
     g.hp = 0; g.done = true; this.gs(g, 'calm'); g.calm = 0; s.calm[g.kind] = 1;
-    r.hazards = []; r.shots = r.shots.filter(x => x.kind === 'beam');
+    r.hazards = []; r.shots = r.shots.filter(x => x.kind === 'beam'); r.wind = r.wind.filter(w => !w.temp);   /* no gust left blowing */
     for (const f of r.foes) if (f.alive && f.temp) this.bloom(f);
     this.ev('calm', g.kind); this.shake = 10;
     if (g.kind !== 'heart' && s.calm.knot && s.calm.boiler && s.calm.cloud) this.ev('sealOpen');
@@ -1038,7 +1050,12 @@ class Sim {
     const tgt = ps.reduce((a, b) => Math.abs(b.x - g.x) < Math.abs(a.x - g.x) ? b : a);
     if (g.st === 'sleep') {
       const inside = ps.find(p => Math.abs(p.x - g.ax) < 360 && p.y > g.ay - 240 && !r.gates.some(gt => gt.kind === 'arena' && Math.abs(p.x - (gt.x + gt.w / 2)) < 90 && Math.abs(p.y - (gt.y + gt.h)) < 120));
-      if (inside) { g.awake = true; this.gs(g, 'wake'); r.updateGates(this.save); this.ev('gstart', g.kind); }
+      if (inside) {
+        g.awake = true; this.gs(g, 'wake'); r.updateGates(this.save); this.ev('gstart', g.kind);
+        for (const gt of r.gates) if (gt.shut) for (const p of this.players) if (ov(p.x - PH.W / 2, p.y - PH.H, PH.W, PH.H, gt.x, gt.y, gt.w, gt.h)) {
+          if (gt.vert) p.x = g.ax < gt.x ? gt.x - PH.W / 2 - 2 : gt.x + gt.w + PH.W / 2 + 2; else p.y = g.ay < gt.y ? gt.y - 1 : gt.y + gt.h + PH.H + 1;
+        }
+      }
       return;
     }
     if (g.st === 'wake') { if (g.t > (g.kind === 'heart' ? 150 : 80)) this.gs(g, 'idle'); return; }

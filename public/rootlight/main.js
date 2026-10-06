@@ -57,7 +57,14 @@ function toast(text, ms) { toastMsg = text; toastT = Math.round((ms || 3200) / 1
 
 /* ---------- saves ---------- */
 function loadSlot(n) { const v = store.get('root-save-' + n); if (!v) return null; try { const s = JSON.parse(v); return s && typeof s === 'object' ? s : null; } catch (_) { return null; } }
-function writeSave() { if (!sim || sim.noSave) return; try { store.set('root-save-' + sim.save.slot, JSON.stringify(sim.save)); } catch (e) { report(e); } }
+let saveDirty = false, savedAt = 0, saveWarned = false;
+function writeSave() {
+  if (!sim || sim.noSave) return; saveDirty = false; savedAt = ut;
+  if (SILENT) return;
+  try { localStorage.setItem('root-save-' + sim.save.slot, JSON.stringify(sim.save)); }
+  catch (e) { if (!saveWarned) { saveWarned = true; toast('Your garden could not be saved in this browser.', 4000); } }
+}
+addEventListener('pagehide', () => { if (sim && screen === 'play') writeSave(); });   /* the house closing, the tab going away */
 let slotCache = null;
 function slotRows() {
   if (slotCache) return slotCache;
@@ -149,6 +156,7 @@ function padHits() {
   for (const q of pads) {
     const pr = q.pressed;
     if (pr & (1 << PB.A)) hits.push('Enter'); if (pr & (1 << PB.B)) hits.push('Backspace'); if (pr & (1 << PB.START)) hits.push('Escape'); if (pr & (1 << PB.BACK)) hits.push('Tab');
+    if (screen === 'slots' && (pr & ((1 << PB.X) | (1 << PB.Y)))) hits.push('Delete');
     if (pr & (1 << PB.UP)) hits.push('ArrowUp'); if (pr & (1 << PB.DOWN)) hits.push('ArrowDown'); if (pr & (1 << PB.LEFT)) hits.push('ArrowLeft'); if (pr & (1 << PB.RIGHT)) hits.push('ArrowRight');
   }
 }
@@ -191,8 +199,17 @@ document.addEventListener('pointerdown', e => {
     if (x < LW * 0.45) { TP.set(e.pointerId, { kind: 'stick', ox: x, oy: y, x, y }); stick = TP.get(e.pointerId); return; }
     TP.set(e.pointerId, { kind: 'btn', id: 'jump' }); return;
   }
+  if (screen === 'slots') { press = { x, y, at: now() }; return; }   /* a slot: a tap plays, a long press (0.7 s) clears it */
   tap(x, y);
 }, { passive: false });
+let press = null;
+document.addEventListener('pointerup', e => {
+  if (!press || screen !== 'slots') { press = null; return; }
+  const p = press; press = null; const U = RD().UI || {}, rows = U.rows || [];
+  for (let i = 0; i < rows.length; i++) if (inR(rows[i], p.x, p.y)) { sel = i; if (now() - p.at > 700) onKey('Delete'); else onKey('Enter'); return; }
+  tap(p.x, p.y);
+});
+addEventListener('blur', () => TP.clear());
 document.addEventListener('pointermove', e => { const z = TP.get(e.pointerId); if (z && z.kind === 'stick') { const [x, y] = toL(e); z.x = x; z.y = y; const d = Math.hypot(x - z.ox, y - z.oy), mx = (TL && TL.stick.r) || 50; if (d > mx * 1.4) { z.ox = x - (x - z.ox) * mx * 1.4 / d; z.oy = y - (y - z.oy) * mx * 1.4 / d; } } }, { passive: true });
 const pUp = e => { const z = TP.get(e.pointerId); if (z === stick) stick = null; TP.delete(e.pointerId); };
 document.addEventListener('pointerup', pUp); document.addEventListener('pointercancel', pUp);
@@ -204,7 +221,7 @@ function tap(x, y) {
   if (U.chips) { if (inR(U.chips[0], x, y)) { setMute(!muted); sfx('select'); return; } if (inR(U.chips[1], x, y)) { setMusic(!musicOn); sfx('select'); return; } }
   if (U.back && inR(U.back, x, y)) { onKey('Escape'); return; }
   const rows = U.rows || [];
-  for (let i = 0; i < rows.length; i++) if (inR(rows[i], x, y)) { if (over) overSel = i; else sel = i; onKey('Enter'); return; }
+  for (let i = 0; i < rows.length; i++) if (inR(rows[i], x, y)) { if (paused) sel = i; else if (over) overSel = i; else sel = i; onKey('Enter'); return; }
   if (over && (over.name === 'dialog' || over.name === 'get' || over.name === 'map')) { onKey('Enter'); return; }
   if (screen === 'story' || screen === 'ending') onKey('Enter');
 }
@@ -358,7 +375,8 @@ function onEvents() {
     else if (n === 'nosun') { sfx('nope'); if (!s.save.talked.nosun) { s.save.talked.nosun = 1; toast('Not enough Sunlight yet. Bloom glooms to fill your jar.', 4000); } }
     else if (n === 'get') { if (s.role !== 'solo' && e[3] != null && (e[3] | 0) !== s.me && e[1] !== 'ability') { sfx('pickup'); toast((RL.Net && RL.Net.opp || 'Your friend') + ' found ' + ({ life: 'a Life Seed', vessel: 'a Sun Vessel', notch: 'a Charm Notch', charm: 'a seed charm' }[e[1]] || 'something') + '!'); } else getCard(e[1], e[2]); }
     else if (n === 'area') { const a = W.areas[e[1]] || {}; areaCard = { name: a.name || '', sub: a.sub || '', t: 0 }; }
-    else if (n === 'autosave') writeSave();
+    else if (n === 'autosave' || n === 'calm') writeSave();
+    else if (n === 'bloom' || n === 'bud' || n === 'break' || n === 'pickup' || n === 'dew' || n === 'buy') saveDirty = true;
     else if (n === 'wake') { sfx('wake'); toast(s.save.puddle ? 'You woke up at the Watering Spot. Your dew is waiting where you nodded off.' : 'You woke up at the Watering Spot.', 4500); }
     else if (n === 'secret') { toast('A secret way!'); }
     else if (n === 'ending') { endT = ut; }
@@ -417,6 +435,7 @@ function tick() {
     const D = RD();
     if (!sim.freeze || H.live && H.live()) { sim.step(m); onEvents(); if (D.tick) try { D.tick(sim); } catch (e) { report(e); } }
     if (sim.ending && !endT) endT = ut;
+    if (saveDirty && ut - savedAt > 300) writeSave();   /* lasting changes are kept within five seconds */
     if (endT && ut - endT > 300 && screen === 'play') { go('ending'); sim.save.done = 1; writeSave(); music('ending'); }
     musicWatch();
   } else if (screen === 'title' || screen === 'slots' || screen === 'newgame') music('title');
@@ -451,9 +470,9 @@ function render() {
   } else {
     if (padMode) scr('band', { y: VH, h: LH - VH, W: LW });
     if (screen === 'title') scr('title', { t: scrT + 200, sel, rows: titleRows(), sound: !muted, music: musicOn, touch: touchMode || coarse, keys: keysCard(), note: '' });
-    else if (screen === 'slots') scr('slots', { t: scrT, sel, rows: slotRows(), erase: eraseArm, two: players > 1 });
-    else if (screen === 'newgame') scr('newgame', { t: scrT, sel });
-    else if (screen === 'story') scr('story', { t: scrT, page: storyPage });
+    else if (screen === 'slots') scr('slots', { t: scrT, sel, rows: slotRows(), erase: eraseArm, two: players > 1, touch: touchMode || coarse });
+    else if (screen === 'newgame') scr('newgame', { t: scrT, sel, touch: touchMode || coarse });
+    else if (screen === 'story') scr('story', { t: scrT, page: storyPage, touch: touchMode || coarse });
     else if (screen === 'ending') { if (!endStats && sim) endStats = { time: fmtTime(sim.save.time), pct: sim.pct(), life: sim.save.life, charms: Object.keys(sim.save.charms).length }; scr('ending', { t: scrT, stats: endStats || {} }); }
   }
   if (RL.Main.hooks.draw) try { RL.Main.hooks.draw(ctx, LW, VH); } catch (e) { report(e); }   /* NET HOOK */
@@ -531,6 +550,7 @@ function frame() {
 const hiddenNow = () => !forceVis && !!document.hidden;
 document.addEventListener('visibilitychange', () => {
   const hid = hiddenNow(); au('hidden', hid);
+  if (hid && sim && screen === 'play') writeSave();
   if (hid && screen === 'play' && sim && !liveNow() && !paused && !over) openPause();
   if (hid && liveNow()) { if (!bgId) bgId = setInterval(() => { if (!manual && hiddenNow()) run1(now()); }, 250); }
   else if (bgId) { clearInterval(bgId); bgId = 0; }
