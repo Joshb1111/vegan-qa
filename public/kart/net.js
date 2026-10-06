@@ -278,8 +278,14 @@ function hostSetup(sim) {
   hostHead = [Math.max(0, ti), clamp(sim.karts[0].diff | 0, 0, 2), gpo ? clamp(gpo.round | 0, 0, 2) : -1].concat(sim.karts.map(k => k.who));
   if (!gIt) gIt = new Interp(rangeFor()[0], rangeFor()[1], every); gIt.clear();
   asksIn.length = 0; lastSend = -99;
-  const step0 = sim.step, items0 = sim.stepItems, res0 = sim.results;
+  const step0 = sim.step, items0 = sim.stepItems, res0 = sim.results, boxes0 = sim.stepBoxes;
   sim.step = function (inp) { step0.call(this, inp); if (online && this === curSim) try { hostPost(this); } catch (e) { console.error('[kart net]', e); } };
+  /* bubbles: the guest says which ones it took (ask 2); its kart here, drawn from its states, takes none (sim.js skips a lifted kart) */
+  sim.stepBoxes = function () {
+    const k = this.karts[g], on = online && this === curSim && this.ext[g], lift = k.lift;
+    if (on) k.lift = 1;
+    try { boxes0.call(this); } finally { if (on) k.lift = lift; }
+  };
   /* the victim decides: a juice puddle or a seed that touches the guest's kart here is not ours to pop (the guest says) */
   sim.stepItems = function () {
     const before = this.items.slice(), e0 = this.events.length;
@@ -327,8 +333,8 @@ function hostPost(sim) {   /* after the step, before main hears the events: the 
       if (q[4] === 0) sim.ev('hit', g, by); else if (q[4] === 1) sim.ev('shield', g, 'pop');
       if (by === 'splat') sim.ev('splat', g, 'hit'); else if (by === 'seed') sim.ev('pop', g, 'seed');
       tpush(T.hostHitIds, run + ':' + q[2]);
-    } else if (q[1] === 2) {
-      const b = sim.boxes[q[2]]; if (b && b.t <= 0) { b.t = SK.KART.BOX_BACK; sim.ev('box', g); }
+    } else if (q[1] === 2) {   /* the guest took it (and has its item): shown here even if a CPU reached it first on this screen */
+      const b = sim.boxes[q[2]]; if (b) { if (b.t <= 0) b.t = SK.KART.BOX_BACK; sim.ev('box', g); }
       T.asksDone.b++;
     }
   }
@@ -369,6 +375,7 @@ let vIt = null, newestT = -1, gRunCur = -1, hdr = null, hostRes = null, hostSc =
 let askSeq = 0, asks = [], sendNow = false, lastGSend = -99;
 const gone = new Map(), bursted = new Set(), takenUntil = new Int32Array(64), predSeqs = new Set(), owned = new Map(), ownedEver = new Set(), evIn = [], evSeen = new Int32Array(1024).fill(-1);
 let evTop = 0, pred = [], replicas = [];
+function evReset() { evTop = 0; evSeen.fill(-1); evIn.length = 0; }
 const soloK = [], FAR = { i: -1, x: 1e7, y: 1e7, z: 0, finished: true, fall: 0, lift: 0 };   /* the karts a seed flown at us can meet: us */
 /* a little stand-in sim for the look-ahead copies: sim.js's own item code, with nobody to hit */
 const fake = { track: null, karts: [], items: [], loc: { ok: false, surf: 0, i: 0, s: 0, f: 0, d: 0, dist: 0, cx: 0, cy: 0 }, nextId: 1, rs: 7, events: [], fwd: null, fwdAll: false, hitFn: null,
@@ -384,6 +391,7 @@ function guestStart(o) {
 function onSnap(o) {
   if (o.a > 0) asks = asks.filter(q => q[0] > o.a);
   if (o.t <= newestT && newestT - o.t < 3600) { S.old++; return; }   /* old or repeated (a jump back by a minute: the host restarted) */
+  if (o.t < newestT) evReset();   /* a restarted host numbers its events from 1 again */
   newestT = o.t; hostSc = -1;
   if (verBad) return;
   if (o.run !== gRunCur) guestStart(o);
@@ -401,6 +409,7 @@ function onSnap(o) {
 }
 function onWait(o) {
   if (o.t <= newestT && newestT - o.t < 3600) { S.old++; return; }
+  if (o.t < newestT) evReset();
   newestT = o.t; hostSc = o.sc;
   if (M.screen === 'race' || M.screen === 'results') { M.toTitle(); lastScr = 'title'; curSim = null; }
 }
@@ -544,7 +553,7 @@ function raceAlone(why) {
   online = false; quiet = verBad = false; Net.role = null; Net.mode = 'solo'; T.solo = why;
   const sim = M && M.sim;
   if (sim && sim === curSim && g >= 0) {
-    delete sim.step; delete sim.stepItems; delete sim.useItem; delete sim.results;
+    delete sim.step; delete sim.stepItems; delete sim.stepBoxes; delete sim.useItem; delete sim.results;
     if (role === 'host') { const k = sim.karts[g]; sim.ext[g] = false; k.cpu = true; k.bumpT = 0; SK.locate(sim.track, k.x, k.y, sim.loc); if (sim.loc.ok) { k.s = k.lastS = sim.loc.s; k.lat = sim.loc.d; } }
     else {
       sim.useItems = true;
@@ -563,8 +572,8 @@ function peerLeft() {
   if (!online) return;
   const who = opp(), racing = M && M.screen === 'race', heard = heardAny, role = Net.role;
   raceAlone('peer');
-  if (racing) toast(who + ' left', 'you race on with the CPUs');
-  else toast(heard ? who + ' left' : who + (role === 'host' ? ' couldn’t join' : ' couldn’t start'), 'you can play on your own');   /* never heard: the room's join timeout */
+  const what = heard ? who + ' left' : who + (role === 'host' ? ' couldn’t join' : ' couldn’t start');   /* never heard: the room's join timeout */
+  toast(what, racing ? 'you race on with the CPUs' : 'you can play on your own');
 }
 const opp = () => Net.opp || 'your friend';
 
@@ -579,7 +588,7 @@ function link(m) {
   online = true; heardAny = false; verBad = quiet = false; Net.rtt = 0; lastRT = -1; sentT.fill(-1); Net.lastIn = now();
   startAt = now() + clamp(+m.startIn || 0, 0, C.holdMax);   /* the room's agreed start: a host's first countdown waits for it (hostPre) */
   run = (Date.now() / 1000 | 0) % 100000 * 10; lastAsk = 0; asksIn.length = 0; evQ.q.length = 0;
-  newestT = -1; gRunCur = -1; hdr = null; hostRes = null; hostSc = -1; latest = null; asks = []; askSeq = 0; curSim = null; g = -1;
+  newestT = -1; gRunCur = -1; hdr = null; hostRes = null; hostSc = -1; latest = null; asks = []; askSeq = 0; curSim = null; g = -1; evReset();
   if (role === 'guest') myWho = 1;
   if (M && M.screen !== 'title') M.toTitle();
   lastScr = M ? M.screen : '';

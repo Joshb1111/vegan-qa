@@ -61,7 +61,7 @@ function kartRoom(body, ctx) {
   const play = q => {
     window.__duck = 1; /* the game has its own music */
     dropFrame(); el.innerHTML = '';
-    frame = document.createElement('iframe'); frame.className = 'tyframe'; frame.title = 'Sprout Kart'; frame.src = 'kart/index.html?v=1620' + (q || ''); frame.allow = 'autoplay; fullscreen'; el.appendChild(frame);
+    frame = document.createElement('iframe'); frame.className = 'tyframe'; frame.title = 'Sprout Kart'; frame.src = 'kart/index.html?v=1725' + (q || ''); frame.allow = 'autoplay; fullscreen'; el.appendChild(frame);
     /* online: '#arcade .net' stays in the room while a match is on (planet.html's Esc rule looks for it); it shows only on an upright phone */
     if (st) { const tag = document.createElement('div'); tag.className = 'net kband'; tag.hidden = true; st.tag = tag; el.appendChild(tag); }
     bar = document.createElement('span'); bar.className = 'kbar';
@@ -81,7 +81,7 @@ function kartRoom(body, ctx) {
     const pl = place = () => { /* labels while the header has room for them, else icons; the tag in the header if it fits (long, then short form), else in the frame */
       if (frame !== f || !musBtn || !bar) return;
       const s = st, ht = s && s.htag, room = () => !hbar || !hback || !htitle ? 1e9 : hbar.clientWidth - 24 - htitle.offsetWidth - hback.offsetWidth - 30 - 6;
-      const fits = () => bar.scrollWidth <= room();
+      const fits = () => btn.offsetWidth + 6 + mb.offsetWidth + (ht && !ht.hidden ? 6 + ht.scrollWidth + 4 : 0) <= room();   /* natural widths (the tag would shrink to fit, cut to nothing) */
       const set = (ic, tagIn, short) => { if (icons !== ic) { icons = ic; btn.__show(false); mb.__show(false); } if (ht) { ht.hidden = !tagIn; ht.__short = short; ht.textContent = tagText(s, short); } if (s && s.tag) s.tag.hidden = tagIn; };
       let ok = false;
       for (const [ic, tagIn, short] of [[false, true, false], [true, true, false], [true, true, true], [false, false, false], [true, false, false]]) { if (!s && tagIn) continue; set(ic, tagIn, short); if (fits()) { ok = true; break; } }
