@@ -96,7 +96,9 @@ function startGame(n, o) {
   const D = RD(); if (D.room) try { D.room(sim); } catch (e) { report(e); }
   go('play');
   writeSave();
+  if (save.calm && save.calm.heart && !save.done) { endT = ut - 240; }   /* the Heartseed was calmed but the ending was missed: show it now */
   if (o.fresh) { const a = W.areas.rootgate; areaCard = { name: a.name, sub: a.sub, t: 0 }; }
+  if (padMode && !startGame.hinted) { startGame.hinted = 1; toast('Tip: turn your phone sideways for a bigger view.', 4000); }
 }
 function quitToTitle() { if (sim) writeSave(); sim = null; over = null; queue.length = 0; paused = false; endT = 0; go('title'); music('title'); }
 
@@ -206,7 +208,7 @@ let press = null;
 document.addEventListener('pointerup', e => {
   if (!press || screen !== 'slots') { press = null; return; }
   const p = press; press = null; const U = RD().UI || {}, rows = U.rows || [];
-  for (let i = 0; i < rows.length; i++) if (inR(rows[i], p.x, p.y)) { sel = i; if (now() - p.at > 700) onKey('Delete'); else onKey('Enter'); return; }
+  for (let i = 0; i < rows.length; i++) if (inR(rows[i], p.x, p.y)) { const armed = eraseArm === i; sel = i; if (now() - p.at > 700 || armed) { onKey('Delete'); if (armed) eraseArm = -1; } else onKey('Enter'); return; }
   tap(p.x, p.y);
 });
 addEventListener('blur', () => TP.clear());
@@ -221,7 +223,12 @@ function tap(x, y) {
   if (U.chips) { if (inR(U.chips[0], x, y)) { setMute(!muted); sfx('select'); return; } if (inR(U.chips[1], x, y)) { setMusic(!musicOn); sfx('select'); return; } }
   if (U.back && inR(U.back, x, y)) { onKey('Escape'); return; }
   const rows = U.rows || [];
-  for (let i = 0; i < rows.length; i++) if (inR(rows[i], x, y)) { if (paused) sel = i; else if (over) overSel = i; else sel = i; onKey('Enter'); return; }
+  for (let i = 0; i < rows.length; i++) if (inR(rows[i], x, y)) {
+    if (paused) sel = i;
+    else if (over) { if ((over.name === 'shop' || over.name === 'charms') && overSel !== i) { overSel = i; sfx('menu'); return; } overSel = i; }   /* first tap picks, second tap chooses */
+    else sel = i;
+    onKey('Enter'); return;
+  }
   if (over && (over.name === 'dialog' || over.name === 'get' || over.name === 'map')) { onKey('Enter'); return; }
   if (screen === 'story' || screen === 'ending') onKey('Enter');
 }
@@ -229,7 +236,7 @@ function tap(x, y) {
 /* ---------- overlays over play ---------- */
 function openOver(name, data) {
   if (over) { queue.push([name, data]); return; }
-  over = Object.assign({}, data || {}, { name }); overSel = 0; overT = 0;
+  over = Object.assign({}, data || {}, { name }); overSel = 0; overT = 0; toastT = 0; areaCard = null;
   if (sim) sim.freeze = !over.live && !liveNow();   /* online the garden never stops */
   if (name === 'map') sfx('map');
 }
@@ -308,6 +315,7 @@ function onKey(c) {
 function beginFresh() { const p = pendingStart || { n: 1 }; const n = typeof p === 'number' ? p : p.n || 1; startGame(n, { fresh: true, gentle: !!p.gentle, players }); }
 function overKey(c) {
   const o = over, n = o.name;
+  if (overT < 15 && (n === 'shop' || n === 'charms') && (GO(c) || BACK(c))) return;   /* a moment to see it before keys act */
   if (n === 'map') { if (c === 'Tab' || c === 'KeyM' || BACK(c) || GO(c)) { closeOver(); sfx('back'); } return; }
   if (n === 'dialog') {
     if (GO(c) || BACK(c) || UPK(c)) { if (overT < 12) return; o.i = (o.i || 0) + 1; overT = 0; sfx('talk'); if (o.i >= o.pages.length) closeOver(); }
@@ -368,7 +376,7 @@ function onEvents() {
     else if (n === 'rest') {
       sfx('save');
       const seen = s.save.talked.charms || (s.save.talked.charms = []), fresh = Object.keys(s.save.charms).filter(id => seen.indexOf(id) < 0);
-      if (fresh.length && (e[1] | 0) === s.me && s.role !== 'guest') { for (const id of fresh) seen.push(id); openOver('charms', { edit: true, line: 'A new seed charm! Choose what to wear, then Esc.' }); }
+      if (fresh.length && (e[1] | 0) === s.me && s.role !== 'guest') { for (const id of fresh) seen.push(id); openOver('charms', { edit: true, line: 'A new seed charm! Choose what to wear.' }); if (over && over.name === 'charms') overSel = Math.max(0, charmRows().findIndex(r => r.id === fresh[0])); }
       else toast(Object.keys(s.save.charms).length ? 'Your garden is saved. Pause, then Seed charms, to change charms.' : 'Your leaves grew back. Your garden is saved.');
     }
     else if (n === 'sealOpen') toast('Far below Rootgate, the great door has opened.', 5000);
@@ -386,7 +394,7 @@ function onEvents() {
 function talkPeddler() {
   const s = sim.save, P = W.peddler;
   if (!s.talked.peddler) {
-    s.talked.peddler = 1; s.maps.rootgate = 1; writeSave();
+    s.talked.peddler = 1; s.maps.rootgate = 1; sim.saveDirty = true; writeSave();
     openOver('dialog', { who: 'peddler', pages: P.first, then: () => openOver('shop', { line: 'Have a look, little one. Everything is for dew drops.' }) });
   } else {
     const line = P.lines[(s.time / 600 | 0) % P.lines.length];
@@ -437,8 +445,9 @@ function tick() {
     if (sim.ending && !endT) endT = ut;
     if (saveDirty && ut - savedAt > 300) writeSave();   /* lasting changes are kept within five seconds */
     if (endT && ut - endT > 300 && screen === 'play') { go('ending'); sim.save.done = 1; writeSave(); music('ending'); }
-    musicWatch();
-  } else if (screen === 'title' || screen === 'slots' || screen === 'newgame') music('title');
+    if (screen === 'play') musicWatch();
+  } else if (screen === 'ending') music('ending');
+  else if (screen === 'title' || screen === 'slots' || screen === 'newgame') music('title');
   else if (screen === 'story') music('rootgate');
 }
 function musicWatch() {
@@ -485,7 +494,10 @@ function keysCard() {
 function touchS() { const m = touchMask(); const L = TL; return { band: L.band, stick: L.stick, knob: stick ? { x: stick.x, y: stick.y, ox: stick.ox, oy: stick.oy } : null, btn: L.btn.map(b => Object.assign({}, b, { down: (b.id === 'jump' && m & IN.JUMP) || (b.id === 'swing' && m & IN.SWING) || (b.id === 'dash' && m & IN.DASH) || (b.id === 'focus' && m & IN.FOCUS) })) }; }
 function drawOver(scr) {
   const o = over, n = o.name, s = sim.save;
-  if (n === 'map') { if (!o.data) o.data = mapS(); o.data.t = overT; o.data.touch = touchMode || coarse; scr('map', o.data); }
+  if (n === 'map') {
+    if (!o.data) o.data = mapS(); o.data.t = overT; o.data.touch = touchMode || coarse; scr('map', o.data);
+    const D = RD(); if (o.data.note && D.text) { ctx.fillStyle = 'rgba(43,33,64,.92)'; const w = 440; ctx.beginPath(); ctx.roundRect ? ctx.roundRect(LW / 2 - w / 2, 300, w, 26, 13) : ctx.rect(LW / 2 - w / 2, 300, w, 26); ctx.fill(); D.text(ctx, o.data.note, LW / 2, 313, 13, '#ffd93b'); }
+  }
   const touch = touchMode || coarse, band = padMode ? { y: VH, h: LH - VH } : null;
   if (n === 'dialog') scr('dialog', { t: overT, who: o.who, name: o.name2 || (o.who === 'peddler' ? 'The Peddler' : ''), text: o.pages[o.i || 0] || '', more: (o.i || 0) < o.pages.length - 1, touch, band });
   else if (n === 'get') scr('get', { t: overT, kind: o.kind, id: o.id, title: o.title, text: o.text, keys: o.keys, touch, band });
@@ -500,7 +512,12 @@ function mapS() {
     rooms.push({ id: d.id, name: d.name, x: d.cx * 16, y: d.cy * 9, w: d.cw * 16, h: d.ch * 9, area: d.area, here: d.id === sim.room.id, doors: mapDoors(d), spot: d.map.some(r => r.indexOf('W') >= 0), peddler: d.map.some(r => r.indexOf('P') >= 0), guard: d.guardian || null, calm: d.guardian ? !!s.calm[d.guardian] : false });
   }
   const r = sim.room, me = sim.st.compass && s.maps[r.area] ? sim.players.map(p => ({ x: r.wx + p.x / 20, y: r.wy + p.y / 20 })) : null;
-  return { t: overT, rooms, areas: W.areas, me, puddle: s.puddle && W.rooms[s.puddle.room] && s.visited[s.puddle.room] ? { x: W.rooms[s.puddle.room].cx * 16 + s.puddle.x / 20, y: W.rooms[s.puddle.room].cy * 9 + s.puddle.y / 20 } : null, area: r.area, have: Object.assign({}, s.maps), here: { x: r.wx + r.pw / 40, y: r.wy + r.ph / 40 } };
+  let area = r.area, note = '';
+  if (!s.maps[area] || !rooms.some(q => q.area === area)) {   /* no map of this area yet: show one you have, and say where to get this one */
+    const A = W.areas[area] || {}; note = 'No map of ' + (A.name || 'this place') + ' yet. The Peddler in Rootgate sells one.';
+    area = (rooms.find(q => q.area === 'rootgate') || rooms[0] || { area: 'rootgate' }).area;
+  }
+  return { t: overT, rooms, areas: W.areas, me: s.maps[r.area] ? me : null, puddle: s.puddle && W.rooms[s.puddle.room] && s.visited[s.puddle.room] ? { x: W.rooms[s.puddle.room].cx * 16 + s.puddle.x / 20, y: W.rooms[s.puddle.room].cy * 9 + s.puddle.y / 20 } : null, area, note, have: Object.assign({}, s.maps), here: { x: r.wx + r.pw / 40, y: r.wy + r.ph / 40 } };
 }
 const doorCache = {};
 function mapDoors(d) {

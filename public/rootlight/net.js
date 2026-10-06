@@ -240,7 +240,7 @@ function evPending(t) {
   let i = 0; while (i < q.length && t - q[i].at > ttl) i++; if (i) q.splice(0, i);
   return q.slice(-40).map(x => x.e);
 }
-function logAdd(type, ...a) { log.push([++logSeq, type, ...a]); if (log.length > 64) log.shift(); T.logSent++; }
+function logAdd(type, ...a) { log.push([++logSeq, type, ...a]); while (log.length > 64 && log[0][0] <= guestLa) log.shift(); if (log.length > 400) log.shift(); T.logSent++; }
 function hostSetup(s) {
   s.ext[1] = true;
   const g = s.players[1]; g.alive = true;
@@ -273,7 +273,7 @@ function doAsk(s, q) {
   else if (type === 4) { const b = r.breaks.find(b => b.n === q[2] && b.hp > 0); if (b) s.hitBreak(b); }
   else if (type === 5) { const l = r.levers.find(l => l.n === q[2] && !l.on); if (l) s.pullLever(l); }
   else if (type === 6) { const it = r.items.find(i => (i.key || i.id) === q[2] && !i.got && i.kind !== 'cluster'); if (it) s.pickup(G, it); }
-  else if (type === 7) { if (!follow && W().rooms[q[2]] && q[2] !== s.room.id) { follow = { host: true, t: 0, to: q[2], x: +q[3], y: +q[4], vx: +q[5], vy: +q[6], face: q[7] < 0 ? -1 : 1, dy: q[8] | 0 }; toast(opp() + ' went on ahead', 'following…'); } }
+  else if (type === 7) { if (!follow && hasRoom(q[2]) && q[2] !== s.room.id) { follow = { host: true, t: 0, to: q[2], x: +q[3], y: +q[4], vx: +q[5], vy: +q[6], face: q[7] < 0 ? -1 : 1, dy: q[8] | 0 }; toast(opp() + ' went on ahead', 'following…'); } }
   else if (type === 8) { const sp = r.spots[0]; if (sp) s.rest(G, sp); }
   else if (type === 9) { const sw = r.switches.find(x => x.n === q[2] && !x.on); if (sw) s.flipSwitch(sw); }
   else if (type === 10) { const sh = r.shots.find(x => x.id === q[2] && !x.spent); if (sh) { sh.spent = true; s.ev('pop', sh.kind, sh.x, sh.y); } }
@@ -285,13 +285,15 @@ function doFollow(s, f) {
   T.follows++;
 }
 const W = () => RL.World;
+const hasRoom = id => typeof id === 'string' && Object.prototype.hasOwnProperty.call(RL.World.rooms, id);   /* never 'constructor' and friends */
 function hostPost(s) {
-  if (s.saveDirty) { s.saveDirty = false; saveDirty = true; }   /* charms worn, Gentle switched */
-  if (s.rv !== hostRv) { hostRv = s.rv; log = []; if (gIt) gIt.clear(); T.rooms++; saveDirty = true; }
+  if (s.saveDirty) { s.saveDirty = false; saveDirty = true; }   /* charms worn, Gentle switched, things bought */
+  let moved = false; if (s.rv !== hostRv) { hostRv = s.rv; log = []; if (gIt) gIt.clear(); T.rooms++; saveDirty = true; moved = true; }
   const r = s.room;
   for (const e of s.events) {
     const n = e[0], code = EVN.indexOf(n);
     /* the room's lasting changes go in the log */
+    if (moved && (n === 'bloom' || n === 'bud' || n === 'lever' || n === 'switch')) continue;   /* that happened in the room we just left */
     if (n === 'bloom') logAdd(0, e[8] | 0, ri(e[5]), ri(e[6]), e[7] ? 1 : 0, e[4] | 0, e[9] ? 1 : 0);   /* [bloom, kind, x, y, flower kind, fx, fy, ceil, id, temp] */
     else if (n === 'bud') logAdd(1, ri(e[3]), ri(e[4]), e[5] ? 1 : 0);   /* [bud, x, y, bx, by, ceil] */
     else if (n === 'lever') { const l = r.levers.find(l => l.x === e[1] && l.y === e[2]); if (l) logAdd(3, l.n); }
@@ -363,7 +365,7 @@ function onChunk(o) {
 function onWait(o) {
   if (o.t <= newestT && newestT - o.t < 3600) { S.old++; return; }
   newestT = o.t; hostSc = o.sc;
-  if (M.screen === 'play' && gStarted) { const g = sim(); if (g && g.ending) M.go('ending'); else M.quitToTitle(); gStarted = false; }   /* the host finished: our ending too */
+  if (M.screen === 'play' && gStarted) { const g = sim(); if (g && g.ending) return; M.quitToTitle(); gStarted = false; }   /* the host went to its menus; at the ending our own ending shows */
 }
 function onSnap(o) {
   if (o.t <= newestT && newestT - o.t < 3600) { S.old++; return; }
@@ -379,7 +381,7 @@ function onSnap(o) {
 /* the guest's world, each tick: start the game, change rooms, apply the room log, draw the host's things */
 function guestTick() {
   const L = latest;
-  if (pendingSave && !gStarted && L) {
+  if (pendingSave && !gStarted && L && M.screen !== 'ending') {
     const save = pendingSave; pendingSave = null;
     M.startGame(save.slot || 1, { save, noSave: true, players: 2 });
     gStarted = true; curRm = ''; curRv = -1; la = 0;
@@ -403,7 +405,9 @@ function guestRoom(s) {
       const f = follow; follow = null; waitDoor = null;
       const P = L.P, hx = P[0] / 4, hy = P[1] / 4;
       const x = f.door ? f.door.x : hx, y = f.door ? f.door.y : hy;
+      if (!hasRoom(L.rm)) return true;
       s.enterRoom(L.rm, x, y, {}); s.rv = L.rv; curRm = L.rm; curRv = L.rv; la = 0; s.ext[1] = false;
+      asks = asks.filter(q => q[1] === 7 && q[2] === L.rm);   /* asks about the room we left must never land in this one */
       const me = s.players[1], pw = s.room.pw; me.x = clamp(x, 12, pw - 12); me.y = y;
       if (!f.door) { me.x = clamp(hx - 16, 12, pw - 12); if (!s.okSpot(me.x, me.y)) me.x = clamp(hx, 12, pw - 12); }
       if (me.alive) {
@@ -417,14 +421,14 @@ function guestRoom(s) {
   }
   for (const e of L.L) {
     if (e[0] <= la) continue;
-    if (e[0] !== la + 1 && la) break;   /* wait for the gap to be filled (it is resent until acked) */
+    if (e[0] !== la + 1 && la && e !== L.L[0]) break;   /* wait for a gap to be filled (resent until acked); a gap at the front was dropped by the host */
     la = e[0]; applyLog(s, e); T.logIn++;
   }
   return false;
 }
 function applyLog(s, e) {
   const r = s.room, type = e[1];
-  if (type === 0) { r.flowers.push({ x: e[3], y: e[4], kind: e[6], ceil: !!e[5], t: 0, seed: e[2] * 7 + 3, temp: !!e[7] }); if (!e[7]) { const b = s.save.bloom[r.id] = s.save.bloom[r.id] || []; if (!b.some(x => x[0] === e[2])) b.push([e[2], e[3], e[4], e[5]]); } r.recolour(s.save); }
+  if (type === 0) { if (e[3] >= 0) r.flowers.push({ x: e[3], y: e[4], kind: e[6], ceil: !!e[5], t: 0, seed: e[2] * 7 + 3, temp: !!e[7] }); if (!e[7]) { const b = s.save.bloom[r.id] = s.save.bloom[r.id] || []; if (!b.some(x => x[0] === e[2])) b.push([e[2], e[3], e[4], e[5], e[6]]); } r.recolour(s.save); }
   else if (type === 1) { const b = r.buds.find(b => Math.abs(b.x - e[2]) < 2 && Math.abs(b.y - e[3]) < 2); if (b) { r.buds.splice(r.buds.indexOf(b), 1); } r.flowers.push({ x: e[2], y: e[3], kind: 6, ceil: !!e[4], t: 0, seed: 5 }); r.recolour(s.save); }
   else if (type === 2) { const i = r.items.findIndex(i => (i.key || i.id) === e[2]); if (i >= 0) r.items.splice(i, 1); s.save.got[e[2]] = 1; }
   else if (type === 3) { const l = r.levers.find(l => l.n === e[2]); if (l) { l.on = true; l.t = 20; if (l.gate) s.save.open[l.gate.key] = 1; } }
@@ -432,7 +436,14 @@ function applyLog(s, e) {
   else if (type === 5) { const br = r.breaks.find(b => b.n === e[2]); if (br) { for (const [a, b] of br.cells) r.t[b * r.w + a] = RL.T.AIR; r.breaks.splice(r.breaks.indexOf(br), 1); s.save.broke[br.key] = 1; } }
   else if (type === 6) { const me = s.players[1]; me.leaves = me.maxLeaves; if (me.st === 'bubble' || me.st === 'faint') s.revive(me, true); s.ev('rest', 0); }
   else if (type === 7) { const me = s.players[1]; me.alive = true; me.bubble = false; me.leaves = me.maxLeaves; me.inv = 60; s.setSt(me, 'sit'); s.ev('wake'); }
-  else if (type === 8) { if (e[2] === 'ability') s.save.ab[e[3]] = 1; s.applyStats(); s.ev('get', e[2], e[3], e[4] | 0); }
+  else if (type === 8) {
+    const me = s.players[1], before = me.maxLeaves, kind = e[2], v = e[3];
+    if (kind === 'ability') s.save.ab[v] = 1; else if (kind === 'life') s.save.life = Math.max(s.save.life, v | 0); else if (kind === 'vessel') s.save.vessels = Math.max(s.save.vessels, v | 0); else if (kind === 'notch') s.save.notches = Math.max(s.save.notches, v | 0); else if (kind === 'charm' && typeof v === 'string') s.save.charms[v] = 1;
+    s.applyStats();
+    if (me.alive && (kind === 'ability' || me.maxLeaves > before)) me.leaves = me.maxLeaves;   /* the same refill the finder had */
+    if (kind === 'vessel') me.sun = me.sunMax;
+    s.ev('get', kind, v, e[4] | 0);
+  }
   else if (type === 9) { s.save.calm[GK[e[2]]] = 1; s.ev('calm', GK[e[2]]); s.calmFlowers(); }
   else if (type === 10) { r.items.push({ kind: e[2], id: e[3], key: e[4], x: e[5], y: e[6], got: false, hp: 0, hurt: 0, rise: 1 }); }
   else if (type === 11) { s.ending = 1; s.ev('ending'); }
@@ -475,7 +486,13 @@ function guestPre(s) {
   const mine = room.shots.filter(x => x.kind === 'beam' && x.own === 1);
   room.shots = B.S.filter(a => !popped.has(a[0])).map(a => { const p = sPrev.get(a[0]), fx = clamp(k, 0, 1.4); const x = p ? (p[2] + (a[2] - p[2]) * fx) / 4 : a[2] / 4, y = p ? (p[3] + (a[3] - p[3]) * fx) / 4 : a[3] / 4; return { id: a[0], kind: SK[a[1]], x, y, vx: a[4] / 16, vy: a[5] / 16, r: a[6], t: a[7], life: 1e9, own: SK[a[1]] === 'beam' ? 0 : -1, hit: new Set(), dmg: 0, net: 1 }; }).concat(mine);
   room.drops = B.D.map(d => ({ x: d[0] / 4, y: d[1] / 4, vx: 0, vy: 0, t: 0, v: 1 }));
-  room.gates.forEach((g, i) => { g.shut = i < 30 ? !!(B.gs & (1 << i)) : g.shut; });
+  room.gates.forEach((g, i) => {
+    const was = g.shut; g.shut = i < 30 ? !!(B.gs & (1 << i)) : g.shut;
+    const me = s.players[1], G = room.guard;
+    if (g.shut && !was && me && me.x + 7 > g.x && me.x - 7 < g.x + g.w && me.y > g.y && me.y - 26 < g.y + g.h) {   /* never shut inside it */
+      if (g.vert) me.x = G && G.ax < g.x ? g.x - 9 : g.x + g.w + 9; else me.y = G && G.ay < g.y ? g.y - 1 : g.y + g.h + 27;
+    }
+  });
   /* the countdown and clock: platforms, vents and gusts follow the host's ticks */
   const ahead = Math.round(((Net.rtt || 0) / 2 + (t - L_at())) / TICK);
   const want = latest.st + ahead; if (Math.abs(want - s.t) > 3) s.t = want;
@@ -502,7 +519,7 @@ function guestSetup(s) {
   H.swingShot = (p, sh) => { popped.add(sh.id); sh.spent = true; s.ev('pop', sh.kind, sh.x, sh.y); ask(10, sh.id); return false; };
   H.pickup = (p, it) => { if (it.kind === 'cluster') return false; if (!it.asked) { it.asked = 1; ask(6, it.key || it.id); } return false; };
   H.door = (p, to) => {
-    if (!waitDoor) {
+    if (!waitDoor && hasRoom(to)) {
       const r = s.room, wx = r.wx * 20 + p.x, wy = r.wy * 20 + p.y, d = W().rooms[to], dy = p.y - 13 < 0 ? -1 : p.y - 13 > r.ph ? 1 : 0;
       const x = wx - d.cx * 16 * 20, y = wy - d.cy * 9 * 20;
       waitDoor = { to, x: x + Math.sign(p.vx) * 6, y, vx: p.vx, vy: p.vy, dy }; ask(7, to, ri(x), ri(y), ri(p.vx), ri(p.vy), p.face, dy); toast('You went on ahead', opp() + ' is following…');
@@ -570,7 +587,7 @@ const hooks = {
     if (Net.role === 'host') { if (M.screen !== 'play' && ut - lastIdle >= C.idle) { lastIdle = ut; send({ k: 'w', sc: M.screen === 'title' ? 0 : M.screen === 'slots' ? 1 : 2 }); } }
     else {
       if (latest) onAcked(latest.a);
-      if (gStarted && M.screen !== 'play' && M.screen !== 'ending') gStarted = false;   /* back on the title: ready to join the next garden */
+      if (gStarted && M.screen !== 'play' && M.screen !== 'ending') { gStarted = false; haveSv = 0; pendingSave = null; chunks = null; }   /* back on the title: ask for the next garden afresh */
       guestTick();
       if ((M.screen !== 'play' || !gStarted) && ut - lastGSend >= C.idle) sendG(null);
     }
@@ -594,7 +611,7 @@ const hooks = {
   draw(ctx, Wd, H) {
     const RD = RL.Render; if (!RD || !RD.text) return;
     const scr = M.screen;
-    if (online && Net.role === 'guest' && !gStarted) {
+    if (online && Net.role === 'guest' && !gStarted && scr !== 'ending') {
       ctx.fillStyle = 'rgba(27,21,48,.92)'; rr(ctx, Wd / 2 - 200, H / 2 - 50, 400, 100, 18); ctx.fill();
       fit(ctx, hostSc === 1 ? opp() + ' is picking a garden…' : heardAny ? 'Waiting for ' + opp() + ' to start…' : 'Waiting for ' + opp() + '…', Wd / 2, H / 2 - 16, 20, '#ffd93b', 370);
       RD.text(ctx, 'You play MARIGOLD, the orange marigold', Wd / 2, H / 2 + 18, 14, '#fff');

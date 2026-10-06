@@ -285,7 +285,7 @@ class Sim {
   }
   /* ---------------- rooms ---------------- */
   enterRoom(id, x, y, how) {
-    const def = this.W.rooms[id]; if (!def) return false;
+    const def = Object.prototype.hasOwnProperty.call(this.W.rooms, id) ? this.W.rooms[id] : null; if (!def || !Array.isArray(def.map)) return false;
     how = how || {};
     const s = this.save;
     this.room = new Room(def, s, this); this.rv++;
@@ -308,6 +308,17 @@ class Sim {
     if (!s.seen[def.area]) { s.seen[def.area] = 1; this.ev('area', def.area); this.ev('autosave'); }
     else if (firstVisit) this.ev('newroom', id);
     return true;
+  }
+  /* the nearest place to stand near (x, y): up to 7 tiles up and 9 tiles to either side, nearest first */
+  standNear(x, y) {
+    const r = this.room; let best = null, bd = 1e9;
+    for (let ty = Math.floor(y / TILE) + 1; ty >= Math.floor(y / TILE) - 7; ty--) for (let dx = -9; dx <= 9; dx++) {
+      const tx = Math.floor(x / TILE) + dx; if (tx < 1 || tx >= r.w - 1 || ty < 2 || ty >= r.h) continue;
+      if (!(r.solid(tx, ty) || r.oneway(tx, ty)) || r.solid(tx, ty - 1)) continue;
+      const sx = tx * TILE + TILE / 2, sy = ty * TILE; if (!this.okSpot(sx, sy)) continue;
+      const d = Math.abs(sx - x) + Math.abs(sy - y) * 0.5; if (d < bd) { bd = d; best = { x: sx, y: sy }; }
+    }
+    return best;
   }
   okSpot(x, y) { const r = this.room; return x >= PH.W / 2 + 2 && x <= r.pw - PH.W / 2 - 2 && !r.boxSolid(x - PH.W / 2, y - PH.H, x + PH.W / 2, y - 0.01); }   /* inside the room, not in a wall */
   /* a player went past an edge: find the neighbour at that world position and go there (both players come along) */
@@ -339,7 +350,10 @@ class Sim {
     for (const q of this.players) { q.vx = o.vx || 0; q.vy = o.vy || 0; q.face = o.face || q.face; }
     if (o.dy < 0) for (const q of this.players) { q.vy = Math.min(q.vy, -7.2); q.rise = 2; }   /* up through a floor hole: a little extra hop */
     const pw = this.room.pw;
-    for (const q of others) { q.x = clamp(lead.x - 16 * (lead.face || 1), 12, pw - 12); q.y = lead.y; if (!this.okSpot(q.x, q.y)) q.x = clamp(lead.x, 12, pw - 12); q.inv = Math.max(q.inv, 30); }
+    for (const q of others) {
+      q.x = clamp(lead.x - 16 * (lead.face || 1), 12, pw - 12); q.y = lead.y; if (!this.okSpot(q.x, q.y)) q.x = clamp(lead.x, 12, pw - 12); q.inv = Math.max(q.inv, 30);
+      if (o.dy < 0) { const st = this.standNear(lead.x, lead.y); if (st) { q.x = st.x; q.y = st.y; q.vx = 0; q.vy = 0; q.rise = 0; } }   /* up through a hole: the follower lands beside it, not in it */
+    }
     if (lead.x < 8 || lead.x > pw - 8) lead.x = clamp(lead.x, 8, pw - 8);
     this.fade = Math.max(this.fade, 0.85); this.fadeTo = 0;
   }
@@ -353,7 +367,9 @@ class Sim {
       if (Math.abs(a.x - b.x) < C.VW - 120 && Math.abs(a.y - b.y) < C.VH - 100) { cx = (a.x + b.x) / 2; cy = (a.y + b.y) / 2 - 20; }
       else { cx = L.x; cy = L.y - 20; }
     } else { cx = L.x + L.face * 30; cy = L.y - 20; }
-    const g = r.guard; if (g && g.awake && !g.done) cy = cy * 0.55 + g.y * 0.45;   /* keep a guardian in the picture */
+    const g = r.guard;   /* keep a guardian in the picture, and watch it calm */
+    if (g && g.awake && !g.done) { cy = cy * 0.55 + g.y * 0.45; const gx = cx * 0.6 + g.x * 0.4; cx = clamp(gx, L.x - 250, L.x + 250); }
+    else if (g && g.st === 'calm' && g.calm < 1 && g.awake) { cx = cx * 0.35 + g.x * 0.65; cy = cy * 0.4 + g.y * 0.6; }
     this.camT = { x: clamp(cx - C.VW / 2, 0, Math.max(0, r.pw - C.VW)), y: clamp(cy - C.VH / 2 - 10, 0, Math.max(0, r.ph - C.VH)) };
     if (r.pw < C.VW) this.camT.x = (r.pw - C.VW) / 2; if (r.ph < C.VH) this.camT.y = (r.ph - C.VH) / 2;
   }
@@ -524,8 +540,9 @@ class Sim {
     } else if (p.st === 'focus') { p.focus = 0; this.ev('focus', p.i, false); this.setSt(p, 'idle'); }
     /* ----- move ----- */
     const wasGround = p.ground, vyBefore = p.vy;
-    p.x += pushX * (p.ground && !inWater ? 0.6 : 1);
+    p.push = pushX * (p.ground && !inWater ? 0.6 : 1);   /* wind and currents move you like walking does: walls stop them */
     this.move(p);
+    p.push = 0;
     if (p.ground && !wasGround) { this.ev('land', p.i, clamp(vyBefore / PH.FALL, 0, 1)); p.rise = 0; p.wall = 0; if (p.st === 'jump' || p.st === 'fall' || p.st === 'cling') this.setSt(p, 'idle'); }
     /* ----- state for the art ----- */
     if (p.st !== 'hurt' && p.st !== 'focus' && !dashing) {
@@ -541,6 +558,11 @@ class Sim {
     if (p.x < 0 || p.x > r.pw || p.y - PH.H / 2 < 0 || p.y - PH.H / 2 > r.ph) this.doorway(p);
   }
   setSt(p, st) { if (p.st !== st) { p.st = st; p.at = 0; } }
+  unstick(p) {
+    const r = this.room, w = PH.W, h = PH.H, free = (x, y) => !r.boxSolid(x - w / 2, y - h + 0.5, x + w / 2, y - 0.5) && x > w / 2 && x < r.pw - w / 2;
+    for (let d = 1; d <= 40; d++) for (const [ox, oy] of [[d, 0], [-d, 0], [0, -d], [d, -d], [-d, -d], [0, d]]) if (free(p.x + ox, p.y + oy)) { p.x += ox; p.y += oy; return true; }
+    if (p.safe) { p.x = p.safe.x; p.y = p.safe.y; } return false;
+  }
   headOut(p) { return !this.room.water(p.x, p.y - PH.H + 4); }
   standOneway(p) { const ty = Math.floor((p.y + 1) / TILE); for (let tx = Math.floor((p.x - 6) / TILE); tx <= Math.floor((p.x + 6) / TILE); tx++) if (this.room.solid(tx, ty)) return false; return this.room.oneway(Math.floor(p.x / TILE), ty) || this.room.oneway(Math.floor((p.x - 6) / TILE), ty) || this.room.oneway(Math.floor((p.x + 6) / TILE), ty); }
   /* a wall to cling to: the upper body against solid (forgiving: you can catch a wall whose foot is a little above you) */
@@ -550,13 +572,16 @@ class Sim {
     const r = this.room, w = PH.W, h = PH.H;
     /* riding a platform */
     if (p.ride) { p.x += p.ride.vx; p.y += p.ride.vy; }
-    /* x */
-    let nx = p.x + p.vx;
-    if (r.boxSolid(nx - w / 2, p.y - h + 0.5, nx + w / 2, p.y - 0.5)) {
-      if (p.vx > 0) nx = Math.floor((nx + w / 2) / TILE) * TILE - w / 2 - 0.01; else if (p.vx < 0) nx = Math.ceil((nx - w / 2) / TILE) * TILE + w / 2 + 0.01;
+    /* never stuck inside something: step out to the nearest free spot (a gate shutting, a crumbled ledge growing back) */
+    if (r.boxSolid(p.x - w / 2, p.y - h + 0.5, p.x + w / 2, p.y - 0.5)) this.unstick(p);
+    /* x: your own speed plus any wind or current, stopped by walls */
+    const dx = p.vx + (p.push || 0);
+    let nx = p.x + dx;
+    if (dx && r.boxSolid(nx - w / 2, p.y - h + 0.5, nx + w / 2, p.y - 0.5)) {
+      if (dx > 0) nx = Math.floor((nx + w / 2) / TILE) * TILE - w / 2 - 0.01; else nx = Math.ceil((nx - w / 2) / TILE) * TILE + w / 2 + 0.01;
       if (r.boxSolid(nx - w / 2, p.y - h + 0.5, nx + w / 2, p.y - 0.5)) nx = p.x;
       if (p.dashT) { p.dashT = 0; this.setSt(p, p.ground ? 'idle' : 'fall'); }
-      p.vx = 0;
+      if (sgn(p.vx) === sgn(dx)) p.vx = 0;
     }
     p.x = nx;
     /* y */
@@ -650,7 +675,7 @@ class Sim {
     return true;
   }
   petalBurst(p) {
-    for (const f of this.room.foes) if (f.alive && Math.hypot(f.x - p.x, f.y - p.y + 13) < 90) this.hitFoe(f, 1, p, p.x);
+    for (const f of this.room.foes) if (f.alive && Math.hypot(f.x - p.x, f.y - p.y + 13) < 90) { if (this.hooks.swingFoe && this.hooks.swingFoe(p, f) === false) continue; this.hitFoe(f, 1, p, p.x); }
     this.ev('petals', p.x, p.y - 13);
   }
   faint(p) {
@@ -1001,7 +1026,7 @@ class Sim {
     if (out) {
       F.off++;
       if (F.alive && F.off > 20 && F.ground && !F.dashT) { const d = sgn(L.x - F.x); F.x += d * 0.8; }
-      if (F.off > 75) { F.x = L.x - 14 * L.face; F.y = L.y; F.vx = L.vx; F.vy = Math.min(0, L.vy); F.inv = Math.max(F.inv, 40); F.off = 0; this.ev('tether', F.i, F.x, F.y); }
+      if (F.off > 75) { F.x = L.x - 14 * L.face; F.y = L.y; if (!this.okSpot(F.x, F.y)) F.x = L.x; F.vx = L.vx; F.vy = Math.min(0, L.vy); F.inv = Math.max(F.inv, 40); F.off = 0; this.ev('tether', F.i, F.x, F.y); }
     } else F.off = 0;
   }
 
@@ -1174,7 +1199,7 @@ class Sim {
     else if (it.kind === 'charm') s.charms[it.charm] = 1;
     else if (it.kind === 'notch') s.notches++;
     else if (it.kind === 'leaf') { s.leafSlots++; this.applyStats(); for (const p of this.players) p.leaves = p.maxLeaves; }
-    this.ev('buy', id); this.ev('autosave');
+    this.ev('buy', id); this.ev('autosave'); this.saveDirty = true;
     return 'ok';
   }
   wear(id, on) {
