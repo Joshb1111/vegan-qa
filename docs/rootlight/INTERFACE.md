@@ -225,7 +225,24 @@ false stop: a rising hum) 'dash' 'cling' 'walljump' 'puff' 'beam' 'bounce' 'pogo
 'charge' 'wind' 'rain' 'zap' 'slam' 'rumble' 'gtell' 'ghit' 'calm' 'bubble' 'shop' 'buy' 'nope' 'menu' 'select' 'back' 'map' 'talk'.
 With `?mute=1` it never makes an AudioContext and never touches storage.
 
-## Net (net.js) — RL.Net (milestone 4; see the section added then)
+## Net (net.js) — RL.Net
+Online co-op through the parent page (public/rootlight-room.js: a WebRTC data channel with the Ably duel room as the relay).
+The HOST (SPRIG, `role:'host'`, `me:0`) runs the world: glooms, guardians, shots, hazards, dew, doors, pickups, gates and the
+save (its slot). The GUEST (MARIGOLD, `role:'guest'`, `me:1`) moves its own sprout in its own Sim (no input lag) and sends
+its state; everything else it draws from the host's interpolated snapshots. The victim decides its own hits; the guest asks
+for every change to the world (swing hits, buds, clusters, breakable walls, levers, sun switches, pickups, doorways, rests),
+asks ride in every message until acked by seq. The host keeps a reliable room log (blooms, buds, pickups, levers, switches,
+breaks, rests, wakes, cards, calms) resent until acked, cosmetic events for 300-800 ms, and the save in chunks when it
+changes. Both are always in the same room: whoever goes through a doorway first, the other follows after a 70-tick
+countdown. The wire format is in net.js's header (PROTO 1, every message under 6000 characters). Sim hooks used:
+`sim.hooks.{pre, post, door, hurt, wake, rest, talk, swingFoe, swingGuard, swingBud, swingItem, swingBreak, swingLever,
+swingShot, pickup, beamFoe, beamGuard, beamSwitch, beamBud, beamShot}`; `sim.ext[i]` marks a sprout driven from the network.
+
+## Extra sim events (beyond the list above)
+`step` `setback` `crumbleTell` `briar` `pop` `bonk` `sway` `beamEnd` `drip` `splat` `wind` `charge` `clunk` `ready` `shove`
+`hop` `stomp` `throw` `summon` `petals` `tether` `secret` `newroom` `autosave` `hazard` `sealOpen` (the third guardian calmed)
+`nosun` (Focus or Sunbeam without enough Sunlight). `bloom` is `[bloom, kind, x, y, flowerKind, fx, fy, ceil, id, temp]`,
+`bud` is `[bud, x, y, bx, by, ceil]`, `get` is `[get, kind, id, playerIndex]`.
 
 ## Debug: window.__rl
 `state` (screen, room, players, save summary, fps, errors), `manual(on)`, `step(n)`, `render()`, `key(code, down)`,

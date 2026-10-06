@@ -89,7 +89,7 @@ function startGame(n, o) {
   const D = RD(); if (D.room) try { D.room(sim); } catch (e) { report(e); }
   go('play');
   writeSave();
-  if (o.fresh) { areaCard = { name: 'ROOTLIGHT', sub: 'the garden above has gone grey', t: 0 }; }
+  if (o.fresh) { const a = W.areas.rootgate; areaCard = { name: a.name, sub: a.sub, t: 0 }; }
 }
 function quitToTitle() { if (sim) writeSave(); sim = null; over = null; queue.length = 0; paused = false; endT = 0; go('title'); music('title'); }
 
