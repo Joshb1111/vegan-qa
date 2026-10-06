@@ -209,7 +209,7 @@ function tap(x, y) {
 /* ---------- overlays over play ---------- */
 function openOver(name, data) {
   if (over) { queue.push([name, data]); return; }
-  over = Object.assign({ name }, data || {}); overSel = 0; overT = 0;
+  over = Object.assign({}, data || {}, { name }); overSel = 0; overT = 0;
   if (sim) sim.freeze = !over.live && !liveNow();   /* online the garden never stops */
   if (name === 'map') sfx('map');
 }
@@ -344,7 +344,7 @@ function onEvents() {
     else if (n === 'calm') { sfx('calm'); music('calm'); lastCalm = ut; }
     else if (n === 'gstart') { sfx('rumble'); }
     if (n === 'talk') talkPeddler();
-    else if (n === 'sign') openOver('dialog', { who: 'sign', name: '', pages: [String(e[1] || '')] });
+    else if (n === 'sign') openOver('dialog', { who: 'sign', pages: [String(e[1] || '')] });
     else if (n === 'rest') { sfx('save'); toast('Your leaves grew back. Your garden is saved.'); if (Object.keys(s.save.charms).length) openOver('charms', { edit: true }); }
     else if (n === 'get') getCard(e[1], e[2]);
     else if (n === 'area') { const a = W.areas[e[1]] || {}; areaCard = { name: a.name || '', sub: a.sub || '', t: 0 }; }
@@ -359,7 +359,7 @@ function talkPeddler() {
   const s = sim.save, P = W.peddler;
   if (!s.talked.peddler) {
     s.talked.peddler = 1; s.maps.rootgate = 1; writeSave();
-    openOver('dialog', { who: 'peddler', name: 'The Peddler', pages: P.first, then: () => openOver('shop', { line: 'Have a look, little one. Everything is for dew drops.' }) });
+    openOver('dialog', { who: 'peddler', pages: P.first, then: () => openOver('shop', { line: 'Have a look, little one. Everything is for dew drops.' }) });
   } else {
     const line = P.lines[(s.time / 600 | 0) % P.lines.length];
     openOver('shop', { line });
