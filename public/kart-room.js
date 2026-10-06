@@ -61,7 +61,7 @@ function kartRoom(body, ctx) {
   const play = q => {
     window.__duck = 1; /* the game has its own music */
     dropFrame(); el.innerHTML = '';
-    frame = document.createElement('iframe'); frame.className = 'tyframe'; frame.title = 'Sprout Kart'; frame.src = 'kart/index.html?v=1725' + (q || ''); frame.allow = 'autoplay; fullscreen'; el.appendChild(frame);
+    frame = document.createElement('iframe'); frame.className = 'tyframe'; frame.title = 'Sprout Kart'; frame.src = (st ? 'kart-v1/index.html?v=1725' : 'kart/index.html?v=2224') + (q || ''); /* v2 test (Josh): Play opens v2; online stays on v1 (kart-v1/) until v2's online play is finished */ frame.allow = 'autoplay; fullscreen'; el.appendChild(frame);
     /* online: '#arcade .net' stays in the room while a match is on (planet.html's Esc rule looks for it); it shows only on an upright phone */
     if (st) { const tag = document.createElement('div'); tag.className = 'net kband'; tag.hidden = true; st.tag = tag; el.appendChild(tag); }
     bar = document.createElement('span'); bar.className = 'kbar';

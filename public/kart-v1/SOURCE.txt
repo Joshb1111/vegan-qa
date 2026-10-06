@@ -1,0 +1,2 @@
+Sprout Kart — an original kart-racing game written for understand-veganism.com's planet. All art, music and sound are generated in code.
+Inspired by the classic floor-projection kart racers; no names, characters, tracks, items, art, music or text are taken from any of them.
