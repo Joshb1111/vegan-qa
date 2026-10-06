@@ -1,0 +1,37 @@
+<!doctype html><html><head><meta charset="utf-8"><base href="/public/">
+<title>Rootlight online test</title>
+<!-- Two copies of public/rootlight-room.js side by side, paired by a stand-in for the planet's duel lobby.
+     ?lat=80&jit=30&loss=0.05 delays/drops the relayed game messages ('u'); ?nortc=1 forces the relay (no WebRTC).
+     window.T: the two rooms' ctx, counters, and helpers for test scripts. -->
+<style>body{margin:0;background:#0d0b16;color:#eee;font:13px sans-serif;display:flex;gap:8px;padding:8px}
+.house{width:640px;display:flex;flex-direction:column}.hbar{display:flex;align-items:center;gap:8px;height:40px;background:#221b38;padding:0 8px}
+#house-x{margin-left:auto}.body{position:relative;height:420px;background:#14101f}
+#arcade{position:absolute;inset:0}#arcade .tyframe{width:100%;height:100%;border:0}#arcade button{margin:4px}#arcade .clickme,#arcade .role{position:absolute;bottom:4px;left:4px;background:#333;padding:2px 6px}</style></head>
+<body>
+<div class="house" id="hA"><div class="hbar"><b id="house-t">Ann</b><button id="house-x">x</button></div><div class="body"></div></div>
+<div class="house" id="hB"><div class="hbar"><b id="house-t">Ben</b><button id="house-x">x</button></div><div class="body"></div></div>
+<script>
+const Q = new URLSearchParams(location.search), LAT = +(Q.get('lat') || 40), JIT = +(Q.get('jit') || 10), LOSS = +(Q.get('loss') || 0);
+if (Q.get('nortc') === '1') window.RTCPeerConnection = function () { throw new Error('no rtc in this test'); };
+const T = window.T = { sent: 0, lost: 0, delivered: 0, waiting: [], ctx: [], stops: [] };
+function mk(i, name) {
+  const ctx = { me: name, musicOn: false, LIVE: { on: true, rt: true }, MP: { offset: 0 }, DUEL: { room: { attach: () => Promise.resolve() } },
+    duelFind(game, link, onNet) { ctx.game = game; ctx.link = link; ctx.onNet = onNet; T.waiting.push(ctx); if (T.waiting.length === 2) pair(); return true; },
+    duelSend(n, d) { const other = T.ctx[1 - i]; if (!other || !other.onNet) return; T.sent++;
+      const lossy = n === 'u'; if (lossy && Math.random() < LOSS) { T.lost++; return; }
+      const delay = LAT + Math.random() * JIT; const payload = JSON.parse(JSON.stringify(d));
+      setTimeout(() => { T.delivered++; try { other.onNet(n, payload); } catch (e) { console.error(e); } }, lossy ? delay : delay * 0.5); },
+    duelCancel() {}, duelLeave() { T.left = (T.left || 0) + 1; } };
+  T.ctx[i] = ctx; return ctx;
+}
+function pair() { const [a, b] = T.waiting; T.waiting = []; const at = Date.now() + 1500; a.link({ host: true, oppName: b.me, startAt: at }); b.link({ host: false, oppName: a.me, startAt: at }); }
+</script>
+<script src="/public/rootlight-room.js?v=1"></script>
+<script>
+T.stops[0] = rootlightRoom(document.querySelector('#hA .body'), mk(0, 'Ann'));
+T.stops[1] = rootlightRoom(document.querySelector('#hB .body'), mk(1, 'Ben'));
+T.frame = i => document.querySelectorAll('.house')[i].querySelector('iframe');
+T.win = i => { const f = T.frame(i); return f && f.contentWindow; };
+T.duo = () => { for (const h of document.querySelectorAll('.house')) h.querySelector('[data-a=duo]').click(); };
+document.title = 'ready';
+</script></body></html>

@@ -167,7 +167,7 @@ class Room {
       }
       else if (ch === 'h') this.levers.push({ x: cx, y: fy, on: false, t: 0, n: levN++ });
       else if (ch === 'y') this.switches.push({ x: cx, y: top + TILE / 2, on: false, t: 0, n: swN++ });
-      else if (ch === 'G' && def.guardian) this.makeGuard(def.guardian, cx, top + TILE / 2, fy, save);
+      else if (ch === 'G' && def.guardian) { let ty = y; while (ty < h - 1 && !this.solid(x, ty + 1)) ty++; this.makeGuard(def.guardian, cx, top + TILE / 2, (ty + 1) * TILE, save); }
     }
     mRuns.forEach((r, k) => { const p = (def.plats || [])[k] || [0, 0, 240]; this.plats.push({ x: r.x0 * TILE, y: r.y * TILE, w: (r.x1 - r.x0 + 1) * TILE, h: 10, x0: r.x0 * TILE, y0: r.y * TILE, dx: p[0] * TILE, dy: p[1] * TILE, period: Math.max(60, p[2] | 0), vx: 0, vy: 0 }); });
     for (const wd of def.wind || []) this.wind.push({ x: wd[0] * TILE, y: wd[1] * TILE, w: wd[2] * TILE, h: wd[3] * TILE, dx: +wd[4] || 0, dy: +wd[5] || 0, gust: wd[6] ? 1 : 0, on: 1 });
@@ -247,7 +247,7 @@ class Sim {
     this.role = o.role || 'solo'; this.t = 0; this.events = []; this.freeze = false; this.fade = 1; this.fadeTo = 0; this.after = null;
     this.rand = rng((o.seed >>> 0) || 12345); this.ext = [false, false]; this.hooks = {}; this.cam = { x: 0, y: 0 }; this.shake = 0;
     this.players = []; const n = o.players === 2 ? 2 : 1; for (let i = 0; i < n; i++) this.players.push(newPlayer(i));
-    this.room = null; this.st = stats(this.save); this.leader = 0; this.pending = null; this.ending = 0;
+    this.room = null; this.st = stats(this.save); this.leader = 0; this.pending = null; this.ending = 0; this.me = o.me | 0; this.rv = 0; this.shotN = 0;
     this.applyStats(true);
     const s = this.save;
     if (!s.spot) { const hub = this.W.rooms.rg_hub; s.spot = { room: 'rg_hub', x: null, y: null }; if (hub) hub.map.forEach((row, y) => { const x = row.indexOf('W'); if (x >= 0) s.spot = { room: 'rg_hub', x: x * TILE + TILE / 2, y: (y + 1) * TILE }; }); }
@@ -268,7 +268,7 @@ class Sim {
     const def = this.W.rooms[id]; if (!def) return false;
     how = how || {};
     const s = this.save;
-    this.room = new Room(def, s, this);
+    this.room = new Room(def, s, this); this.rv++;
     s.room = id;
     const firstVisit = !s.visited[id]; s.visited[id] = 1;
     const r = this.room;
@@ -309,7 +309,7 @@ class Sim {
     const others = this.players.filter(q => q !== lead);
     this.enterRoom(id, x, y, {});
     for (const q of this.players) { q.vx = o.vx || 0; q.vy = o.vy || 0; q.face = o.face || q.face; }
-    if (o.dy < 0) for (const q of this.players) { q.vy = Math.min(q.vy, -7.2); q.rise = 1; }   /* up through a floor hole: a little extra hop */
+    if (o.dy < 0) for (const q of this.players) { q.vy = Math.min(q.vy, -7.2); q.rise = 2; }   /* up through a floor hole: a little extra hop */
     for (const q of others) { q.x = lead.x - 16 * (lead.face || 1); q.y = lead.y; if (!this.okSpot(q.x, q.y)) q.x = lead.x; q.inv = Math.max(q.inv, 30); }
     this.fade = Math.max(this.fade, 0.85); this.fadeTo = 0;
   }
@@ -317,8 +317,8 @@ class Sim {
   camTarget() {
     const r = this.room, ps = this.players.filter(p => p.alive || p.bubble);
     let cx, cy;
-    const L = this.players[this.leader] || this.players[0];
-    if (ps.length > 1) {
+    const L = this.role !== 'solo' ? this.players[this.me] : this.players[this.leader] || this.players[0];
+    if (ps.length > 1 && this.role === 'solo') {
       const a = ps[0], b = ps[1];
       if (Math.abs(a.x - b.x) < C.VW - 120 && Math.abs(a.y - b.y) < C.VH - 100) { cx = (a.x + b.x) / 2; cy = (a.y + b.y) / 2 - 20; }
       else { cx = L.x; cy = L.y - 20; }
@@ -338,17 +338,17 @@ class Sim {
     if (this.freeze) return;
     this.t++; this.save.time++;
     if (this.fade > this.fadeTo) this.fade = Math.max(this.fadeTo, this.fade - 0.08); else if (this.fade < this.fadeTo) this.fade = Math.min(this.fadeTo, this.fade + 0.05);
-    if (this.after && this.fade >= this.fadeTo && this.fadeTo === 1) { const f = this.after; this.after = null; f(); return; }
-    const r = this.room;
     for (const p of this.players) { p.prev = p.in; p.in = (masks && masks[p.i]) | 0; }
+    if (this.after && this.fade >= this.fadeTo && this.fadeTo === 1) { const f = this.after; this.after = null; f(); this.camSnap(); if (this.hooks.post) this.hooks.post(this); return; }
     if (this.hooks.pre) this.hooks.pre(this);
+    const r = this.room;
     this.stepTiles();
     this.stepPlats();
     for (const p of this.players) if (!this.ext[p.i]) this.stepPlayer(p);
-    if (this.room !== r) { this.camStep(); return; }   /* someone went through a doorway */
+    if (this.room !== r) { this.camStep(); if (this.hooks.post) this.hooks.post(this); return; }   /* someone went through a doorway */
     if (this.role !== 'guest') { this.stepFoes(); this.stepGuard(); }
     this.stepShots(); this.stepHazards(); this.stepDrops(); this.stepItems();
-    if (this.players.length > 1) this.coop();
+    if (this.players.length > 1 && this.role === 'solo') this.coop();
     r.recolour(this.save); r.colour += (r.colourWant - r.colour) * 0.03;
     this.camStep();
     if (this.shake > 0) this.shake = Math.max(0, this.shake - 0.5);
@@ -582,8 +582,6 @@ class Sim {
       if (!ov(x0 - 4, y0 - 4, PH.W + 8, PH.H + 8, it.x - 10, it.y - 10, 20, 20)) continue;
       this.pickup(p, it);
     }
-    /* revive a partner's seed bubble */
-    for (const q of this.players) if (q !== p && q.st === 'bubble' && p.alive && Math.hypot(q.x - p.x, q.y - 14 - p.y + 13) < 26) this.revive(q);
     /* Up near a Watering Spot, the Peddler or a sign */
     p.prompt = null; p.near = null;
     if (p.ground && p.alive) {
@@ -591,8 +589,8 @@ class Sim {
       for (const n of r.npcs) if (Math.abs(n.x - p.x) < 40 && Math.abs(n.y - p.y) < 40) { p.prompt = 'Talk'; p.near = n; }
       if (!p.near) for (const sg of r.signs) if (Math.abs(sg.x - p.x) < 20 && Math.abs(sg.y - p.y) < 30) { p.prompt = 'Read'; p.near = sg; }
       if (p.near && this.pressed(p, IN.U) && !(p.in & IN.FOCUS)) {
-        if (p.prompt === 'Rest') this.rest(p, p.near);
-        else if (p.prompt === 'Talk') { p.near.talk = 1; this.ev('talk', 'peddler'); }
+        if (p.prompt === 'Rest') { if (!(this.hooks.rest && this.hooks.rest(p, p.near) === false)) this.rest(p, p.near); }
+        else if (p.prompt === 'Talk') { p.near.talk = 1; if (!(this.hooks.talk && this.hooks.talk(p) === false)) this.ev('talk', 'peddler'); }
         else this.ev('sign', p.near.text);
       }
     }
@@ -637,6 +635,7 @@ class Sim {
   stepBubble(p) {
     const other = this.players.find(q => q !== p && q.alive);
     if (!other) { if (!this.after) this.wakeAtSpot(p); return; }
+    if (Math.hypot(other.x - p.x, other.y - 13 - p.y) < 28) { this.revive(p); return; }   /* the partner touched the bubble */
     /* drift gently to the partner, through anything */
     const dx = other.x - p.x, dy = other.y - 30 - p.y, d = Math.hypot(dx, dy) || 1;
     const sp = d > 120 ? 1.6 : 0.6; p.vx += (dx / d * sp - p.vx) * 0.05; p.vy += (dy / d * sp - p.vy) * 0.05 + Math.sin(this.t / 20 + p.i) * 0.02;
@@ -651,6 +650,7 @@ class Sim {
   /* everyone nodded off: the dew is left in a puddle, you wake at the last Watering Spot */
   wakeAtSpot(p) {
     if (this.after) return;
+    if (this.hooks.wake && this.hooks.wake(p) === false) return;   /* NET HOOK: a guest waits for its host */
     this.fadeTo = 1;
     const s = this.save, r = this.room;
     this.after = () => {
@@ -682,12 +682,12 @@ class Sim {
     const hitOnce = key => { if (sw.hit.has(key)) return false; sw.hit.add(key); return true; };
     for (const f of r.foes) {
       if (!f.alive || !ov(bx, by, bw, bh, f.x - f.w / 2 - 2, f.y - f.h / 2 - 2, f.w + 4, f.h + 4) || !hitOnce(f)) continue;
-      if (this.hooks.swingFoe && this.hooks.swingFoe(p, f, sw) === false) { bounce = bounce || sw.dir === 'd'; continue; }   /* NET HOOK: a guest asks the host */
       if (f.kind === 'knight' && sw.dir === 'f' && f.st !== 'rest' && f.face === -p.face && Math.abs(f.y - (p.y - 13)) < 30) {
         f.st = 'block'; f.t = 0; f.vx = -f.face * 1.5; p.vx -= p.face * 2.6; this.ev('block', f.x - f.face * 10, f.y); recoil = true; continue;
       }
-      this.hitFoe(f, 1, p, p.x); p.sun = Math.min(p.sunMax, p.sun + this.st.sunHit);
+      p.sun = Math.min(p.sunMax, p.sun + this.st.sunHit);
       if (sw.dir === 'd') bounce = true; else if (sw.dir === 'f') recoil = true;
+      if (this.hooks.swingFoe && this.hooks.swingFoe(p, f, sw) === false) continue;   /* NET HOOK: a guest asks the host */
     }
     const g = r.guard;
     if (g && g.awake && !g.done && g.st !== 'wake' && ov(bx, by, bw, bh, g.x - g.w / 2, g.y - g.h / 2, g.w, g.h) && hitOnce(g)) {
@@ -695,9 +695,9 @@ class Sim {
       if (sw.dir === 'd') bounce = true; else if (sw.dir === 'f') recoil = true;
     }
     for (const sh of r.shots) if (sh.kind !== 'beam' && sh.kind !== 'drop' && !sh.dead && ov(bx, by, bw, bh, sh.x - sh.r - 3, sh.y - sh.r - 3, sh.r * 2 + 6, sh.r * 2 + 6) && hitOnce(sh)) {
-      sh.dead = true; this.ev('pop', sh.kind, sh.x, sh.y); if (sw.dir === 'd') bounce = true;
+      if (!(this.hooks.swingShot && this.hooks.swingShot(p, sh) === false)) { sh.dead = true; this.ev('pop', sh.kind, sh.x, sh.y); } if (sw.dir === 'd') bounce = true;
     }
-    for (const b of r.buds) if (!b.open && ov(bx, by, bw, bh, b.x - 10, b.y - (b.ceil ? 0 : 20), 20, 20) && hitOnce(b)) this.openBud(b);
+    for (const b of r.buds) if (!b.open && ov(bx, by, bw, bh, b.x - 10, b.y - (b.ceil ? 0 : 20), 20, 20) && hitOnce(b)) { if (!(this.hooks.swingBud && this.hooks.swingBud(p, b) === false)) this.openBud(b); }
     for (const fl of r.flowers) if (!fl.temp && !r.gotSun.has(fl) && ov(bx, by, bw, bh, fl.x - 8, fl.y - (fl.ceil ? 0 : 18), 16, 18)) { r.gotSun.add(fl); p.sun = Math.min(p.sunMax, p.sun + 3); this.ev('sway', fl.x, fl.y); }
     for (const it of r.items) if (it.kind === 'cluster' && !it.got && ov(bx, by, bw, bh, it.x - 12, it.y - 12, 24, 24) && hitOnce(it)) {
       if (this.hooks.swingItem && this.hooks.swingItem(p, it) === false) { if (sw.dir === 'd') bounce = true; continue; }
@@ -882,15 +882,17 @@ class Sim {
   stepShots() {
     const r = this.room;
     for (const s of r.shots) {
+      if (!s.id) s.id = ++this.shotN;
       s.t++; if (s.t > s.life) s.dead = true;
       if (s.kind === 'beam') {
         s.x += s.vx;
         if (r.solid(Math.floor((s.x + sgn(s.vx) * 6) / TILE), Math.floor(s.y / TILE)) || s.x < -20 || s.x > r.pw + 20) { s.dead = true; this.ev('beamEnd', s.x, s.y); }
-        if (this.role !== 'guest') for (const f of r.foes) if (f.alive && !s.hit.has(f) && ov(s.x - 12, s.y - s.r, 24, s.r * 2, f.x - f.w / 2, f.y - f.h / 2, f.w, f.h)) { s.hit.add(f); this.hitFoe(f, s.dmg, this.players[s.own] || this.players[0], s.x - s.vx * 3); }
-        const g = r.guard; if (this.role !== 'guest' && g && g.awake && !g.done && !s.hit.has(g) && ov(s.x - 12, s.y - s.r, 24, s.r * 2, g.x - g.w / 2, g.y - g.h / 2, g.w, g.h)) { s.hit.add(g); this.hitGuard(g, s.dmg, null); }
-        for (const sw of r.switches) if (!sw.on && Math.abs(s.x - sw.x) < 14 && Math.abs(s.y - sw.y) < 16 + s.r) this.flipSwitch(sw);
-        for (const b of r.buds) if (!b.open && Math.abs(s.x - b.x) < 12 && Math.abs(s.y - b.y) < 20) this.openBud(b);
-        for (const sh of r.shots) if (sh !== s && sh.kind !== 'beam' && !sh.dead && Math.abs(sh.x - s.x) < 14 && Math.abs(sh.y - s.y) < s.r + sh.r) { sh.dead = true; this.ev('pop', sh.kind, sh.x, sh.y); }
+        const auth = this.role !== 'guest', H = this.hooks;
+        for (const f of r.foes) if (f.alive && !s.hit.has(f) && ov(s.x - 12, s.y - s.r, 24, s.r * 2, f.x - f.w / 2, f.y - f.h / 2, f.w, f.h)) { s.hit.add(f); if (auth) this.hitFoe(f, s.dmg, this.players[s.own] || this.players[0], s.x - s.vx * 3); else if (H.beamFoe) H.beamFoe(s, f); }
+        const g = r.guard; if (g && g.awake && !g.done && !s.hit.has(g) && ov(s.x - 12, s.y - s.r, 24, s.r * 2, g.x - g.w / 2, g.y - g.h / 2, g.w, g.h)) { s.hit.add(g); if (auth) this.hitGuard(g, s.dmg, null); else if (H.beamGuard) H.beamGuard(s, g); }
+        for (const sw of r.switches) if (!sw.on && !s.hit.has(sw) && Math.abs(s.x - sw.x) < 14 && Math.abs(s.y - sw.y) < 16 + s.r) { s.hit.add(sw); if (auth) this.flipSwitch(sw); else if (H.beamSwitch) H.beamSwitch(s, sw); }
+        for (const b of r.buds) if (!b.open && !s.hit.has(b) && Math.abs(s.x - b.x) < 12 && Math.abs(s.y - b.y) < 20) { s.hit.add(b); if (auth) this.openBud(b); else if (H.beamBud) H.beamBud(s, b); }
+        for (const sh of r.shots) if (sh !== s && sh.kind !== 'beam' && !sh.dead && Math.abs(sh.x - s.x) < 14 && Math.abs(sh.y - s.y) < s.r + sh.r) { if (auth) { sh.dead = true; this.ev('pop', sh.kind, sh.x, sh.y); } else if (H.beamShot) H.beamShot(s, sh); }
         continue;
       }
       if (s.kind === 'spore') { s.vy += Math.sin(s.t / 14) * 0.012; s.x += s.vx; s.y += s.vy; if (r.solid(Math.floor(s.x / TILE), Math.floor(s.y / TILE))) { s.dead = true; this.ev('pop', 'spore', s.x, s.y); } }
@@ -916,6 +918,7 @@ class Sim {
     if (r.hazards.some(h => h.dead)) r.hazards = r.hazards.filter(h => !h.dead);
   }
   stepDrops() {
+    if (this.role === 'guest') return;   /* online the host's dew; the guest draws its copies */
     const r = this.room, s = this.save, mag = this.st.magnet;
     for (const d of r.drops) {
       d.t++;

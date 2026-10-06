@@ -36,4 +36,25 @@ const ok = (name, cond, info) => { out.push((cond ? 'PASS ' : 'FAIL ') + name + 
 { const rows = flat(32, 18); for (let y = 9; y < 15; y++) rows[y] = '#' + '~'.repeat(30) + '#'; const d = room(rows); const s = sim(d, {}, 300, 300); const p = s.players[0]; for (let i = 0; i < 30; i++) s.step([0]); let top = p.y; for (let i = 0; i < 300; i++) { s.step([i % 6 < 3 ? IN.JUMP : 0]); top = Math.min(top, p.y); } ok('swim to the surface and hop out', top < 180, 'top y ' + top.toFixed(1)); }
 /* 13. glowcap bounce height */
 { const rows = flat(32, 36); rows[32] = '#' + '.'.repeat(14) + 'o' + '.'.repeat(15) + '#'; const d = room(rows); const s = sim(d, {}, 300, 400); const p = s.players[0]; let top = 1e9, n = 0; for (let i = 0; i < 300; i++) { s.step([0]); if (s.events.some(e => e[0] === 'bounce')) n++; if (n) top = Math.min(top, p.y); } ok('glowcap bounce ~6 tiles', n > 0 && (660 - top) / TILE > 5, 'bounces ' + n + ' height ' + ((660 - top) / TILE).toFixed(1)); }
+
+/* 14. guardians: an invulnerable auto-fighter can calm each one; tells are long enough; the arena gates shut and open */
+for (const [kind, w, h, gy, ab] of [['knot', 64, 18, 14, {}], ['boiler', 64, 18, 14, { dash: 1 }], ['cloud', 96, 18, 5, { dash: 1, grip: 1, beam: 1 }], ['heart', 96, 27, 8, { dash: 1, grip: 1, puff: 1, beam: 1 }]]) {
+  const rows = flat(w, h); rows[11] = 'g' + rows[11].slice(1); rows[12] = 'g' + rows[12].slice(1); rows[13] = 'g' + rows[13].slice(1); rows[14] = 'g' + rows[14].slice(1);
+  if (kind === 'heart') { rows[h - 3 - 4] = '#' + '.'.repeat(30) + '=========' + '.'.repeat(w - 41) + '#'; rows[h - 3 - 8] = '#' + '.'.repeat(44) + '=========' + '.'.repeat(w - 55) + '#'; rows[h - 3 - 12] = '#' + '.'.repeat(38) + '===================' + '.'.repeat(w - 59) + '#'; }
+  const gx = Math.floor(w / 2); rows[gy] = rows[gy].slice(0, gx) + 'G' + rows[gy].slice(gx + 1);
+  const d = room(rows, { guardian: kind, gates: ['arena'] }); const s = sim(d, ab, 200, (h - 3) * TILE); const p = s.players[0];
+  let calmT = -1, minTell = 1e9, shut = false, hazards = 0, t = 0, maxHits = 0;
+  for (t = 0; t < 60 * 60 * 6 && calmT < 0; t++) {
+    p.inv = 5; p.leaves = 9; const g = s.room.guard; let m = 0;
+    if (g) { const dx = g.x - p.x, gyb = g.y + g.h / 2; m |= Math.abs(dx) > 30 ? (dx > 0 ? IN.R : IN.L) : 0; if (t % 16 < 2) m |= IN.SWING; if (gyb < p.y - 30) { m |= IN.U; if (!p.ground ? p.vy < 0 : t % 2 === 0) m |= IN.JUMP; } if (!p.ground && g.y > p.y) m |= IN.D; }
+    s.step([m]);
+    for (const hz of s.room.hazards) if (hz.tell > 0 && hz.t === 0 && !hz.seen) { hz.seen = 1; minTell = Math.min(minTell, hz.tell + 1); hazards++; }
+    if (s.room.gates[0] && s.room.gates[0].shut) shut = true;
+    if (s.events.some(e => e[0] === 'calm')) calmT = t;
+  }
+  for (let i = 0; i < 300; i++) s.step([0]);
+  const it = s.room.items.find(x => x.kind === 'ability');
+  ok('guardian ' + kind + ' calmed by the auto-fighter', calmT > 0, 'in ' + (calmT / 60).toFixed(0) + ' s, hazards ' + hazards + ', shortest tell ' + minTell + ' ticks, gate shut during fight ' + shut + ', gate open after ' + !s.room.gates[0].shut + ', reward ' + (it ? it.id : kind === 'heart' ? 'ending ' + s.ending : 'none'));
+  ok('guardian ' + kind + ' tells >= 30 ticks', hazards === 0 || minTell >= 30, '' + minTell);
+}
 console.log(out.join('\n')); if (out.some(l => l.startsWith('FAIL'))) process.exitCode = 1;

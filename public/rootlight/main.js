@@ -210,7 +210,7 @@ function tap(x, y) {
 function openOver(name, data) {
   if (over) { queue.push([name, data]); return; }
   over = Object.assign({ name }, data || {}); overSel = 0; overT = 0;
-  if (sim) sim.freeze = !over.live;
+  if (sim) sim.freeze = !over.live && !liveNow();   /* online the garden never stops */
   if (name === 'map') sfx('map');
 }
 function closeOver() {
@@ -219,11 +219,12 @@ function closeOver() {
   if (was && was.then) try { was.then(); } catch (e) { report(e); }
   if (queue.length) { const [n, d] = queue.shift(); openOver(n, d); }
 }
-function openPause() { if (over) return; paused = true; sel = 0; sfx('menu'); if (sim) sim.freeze = true; }
+function openPause() { if (over) return; paused = true; sel = 0; sfx('menu'); if (sim) sim.freeze = !liveNow(); }
 function pauseRows() { return ['Resume', 'Map', 'Seed charms', 'Gentle: ' + (sim && sim.save.gentle ? 'on' : 'off'), 'Sound: ' + (muted ? 'off' : 'on'), 'Music: ' + (musicOn ? 'on' : 'off'), 'Save and go to the title', 'Leave the game']; }
 function pauseChoose(i) {
   const H = RL.Main.hooks;
   if (i === 0) { paused = false; if (sim) sim.freeze = false; sfx('select'); }
+  else if (i === 3 && liveNow() && RL.Net && RL.Net.role === 'guest') { sfx('nope'); }
   else if (i === 1) { paused = false; openOver('map'); }
   else if (i === 2) { paused = false; openOver('charms', { edit: isResting() }); }
   else if (i === 3) { if (sim) { sim.save.gentle = !sim.save.gentle; sim.applyStats(); writeSave(); } sfx('select'); }
@@ -273,7 +274,7 @@ function onKey(c) {
   /* ---- play ---- */
   if (paused) {
     const rows = pauseRows();
-    if (c === 'Escape' || c === 'KeyP') { paused = false; sim.freeze = !!over; sfx('back'); return; }
+    if (c === 'Escape' || c === 'KeyP') { paused = false; sim.freeze = !!over && !liveNow(); sfx('back'); return; }
     if (UPK(c)) { sel = (sel + rows.length - 1) % rows.length; sfx('menu'); } else if (DNK(c)) { sel = (sel + 1) % rows.length; sfx('menu'); }
     else if (GO(c)) pauseChoose(sel);
     else if (c === 'KeyM') { setMute(!muted); } else if (c === 'KeyN') setMusic(!musicOn);
@@ -321,9 +322,12 @@ function overKey(c) {
 
 /* ---------- sim events → sound, fx, overlays ---------- */
 const SFX_EV = { jump: 'jump', swing: 'swing', hit: 'hit', bud: 'bud', heal: 'heal', dash: 'dash', cling: 'cling', walljump: 'walljump', puff: 'puff', beam: 'beam', pogo: 'pogo', crack: 'crack', break: 'break', lever: 'lever', switch: 'switch', splash: 'splash', vent: 'vent', crumble: 'crumble', spore: 'spore', charge: 'charge', rain: 'rain', zap: 'zap', slam: 'slam', ghit: 'ghit', revive: 'revive', bubble: 'bubble', block: 'clang', step: 'step', thorn: 'thorn', faint: 'faint', wind: 'wind', briar: 'gate' };
+const KIND_FIRST = { hit: 1, bloom: 1, ghit: 1, gtell: 1, pop: 1, calm: 1, gstart: 1, gphase: 1, hazard: 1, bonk: 1, gate: 1 };
+function netEv(e) { const n = e[1]; if (n === 'dew') return ['dew', 1, e[2], e[3]]; return KIND_FIRST[n] ? [n, n === 'calm' || n === 'gstart' ? '' : '', e[2], e[3], e[4]] : [n, e[2], e[3], e[4]]; }
 function onEvents() {
   const s = sim; if (!s) return;
-  for (const e of s.events) {
+  for (let e of s.events) {
+    if (e[0] === 'net') e = netEv(e);
     const D = RD(); if (D.fx) try { D.fx(s, e); } catch (er) { report(er); }
     const n = e[0];
     if (SFX_EV[n]) sfx(SFX_EV[n], e[1]);
@@ -387,7 +391,8 @@ function tick() {
   if (areaCard) { areaCard.t++; if (areaCard.t > 220) areaCard = null; }
   if (screen === 'play' && sim) {
     const m = masks();
-    if (H.masks) try { H.masks(m); } catch (e) { report(e); }
+    if (over || paused) { m[0] = m[1] = 0; }
+    if (H.masks) try { H.masks(m, !!(over || paused)); } catch (e) { report(e); }
     if (bot.on) bot.step(m);
     const D = RD();
     if (!sim.freeze || H.live && H.live()) { sim.step(m); onEvents(); if (D.tick) try { D.tick(sim); } catch (e) { report(e); } }
