@@ -964,9 +964,11 @@ function treeSwap(){fireClear();const keep=sd_;sd_=9090+(window.DRESS.treesSwapp
    planet.html seats 8 cabinets in window.__arcade.cabs (a group each, in true metres: y 0 the floor, +z its front), with a solid (ARC.solids[5+k])
    and a door (ARC.doors[k]) at the same index. Their meshes are hidden and a model stands in each group; ARC.models tells breeze-room.js to leave
    them alone. The models get the props' cartoon material (borrowed from a loaded prop, so it follows __setCartoon) and the props' ink (silhouette only). */
-const CAB_FILES={vine:'assets/cab_vine.glb',breeze:'assets/cab_breeze.glb',waverun:'assets/cab_waverun.glb',orbit:'assets/cab_orbit.glb'},CAB_H=2.1,CAB_BACK=.42; /* the procedural cabinet's height; its back this far behind the group's centre (the wall is ~.5 m behind it) */
-const CAB_AT=['vine','vine','breeze','breeze','vine','breeze','waverun','orbit']; /* 6 Oct: Tyrian retired (Josh); his Vine Line cabinet stands where the OpenTyrian ones were */ /* ARC.cabs order: the back wall left to right (facing it), then left and right walls at the back, then left and right by the entrance */
-const CAB_ACT={vine:{kind:'vine',title:'Vine Line',label:'Play Vine Line'},breeze:{kind:'breeze',title:'Berry Breeze',label:'Play Berry Breeze'}}; /* Josh's Vine Line cabinets play Vine Line (vine-room.js), the Berry Breeze ones Berry Breeze; Wave Run and Orbit are show-pieces by the entrance, no door */
+const CAB_FILES={vine:'assets/cab_vine.glb',breeze:'assets/cab_breeze.glb',kart:'assets/cab_kart.glb',orbit:'assets/cab_orbit.glb'},CAB_H=2.1,CAB_BACK=.42; /* the procedural cabinet's height; its back this far behind the group's centre (the wall is ~.5 m behind it) */
+const CAB_AT=['vine','vine','breeze','breeze','vine','breeze','kart','orbit']; /* 6 Oct: Tyrian retired (Josh); his Vine Line cabinet stands where the OpenTyrian ones were, and his Sprout Kart cabinet where the Wave Run was */ /* ARC.cabs order: the back wall left to right (facing it), then left and right walls at the back, then left and right by the entrance */
+const CAB_ACT={vine:{kind:'vine',title:'Vine Line',label:'Play Vine Line'},breeze:{kind:'breeze',title:'Berry Breeze',label:'Play Berry Breeze'},kart:{kind:'kart',title:'Sprout Kart',label:'Play Sprout Kart'}}; /* Josh's Vine Line cabinets play Vine Line (vine-room.js), the Berry Breeze ones Berry Breeze, his Sprout Kart one (by the entrance, left) Sprout Kart (kart-room.js); the Orbit is a show-piece, no door */
+const CAB_ROOM={kart:'kartRoom'}; /* games whose room script may come after this file (or not be on the page at all): until window[name] is there their cabinets stay show-pieces, no door and no painted art */
+const cabLive=act=>!!act&&(!CAB_ROOM[act.kind]||typeof window[CAB_ROOM[act.kind]]==='function');
 const CABS={tpl:{},t0:0,tries:0,loading:false};
 function cabSrcMat(){const lib=window.__propLib||{};for(const k in lib){let f=null;lib[k].traverse(m=>{if(!f&&m.isMesh&&m.material&&m.material.userData.cartoon&&m.material.onBeforeCompile&&m.material.map)f=m.material;});if(f)return f;}return null;}
 function cabMat(map,src){map.encoding=T.LinearEncoding;map.anisotropy=8;map.minFilter=T.LinearMipmapLinearFilter;map.needsUpdate=true; /* the texture's colours are the drawing, as the game's asDrawn */
@@ -982,8 +984,19 @@ function cabMat(map,src){map.encoding=T.LinearEncoding;map.anisotropy=8;map.minF
    (along the view ray: the same pixels) so the relief can't poke through; the screen glass is 5 cm deep in its bezel, z=.5411-.2123y. */
 const VINE_FIT={orbit:{mq:[-.675,.675,1.752,2.005,.4771,-.021,.004],mh:192,sc:[-.546,.546,1.093,1.62,.5396,-.2208,.004],sh:246,sr:12},
   tyrian:{mq:[-.497,.507,1.8,2.071,.428,0,.026],mh:276,mb:.02,sc:[-.365,.375,1.17,1.672,.5411,-.2123,.004],sh:355,sr:17}},VINE_ART={};
+/* shared by the painted cabinets: a canvas painted once per name and size (cache: the game's own), and one overlay laid on a template
+   (R: [x0,x1,y0,y1,a,b,off] as above; bias: nearer in depth by that many metres, on the same pixels; dome [cu,cv]: the plane bent by
+   cu*u²+cv*v², u and v -1..1 across it, onto a curved glass) */
+function cabTex(cache,nm,w,h,f){const k=nm+w+'x'+h;if(cache[k])return cache[k];const c=document.createElement('canvas');c.width=w;c.height=h;f(c.getContext('2d'),w,h);const x=new T.CanvasTexture(c);x.anisotropy=8;return cache[k]=x;}
+function cabPut(t,nm,map,[x0,x1,y0,y1,a,b,off],bias,dome){const yc=(y0+y1)/2,mat=new T.MeshBasicMaterial({map,transparent:true,depthWrite:false});let geo;
+  if(dome){geo=new T.PlaneGeometry(x1-x0,y1-y0,24,16);const p=geo.attributes.position;for(let i=0;i<p.count;i++){const px=p.getX(i),py=p.getY(i),u=px*2/(x1-x0),v=py*2/(y1-y0),y=yc+py;p.setXYZ(i,(x0+x1)/2+px,y,a+b*y+off+dome[0]*u*u+dome[1]*v*v);}geo.computeBoundingSphere();} /* in place, in the template's metres */
+  else geo=new T.PlaneGeometry(x1-x0,(y1-y0)*Math.hypot(1,b));
+  const m=new T.Mesh(geo,mat);
+  if(bias){mat.onBeforeCompile=sh=>{sh.vertexShader=sh.vertexShader.replace('#include <project_vertex>','#include <project_vertex>\nmvPosition.xyz*=1.-'+bias.toFixed(3)+'/max(length(mvPosition.xyz),.1);gl_Position=projectionMatrix*mvPosition;');};mat.customProgramCacheKey=()=>'cab-bias'+bias;} /* nearer in depth by bias metres, on the same pixels */
+  if(!dome){m.position.set((x0+x1)/2,yc,a+b*yc+off);m.rotation.x=Math.atan(b);}
+  m.userData.noInk=true;m.renderOrder=1;m.name=nm;t.add(m);return m;}
 function cabVine(t,kind){const F=VINE_FIT[kind];if(!F)return null;
-  const cv=(nm,w,h,f)=>{const k=nm+w+'x'+h;if(VINE_ART[k])return VINE_ART[k];const c=document.createElement('canvas');c.width=w;c.height=h;f(c.getContext('2d'),w,h);const x=new T.CanvasTexture(c);x.anisotropy=8;return VINE_ART[k]=x;};
+  const cv=(nm,w,h,f)=>cabTex(VINE_ART,nm,w,h,f);
   let sd=97;const rnd=()=>((sd=sd*16807%2147483647)-1)/2147483646,ell=(g,x,y,rx,ry,r,fill,st,lw)=>{g.beginPath();g.ellipse(x,y,rx,ry,r||0,0,Math.PI*2);if(fill){g.fillStyle=fill;g.fill();}if(st){g.strokeStyle=st;g.lineWidth=lw||2;g.stroke();}};
   const CREAM='#e4c992',NAVY='#375268',ORANGE='#e0663e',TEAL='#76a084',GOLD='#e9a63b',INK='#2b2140',FONT='"Arial Rounded MT Bold","Hiragino Maru Gothic ProN","Nunito","Varela Round",sans-serif';
   const leaf=(g,x,y,l,w,r,fill,st)=>{g.save();g.translate(x,y);g.rotate(r);g.beginPath();g.moveTo(0,0);g.quadraticCurveTo(l*.5,-w,l,0);g.quadraticCurveTo(l*.5,w,0,0);g.fillStyle=fill;g.fill();if(st){g.strokeStyle=st;g.lineWidth=1.5;g.stroke();}g.restore();};
@@ -1024,17 +1037,21 @@ function cabVine(t,kind){const F=VINE_FIT[kind];if(!F)return null;
     g.fillStyle='rgba(255,246,224,.7)';g.font='700 13px ui-monospace,Menlo,monospace';g.textBaseline='middle';g.textAlign='left';g.fillText('12',cx(1)-4,cy(0)+1);g.textAlign='right';g.fillText('9',cx(C-2)+4,cy(0)+1);
     const gl=g.createLinearGradient(0,0,w*.6,h);gl.addColorStop(0,'rgba(255,255,255,.13)');gl.addColorStop(.45,'rgba(255,255,255,.03)');gl.addColorStop(.46,'rgba(255,255,255,0)');g.fillStyle=gl;g.fillRect(0,0,w,h); /* the glass */
     const vg=g.createRadialGradient(w/2,h/2,h*.4,w/2,h/2,w*.62);vg.addColorStop(0,'rgba(0,0,0,0)');vg.addColorStop(1,'rgba(0,0,0,.4)');g.fillStyle=vg;g.fillRect(0,0,w,h);});
-  const put=(nm,map,[x0,x1,y0,y1,a,b,off],bias)=>{const yc=(y0+y1)/2,mat=new T.MeshBasicMaterial({map,transparent:true,depthWrite:false}),m=new T.Mesh(new T.PlaneGeometry(x1-x0,(y1-y0)*Math.hypot(1,b)),mat);
-    if(bias){mat.onBeforeCompile=sh=>{sh.vertexShader=sh.vertexShader.replace('#include <project_vertex>','#include <project_vertex>\nmvPosition.xyz*=1.-'+bias.toFixed(3)+'/max(length(mvPosition.xyz),.1);gl_Position=projectionMatrix*mvPosition;');};mat.customProgramCacheKey=()=>'vine-bias'+bias;} /* nearer in depth by bias metres, on the same pixels */
-    m.position.set((x0+x1)/2,yc,a+b*yc+off);m.rotation.x=Math.atan(b);m.userData.noInk=true;m.renderOrder=1;m.name=nm;t.add(m);return m;};
-  return [put('vine-marquee',mq,F.mq,F.mb),put('vine-screen',sc,F.sc)];}
+  return [cabPut(t,'vine-marquee',mq,F.mq,F.mb),cabPut(t,'vine-screen',sc,F.sc)];}
+/* each painted cabinet by the game it plays; art.fit says which models it has been measured on */
+const CAB_ART={vine:{fit:VINE_FIT,paint:cabVine}}; /* (Josh's own cabinets carry their art; a stand-in model gets painted art until he makes one) */
+/* a cabinet's painted art: on its template before it is cloned or, when its game's room script came late, on the template and on every model
+   of it already standing (each a copy sharing the planes and canvases). Once per template; only while the game is here (cabLive) */
+function cabArt(kind){const t=CABS.tpl[kind],act=CAB_ACT[kind],art=act&&CAB_ART[act.kind];if(!t||!art||!art.fit[kind]||t.userData.art||!cabLive(act))return 0;
+  t.userData.art=true;let ms=null;try{ms=art.paint(t,kind);}catch(e){console.warn(act.kind+' cabinet art',kind,e);}if(!ms)return 0;
+  const A=window.__arcade;if(A&&Array.isArray(A.cabs))A.cabs.forEach((cb,k)=>{const m=CAB_AT[k]===kind&&cb&&cb.g&&cb.g.userData.cabModel;if(m)for(const p of ms)m.add(p.clone());});
+  G.dirty();return ms.length;}
 function cabLoad(){const src=cabSrcMat();if(CABS.loading||!T.GLTFLoader||!src)return;CABS.loading=true;const ld=new T.GLTFLoader();
   for(const kind in CAB_FILES)ld.load(CAB_FILES[kind],g=>{const root=g.scene;root.updateMatrixWorld(true);const bb=new T.Box3().setFromObject(root),s=CAB_H/(bb.max.y-bb.min.y);
     root.scale.setScalar(s);root.position.set(-(bb.min.x+bb.max.x)/2*s,-bb.min.y*s,-CAB_BACK-bb.min.z*s);
     root.traverse(m=>{if(m.isMesh){m.material=m.material.map?cabMat(m.material.map,src):m.material;m.userData.noInk=true;}}); /* lines from its silhouette, like every model prop */
     const t=new T.Group();t.add(root);const hz=(bb.max.z-bb.min.z)/2*s;Object.assign(t.userData,{hx:(bb.max.x-bb.min.x)/2*s,hz,zc:hz-CAB_BACK});
-    if(VINE_FIT[kind]&&CAB_ACT[kind]&&CAB_ACT[kind].kind==='vine')try{cabVine(t,kind);}catch(e){console.warn('vine cabinet art',kind,e);} /* painted overlays only for a stand-in cabinet that plays Vine Line (none now: Josh's own cabinet carries its art) */ /* before the clones: they share its planes */
-    CABS.tpl[kind]=t;cabFit();},undefined,e=>console.warn('arcade cabinet not loaded',kind,e));}
+    CABS.tpl[kind]=t;cabArt(kind);cabFit();},undefined,e=>console.warn('arcade cabinet not loaded',kind,e));} /* painted overlays (CAB_ART) only for a stand-in cabinet: Sprout Kart on the Wave Run; Vine Line on none now (Josh's own cabinet carries its art); before the clones: they share its planes */
 function cabFit(){const A=window.__arcade;if(!A||!Array.isArray(A.cabs))return 0;let n=0;
   A.cabs.forEach((cb,k)=>{const t=CABS.tpl[CAB_AT[k]];if(!cb||!cb.g||!t||cb.g.userData.cabModel)return;const old=new T.Group();old.visible=false;old.name='procedural';for(const c of [...cb.g.children])old.add(c);cb.g.add(old); /* the procedural cabinet's meshes, under a hidden group (the horizon cull sets small meshes' own .visible back on); their shared screen and marquee materials untouched */
     const m=t.clone();m.userData.cabModel=CAB_AT[k];cb.g.add(m);cb.g.userData.cabModel=m;n++;});
@@ -1044,9 +1061,12 @@ function cabSolids(){const A=window.__arcade;if(!A||!Array.isArray(A.cabs)||!A.s
   A.cabs.forEach((cb,k)=>{const m=cb&&cb.g&&cb.g.userData.cabModel,sd=A.solids[5+k];if(!m||!sd||!sd.X)return;const u=m.userData;cb.g.updateMatrixWorld(true);
     Object.assign(sd,{c:cb.g.localToWorld(V3(0,0,u.zc)).normalize().multiplyScalar(R),hx:u.hx*.95,hz:u.hz*.95,top:CAB_H});n++;});return n;}
 function cabDoors(A){A.cabs.forEach((cb,k)=>{const d=A.doors[k];if(!d)return;const kind=CAB_AT[k],act=CAB_ACT[kind],i=DOORS.indexOf(d);
-  if(act){d.act=act;d.key=act.kind;if(i<0)DOORS.push(d);}else{d.act={kind:'decor',title:kind,label:''};d.key='decor'+k;if(i>=0)DOORS.splice(i,1);}});} /* a door of an unknown kind would open an empty room: the show-pieces have none (kept in ARC.doors, so seatArcade never makes another) */
+  if(cabLive(act)){d.act=act;d.key=act.kind;if(i<0)DOORS.push(d);}else{d.act={kind:'decor',title:kind,label:''};d.key='decor'+k;if(i>=0)DOORS.splice(i,1);}});} /* a door of an unknown kind would open an empty room: the show-pieces have none (kept in ARC.doors, so seatArcade never makes another) */
+/* a game whose room script is not here yet (CAB_ROOM): look again once a second for a few minutes; when it comes, its cabinets get their doors and art */
+const cabAllLive=()=>CAB_AT.every(kind=>!CAB_ACT[kind]||cabLive(CAB_ACT[kind]));
+function cabWait(n){const A=window.__arcade;if(!A||!Array.isArray(A.cabs))return;if(cabAllLive()){cabDoors(A);for(const kind in CABS.tpl)cabArt(kind);return;}if(n<300)setTimeout(cabWait,1000,n+1);}
 function arcadeModels(){const A=window.__arcade;CABS.tries++;
-  if(A){A.models=true;cabLoad();if(Array.isArray(A.cabs)&&Array.isArray(A.doors)&&A.doors.length>=A.cabs.length){if(!CABS.t0){CABS.t0=performance.now();cabDoors(A);for(const ms of [1000,4500,8000,12500,16000,25000])setTimeout(cabSolids,ms);}
+  if(A){A.models=true;cabLoad();if(Array.isArray(A.cabs)&&Array.isArray(A.doors)&&A.doors.length>=A.cabs.length){if(!CABS.t0){CABS.t0=performance.now();cabDoors(A);if(!cabAllLive())setTimeout(cabWait,1000,1);for(const ms of [1000,4500,8000,12500,16000,25000])setTimeout(cabSolids,ms);}
     cabFit();if(A.cabs.every(cb=>cb&&cb.g&&cb.g.userData.cabModel))return;}}
   if(CABS.tries<600)setTimeout(arcadeModels,A&&A.cabs?500:250);}
 /* ---------- the walk-in arcade: nothing scattered grows or stands inside it ----------
