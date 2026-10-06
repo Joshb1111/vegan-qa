@@ -993,7 +993,11 @@ class Sim {
           const ab = { knot: 'dash', boiler: 'grip', cloud: 'puff' }[g.kind];
           if (ab && !this.save.ab[ab]) r.items.push({ kind: 'ability', id: ab, key: r.id + ':A' + ab, x: g.x, y: Math.min(g.y, g.floor - 40), got: false, hp: 0, hurt: 0, rise: 1 });
           /* flowers spring up all over the arena floor */
-          for (let k = 0; k < 14; k++) { const x = 40 + this.rand() * (r.pw - 80), tx = Math.floor(x / TILE); let ty = 1; while (ty < r.h - 1 && !r.solid(tx, ty + 1)) ty++; if (ty < r.h - 1) r.flowers.push({ x: Math.round(x), y: (ty + 1) * TILE, kind: k % 7, ceil: false, t: -k * 6, seed: 900 + k, temp: true }); }
+          for (let k = 0; k < 14; k++) {   /* on the lowest floor of that column (never on top of the ceiling) */
+            const x = 40 + this.rand() * (r.pw - 80), tx = Math.floor(x / TILE); let ty = r.h - 2;
+            while (ty > 0 && (r.solid(tx, ty) || !r.solid(tx, ty + 1))) ty--;
+            if (ty > 0 && !r.water(x, ty * TILE + 10) && r.code(tx, ty) !== T.THORN) r.flowers.push({ x: Math.round(x), y: (ty + 1) * TILE, kind: k % 7, ceil: false, t: -k * 6, seed: 900 + k, temp: true });
+          }
         }
       }
       return;
