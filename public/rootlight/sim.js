@@ -700,7 +700,8 @@ class Sim {
     for (const f of r.foes) {
       if (!f.alive || !ov(bx, by, bw, bh, f.x - f.w / 2 - 2, f.y - f.h / 2 - 2, f.w + 4, f.h + 4) || !hitOnce(f)) continue;
       if (f.kind === 'knight' && sw.dir === 'f' && f.st !== 'rest' && f.face === -p.face && Math.abs(f.y - (p.y - 13)) < 30) {
-        f.st = 'block'; f.t = 0; f.vx = -f.face * 1.5; p.vx -= p.face * 2.6; this.ev('block', f.x - f.face * 10, f.y); recoil = true; continue;
+        if (f.st !== 'ready' && f.st !== 'shove') { f.st = 'block'; f.t = 0; f.vx = -f.face * 1.5; }   /* a clang; it does not stop a shove that is coming */
+        p.vx -= p.face * 2.6; this.ev('block', f.x - f.face * 10, f.y); recoil = true; continue;
       }
       p.sun = Math.min(p.sunMax, p.sun + this.st.sunHit);
       if (sw.dir === 'd') bounce = true; else if (sw.dir === 'f') recoil = true;
