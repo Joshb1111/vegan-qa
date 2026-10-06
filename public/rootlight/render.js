@@ -1158,10 +1158,6 @@ function frame(ctx, F) {
   const kx0 = Math.floor(cx / CHW), kx1 = Math.floor((cx + VW - 0.01) / CHW), ky0 = Math.floor(cy / CHH), ky1 = Math.floor((cy + VH - 0.01) / CHH);
   for (let ky = ky0; ky <= ky1; ky++) for (let kx = kx0; kx <= kx1; kx++) { const c = chunk(kx, ky); ctx.drawImage(c, CPAD * BS, CPAD * BS, CHW * BS, CHH * BS, kx * CHW, ky * CHH, CHW, CHH); }
   drawLive(ctx, r, t, cx, cy);
-  /* the gloomy things */
-  for (const f of r.foes) if (f.alive && f.x > cx - 60 && f.x < cx + VW + 60 && f.y > cy - 60 && f.y < cy + VH + 60) callArt('foe', SI.foe, ctx, f, t);
-  if (r.guard) callArt('guardian', SI.guardian, ctx, r.guard, t);
-  for (const h of r.hazards) callArt('hazard', SI.hazard, ctx, h, t);
   ctx.restore();
   /* the colour fades out by 1 - room.colour */
   const col = clamp01(num(r.colour, 1));
@@ -1169,6 +1165,10 @@ function frame(ctx, F) {
   /* everything kind, in full colour */
   ctx.save(); ctx.translate(-cx, -cy);
   const inV = (x, y, m) => x > cx - m && x < cx + VW + m && y > cy - m && y < cy + VH + m;
+  /* the gloomy things are grey by their own art; drawn after the fade so their tells (glows, sparks, warnings) keep their colour */
+  for (const f of r.foes) if (f.alive && inV(f.x, f.y, 60)) callArt('foe', SI.foe, ctx, f, t);
+  if (r.guard) callArt('guardian', SI.guardian, ctx, r.guard, t);
+  for (const h of r.hazards) callArt('hazard', SI.hazard, ctx, h, t);
   for (const f of r.flowers) if (inV(f.x, f.y, 40)) callArt('flower', SI.flower, ctx, f, t);
   for (const b of r.buds) if (inV(b.x, b.y, 30)) callArt('bud', SI.bud, ctx, b, t);
   for (const sp of r.spots) if (inV(sp.x, sp.y, 60)) callArt('spot', SI.spot, ctx, sp, t);
