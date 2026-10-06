@@ -30,6 +30,8 @@ const CAST=[
   {key:'jay',name:'Jay',h:1.78,spot:[.6,-.6,-1],sign:['ANIMALS','DO NOT','EXIST FOR','HUMANS'],
    sub:'Earthlings activist',greet:'Alright? We’re showing Earthlings by the screen. Ask me anything about veganism.',
    chips:['Is lab-grown flesh vegan?','Isn’t it enough to just eat less “meat”?','Are zoos exploitation?'],pitch:.85,rate:.96,voiceWish:'Daniel'},
+  {key:'moon',name:'Moon',talk:false,h:1.65,spot:[-1.85,.6,1],sign:['ANIMALS','ARE NOT','OURS TO USE'], /* talk:false: not a resident you can talk to yet (Josh); set true (and give her a voice) to switch it on */
+   sub:'Earthlings activist',greet:'Hi! I’m Moon. Ask me anything about veganism.',chips:['What does veganism mean?','Why is using animals wrong?','Where do I start?'],pitch:1.15,rate:1.02,voiceWish:'Samantha'},
 ];
 const SCREEN=[1.85,-.6,-1]; /* the screen: [lane, along, facing] as a spot: beside Jay, its edge 0.7 m from his placard's */
 const rnd=(a,b)=>a+Math.random()*(b-a);
@@ -236,7 +238,7 @@ function tick(now){requestAnimationFrame(tick);const dt=Math.min(.1,(now-last)/1
 function start(){if(!T.GLTFLoader){setTimeout(start,400);return;}
   screen();nearSolids();
   const ld=new T.GLTFLoader();
-  CAST.forEach(cfg=>ld.load('assets/act_'+cfg.key+'.glb'+V,g=>{try{const a=makeActor(cfg,g);a.lastYaw=a.n.yaw;A.actors.push(a);npcs.push(a.n);A.ready++;G.dirty();}catch(e){console.warn('activist not placed',cfg.key,e);}},undefined,e=>console.warn('activist not loaded',cfg.key,e)));
+  CAST.forEach(cfg=>ld.load('assets/act_'+cfg.key+'.glb'+V,g=>{try{const a=makeActor(cfg,g);a.lastYaw=a.n.yaw;A.actors.push(a);if(cfg.talk!==false)npcs.push(a.n); /* only residents in npcs get the game's Talk prompt */A.ready++;G.dirty();}catch(e){console.warn('activist not placed',cfg.key,e);}},undefined,e=>console.warn('activist not loaded',cfg.key,e)));
   requestAnimationFrame(tick);}
 A.force=(name,what)=>{const a=A.actors.find(x=>x.cfg.name===name);if(!a)return 'no '+name;
   if(what==='wander'){const tg=pickTarget(a);if(!tg)return 'no path';go(a,'wander',tg);return 'wandering';}
