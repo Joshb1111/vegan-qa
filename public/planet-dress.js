@@ -764,8 +764,60 @@ function guitar(p){const g=new T.Group();const wood=new T.MeshBasicMaterial({col
   const b1=new T.Mesh(new T.SphereGeometry(.2,16,10),wood);b1.scale.set(1,1,.32);const b2=new T.Mesh(new T.SphereGeometry(.15,16,10),wood);b2.scale.set(1,1,.32);b2.position.y=.2;const hole=new T.Mesh(new T.CircleGeometry(.055,14),dark);hole.position.set(0,.1,.066);
   const neck=new T.Mesh(new T.BoxGeometry(.05,.5,.03),dark);neck.position.set(0,.55,.02);const head=new T.Mesh(new T.BoxGeometry(.075,.13,.03),dark);head.position.set(0,.85,.01);const bridge=new T.Mesh(new T.BoxGeometry(.11,.02,.02),dark);bridge.position.set(0,-.06,.07);
   g.add(b1,b2,hole,neck,head,bridge);for(const m of [b1,b2,hole,neck,head,bridge]){m.userData.noInk=true;hideInNormals.push(m);}
-  const bp=p.bones.Spine01||p.bones.Pelvis;if(!bp)return null;bp.add(g);const s=1/(p.root.scale.x||1);g.scale.setScalar(s);g.position.set(.1*s,.02*s,.2*s);g.rotation.set(0,0,1.15); /* across the lap, the neck up to his left */
+  const bp=p.bones.Spine01||p.bones.Pelvis;if(!bp)return null;bp.add(g);p.gtr=gtrPrep(p,g);if(!p.gtr){const s=1/(p.root.scale.x||1);g.scale.setScalar(s);g.position.set(.1*s,.02*s,.2*s);g.rotation.set(0,0,1.15);} /* (the old fixed lap pose if the rig lacks arm bones) */
   return g;}
+/* Kofi plays it (Josh: "hold the guitar like he's playing it ... looking down at it ... slight movements ... playing and singing"). The guitar lies
+   across his lap, its body on his right thigh and the neck up to his left: placed in his holder's frame (he faces -Z there), then hung on his
+   spine so it sways with him. Each frame both arms reach it by an analytic two-bone IK (as the street activists hold their placards): the
+   left hand round the neck, moving between two chord shapes now and then, the right over the soundhole, strumming across the strings. Each arm
+   bone turns from its rest by the rotation that carries the rest (bone direction, elbow axis) frame onto the solved one, so the elbows bend as
+   hinges. He leans in over it, head bowed to the neck, nodding in time and now and then lifting his head to sing. Numbers in GTR, which
+   DRESS.GTR exposes for tuning from the console. Guitar-local: y runs up the neck (the body's centre at 0, the soundhole at .1, the nut at .8),
+   z out of its face, x across the strings. */
+const GTR={c:[.12,.19,-.18],neck:[-1,.46,-.12],tilt:.5,L:[.04,.56,-.015],R:[-.01,.1,.075],chord:.07,strum:.05,hz:1.6,pL:[-.25,-1,.4],pR:[.75,-.35,.65],lean:.16,look:[.36,.24],sing:.2,tw:[.3,0],bend:[1.7,0]}; /* tw, bend: [left, right] hand turns about the forearm and about the elbow's axis, so the palms meet the neck and the strings */
+const _gm=new T.Matrix4(),_gm2=new T.Matrix4(),_gs=new T.Vector3(),_gp=new T.Vector3(),_gq=new T.Quaternion(),_gq2=new T.Quaternion(),_gq3=new T.Quaternion(),_gu=new T.Vector3(),_gv=new T.Vector3(),_ge=new T.Vector3(),_gw=new T.Vector3(),_gn=new T.Vector3(),_gd=new T.Vector3(),_gt=new T.Vector3(),_gc=new T.Vector3();
+const gBasis=(d,n,q)=>q.setFromRotationMatrix(_gm2.makeBasis(d,n,_gc.crossVectors(d,n)));
+function gtrPrep(p,g){const H=p.holder,B=p.bones;let mesh=null;p.root.traverse(m=>{if(!mesh&&m.isSkinnedMesh)mesh=m;});if(!mesh||!B.Spine01||!B.Pelvis)return null;
+  H.updateMatrixWorld(true);const hi=new T.Matrix4().copy(H.matrixWorld).invert(),F=V3(0,0,-1);
+  const loc=b=>{const pp=new T.Vector3(),q=new T.Quaternion();new T.Matrix4().multiplyMatrices(hi,b.matrixWorld).decompose(pp,q,new T.Vector3());return {p:pp,q};};
+  const out={arms:[],g,hi};
+  for(const sd of ['L','R']){const up=B[sd+'_Upperarm'],fo=B[sd+'_Forearm'],ha=B[sd+'_Hand'];if(!up||!fo||!ha||fo.parent!==up)return null;
+    const U=loc(up),Fo=loc(fo),Hh=loc(ha),du=Fo.p.clone().sub(U.p),df=Hh.p.clone().sub(Fo.p),l1=du.length(),l2=df.length();du.normalize();df.normalize();
+    const pre=(d,q)=>gBasis(d,new T.Vector3().crossVectors(d,F).normalize(),new T.Quaternion()).invert().multiply(q);
+    const sk=mesh.skeleton,geo=mesh.geometry,k=sk.bones.indexOf(ha),P=geo.attributes.position,SI=geo.attributes.skinIndex,SW=geo.attributes.skinWeight,M_=new T.Matrix4().multiplyMatrices(hi,ha.matrixWorld).multiply(sk.boneInverses[k]).multiply(mesh.bindMatrix),v=new T.Vector3(),hc=new T.Vector3();let cnt=0;
+    if(k>=0)for(let i=0;i<P.count;i++){let w=0;if(SI.getX(i)===k)w+=SW.getX(i);if(SI.getY(i)===k)w+=SW.getY(i);if(SI.getZ(i)===k)w+=SW.getZ(i);if(SI.getW(i)===k)w+=SW.getW(i);if(w>.5){hc.add(v.fromBufferAttribute(P,i).applyMatrix4(M_));cnt++;}}
+    if(cnt)hc.multiplyScalar(1/cnt).sub(Hh.p).applyQuaternion(Hh.q.clone().invert());else hc.copy(df).multiplyScalar(.08).applyQuaternion(Hh.q.clone().invert()); /* the middle of the hand's skin, in the hand's rest frame: the palm is aimed, not the wrist */
+    out.arms.push({sd,up,fo,ha,l1,l2,pu:pre(du,U.q),pf:pre(df,Fo.q),hq:p.rest[sd+'_Hand'].clone(),hc,off:new T.Vector3(),tg:new T.Vector3(),pole:new T.Vector3()});}
+  out.pelvis=loc(B.Pelvis).p;gtrSeat(p,out);return out;}
+function gtrSeat(p,o){const g=o.g,n=V3(...GTR.neck).normalize(),f=V3(0,Math.sin(GTR.tilt),-Math.cos(GTR.tilt));f.addScaledVector(n,-f.dot(n)).normalize();const x=new T.Vector3().crossVectors(n,f);
+  _gm.makeBasis(x,n,f).setPosition(o.pelvis.clone().add(V3(...GTR.c))); /* the guitar in his holder's frame */
+  p.bones.Spine01.updateMatrixWorld(true);_gm2.multiplyMatrices(o.hi,p.bones.Spine01.matrixWorld).invert();_gm2.multiply(_gm).decompose(g.position,g.quaternion,g.scale);}
+const _ax=V3(1,0,0),_ay=V3(0,1,0),_az=V3(0,0,1);
+function gtrTurn(p,b,q){ /* turn bone b by q, a rotation given in the holder's frame */const hi=p.gtr.hi;_gm.multiplyMatrices(hi,b.parent.matrixWorld).decompose(_gp,_gq2,_gs);_gq3.copy(_gq2).multiply(b.quaternion);_gq3.premultiply(q);b.quaternion.copy(_gq2.invert()).multiply(_gq3);}
+function gtrPlay(p,t){const o=p.gtr,B=p.bones,H=p.holder;if(!o)return;
+  for(const k of ['Spine01','Spine02','Head','L_Upperarm','L_Forearm','L_Hand','R_Upperarm','R_Forearm','R_Hand'])if(B[k])B[k].quaternion.copy(p.rest[k]);
+  const beat=t*GTR.hz*Math.PI*2,phr=t%9,sing=phr>5.5&&phr<8.3?Math.sin((phr-5.5)/2.8*Math.PI):0; /* a phrase every 9 s: the head comes up to sing for a few seconds */
+  gtrTurn(p,B.Spine01,_gq.setFromAxisAngle(_az,.035*Math.sin(beat*.25)));
+  if(B.Spine02)gtrTurn(p,B.Spine02,_gq.setFromAxisAngle(_ax,-(GTR.lean*(1-.5*sing))+.012*Math.sin(beat*.5)));
+  H.updateMatrixWorld(true);o.hi.copy(H.matrixWorld).invert();
+  _gm.multiplyMatrices(o.hi,o.g.matrixWorld); /* the guitar's frame, in the holder's */
+  const ch=Math.floor(t/2.4)%2,stroke=Math.sin(beat)*(.75+.25*Math.sin(beat*.5+1)); /* a down-up strum on the beat, a little uneven; the chord changes every 2.4 s */
+  for(const a of o.arms){const L=a.sd==='L';const c=L?GTR.L:GTR.R;
+    a.tg.set(c[0]+(L?0:GTR.strum*stroke),c[1]+(L?(ch?GTR.chord:0):0),c[2]+(L?0:.01*Math.abs(stroke))).applyMatrix4(_gm);
+    a.pole.set(...(L?GTR.pL:GTR.pR)).normalize();
+    a.up.parent.updateMatrixWorld(true);_gp.setFromMatrixPosition(a.up.matrixWorld).applyMatrix4(o.hi); /* the shoulder */
+    _gm2.multiplyMatrices(o.hi,a.up.parent.matrixWorld).decompose(_gt,_gq2,_gs); /* the clavicle's turn, in the holder's frame */
+    _gd.subVectors(a.tg,a.off).sub(_gp);const dist=_gd.length(),dc=Math.min(Math.max(dist,Math.abs(a.l1-a.l2)+1e-3),(a.l1+a.l2)*.999);_gu.copy(_gd).divideScalar(dist||1);
+    const ea=(a.l1*a.l1-a.l2*a.l2+dc*dc)/(2*dc),eh=Math.sqrt(Math.max(0,a.l1*a.l1-ea*ea));
+    _gv.copy(a.pole).addScaledVector(_gu,-a.pole.dot(_gu));if(_gv.lengthSq()<1e-6)_gv.set(L?-1:1,0,0);_gv.normalize();
+    _ge.copy(_gp).addScaledVector(_gu,ea).addScaledVector(_gv,eh);_gw.copy(_gp).addScaledVector(_gu,dc);_gn.crossVectors(_gv,_gu).normalize();
+    _gd.subVectors(_ge,_gp).divideScalar(a.l1);const qu=gBasis(_gd,_gn,new T.Quaternion()).multiply(a.pu);
+    _gd.subVectors(_gw,_ge).divideScalar(a.l2);const qf=gBasis(_gd,_gn,new T.Quaternion()).multiply(a.pf);
+    const j=L?0:1;_gq.setFromAxisAngle(_gd,GTR.tw[j]).multiply(_gq3.setFromAxisAngle(_gn,GTR.bend[j]+(L?0:.18*stroke)));const qh=_gq.multiply(qf).multiply(a.hq); /* the hand: its rest angle to the forearm, then turned (the strumming wrist flicks) */
+    a.off.copy(a.hc).applyQuaternion(qh); /* where the palm is from the wrist: next frame's wrist aim allows for it */
+    a.up.quaternion.copy(_gq2.invert()).multiply(qu);a.ha.quaternion.copy(qf.clone().invert()).multiply(qh);a.fo.quaternion.copy(qu.invert()).multiply(qf);}
+  if(B.Head){H.updateMatrixWorld(true);const look=GTR.look[0]*(1-sing*1.1)+.03*Math.sin(beat);
+    gtrTurn(p,B.Head,_gq.setFromAxisAngle(_ay,GTR.look[1]*(1-.6*sing)).multiply(_gq2.setFromAxisAngle(_ax,-look)).multiply(_gq3.setFromAxisAngle(_az,GTR.sing*sing*.25*Math.sin(t*1.3))));}}
 /* ---------- the forest ---------- */
 /* the town's own scattered props (rocks, tufts, the odd planter) out of a zone's open ground, and their collision circles */
 function zClear(c,r){const keep=new Set((window.BLDGS||[]).map(b=>b.inst));const npcH=new Set(G.npcs.map(n=>n.model&&n.model.holder).filter(Boolean));let k=0;const gone=[];
@@ -855,7 +907,7 @@ function beachZone(){sd_=1002;const Z=zFrame(ZONE_B);const res={};res.cleared=zC
 const ZFX={};let zAudio=null;
 function zonesFrame(dt,t){const f=ZFX.fire;if(f){for(const m of f.fl){const ph=m.userData.ph;const k=1+.16*Math.sin(t*9+ph)+.1*Math.sin(t*15.3+ph*2);m.scale.set(1+.1*Math.sin(t*11+ph),k,1);}
     for(const e of f.emb){const ph=(t*.6+e.userData.ph)%1.6;e.position.set(Math.sin(e.userData.ph*7+t)*.25*ph,.3+ph*1.6,Math.cos(e.userData.ph*5+t*.7)*.25*ph);e.material.opacity=Math.max(0,1-ph/1.6);}}
-  for(const p of ZPEOPLE){if(p.role==='guitar'){const b=p.bones.R_Forearm;if(b){b.quaternion.copy(p.rest.R_Forearm).multiply(_zq.setFromAxisAngle(_zx,.22*Math.sin(t*6.2)));}const h=p.bones.Head;if(h)h.quaternion.copy(p.rest.Head).multiply(_zq.setFromAxisAngle(_zx,.08+.05*Math.sin(t*2.1)));}
+  for(const p of ZPEOPLE){if(p.role==='guitar'){if(p.gtr){try{gtrPlay(p,t);}catch(e){p.gtr=null;console.warn('guitarist',e);}}else{const b=p.bones.R_Forearm;if(b){b.quaternion.copy(p.rest.R_Forearm).multiply(_zq.setFromAxisAngle(_zx,.22*Math.sin(t*6.2)));}const h=p.bones.Head;if(h)h.quaternion.copy(p.rest.Head).multiply(_zq.setFromAxisAngle(_zx,.08+.05*Math.sin(t*2.1)));}}
     else if(p.role==='listen'){const h=p.bones.Head;if(h)h.quaternion.copy(p.rest.Head).multiply(_zq.setFromAxisAngle(_zy,.12*Math.sin(t*.4+p.name.length)));}}
   zSound(t);}
 const _zq=new T.Quaternion(),_zx=V3(1,0,0),_zy=V3(0,1,0);
@@ -1061,6 +1113,7 @@ function poll(){if(built)return;if(ready())build();else setTimeout(poll,700);}
 window.DRESS={frame(dt,now){UT.value=now/1000;try{zonesFrame(dt,now/1000);}catch(e){}},glb,look(v){LOOKU.value=v;return v;},rebuild(){location.reload();},
   async calls(){const ri=renderer.info;ri.autoReset=false;ri.reset();await new Promise(r=>requestAnimationFrame(()=>requestAnimationFrame(r)));const c={calls:ri.render.calls,tris:ri.render.triangles};ri.autoReset=true;return c;},buckets:BUCKETS,bills:BILLS};
 setTimeout(poll,1500);
+window.DRESS.GTR=GTR;window.DRESS.gtrRetune=()=>{for(const p of ZPEOPLE)if(p.gtr)gtrSeat(p,p.gtr);};window.DRESS.zpeople=ZPEOPLE; /* tuning Kofi's guitar from the console */
 window.DRESS.fireSpot=()=>{const f=ZFX.fire;if(!f||!f.toRoad)return null;const d=f.toRoad.clone().addScaledVector(f.n,-f.toRoad.dot(f.n)).normalize();return {n:tn(f.n,d.clone().multiplyScalar(3.6)),face:d.negate()};}; /* the menu's "Spawn at the forest campfire": on the open (road) side of the fire, facing it */
 arcadeModels();window.DRESS.cabs=CABS;arcWatch();window.DRESS.arcClear=AC; /* the arcade's cabinet models: on their own poll (the arcade is seated whenever its model loads) */
 })();
