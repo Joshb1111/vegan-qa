@@ -1,0 +1,150 @@
+/* ROOTLIGHT rooms: Heartseed Chamber (format: public/rootlight/world.js header). Hand-made rooms; each brief and its doorways in the comment above the map. */
+
+ROOM({ id: 'hs_1', area: 'heart', name: "Root Throat", cx: 22, cy: 4, cw: 2, ch: 4,
+  /* Down through the SEAL door (N doorway). A long descent through thorny roots: thorns x everywhere, small safe ledges, needs Leaf Dash and Puff Jump to steer. S doorway at the bottom.
+     doorways: N cols 12-15 -> rg_door (Seal Door Hall); S cols 12-15 -> hs_2 (Last Watering)
+     design: Three thorny root floors, their gaps alternating sides. Drop onto the first ledge; jump right into the gap by the east wall (a safe pad beside it); from the ledge below, dash left over a thorn floor (thorns hang above it: keep low) to a pad, then dash again into the gap by the west wall; the last ledge lets you drop into the exit hole. Back up: Vine Grip on the clean walls by each gap, Puff Jump to the ledges. */
+  map: [
+    '############....################',
+    '#RRRRRRRRRR......RRRRRRRRRRRRRR#',
+    '#RRRRRRRRRR......RRRRRRRRRRRRRR#',
+    '#RRRRRRRRRR......RRRRRRRRRRRRRR#',
+    '#RRRRRR.................RRRRRRR#',
+    '#RRRRRR....b...............xRRR#',
+    '#RRRx....RRRRRRRRRR........xRRR#',
+    '#RRRx....RRRRRRRRRR........xRRR#',
+    '#RRRx..........RRRR........xRRR#',
+    '#RRRx..........RRRR........xRRR#',
+    '#RRRx...s......RRRR.........RRR#',
+    '#RRRx.......................RRR#',
+    '#RRRx.......................RRR#',
+    '#RRRxxxxxxxxxxxxxxx.........RRR#',
+    '#RRRRRRRRRRRRRRRRRRRRRR.....RRR#',
+    '#RRRRRRRRRRRRRRRRRRRRRR.....RRR#',
+    '#RRR.....xxxxxxxxx..........RRR#',
+    '#RRR........................RRR#',
+    '#RRR..............s.........RRR#',
+    '#RRR......................*.RRR#',
+    '#RRR..................RRRRRRRRR#',
+    '#RRR..................RRRRRRRRR#',
+    '#RRR.....xxxxx...xxxxx......RRR#',
+    '#RRR.....RRRRRRRRRRRRRRRRRRRRRR#',
+    '#RRR.....RRRRRRRRRRRRRRRRRRRRRR#',
+    '#RRR........xxxxxxxxx......xRRR#',
+    '#RRR..............xxxxxx...xRRR#',
+    '#RRR..............xRRRRx...xRRR#',
+    '#RRRRRRRRR........xRRRRx...xRRR#',
+    '#RRRRRRRRR........xRRRRx...xRRR#',
+    '#RRR..............xxxxxx...xRRR#',
+    '#RRR.......................xRRR#',
+    '#RRRxxxxxx......xxxxxxxxxxxxRRR#',
+    '#RRRRRRRRRRR....RRRRRRRRRRRRRRR#',
+    '#RRRRRRRRRRR....RRRRRRRRRRRRRRR#',
+    '############....################'
+  ] });
+
+ROOM({ id: 'hs_2', area: 'heart', name: "Last Watering", cx: 20, cy: 8, cw: 4, ch: 2,
+  /* The last Watering Spot W. N doorway (from the Root Throat), E doorway to the Gloom Gallery. A sign: "The Heartseed is close. Rest, then go gently."
+     doorways: N cols 44-47 -> hs_1 (Root Throat); E rows 11-14 -> hs_3 (Gloom Gallery)
+     design: A quiet root hall: drop in onto a root ledge, ledges 3 apart lead down (and back up: from the top ledge Puff Jump or Vine Grip up the shaft). The last Watering Spot under a root arch, a sign. SECRET: a cracked root wall % in the far west hides a dew cluster. */
+  map: [
+    '############################################....################',
+    '#RRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRR....RRRRRRRRRRRRRRR#',
+    '#RRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRR....RRRRRRRRRRRRRRR#',
+    '#RRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRR....RRRRRRRRRRRRRRR#',
+    '#RRRRRRRR......RRRRRRRRRRRRRRRRR....RR.................RRR.....#',
+    '#RRRRRRRR......RRRRRRRRRRRRRRRRR....RR.................RRR.....#',
+    '#RRRRRRRR......RRR...........RRR.........==========....RRR.....#',
+    '#RRRRRRRR......RRR...........RRR.......................RRR.....#',
+    '#RRRRRRRR......RRR...........RRR......................*........#',
+    '#RRRRRRRR......RRR............R.....................====.......#',
+    '#.....RRR.......R.............R................................#',
+    '#.....RRR.......R...............................................',
+    '#.....RRR.....................................====..............',
+    '#.......%.......................................................',
+    '#..*....%...b..........W...i..............................b.....',
+    '#RRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRR#',
+    '#RRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRR#',
+    '################################################################'
+  ],
+  signs: ['The Heartseed is close. Rest, then go gently.'] });
+
+ROOM({ id: 'hs_3', area: 'heart', name: "Gloom Gallery", cx: 24, cy: 8, cw: 2, ch: 4,
+  /* A tall gallery: one of every gloom, wind, thorns, crumbling ledges; needs everything. W doorway (top) from Last Watering, a hole in the floor (S) down to the Heartseed.
+     doorways: W rows 11-14 -> hs_2 (Last Watering); S cols 12-15 -> hs_4 (The Heartseed)
+     design: One of every gloom on the way down. Top: crumbling ledges over a thorn bed in a westward gust (first gap needs a Leaf Dash, the last step up to the root ledge a Puff Jump), a drip-gloom above. Drop down the windy gap by the east wall (an updraft slows you; climb it back with Vine Grip). Middle: a gloom knight on the long floor, a spore lantern hanging, thorns hanging. Bottom: a thornling, a rust-cog and a smog puff around the hole down to the Heartseed. */
+  map: [
+    '################################',
+    '#RRRRRRRRRRRRRRRRRRRRRRRRRRRRRR#',
+    '#RRRRRRRRRRRRRRRRRRRRRRRRRRRRRR#',
+    '#RRRRRRRRRRRRRRRRRRRRRRRRRRRRRR#',
+    '#RR.........d...........RR...RR#',
+    '#RR.....................RR...RR#',
+    '#RR.....................RR...RR#',
+    '#RR.....................RR...RR#',
+    '#RR.....................RR...RR#',
+    '#RR....................*RR...RR#',
+    '#RR..................RRRRRR..RR#',
+    '.....................RRRRRR..RR#',
+    '.............................RR#',
+    '.............................RR#',
+    '.................--..........RR#',
+    '#RRRRRRR.....--..............RR#',
+    '#RRRRRRR.....................RR#',
+    '#RRRRRRRxxxxxxxxxxxxxxxxxxx..RR#',
+    '#RRRRRRRRRRRRRRRRRRRRRRRRRR..RR#',
+    '#RRRRRRRRRRRRRRRRRRRRRRRRRR..RR#',
+    '#RR.....xxxxx...l............RR#',
+    '#RR..........................RR#',
+    '#RR..........................RR#',
+    '#RR..........................RR#',
+    '#RR..........................RR#',
+    '#RR...............k..........RR#',
+    '#RR....RRRRRRRRRRRRRRRRRRRRRRRR#',
+    '#RR....RRRRRRRRRRRRRRRRRRRRRRRR#',
+    '#RR..b.......................RR#',
+    '#RR======............s.......RR#',
+    '#RR..........................RR#',
+    '#RR..........................RR#',
+    '#RR..t..................c....RR#',
+    '#RRRRRRRRRRR....RRRRRRRRRRRRRRR#',
+    '#RRRRRRRRRRR....RRRRRRRRRRRRRRR#',
+    '############....################'
+  ],
+  wind: [[8, 5, 13, 12, -0.5, 0, 1], [27, 12, 2, 14, 0, -0.9, 0]] });
+
+ROOM({ id: 'hs_4', area: 'heart', name: "The Heartseed", cx: 20, cy: 12, cw: 6, ch: 3,
+  /* FINAL ARENA: THE GLOOM HEART (G anchor up in the middle, guardian heart). A wide, tall chamber with floating root ledges = at 4, 8 and 12 tiles up. N doorway (from the Gloom Gallery) at the E part: an ARENA gate.
+     doorways: N cols 76-79 -> hs_3 (Gloom Gallery)
+     design: Final arena: flat safe floor; floating root ledges in three tiers (4, 8, 12 up; every tier reachable from the one below with a Puff Jump and a short hop); G up in the middle. You drop in onto a root ledge under the arena gate; a ledge 5 below it leads back down/up. */
+  map: [
+    '############################################################################gggg################',
+    '#RRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRR....RRRRRRRRRRRRRRR#',
+    '#RRRRR............RRRR..................RRRR...........RRR................................RRRRR#',
+    '#RRRRR............RRRR.................................RRR................========........RRRRR#',
+    '#RRRRR.............RR.....................................................................RRRRR#',
+    '#RR................RR........................................................................RR#',
+    '#RR..........................................................................................RR#',
+    '#RRR...............................................................................======...RRR#',
+    '#RRR........................................................................................RRR#',
+    '#RRR............................................G...........................................RRR#',
+    '#RRR........................................................................................RRR#',
+    '#RRR........................................................................................RRR#',
+    '#RR...======..............=======..............................=======..............======...RR#',
+    '#RR..........................................................................................RR#',
+    '#RR..........................................................................................RR#',
+    '#RR..........................................................................................RR#',
+    '#RR.............=======.............=======..........=======.............=======.............RR#',
+    '#RR..........................................................................................RR#',
+    '#RRR........................................................................................RRR#',
+    '#RRRR.....b..........................................................................b.....RRRR#',
+    '#RRRR...=======...........========............................========...........=======...RRRR#',
+    '#RRRRR....................................................................................RRRRR#',
+    '#RRRRRR..................................................................................RRRRRR#',
+    '#RRRRRRR................................................................................RRRRRRR#',
+    '#RRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRR#',
+    '#RRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRR#',
+    '################################################################################################'
+  ],
+  gates: ['arena'],
+  guardian: 'heart' });

@@ -73,7 +73,9 @@ function macros(ab) {
     }
     L.push({ name: 'up' + d, f: (t, p) => t === 0 ? IN.JUMP : (t < 40 ? IN.JUMP : 0) | (t > 14 ? D : 0) });
     L.push({ name: 'drop' + d, f: t => t === 0 ? IN.D : t === 1 ? IN.D | IN.JUMP : t > 6 ? D : 0 });
-    L.push({ name: 'swim' + d, maxT: 300, f: t => D | (t % 8 < 3 ? IN.JUMP : 0) });
+    const stroke = (t, p) => (!p.swim && p.vy < 0) ? IN.JUMP : (t % 8 < 3 ? IN.JUMP : 0);   /* pulse in the water, hold the jump out of it */
+    L.push({ name: 'swim' + d, maxT: 300, f: (t, p) => D | stroke(t, p) });
+    for (const dive of [40, 90, 160]) L.push({ name: 'dive' + d + '/' + dive, maxT: 420, f: (t, p) => D | (t < dive ? IN.D : stroke(t, p)) });
     L.push({ name: 'wait' + d, maxT: 280, wait: true, f: t => t > 150 ? D : 0 });
     if (ab.includes('dash')) {
       L.push({ name: 'gdash' + d, f: t => D | (t === 0 ? IN.DASH : 0) });
@@ -114,68 +116,82 @@ function explore(id, ab, opened, calm, opts) {
   const M = macros(ab), phases = PHASES(c);
   /* arriving in mid-air (through a floor or ceiling hole): also try to climb, puff or drift there */
   const airMacs = M.filter(m => /^climb/.test(m.name) || /^puff/.test(m.name) || /^jdash.*apex/.test(m.name));
-  const seen = new Map(), queue = [], exits = new Map(), reached = new Set(), lever = new Set();
   const doorOf = (x, y) => { /* which planned doorway a position just outside the room belongs to */
     const tx = Math.floor(x / TILE), ty = Math.floor((y - 13) / TILE); let best = -1, bd = 1e9;
     doors.forEach((d, i) => { let dd; if (d.side === 'W' || d.side === 'E') { if ((d.side === 'W') !== (x < c.r.pw / 2)) return; dd = ty < d.at ? d.at - ty : ty >= d.at + d.len ? ty - d.at - d.len + 1 : 0; } else { if ((d.side === 'N') !== (y < c.r.ph / 2)) return; dd = tx < d.at ? d.at - tx : tx >= d.at + d.len ? tx - d.at - d.len + 1 : 0; } if (dd < bd) { bd = dd; best = i; } });
     return best;
   };
-  const touchThings = p => {
+  /* a node: its exits, things and the nodes it leads to */
+  const node = () => ({ exits: new Set(), things: new Set(), to: new Set() });
+  const touchThings = (p, into) => {
     for (const th of things) {
       const cx = th.x * TILE + 10, cy = th.y * TILE + 10;
-      if (th.ch === 'h') { if (Math.abs(p.x - cx) < 40 && p.y - 26 < cy + 14 && p.y > cy - 34) { reached.add(th.key); lever.add(th); } continue; }
-      if (th.ch === 'y') { if (ab.includes('beam') && p.ground && Math.abs(p.y - 14 - cy) < 18 && clearRow(c.r, p.x, cx, cy)) reached.add(th.key); continue; }
-      if (th.ch === 'G') { if (Math.abs(p.x - cx) < 200 && Math.abs(p.y - 13 - cy) < 160) reached.add(th.key); continue; }
-      if (Math.abs(p.x - cx) < 18 && p.y - 26 < cy + 12 && p.y > cy - 12) reached.add(th.key);
+      if (th.ch === 'h') { if (Math.abs(p.x - cx) < 40 && p.y - 26 < cy + 14 && p.y > cy - 34) into.add(th.key); continue; }
+      if (th.ch === 'y') { if (ab.includes('beam') && p.ground && Math.abs(p.y - 14 - cy) < 18 && clearRow(c.r, p.x, cx, cy)) into.add(th.key); continue; }
+      if (th.ch === 'G') { if (Math.abs(p.x - cx) < 200 && Math.abs(p.y - 13 - cy) < 160) into.add(th.key); continue; }
+      if (Math.abs(p.x - cx) < 18 && p.y - 26 < cy + 12 && p.y > cy - 12) into.add(th.key);
     }
   };
-  const addState = (x, y) => { const k = Math.floor(x / TILE) + ',' + Math.floor((y - 1) / TILE); if (!seen.has(k)) { seen.set(k, { x, y }); queue.push(k); } };
-  const settle = (x, y, vx, vy, mask) => {   /* run from an arrival until standing, leaving or giving up */
+  const seen = new Map(), queue = [];
+  const keyOf = (x, y) => Math.floor(x / TILE) + ',' + Math.floor((y - 1) / TILE);
+  const addState = (x, y) => { const k = keyOf(x, y); if (!seen.has(k)) { seen.set(k, Object.assign(node(), { x, y })); queue.push(k); } return k; };
+  /* run from an arrival until standing, leaving or giving up; results go into `into` */
+  const settle = (x, y, vx, vy, mask, into) => {
     resetP(c, x, y, vx, vy); let air = 0; const mm = {};
-    if (c.r.boxSolid(x - 7, y - 26, x + 7, y - 1)) return null;   /* a shut gate (or a wall) right at the doorway */
+    if (c.r.boxSolid(x - 7, y - 26, x + 7, y - 1)) return;   /* a shut gate (or a wall) right at the doorway */
     for (let t = 0; t < 900; t++) {
       c.p.prev = c.p.in; c.p.in = typeof mask === 'function' ? mask(t, c.p, mm) : mask; physTick(c);
-      if (c.sim.events.some(e => e[0] === 'thorn')) return null;
-      const ex = c.getExit(); if (ex) { const di = doorOf(ex.x, ex.y); if (di >= 0) exits.set(di, 'entry'); return null; }
-      touchThings(c.p);
-      if (!c.p.ground) air++; else if (air > 0 || t > 5) { addState(c.p.x, c.p.y); return true; }
+      if (c.sim.events.some(e => e[0] === 'thorn')) return;
+      const ex = c.getExit(); if (ex) { const di = doorOf(ex.x, ex.y); if (di >= 0) into.exits.add(di); return; }
+      touchThings(c.p, into.things);
+      if (!c.p.ground) air++; else if (air > 0 || t > 5) { into.to.add(addState(c.p.x, c.p.y)); return; }
     }
-    return null;
   };
   /* entries */
-  const entries = opts.entries || doors.map((d, i) => i);
-  for (const i of entries) {
-    const d = doors[i];
-    if (d.side === 'W' || d.side === 'E') { const x = d.side === 'W' ? 12 : c.r.pw - 12, y = (d.at + d.len) * TILE; for (const m of [d.side === 'W' ? IN.R : IN.L, 0]) settle(x, y, 0, 0, m); }
-    else if (d.side === 'N') { for (let k = 0; k < d.len; k++) { settle((d.at + k) * TILE + 10, 30, 0, 2, 0); for (const mac of airMacs) settle((d.at + k) * TILE + 10, 30, 0, 2, mac.f); } }
-    else { for (let k = 0; k < d.len; k++) { for (const m of [IN.L, IN.R, 0]) settle((d.at + k) * TILE + 10, c.r.ph + 8, 0, -7.2, (t) => m | (t < 30 ? IN.JUMP : 0)); for (const mac of airMacs) settle((d.at + k) * TILE + 10, c.r.ph + 8, 0, -7.2, mac.f); } }
-    if (opts.from) break;
-  }
-  if (opts.fromXY) addState(opts.fromXY.x, opts.fromXY.y);
-  /* breadth first over standing spots */
+  const entry = doors.map(() => node());
+  doors.forEach((d, i) => {
+    if (opts.entries && !opts.entries.includes(i)) return;
+    const into = entry[i];
+    if (d.side === 'W' || d.side === 'E') { const x = d.side === 'W' ? 12 : c.r.pw - 12, y = (d.at + d.len) * TILE; for (const m of [d.side === 'W' ? IN.R : IN.L, 0]) settle(x, y, 0, 0, m, into); }
+    else if (d.side === 'N') { for (let k = 0; k < d.len; k++) { settle((d.at + k) * TILE + 10, 30, 0, 2, 0, into); for (const mac of airMacs) settle((d.at + k) * TILE + 10, 30, 0, 2, mac.f, into); } }
+    else { for (let k = 0; k < d.len; k++) { for (const m of [IN.L, IN.R, 0]) settle((d.at + k) * TILE + 10, c.r.ph + 8, 0, -7.2, (t) => m | (t < 30 ? IN.JUMP : 0), into); for (const mac of airMacs) settle((d.at + k) * TILE + 10, c.r.ph + 8, 0, -7.2, mac.f, into); } }
+  });
+  let startNode = null;
+  if (opts.fromXY) { startNode = node(); startNode.to.add(addState(opts.fromXY.x, opts.fromXY.y)); }
+  /* breadth first over standing spots, once for every entry */
   let runs = 0;
   while (queue.length) {
     const k = queue.shift(), st = seen.get(k);
-    touchThings({ x: st.x, y: st.y });
+    touchThings({ x: st.x, y: st.y, ground: true }, st.things);
     for (const mac of M) for (const ph of phases) {
       if (mac.wait && !c.r.vents.length && !c.r.plats.length) continue;
-      if (mac.name.startsWith('swim') && !c.r.water(st.x, st.y - 10) && !c.r.water(st.x, st.y + 10)) continue;
+      if ((mac.name.startsWith('swim') || mac.name.startsWith('dive')) && !nearWater(c.r, st.x, st.y)) continue;
       resetP(c, st.x, st.y, 0, 0); c.p.ground = true; c.sim.t = ph; const mm = {}; let air = 0; runs++;
       const tx0 = Math.floor(st.x / TILE), maxT = mac.maxT || 220;
       for (let t = 0; t < maxT; t++) {
         c.p.prev = c.p.in; c.p.in = mac.f(t, c.p, mm); physTick(c);
         if (c.sim.events.some(e => e[0] === 'thorn')) break;
-        const ex = c.getExit(); if (ex) { const di = doorOf(ex.x, ex.y); if (di >= 0 && !exits.has(di)) exits.set(di, mac.name + '@' + k); break; }
-        touchThings(c.p);
+        const ex = c.getExit(); if (ex) { const di = doorOf(ex.x, ex.y); if (di >= 0) st.exits.add(di); break; }
+        touchThings(c.p, st.things);
         if (!c.p.ground) air++;
-        else if (mac.walk && (Math.floor(c.p.x / TILE) !== tx0 || air)) { addState(c.p.x, c.p.y); break; }
-        else if (air > 1 && !mac.wait) { addState(c.p.x, c.p.y); break; }
-        else if (mac.wait && t > 150 && air) { addState(c.p.x, c.p.y); break; }
+        else if (mac.walk && (Math.floor(c.p.x / TILE) !== tx0 || air)) { st.to.add(addState(c.p.x, c.p.y)); break; }
+        else if (air > 1 && !mac.wait) { st.to.add(addState(c.p.x, c.p.y)); break; }
+        else if (mac.wait && t > 150 && air) { st.to.add(addState(c.p.x, c.p.y)); break; }
       }
     }
   }
-  return { id, exits, reached, lever, states: seen.size, runs, things };
+  /* what each entry reaches: the closure over the standing graph */
+  const close = start => {
+    const exits = new Map(), reached = new Set(start.things), vis = new Set(), st = [...start.to];
+    for (const di of start.exits) exits.set(di, 'entry');
+    while (st.length) { const k = st.pop(); if (vis.has(k)) continue; vis.add(k); const n = seen.get(k); for (const di of n.exits) if (!exits.has(di)) exits.set(di, k); for (const th of n.things) reached.add(th); for (const j of n.to) if (!vis.has(j)) st.push(j); }
+    return { id, exits, reached, states: vis.size, runs, things };
+  };
+  const res = { id, runs, states: seen.size, things, byEntry: entry.map(close) };
+  if (startNode) res.start = close(startNode);
+  return res;
 }
+function nearWater(r, x, y) { for (let dx = -100; dx <= 100; dx += 20) for (let dy = -40; dy <= 60; dy += 20) if (r.water(x + dx, y + dy)) return true; return false; }
 function clearRow(r, x0, x1, y) { const ty = Math.floor(y / TILE); for (let tx = Math.floor(Math.min(x0, x1) / TILE) + 1; tx < Math.floor(Math.max(x0, x1) / TILE); tx++) if (r.solid(tx, ty)) return false; return true; }
 
 /* ---------- the whole world, in story order ---------- */
@@ -184,8 +200,9 @@ function world() {
   const ab = new Set(), calm = {}, opened = new Set();
   const GIVE = { knot: 'dash', boiler: 'grip', cloud: 'puff' };
   const cache = new Map();
-  const roomRun = (id, entry) => { const key = id + '|' + entry + '|' + [...ab].sort().join(',') + '|' + Object.keys(calm).sort().join(',') + '|' + [...opened].filter(k => k.startsWith(id + ':')).sort().join(','); if (!cache.has(key)) cache.set(key, explore(id, [...ab], [...opened], calm, { entries: [entry], from: true })); return cache.get(key); };
-  const startRun = () => { const key = 'START|' + [...ab].sort().join(','); if (!cache.has(key)) { const c = makeCtx(W.start, [...ab], [...opened], calm); const st = c.r.start || { x: c.r.pw / 2, y: 60 }; cache.set(key, explore(W.start, [...ab], [...opened], calm, { entries: [], fromXY: st })); } return cache.get(key); };
+  const ctxKey = id => id + '|' + [...ab].sort().join(',') + '|' + (W.rooms[id].guardian ? (calm[W.rooms[id].guardian] ? 'c' : '') : '') + (W.rooms[id].gates || []).includes('seal') * (calm.knot && calm.boiler && calm.cloud ? 1 : 0) + '|' + [...opened].filter(k => k.startsWith(id + ':')).sort().join(',');
+  const roomRun = (id, entry) => { const key = ctxKey(id); if (!cache.has(key)) cache.set(key, explore(id, [...ab], [...opened], calm)); return cache.get(key).byEntry[entry]; };
+  const startRun = () => { const key = 'START|' + ctxKey(W.start); if (!cache.has(key)) { const c = makeCtx(W.start, [...ab], [...opened], calm); const st = c.r.start || { x: c.r.pw / 2, y: 60 }; cache.set(key, explore(W.start, [...ab], [...opened], calm, { entries: [], fromXY: st })); } return cache.get(key).start; };
   let stage = 0, changed = true, log = [], reachedAll = new Set(), nodes;
   while (changed && stage < 20) {
     changed = false; stage++;
@@ -239,8 +256,9 @@ if (require.main === module) {
     const id = args[0], ab = args.slice(1);
     const doors = plan.doors[id]; if (!doors) { console.log('no room ' + id); process.exit(1); }
     const t0 = Date.now();
+    const all = explore(id, ab, [], { knot: 1, boiler: 1, cloud: 1 });
     doors.forEach((d, i) => {
-      const res = explore(id, ab, [], { knot: 1, boiler: 1, cloud: 1 }, { entries: [i], from: true });
+      const res = all.byEntry[i];
       const ex = [...res.exits.keys()].map(j => doors[j].side + doors[j].at + '>' + doors[j].to);
       console.log('from ' + d.side + d.at + ' (' + d.to + '): ' + res.states + ' spots; exits ' + (ex.join(' ') || 'NONE') + '; things ' + [...res.reached].map(k => k.split(':')[1]).join(' '));
     });

@@ -78,8 +78,8 @@ function newPlayer(i) {
    ROOMS
    ====================================================================================================================== */
 const FOE = {
-  smog: { w: 24, h: 24, hp: 2, dew: 2, fl: 0 }, thorn: { w: 22, h: 22, hp: 3, dew: 2, fl: 1 }, drip: { w: 20, h: 20, hp: 2, dew: 2, fl: 2 },
-  cog: { w: 26, h: 22, hp: 4, dew: 4, fl: 3 }, lantern: { w: 18, h: 24, hp: 3, dew: 3, fl: 4 }, knight: { w: 22, h: 34, hp: 6, dew: 6, fl: 5 }
+  smog: { w: 24, h: 24, hp: 2, dew: 3, fl: 0 }, thorn: { w: 22, h: 22, hp: 3, dew: 3, fl: 1 }, drip: { w: 20, h: 20, hp: 2, dew: 3, fl: 2 },
+  cog: { w: 26, h: 22, hp: 4, dew: 5, fl: 3 }, lantern: { w: 18, h: 24, hp: 3, dew: 4, fl: 4 }, knight: { w: 22, h: 34, hp: 6, dew: 8, fl: 5 }
 };
 const FOE_LETTER = { s: 'smog', t: 'thorn', d: 'drip', c: 'cog', l: 'lantern', k: 'knight' };
 const GUARD = {
@@ -455,7 +455,7 @@ class Sim {
     }
     /* ----- gravity ----- */
     if (!dashing) {
-      if (inWater) { p.vy = Math.min(p.vy + PH.SWIM_G, PH.SWIM_FALL); if (p.vy < -PH.STROKE) p.vy += 0.3; }
+      if (inWater) { p.vy = Math.min(p.vy + (D ? 0.3 : PH.SWIM_G), D ? 2.6 : PH.SWIM_FALL); if (p.vy < -PH.STROKE) p.vy += 0.3; }   /* hold Down to dive */
       else {
         if (p.rise && p.vy < 0 && !(p.in & IN.JUMP) && p.rise === 1) { p.vy = Math.max(p.vy, PH.CUT); p.rise = 0; }
         const g = p.rise && p.vy < 0 ? PH.GUP : PH.G;
@@ -511,7 +511,8 @@ class Sim {
   setSt(p, st) { if (p.st !== st) { p.st = st; p.at = 0; } }
   headOut(p) { return !this.room.water(p.x, p.y - PH.H + 4); }
   standOneway(p) { const ty = Math.floor((p.y + 1) / TILE); for (let tx = Math.floor((p.x - 6) / TILE); tx <= Math.floor((p.x + 6) / TILE); tx++) if (this.room.solid(tx, ty)) return false; return this.room.oneway(Math.floor(p.x / TILE), ty) || this.room.oneway(Math.floor((p.x - 6) / TILE), ty) || this.room.oneway(Math.floor((p.x + 6) / TILE), ty); }
-  wallAt(p, side) { const x = side > 0 ? p.x + PH.W / 2 + 1 : p.x - PH.W / 2 - 1; return this.room.solid(Math.floor(x / TILE), Math.floor((p.y - 8) / TILE)) && this.room.solid(Math.floor(x / TILE), Math.floor((p.y - 20) / TILE)); }
+  /* a wall to cling to: the upper body against solid (forgiving: you can catch a wall whose foot is a little above you) */
+  wallAt(p, side) { const x = side > 0 ? p.x + PH.W / 2 + 1 : p.x - PH.W / 2 - 1; return this.room.solid(Math.floor(x / TILE), Math.floor((p.y - 20) / TILE)); }
   /* box movement against tiles, one-way ledges, moving platforms and glowcaps; feet at (p.x, p.y) */
   move(p) {
     const r = this.room, w = PH.W, h = PH.H;
@@ -751,7 +752,7 @@ class Sim {
   }
   hitCluster(it) {
     it.hp--; it.hurt = 8; this.ev('crack', it.x, it.y);
-    const n = it.hp > 0 ? 4 : 6; for (let i = 0; i < n; i++) this.dropDew(it.x, it.y, 1);
+    const n = it.hp > 0 ? 5 : 8; for (let i = 0; i < n; i++) this.dropDew(it.x, it.y, 1);
     if (it.hp <= 0) { it.got = true; this.save.got[it.id] = 1; this.ev('break', it.x, it.y); this.room.items.splice(this.room.items.indexOf(it), 1); }
   }
   hitBreak(br) {
@@ -976,6 +977,7 @@ class Sim {
     r.hazards = []; r.shots = r.shots.filter(x => x.kind === 'beam');
     for (const f of r.foes) if (f.alive && f.temp) this.bloom(f);
     this.ev('calm', g.kind); this.shake = 10;
+    for (let i = 0; i < 25; i++) this.dropDew(g.x + (this.rand() - 0.5) * 60, Math.min(g.y, g.floor - 30), 1);   /* a thank-you of dew */
     r.updateGates(s); r.recolour(s);
   }
   stepGuard() {
