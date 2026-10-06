@@ -810,7 +810,7 @@ function forestZone(){sd_=1001;const F=zFrame(ZONE_F);const res={};res.cleared=z
     for(const [w,h,ry,x,z] of [[.52,.8,0,0,0],[.52,.8,Math.PI/2,0,0],[.36,.58,Math.PI/4,.1,.05],[.32,.52,-Math.PI/4,-.08,-.04]]){const m=new T.Mesh(new T.PlaneGeometry(w,h),fmat);m.geometry.translate(0,h/2,0);m.rotation.y=ry;m.position.set(x,.08,z);m.userData.noInk=true;m.userData.h=h;m.userData.ph=Math.random()*6;g.add(m);fl.push(m);}
     const glow=new T.Mesh(new T.CircleGeometry(1.5,24),new T.MeshBasicMaterial({map:(()=>{const c=canvas(128,128),gg=c.getContext('2d');const gr=gg.createRadialGradient(64,64,4,64,64,64);gr.addColorStop(0,'rgba(255,170,80,.22)');gr.addColorStop(1,'rgba(255,140,60,0)');gg.fillStyle=gr;gg.fillRect(0,0,128,128);return texOf(c);})(),transparent:true,depthWrite:false,blending:T.AdditiveBlending}));glow.rotation.x=-Math.PI/2;glow.position.y=.05;glow.userData.noInk=true;g.add(glow);
     const emb=[];for(let i=0;i<10;i++){const m=new T.Mesh(new T.SphereGeometry(.025,5,4),mk(0xffc060,1));m.userData.noInk=true;m.userData.ph=Math.random()*3;g.add(m);emb.push(m);}
-    const [lo,la]=lonLatOf(fireN);placeOn(g,lo,la,0);g.position.copy(fireN.clone().multiplyScalar(gAt(fireN)));g.userData.noCull=true;g.traverse(m=>{if(m.isMesh)hideInNormals.push(m);});ZFX.fire={g,fl,emb,n:fireN};}
+    const [lo,la]=lonLatOf(fireN);placeOn(g,lo,la,0);g.position.copy(fireN.clone().multiplyScalar(gAt(fireN)));g.userData.noCull=true;g.traverse(m=>{if(m.isMesh)hideInNormals.push(m);});ZFX.fire={g,fl,emb,n:fireN,toRoad:toRoad.clone()};}
   /* string lights between the trees round the clearing */
   /* the trees: the forest proper, kept off the roads, the buildings, the path, the stream and the break room */
   const trees=[];const ok=q=>{const dc=Math.acos(Math.min(1,q.dot(F.n)))*R;if(dc<4.6||dc>27)return false;if(roadDist(q,roads)<.9)return false;if(solidHit(q,1.1))return false;if(Math.acos(Math.min(1,q.dot(ROOMN)))*R<11.5)return false;if(polyDist(path,q)<1.7)return false;if(stream.length&&polyDist(stream.map(s=>s.q),q)<1.6)return false;for(const t of trees)if(Math.acos(Math.min(1,q.dot(t)))*R<2.25)return false;return true;};
@@ -904,9 +904,9 @@ function treeSwap(){const keep=sd_;sd_=9090+(window.DRESS.treesSwapped||0);let k
    planet.html seats 8 cabinets in window.__arcade.cabs (a group each, in true metres: y 0 the floor, +z its front), with a solid (ARC.solids[5+k])
    and a door (ARC.doors[k]) at the same index. Their meshes are hidden and a model stands in each group; ARC.models tells breeze-room.js to leave
    them alone. The models get the props' cartoon material (borrowed from a loaded prop, so it follows __setCartoon) and the props' ink (silhouette only). */
-const CAB_FILES={tyrian:'assets/cab_tyrian.glb',breeze:'assets/cab_breeze.glb',waverun:'assets/cab_waverun.glb',orbit:'assets/cab_orbit.glb'},CAB_H=2.1,CAB_BACK=.42; /* the procedural cabinet's height; its back this far behind the group's centre (the wall is ~.5 m behind it) */
-const CAB_AT=['tyrian','tyrian','breeze','breeze','tyrian','breeze','waverun','orbit']; /* ARC.cabs order: the back wall left to right (facing it), then left and right walls at the back, then left and right by the entrance */
-const CAB_ACT={tyrian:{kind:'tyrian',title:'Tyrian',label:'Play Tyrian'},breeze:{kind:'breeze',title:'Berry Breeze',label:'Play Berry Breeze'}}; /* Wave Run and Orbit have no game: show-pieces by the entrance, no door */
+const CAB_FILES={vine:'assets/cab_vine.glb',breeze:'assets/cab_breeze.glb',waverun:'assets/cab_waverun.glb',orbit:'assets/cab_orbit.glb'},CAB_H=2.1,CAB_BACK=.42; /* the procedural cabinet's height; its back this far behind the group's centre (the wall is ~.5 m behind it) */
+const CAB_AT=['vine','vine','breeze','breeze','vine','breeze','waverun','orbit']; /* 6 Oct: Tyrian retired (Josh); his Vine Line cabinet stands where the OpenTyrian ones were */ /* ARC.cabs order: the back wall left to right (facing it), then left and right walls at the back, then left and right by the entrance */
+const CAB_ACT={vine:{kind:'vine',title:'Vine Line',label:'Play Vine Line'},breeze:{kind:'breeze',title:'Berry Breeze',label:'Play Berry Breeze'}}; /* Josh's Vine Line cabinets play Vine Line (vine-room.js), the Berry Breeze ones Berry Breeze; Wave Run and Orbit are show-pieces by the entrance, no door */
 const CABS={tpl:{},t0:0,tries:0,loading:false};
 function cabSrcMat(){const lib=window.__propLib||{};for(const k in lib){let f=null;lib[k].traverse(m=>{if(!f&&m.isMesh&&m.material&&m.material.userData.cartoon&&m.material.onBeforeCompile&&m.material.map)f=m.material;});if(f)return f;}return null;}
 function cabMat(map,src){map.encoding=T.LinearEncoding;map.anisotropy=8;map.minFilter=T.LinearMipmapLinearFilter;map.needsUpdate=true; /* the texture's colours are the drawing, as the game's asDrawn */
@@ -914,11 +914,67 @@ function cabMat(map,src){map.encoding=T.LinearEncoding;map.anisotropy=8;map.minF
   m.onBeforeCompile=(sh,r)=>{const keep=src.userData.sh,kp=src.userData.pure;src.onBeforeCompile(sh,r);src.userData.sh=keep;if(keep===undefined)delete src.userData.sh;if(kp===undefined)delete src.userData.pure; /* the game's own shader code, on our uniforms */
     const C=window.__cartoon||{},im=map.image||{};m.userData.sh=sh;Object.assign(sh.uniforms,{uTexel:{value:new T.Vector2(1/(im.width||1024),1/(im.height||1024))},uPoster:{value:C.poster??.3},uSat:{value:C.sat??1.08},uSunK:{value:.85}});};
   return m;}
+/* the cabinets that play Vine Line: a VINE LINE marquee and a screen picture, painted in code (once per size, shared) and laid on each model
+   (unlit, a few mm proud of its surfaces), fitted by raycasting the templates, in their metres: [x0,x1,y0,y1,a,b,off] is a plane z=a+b*y over that
+   rectangle, off in front. mh: the marquee's canvas height (1024 wide; the 192 px banner letterboxed in cream so its letters keep their shape);
+   sh, sr: the screen's height (512 wide) and garden rows. OpenTyrian: the marquee board is flat (z .428) but its old lettering and planet stand
+   up to 4 cm proud inside a red frame (.459), so the plane sits 2.6 cm out, just behind the frame, and mb pulls its depth 2 cm toward the eye
+   (along the view ray: the same pixels) so the relief can't poke through; the screen glass is 5 cm deep in its bezel, z=.5411-.2123y. */
+const VINE_FIT={orbit:{mq:[-.675,.675,1.752,2.005,.4771,-.021,.004],mh:192,sc:[-.546,.546,1.093,1.62,.5396,-.2208,.004],sh:246,sr:12},
+  tyrian:{mq:[-.497,.507,1.8,2.071,.428,0,.026],mh:276,mb:.02,sc:[-.365,.375,1.17,1.672,.5411,-.2123,.004],sh:355,sr:17}},VINE_ART={};
+function cabVine(t,kind){const F=VINE_FIT[kind];if(!F)return null;
+  const cv=(nm,w,h,f)=>{const k=nm+w+'x'+h;if(VINE_ART[k])return VINE_ART[k];const c=document.createElement('canvas');c.width=w;c.height=h;f(c.getContext('2d'),w,h);const x=new T.CanvasTexture(c);x.anisotropy=8;return VINE_ART[k]=x;};
+  let sd=97;const rnd=()=>((sd=sd*16807%2147483647)-1)/2147483646,ell=(g,x,y,rx,ry,r,fill,st,lw)=>{g.beginPath();g.ellipse(x,y,rx,ry,r||0,0,Math.PI*2);if(fill){g.fillStyle=fill;g.fill();}if(st){g.strokeStyle=st;g.lineWidth=lw||2;g.stroke();}};
+  const CREAM='#e4c992',NAVY='#375268',ORANGE='#e0663e',TEAL='#76a084',GOLD='#e9a63b',INK='#2b2140',FONT='"Arial Rounded MT Bold","Hiragino Maru Gothic ProN","Nunito","Varela Round",sans-serif';
+  const leaf=(g,x,y,l,w,r,fill,st)=>{g.save();g.translate(x,y);g.rotate(r);g.beginPath();g.moveTo(0,0);g.quadraticCurveTo(l*.5,-w,l,0);g.quadraticCurveTo(l*.5,w,0,0);g.fillStyle=fill;g.fill();if(st){g.strokeStyle=st;g.lineWidth=1.5;g.stroke();}g.restore();};
+  const star=(g,x,y,r)=>{g.beginPath();for(let i=0;i<8;i++){const a=i*Math.PI/4,q=i&1?r*.32:r;g.lineTo(x+Math.cos(a)*q,y+Math.sin(a)*q);}g.closePath();g.fillStyle=GOLD;g.fill();};
+  const berry=(g,x,y,r,c,c2)=>{ell(g,x,y,r,r,0,c,c2,2);ell(g,x-r*.35,y-r*.35,r*.3,r*.2,-.6,'rgba(255,255,255,.75)');};
+  const mq=cv('mq',1024,F.mh,(g,w,h)=>{sd=97;g.fillStyle=CREAM;g.fillRect(0,0,w,h);
+    for(let i=0;i<70;i++){g.fillStyle=rnd()<.5?'rgba(244,222,170,.35)':'rgba(205,170,110,.18)';ell(g,rnd()*w,rnd()*h,8+rnd()*40,5+rnd()*16,rnd()*3);g.fill();} /* the cabinet's worn paint */
+    for(let i=0;i<26;i++){g.fillStyle='rgba(150,110,60,.16)';ell(g,rnd()*w,rnd()<.5?rnd()*10:h-rnd()*10,3+rnd()*10,2+rnd()*4,0);g.fill();}
+    g.translate(0,(h-192)/2); /* the banner is drawn 192 px tall, centred on a taller board */
+    g.fillStyle=TEAL;for(const s of [1,-1])for(const [y0,y1] of [[64,104],[118,156]]){const x0=s>0?0:w,x1=s>0?178:w-178,tip=s*(y0<100?22:-10);g.beginPath();g.moveTo(x0,y0);g.lineTo(x1+tip,y0);g.lineTo(x1-tip*.2,y1);g.lineTo(x0,y1);g.closePath();g.fill();} /* the Orbit's teal speed stripes */
+    g.strokeStyle='#5d9a5e';g.lineWidth=4;g.lineCap='round';g.beginPath();g.moveTo(206,170);for(let x=206;x<=818;x+=4)g.lineTo(x,168+Math.sin((x-206)/612*Math.PI*4)*7);g.stroke(); /* a little vine under the letters */
+    for(let k=0;k<12;k++){const x=230+k*50,y=168+Math.sin((x-206)/612*Math.PI*4)*7,u=k&1?1:-1;leaf(g,x,y,20,6.5,u*(.75+rnd()*.3),'#6fb36a','#3f7a45');}
+    berry(g,202,166,10,ORANGE,'#9c3d22');berry(g,822,166,10,'#3f6fb8','#253f70');berry(g,836,154,7,ORANGE,'#9c3d22');
+    star(g,200,40,13);star(g,826,36,10);star(g,184,128,8);star(g,846,118,13);
+    g.textAlign='center';g.textBaseline='middle';g.lineJoin='round';g.font='900 104px '+FONT;
+    const word='VINE LINE',cw=[...word].map(ch=>ch===' '?34:g.measureText(ch).width+4),tw=cw.reduce((a,b)=>a+b,0);let x=w/2-tw/2;
+    const pos=[...word].map((ch,i)=>{const p=[ch,x+cw[i]/2,96+(i%2?-3:3),(i%3-1)*.06];x+=cw[i];return p;});
+    for(const [ch,px,py,r] of pos){if(ch===' ')continue;g.save();g.translate(px,py);g.rotate(r);g.lineWidth=15;g.strokeStyle=ORANGE;g.strokeText(ch,0,0);g.restore();}
+    for(const [ch,px,py,r] of pos){if(ch===' ')continue;g.save();g.translate(px,py);g.rotate(r);g.fillStyle=NAVY;g.fillText(ch,0,0);g.fillStyle='rgba(255,255,255,.18)';g.fillText(ch,-2,-3);g.fillStyle=NAVY;g.fillText(ch,0,1);g.restore();}
+    g.setTransform(1,0,0,1,0,0);const fade=(x0,y0,x1,y1)=>{const gr=g.createLinearGradient(x0,y0,x1,y1);gr.addColorStop(0,'rgba(0,0,0,1)');gr.addColorStop(1,'rgba(0,0,0,0)');return gr;};
+    g.globalCompositeOperation='destination-out';for(const [a,b,c,d,rx,ry,rw,rh] of [[0,0,0,5,0,0,w,5],[0,h,0,h-5,0,h-5,w,5],[0,0,4,0,0,0,4,h],[w,0,w-4,0,w-4,0,4,h]]){g.fillStyle=fade(a,b,c,d);g.fillRect(rx,ry,rw,rh);}}); /* soft edges: painted on, not stuck on */
+  const sc=cv('sc',512,F.sh,(g,w,h)=>{const C=24,R=F.sr,dy=(R-12)>>1,cw=w/C,ch=h/R,cx=i=>(i+.5)*cw,cy=j=>(j+.5)*ch,rr=10;
+    g.beginPath();g.moveTo(rr,0);g.arcTo(w,0,w,h,rr);g.arcTo(w,h,0,h,rr);g.arcTo(0,h,0,0,rr);g.arcTo(0,0,w,0,rr);g.closePath();g.clip();
+    g.fillStyle='#16241b';g.fillRect(0,0,w,h);g.fillStyle='#1b2c21';for(let j=0;j<R;j++)for(let i=0;i<C;i++)if((i+j)&1)g.fillRect(i*cw,j*ch,cw,ch); /* the garden plot, dark */
+    g.fillStyle='#2f6b3a';for(let i=0;i<C;i++)for(const j of [0,R-1]){ell(g,cx(i),cy(j),cw*.62,ch*.6,0,'#2f6b3a');ell(g,cx(i)-3,cy(j)-3,cw*.25,ch*.2,0,'#4c8c4f');}
+    for(let j=1;j<R-1;j++)for(const i of [0,C-1]){ell(g,cx(i),cy(j),cw*.6,ch*.62,0,'#2f6b3a');ell(g,cx(i)-3,cy(j)-3,cw*.25,ch*.2,0,'#4c8c4f');} /* the low hedge */
+    const vine=(cells,stem,dark,lf,head)=>{cells=cells.map(([i,j])=>[i,j+dy]);g.lineCap=g.lineJoin='round';g.strokeStyle=dark;g.lineWidth=ch*.5;g.beginPath();cells.forEach(([i,j],k)=>k?g.lineTo(cx(i),cy(j)):g.moveTo(cx(i),cy(j)));g.stroke();g.strokeStyle=stem;g.lineWidth=ch*.3;g.stroke();
+      for(let k=0;k<cells.length-1;k++){const [i,j]=cells[k];ell(g,cx(i),cy(j),ch*.4,ch*.4,0,stem,dark,2);ell(g,cx(i)-2,cy(j)-2.5,ch*.15,ch*.1,-.5,'rgba(255,255,255,.35)');} /* round segments */
+      cells.forEach(([i,j],k)=>{if(k&&k<cells.length-1&&k%2===1){const [pi,pj]=cells[k-1],a=Math.atan2(j-pj,i-pi)+(k%4===1?1:-1)*2.2;leaf(g,(cx(i)+cx(pi))/2,(cy(j)+cy(pj))/2,ch*.8,ch*.3,a,lf,dark);}});
+      const [hi,hj]=cells[cells.length-1],[qi,qj]=cells[cells.length-2],a=Math.atan2(hj-qj,hi-qi),x=cx(hi),y=cy(hj);head(x,y,a);
+      for(const s of [-1,1]){const ex=x+Math.cos(a)*2.5+Math.cos(a+Math.PI/2)*s*4.5,ey=y+Math.sin(a)*2.5+Math.sin(a+Math.PI/2)*s*4.5;ell(g,ex,ey,3.2,3.2,0,'#fff',INK,1);ell(g,ex+Math.cos(a)*.9,ey+Math.sin(a)*.9,1.7,1.7,0,INK);}};
+    vine([[3,8],[4,8],[5,8],[6,8],[7,8],[7,7],[7,6],[7,5],[8,5],[9,5],[10,5],[11,5]],'#6cc04a','#2d6a2f','#a8ec8c',(x,y,a)=>{leaf(g,x-Math.cos(a)*4,y-Math.sin(a)*4,ch*.7,ch*.26,a-2.3,'#4cc46a','#2d6a2f');leaf(g,x-Math.cos(a)*4,y-Math.sin(a)*4,ch*.7,ch*.26,a+2.3,'#4cc46a','#2d6a2f');ell(g,x,y,ch*.6,ch*.6,0,'#7ad457','#2d6a2f',2);}); /* Sprig */
+    vine([[21,2],[20,2],[19,2],[18,2],[17,2],[16,2],[16,3],[16,4],[16,5],[16,6],[16,7]],'#f0a040','#9c4d1c','#ffd27a',(x,y)=>{for(let k=0;k<12;k++){const b=k*Math.PI/6;ell(g,x+Math.cos(b)*ch*.55,y+Math.sin(b)*ch*.55,ch*.3,ch*.19,b,'#ff8a1e','#9c4d1c',1);}ell(g,x,y,ch*.5,ch*.5,0,'#ffcf3b','#9c4d1c',1.2);}); /* Marigold */
+    g.save();g.translate(cx(14),cy(5+dy));g.scale(1.45,1.45);g.translate(-cx(14),-cy(5+dy));
+    const bx=cx(14),by=cy(5+dy);g.beginPath();g.moveTo(bx,by+ch*.45);g.bezierCurveTo(bx-ch*.6,by+ch*.05,bx-ch*.45,by-ch*.45,bx,by-ch*.32);g.bezierCurveTo(bx+ch*.45,by-ch*.45,bx+ch*.6,by+ch*.05,bx,by+ch*.45);g.fillStyle='#ff4f5e';g.fill();g.strokeStyle=INK;g.lineWidth=1.5;g.stroke();
+    leaf(g,bx-5,by-ch*.36,9,3,-.3,'#4cc46a');ell(g,bx-3,by-2,2.2,1.4,-.6,'rgba(255,255,255,.8)'); g.restore(); /* a strawberry ahead of Sprig */
+    berry(g,cx(16),cy(10+dy),ch*.48,'#3f7bff',INK); /* a blueberry ahead of Marigold */
+    g.fillStyle='rgba(255,246,224,.7)';g.font='700 13px ui-monospace,Menlo,monospace';g.textBaseline='middle';g.textAlign='left';g.fillText('12',cx(1)-4,cy(0)+1);g.textAlign='right';g.fillText('9',cx(C-2)+4,cy(0)+1);
+    const gl=g.createLinearGradient(0,0,w*.6,h);gl.addColorStop(0,'rgba(255,255,255,.13)');gl.addColorStop(.45,'rgba(255,255,255,.03)');gl.addColorStop(.46,'rgba(255,255,255,0)');g.fillStyle=gl;g.fillRect(0,0,w,h); /* the glass */
+    const vg=g.createRadialGradient(w/2,h/2,h*.4,w/2,h/2,w*.62);vg.addColorStop(0,'rgba(0,0,0,0)');vg.addColorStop(1,'rgba(0,0,0,.4)');g.fillStyle=vg;g.fillRect(0,0,w,h);});
+  const put=(nm,map,[x0,x1,y0,y1,a,b,off],bias)=>{const yc=(y0+y1)/2,mat=new T.MeshBasicMaterial({map,transparent:true,depthWrite:false}),m=new T.Mesh(new T.PlaneGeometry(x1-x0,(y1-y0)*Math.hypot(1,b)),mat);
+    if(bias){mat.onBeforeCompile=sh=>{sh.vertexShader=sh.vertexShader.replace('#include <project_vertex>','#include <project_vertex>\nmvPosition.xyz*=1.-'+bias.toFixed(3)+'/max(length(mvPosition.xyz),.1);gl_Position=projectionMatrix*mvPosition;');};mat.customProgramCacheKey=()=>'vine-bias'+bias;} /* nearer in depth by bias metres, on the same pixels */
+    m.position.set((x0+x1)/2,yc,a+b*yc+off);m.rotation.x=Math.atan(b);m.userData.noInk=true;m.renderOrder=1;m.name=nm;t.add(m);return m;};
+  return [put('vine-marquee',mq,F.mq,F.mb),put('vine-screen',sc,F.sc)];}
 function cabLoad(){const src=cabSrcMat();if(CABS.loading||!T.GLTFLoader||!src)return;CABS.loading=true;const ld=new T.GLTFLoader();
   for(const kind in CAB_FILES)ld.load(CAB_FILES[kind],g=>{const root=g.scene;root.updateMatrixWorld(true);const bb=new T.Box3().setFromObject(root),s=CAB_H/(bb.max.y-bb.min.y);
     root.scale.setScalar(s);root.position.set(-(bb.min.x+bb.max.x)/2*s,-bb.min.y*s,-CAB_BACK-bb.min.z*s);
     root.traverse(m=>{if(m.isMesh){m.material=m.material.map?cabMat(m.material.map,src):m.material;m.userData.noInk=true;}}); /* lines from its silhouette, like every model prop */
-    const t=new T.Group();t.add(root);const hz=(bb.max.z-bb.min.z)/2*s;Object.assign(t.userData,{hx:(bb.max.x-bb.min.x)/2*s,hz,zc:hz-CAB_BACK});CABS.tpl[kind]=t;cabFit();},undefined,e=>console.warn('arcade cabinet not loaded',kind,e));}
+    const t=new T.Group();t.add(root);const hz=(bb.max.z-bb.min.z)/2*s;Object.assign(t.userData,{hx:(bb.max.x-bb.min.x)/2*s,hz,zc:hz-CAB_BACK});
+    if(VINE_FIT[kind]&&CAB_ACT[kind]&&CAB_ACT[kind].kind==='vine')try{cabVine(t,kind);}catch(e){console.warn('vine cabinet art',kind,e);} /* painted overlays only for a stand-in cabinet that plays Vine Line (none now: Josh's own cabinet carries its art) */ /* before the clones: they share its planes */
+    CABS.tpl[kind]=t;cabFit();},undefined,e=>console.warn('arcade cabinet not loaded',kind,e));}
 function cabFit(){const A=window.__arcade;if(!A||!Array.isArray(A.cabs))return 0;let n=0;
   A.cabs.forEach((cb,k)=>{const t=CABS.tpl[CAB_AT[k]];if(!cb||!cb.g||!t||cb.g.userData.cabModel)return;const old=new T.Group();old.visible=false;old.name='procedural';for(const c of [...cb.g.children])old.add(c);cb.g.add(old); /* the procedural cabinet's meshes, under a hidden group (the horizon cull sets small meshes' own .visible back on); their shared screen and marquee materials untouched */
     const m=t.clone();m.userData.cabModel=CAB_AT[k];cb.g.add(m);cb.g.userData.cabModel=m;n++;});
@@ -928,7 +984,7 @@ function cabSolids(){const A=window.__arcade;if(!A||!Array.isArray(A.cabs)||!A.s
   A.cabs.forEach((cb,k)=>{const m=cb&&cb.g&&cb.g.userData.cabModel,sd=A.solids[5+k];if(!m||!sd||!sd.X)return;const u=m.userData;cb.g.updateMatrixWorld(true);
     Object.assign(sd,{c:cb.g.localToWorld(V3(0,0,u.zc)).normalize().multiplyScalar(R),hx:u.hx*.95,hz:u.hz*.95,top:CAB_H});n++;});return n;}
 function cabDoors(A){A.cabs.forEach((cb,k)=>{const d=A.doors[k];if(!d)return;const kind=CAB_AT[k],act=CAB_ACT[kind],i=DOORS.indexOf(d);
-  if(act){d.act=act;d.key=kind;if(i<0)DOORS.push(d);}else{d.act={kind:'decor',title:kind,label:''};d.key='decor'+k;if(i>=0)DOORS.splice(i,1);}});} /* a door of an unknown kind would open an empty room: the show-pieces have none (kept in ARC.doors, so seatArcade never makes another) */
+  if(act){d.act=act;d.key=act.kind;if(i<0)DOORS.push(d);}else{d.act={kind:'decor',title:kind,label:''};d.key='decor'+k;if(i>=0)DOORS.splice(i,1);}});} /* a door of an unknown kind would open an empty room: the show-pieces have none (kept in ARC.doors, so seatArcade never makes another) */
 function arcadeModels(){const A=window.__arcade;CABS.tries++;
   if(A){A.models=true;cabLoad();if(Array.isArray(A.cabs)&&Array.isArray(A.doors)&&A.doors.length>=A.cabs.length){if(!CABS.t0){CABS.t0=performance.now();cabDoors(A);for(const ms of [1000,4500,8000,12500,16000,25000])setTimeout(cabSolids,ms);}
     cabFit();if(A.cabs.every(cb=>cb&&cb.g&&cb.g.userData.cabModel))return;}}
@@ -997,5 +1053,6 @@ function poll(){if(built)return;if(ready())build();else setTimeout(poll,700);}
 window.DRESS={frame(dt,now){UT.value=now/1000;try{zonesFrame(dt,now/1000);}catch(e){}},glb,look(v){LOOKU.value=v;return v;},rebuild(){location.reload();},
   async calls(){const ri=renderer.info;ri.autoReset=false;ri.reset();await new Promise(r=>requestAnimationFrame(()=>requestAnimationFrame(r)));const c={calls:ri.render.calls,tris:ri.render.triangles};ri.autoReset=true;return c;},buckets:BUCKETS,bills:BILLS};
 setTimeout(poll,1500);
+window.DRESS.fireSpot=()=>{const f=ZFX.fire;if(!f||!f.toRoad)return null;const d=f.toRoad.clone().addScaledVector(f.n,-f.toRoad.dot(f.n)).normalize();return {n:tn(f.n,d.clone().multiplyScalar(3.6)),face:d.negate()};}; /* the menu's "Spawn at the forest campfire": on the open (road) side of the fire, facing it */
 arcadeModels();window.DRESS.cabs=CABS;arcWatch();window.DRESS.arcClear=AC; /* the arcade's cabinet models: on their own poll (the arcade is seated whenever its model loads) */
 })();

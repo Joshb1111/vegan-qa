@@ -1,0 +1,2 @@
+Vine Line — an original game written for understand-veganism.com's planet. All art, music and sound are generated in code.
+Inspired by the classic grow-longer-and-don't-bump games; no names, characters, art, music or text are taken from any of them.
