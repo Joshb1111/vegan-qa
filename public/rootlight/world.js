@@ -48,7 +48,7 @@ W.abilities = {
   grip: { name: 'Vine Grip', how: 'Jump at a wall to cling on. Jump again to spring off it.', pad: 'Jump at a wall to cling on.' },
   puff: { name: 'Puff Jump', how: 'Press jump again in the air to puff up higher.', pad: 'Press A again in the air.' },
   glow: { name: 'Glow', how: 'You glow now. Dark rooms light up, and shadow briars shrink away.', pad: '' },
-  beam: { name: 'Sunbeam', how: 'Hold Up and tap Focus (A or I) to send a ray of Sunlight.', pad: 'Press Y to send a Sunbeam.' }
+  beam: { name: 'Sunbeam', how: 'Hold Up and tap Focus (A or I) to send a ray of Sunlight. Each one uses a little of your Sunlight.', pad: 'Press Y to send a Sunbeam. Each one uses a little Sunlight.' }
 };
 
 /* seed charms: worn at a Watering Spot; each needs notches */
@@ -186,9 +186,7 @@ ROOM({ id: 'rg_west', area: 'rootgate', name: "West Burrow", cx: 16, cy: 0, cw: 
     '################################################################',
     '################################################################'
   ],
-  signs: [
-    "Swing at glooms to bloom them back into flowers."
-  ] });
+  signs: ["Swing at glooms to bloom them back into flowers. Hold Up while you swing to reach above you."] });
 
 ROOM({ id: 'rg_gap', area: 'rootgate', name: "The Long Gap", cx: 26, cy: 0, cw: 4, ch: 2,
   map: [
@@ -258,7 +256,7 @@ ROOM({ id: 'rg_under', area: 'rootgate', name: "Under the Gap", cx: 26, cy: 2, c
     '..................................................#########....#',
     '.......##......t......############................#########..*.#',
     '##################################........######################',
-    '####################################....########################',
+    '####################################====########################',
     '####################################....########################'
   ] });
 
@@ -424,11 +422,12 @@ ROOM({ id: 'mh_2', area: 'mossy', name: "Fernway", cx: 8, cy: 0, cw: 4, ch: 2,
     '................................................................',
     '...................................................=====........',
     '................................................................',
-    '.......b...........t........t.............b.....................',
+    '.......b...........t........t.............b............i........',
     '############...#########..##########...#########################',
     '############xxx#########xx##########xxx#########################',
     '################################################################'
-  ] });
+  ],
+  signs: ["Drip-glooms hang up high. Hold Up and swing to reach them."] });
 
 ROOM({ id: 'mh_4', area: 'mossy', name: "Bramble Run", cx: 2, cy: 0, cw: 6, ch: 2,
   map: [
@@ -643,14 +642,12 @@ ROOM({ id: 'mh_9', area: 'mossy', name: "Knot Gate", cx: 6, cy: 4, cw: 4, ch: 2,
     '................................................................',
     '.....................................======.....................',
     '............................##########..........................',
-    '......i.b..........t........##########..........t...............',
+    '......i.b..........t........##########..........t...........i...',
     '##########...############...##########....############...#######',
     '##########xxx############xxx##########xxxx############xxx#######',
     '################################################################'
   ],
-  signs: [
-    "Something big is tangled up ahead. Hold A (or I) to focus your Sunlight and grow a leaf back."
-  ] });
+  signs: ["Something big is tangled up ahead. Hold A (or I) to focus your Sunlight and grow a leaf back. Blooming glooms fills your Sunlight jar.","In the air, hold Down and swing: you bounce off thorns and glooms!"] });
 
 ROOM({ id: 'mh_10', area: 'mossy', name: "The Tangle", cx: 2, cy: 4, cw: 4, ch: 2,
   map: [
@@ -1383,11 +1380,12 @@ ROOM({ id: 'cs_9', area: 'crystal', name: "Glass Hollows", cx: 36, cy: 8, cw: 4,
     '.........................KKKKK.............======...............',
     '..........=====..........KKKKK..................................',
     '......................KKKKKKKKKKK...............................',
-    '....K..........k......KKKKKKKKKKK..b..K.........k........K......',
+    '....K..........k......KKKKKKKKKKK..b..K.........k........K..i...',
     '################################################################',
     '################################################################',
     '################################################################'
-  ] });
+  ],
+  signs: ["Gloom knights hide behind a shield. Wait for the shove, then swing while the shield is down!"] });
 
 ROOM({ id: 'cs_8', area: 'crystal', name: "Glass Garden", cx: 32, cy: 8, cw: 4, ch: 2,
   map: [
@@ -1450,11 +1448,12 @@ ROOM({ id: 'cs_7', area: 'crystal', name: "Knight's Hall", cx: 30, cy: 4, cw: 4,
     '...............................b................................',
     '..............................KKKK..............................',
     '..............................KKKK..............................',
-    '.......K..........k.........KKKKKKKK.........k..........K...b...',
+    '.......K..........k.........KKKKKKKK.........k..........K.i.b...',
     '################################################################',
     '################################################################',
     '################################################################'
-  ] });
+  ],
+  signs: ["Gloom knights hide behind a shield. Wait for the shove, then swing while the shield is down!"] });
 
 ROOM({ id: 'cs_10', area: 'crystal', name: "Lever Tunnel", cx: 26, cy: 4, cw: 4, ch: 2,
   map: [
@@ -1661,7 +1660,7 @@ ROOM({ id: 'cr_6', area: 'cloud', name: "Storm Gate", cx: 24, cy: -12, cw: 4, ch
     '####################################....########################',
     '####################################....########################'
   ],
-  signs: ['Gloom knights hide behind a shield. Swing when the shield drops!'] });
+  signs: ["Gloom knights hide behind a shield. Wait for the shove, then swing while the shield is down!"] });
 
 ROOM({ id: 'cr_10', area: 'cloud', name: "Rain Pocket", cx: 24, cy: -10, cw: 4, ch: 2,
   map: [

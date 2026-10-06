@@ -348,7 +348,14 @@ function onEvents() {
     else if (n === 'gstart') { sfx('rumble'); }
     if (n === 'talk') talkPeddler();
     else if (n === 'sign') openOver('dialog', { who: 'sign', pages: [String(e[1] || '')] });
-    else if (n === 'rest') { sfx('save'); toast('Your leaves grew back. Your garden is saved.'); if (Object.keys(s.save.charms).length) openOver('charms', { edit: true }); }
+    else if (n === 'rest') {
+      sfx('save');
+      const seen = s.save.talked.charms || (s.save.talked.charms = []), fresh = Object.keys(s.save.charms).filter(id => seen.indexOf(id) < 0);
+      if (fresh.length) { for (const id of fresh) seen.push(id); openOver('charms', { edit: true, line: 'A new seed charm! Choose what to wear, then Esc.' }); }
+      else toast(Object.keys(s.save.charms).length ? 'Your garden is saved. Esc, then Seed charms, to change charms.' : 'Your leaves grew back. Your garden is saved.');
+    }
+    else if (n === 'sealOpen') toast('Far below Rootgate, the great door has opened.', 5000);
+    else if (n === 'nosun') { sfx('nope'); if (!s.save.talked.nosun) { s.save.talked.nosun = 1; toast('Not enough Sunlight yet. Bloom glooms to fill your jar.', 4000); } }
     else if (n === 'get') getCard(e[1], e[2]);
     else if (n === 'area') { const a = W.areas[e[1]] || {}; areaCard = { name: a.name || '', sub: a.sub || '', t: 0 }; }
     else if (n === 'autosave') writeSave();
@@ -423,7 +430,7 @@ function render() {
   if (screen === 'play' && sim) {
     ctx.save(); ctx.beginPath(); ctx.rect(0, 0, LW, VH); ctx.clip();
     if (D.frame) D.frame(ctx, frameF()); else fallbackFrame();
-    const p0 = sim.players[0], pr = p0 && p0.prompt && !over && !paused ? { text: (touchMode ? '' : '↑ ') + p0.prompt, x: p0.near.x, y: p0.near.y - (p0.prompt === 'Talk' ? 70 : 44) } : null;
+    const pp = sim.players.find(p => p.prompt && p.st !== 'sit' && (sim.role === 'solo' || p.i === sim.me)), pr = pp && !over && !paused ? { text: (touchMode ? '' : '↑ ') + pp.prompt, x: pp.near.x, y: pp.near.y - (pp.prompt === 'Talk' ? 70 : 44) } : null;
     if (D.hud) D.hud(ctx, { sim, t, touch: touchMode || coarse, two: players > 1, prompt: pr, msg: toastT > 0 ? toastMsg : null, cam: sim.cam }); else fallbackHud();
     if (areaCard) scr('area', { t: areaCard.t, name: areaCard.name, sub: areaCard.sub });
     ctx.restore();

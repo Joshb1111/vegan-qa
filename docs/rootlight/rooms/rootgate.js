@@ -97,9 +97,7 @@ ROOM({ id: 'rg_west', area: 'rootgate', name: "West Burrow", cx: 16, cy: 0, cw: 
     '################################################################',
     '################################################################'
   ],
-  signs: [
-    "Swing at glooms to bloom them back into flowers."
-  ] });
+  signs: ["Swing at glooms to bloom them back into flowers. Hold Up while you swing to reach above you."] });
 
 ROOM({ id: 'rg_gap', area: 'rootgate', name: "The Long Gap", cx: 26, cy: 0, cw: 4, ch: 2,
   /* DASH GATE. An 8-tile chasm (the doorway in the floor) splits the room; no ceiling to climb along. The far side leads E to Clatter Pipes. A sign at the edge: "Too far to jump... maybe a dash?". Falling in drops harmlessly into Under the Gap.
@@ -175,7 +173,7 @@ ROOM({ id: 'rg_under', area: 'rootgate', name: "Under the Gap", cx: 26, cy: 2, c
     '..................................................#########....#',
     '.......##......t......############................#########..*.#',
     '##################################........######################',
-    '####################################....########################',
+    '####################################====########################',
     '####################################....########################'
   ] });
 

@@ -82,8 +82,9 @@ const FOE = {
   cog: { w: 26, h: 22, hp: 4, dew: 5, fl: 3 }, lantern: { w: 18, h: 24, hp: 3, dew: 4, fl: 4 }, knight: { w: 22, h: 34, hp: 6, dew: 8, fl: 5 }
 };
 const FOE_LETTER = { s: 'smog', t: 'thorn', d: 'drip', c: 'cog', l: 'lantern', k: 'knight' };
+const GIVES = { knot: 'dash', boiler: 'grip', cloud: 'puff' };   /* what each guardian leaves when calmed */
 const GUARD = {
-  knot: { w: 80, h: 80, hp: 22 }, boiler: { w: 120, h: 110, hp: 26 }, cloud: { w: 150, h: 70, hp: 28 }, heart: { w: 112, h: 112, hp: 42 }
+  knot: { w: 80, h: 80, hp: 22 }, boiler: { w: 120, h: 110, hp: 26 }, cloud: { w: 150, h: 70, hp: 28 }, heart: { w: 112, h: 112, hp: 36 }
 };
 RL.FOE = FOE; RL.GUARD = GUARD;
 
@@ -209,20 +210,23 @@ class Room {
   }
   makeGuard(kind, x, y, floor, save) {
     const D = GUARD[kind], gentle = save.gentle;
-    const hp = Math.round(D.hp * (gentle ? 0.75 : 1));
+    const hp = Math.round(D.hp * (gentle ? 0.65 : 1));
     const g = { kind, x, y, w: D.w, h: D.h, hp, maxHp: hp, phase: 1, st: 'sleep', t: 0, face: -1, hurt: 0, calm: 0, awake: false, ax: x, ay: y, floor, n: 0, combo: 0, last: '', squash: 0, spin: 0, heat: 0, door: 0, dark: 0, dir: -1, glow: 0, vx: 0, vy: 0, tx: x, done: !!save.calm[kind] };
     if (kind === 'knot' || kind === 'boiler') g.y = floor - D.h / 2;
     if (g.done) { g.st = 'calm'; g.calm = 1; g.hp = 0; }
     this.guard = g;
+    const ab = GIVES[kind]; if (g.done && ab && !save.ab[ab]) this.items.push(this.seedItem(g, ab));   /* left behind before: it waits where the guardian was */
+  }
+  seedItem(g, ab) { return { kind: 'ability', id: ab, key: this.id + ':A' + ab, x: g.ax, y: g.floor - 10, got: false, hp: 0, hurt: 0, rise: 1 };
   }
   updateGates(save, now) {
     const g = this.guard, calmAll = save.calm.knot && save.calm.boiler && save.calm.cloud;
     for (const gt of this.gates) {
       let shut = true;
       if (gt.kind === 'lever' || gt.kind === 'sun') shut = !save.open[gt.key];
-      else if (gt.kind === 'seal') shut = !(calmAll && save.open[gt.key]);
+      else if (gt.kind === 'seal') shut = !calmAll;
       else if (gt.kind === 'arena') shut = !!(g && g.awake && !g.done);
-      else if (gt.kind === 'calm') shut = !(g && g.done);
+      else if (gt.kind === 'calm') shut = !(g && g.done && (!GIVES[g.kind] || save.ab[GIVES[g.kind]]));   /* the way on opens once the seed is taken */
       if (gt.shut !== shut && !now) this.sim.ev('gate', gt.kind, gt.x + gt.w / 2, gt.y + gt.h / 2, shut ? 0 : 1);
       gt.shut = shut; if (now) gt.o = shut ? 0 : 1;
     }
@@ -298,8 +302,16 @@ class Sim {
     let to = null;
     for (const d of this.W.list) { const x0 = d.cx * C.CW * TILE, y0 = d.cy * C.CH * TILE; if (px >= x0 && px < x0 + d.cw * C.CW * TILE && py >= y0 && py < y0 + d.ch * C.CH * TILE && d.id !== r.id) { to = d; break; } }
     if (!to) { p.x = clamp(p.x, 2, r.pw - 2); p.y = clamp(p.y, PH.H, r.ph); return false; }
-    if (this.hooks.door && this.hooks.door(p, to.id) === false) return false;   /* NET HOOK: online, room changes go through the host */
     const nx = wx - to.cx * C.CW * TILE, ny = wy + PH.H / 2 - to.cy * C.CH * TILE;
+    /* the other side is shut (a gate, a wall): this edge is a wall, never a trap inside the next room */
+    const probe = new Room(to, this.save, this), ax = nx + dx * 6, ay = ny + dy * 2;
+    if (probe.boxSolid(ax - PH.W / 2, ay - PH.H + 1, ax + PH.W / 2, ay - 0.5)) {
+      if (dx) { p.x = clamp(p.x, PH.W / 2 + 0.5, r.pw - PH.W / 2 - 0.5); p.vx = 0; if (p.dashT) p.dashT = 0; }
+      else if (dy > 0) { p.y = r.ph + PH.H / 2 - 1; p.vy = 0; p.ground = true; p.coyote = PH.COYOTE; }
+      else { p.y = PH.H / 2 + PH.H + 1; p.vy = 0.5; p.rise = 0; }
+      return false;
+    }
+    if (this.hooks.door && this.hooks.door(p, to.id) === false) return false;   /* NET HOOK: online, room changes go through the host */
     const vx = p.vx, vy = p.vy, face = p.face;
     this.changeRoom(to.id, nx + dx * 6, ny + dy * 2, p, { vx, vy, face, dy });
     return true;
@@ -323,6 +335,7 @@ class Sim {
       if (Math.abs(a.x - b.x) < C.VW - 120 && Math.abs(a.y - b.y) < C.VH - 100) { cx = (a.x + b.x) / 2; cy = (a.y + b.y) / 2 - 20; }
       else { cx = L.x; cy = L.y - 20; }
     } else { cx = L.x + L.face * 30; cy = L.y - 20; }
+    const g = r.guard; if (g && g.awake && !g.done) cy = cy * 0.55 + g.y * 0.45;   /* keep a guardian in the picture */
     this.camT = { x: clamp(cx - C.VW / 2, 0, Math.max(0, r.pw - C.VW)), y: clamp(cy - C.VH / 2 - 10, 0, Math.max(0, r.ph - C.VH)) };
     if (r.pw < C.VW) this.camT.x = (r.pw - C.VW) / 2; if (r.ph < C.VH) this.camT.y = (r.ph - C.VH) / 2;
   }
@@ -479,6 +492,7 @@ class Sim {
       p.swing = { dir: 'f', t: 0, reach: st.reach, hit: new Set() }; p.face = -p.wall; p.swingCd = st.swingCd; this.ev('swing', p.i, 'f'); this.swingHits(p);
     }
     /* ----- focus (hold) and Sunbeam (Up + tap) ----- */
+    if (this.pressed(p, IN.FOCUS) && ctl && p.sun < PH.SUN_COST && ((U && s.ab.beam) || (!U && p.leaves < p.maxLeaves && p.ground))) this.ev('nosun', p.i);
     if (this.pressed(p, IN.FOCUS) && U && s.ab.beam && p.sun >= PH.SUN_COST && p.beamCd <= 0 && ctl) {
       p.sun -= PH.SUN_COST; p.beamCd = 24;
       r.shots.push({ kind: 'beam', x: p.x + p.face * 10, y: p.y - 14, vx: p.face * PH.BEAM_V, vy: 0, r: st.beamR, t: 0, life: 70, own: p.i, hit: new Set(), dmg: st.beamDmg });
@@ -570,7 +584,7 @@ class Sim {
     const r = this.room, x0 = p.x - PH.W / 2, y0 = p.y - PH.H, s = this.save;
     if (p.setback <= 0 && p.st !== 'faint') {   /* thorns always set you back to safe ground; they take a leaf unless you are still blinking */
       const th = r.thornAt(x0 + 2, y0 + 4, p.x + PH.W / 2 - 2, p.y);
-      if (th) { if (p.inv <= 0) this.hurt(p, th.x, 'thorn'); if (p.alive && p.st !== 'faint') { p.setback = 26; p.vx *= 0.3; p.vy = -2; this.ev('thorn', p.i); } }
+      if (th) { if (p.inv <= 0 && !s.gentle) this.hurt(p, th.x, 'thorn'); else if (s.gentle) this.ev('hurt', p.i, 'thorn'); if (p.alive && p.st !== 'faint') { p.setback = 26; p.vx *= 0.3; p.vy = -2; this.ev('thorn', p.i); } }
     }
     if (p.inv <= 0) {
       for (const f of r.foes) if (f.alive && ov(x0, y0, PH.W, PH.H, f.x - f.w / 2 + 2, f.y - f.h / 2 + 2, f.w - 4, f.h - 4)) { if (this.foeHurts(f, p)) { this.hurt(p, f.x, f.kind); break; } }
@@ -656,9 +670,9 @@ class Sim {
     const s = this.save, r = this.room;
     this.after = () => {
       s.deaths++;
-      if (!this.st.pouch && s.dew > 0) {
+      if (!this.st.pouch && !s.gentle && s.dew > 0) {   /* the dew waits in a puddle (an older puddle's dew joins it) */
         const sp = p.safe || { x: p.x, y: p.y };
-        s.puddle = { room: r.id, x: Math.round(sp.x), y: Math.round(sp.y - 10), v: s.dew }; s.dew = 0;
+        s.puddle = { room: r.id, x: Math.round(sp.x), y: Math.round(sp.y - 10), v: s.dew + (s.puddle ? s.puddle.v : 0) }; s.dew = 0;
       }
       const spot = s.spot || { room: 'rg_hub', x: null, y: null };
       if (r.guard && !r.guard.done) { /* the guardian settles down again */ }
@@ -783,7 +797,7 @@ class Sim {
     else if (it.kind === 'vessel') { s.vessels++; this.applyStats(); for (const q of this.players) q.sun = q.sunMax; this.ev('get', 'vessel', s.vessels); }
     else if (it.kind === 'notch') { s.notches++; this.ev('get', 'notch', s.notches); }
     else if (it.kind === 'charm') { s.charms[it.id] = 1; this.ev('get', 'charm', it.id); }
-    else if (it.kind === 'ability') { s.ab[it.id] = 1; this.applyStats(); for (const q of this.players) { q.leaves = q.maxLeaves; q.glow = !!s.ab.glow; } this.ev('get', 'ability', it.id); }
+    else if (it.kind === 'ability') { s.ab[it.id] = 1; this.applyStats(); for (const q of this.players) { q.leaves = q.maxLeaves; q.glow = !!s.ab.glow; } this.ev('get', 'ability', it.id); r.updateGates(s); }
     this.ev('pickup', it.kind, it.id); this.ev('autosave');
     void W;
   }
@@ -871,7 +885,7 @@ class Sim {
           if (p) { f.face = sgn(p.x - f.x) || f.face; f.vx = f.face * 0.7 * gk; } else { f.vx = f.face * 0.4 * gk; }
           this.walk(f, 1); if (f.turned && !p) f.face = -f.face;
           if (p && Math.abs(p.x - f.x) < 75 && Math.abs(p.y - (f.y + f.h / 2)) < 34 && f.t > 40) { f.st = 'ready'; f.t = 0; f.vx = 0; this.ev('ready', f.x, f.y); }
-        } else if (f.st === 'block') { f.vx *= 0.85; this.walk(f, 0); if (f.t > 14) { f.st = 'walk'; f.t = 0; } }
+        } else if (f.st === 'block') { f.vx *= 0.85; this.walk(f, 0); if (f.t > 14) { if (p && Math.abs(p.x - f.x) < 80) { f.face = sgn(p.x - f.x) || f.face; f.st = 'ready'; this.ev('ready', f.x, f.y); } else f.st = 'walk'; f.t = 0; } }
         else if (f.st === 'ready') { f.vx = 0; this.walk(f, 0); if (f.t > 40 / gk) { f.st = 'shove'; f.t = 0; this.ev('shove', f.x, f.y); } }
         else if (f.st === 'shove') { f.vx = f.face * 3.2 * gk; this.walk(f, 1); if (f.t > 22 || f.turned) { f.st = 'rest'; f.t = 0; f.vx = 0; } }
         else if (f.st === 'rest') { f.vx = 0; this.walk(f, 0); if (f.t > 60) { f.st = 'walk'; f.t = 0; } }
@@ -977,6 +991,7 @@ class Sim {
     r.hazards = []; r.shots = r.shots.filter(x => x.kind === 'beam');
     for (const f of r.foes) if (f.alive && f.temp) this.bloom(f);
     this.ev('calm', g.kind); this.shake = 10;
+    if (g.kind !== 'heart' && s.calm.knot && s.calm.boiler && s.calm.cloud) this.ev('sealOpen');
     for (let i = 0; i < 25; i++) this.dropDew(g.x + (this.rand() - 0.5) * 60, Math.min(g.y, g.floor - 30), 1);   /* a thank-you of dew */
     r.updateGates(s); r.recolour(s);
   }
@@ -990,8 +1005,8 @@ class Sim {
         if (g.kind === 'knot' || g.kind === 'boiler') g.y += (g.floor - g.h / 2 - g.y) * 0.1;
         if (g.calm >= 1 && g.kind === 'heart') { this.ending = 1; this.ev('ending'); }
         if (g.t === 140 && g.kind !== 'heart') {
-          const ab = { knot: 'dash', boiler: 'grip', cloud: 'puff' }[g.kind];
-          if (ab && !this.save.ab[ab]) r.items.push({ kind: 'ability', id: ab, key: r.id + ':A' + ab, x: g.x, y: Math.min(g.y, g.floor - 40), got: false, hp: 0, hurt: 0, rise: 1 });
+          const ab = GIVES[g.kind];
+          if (ab && !this.save.ab[ab] && !r.items.some(i => i.kind === 'ability' && i.id === ab)) r.items.push(r.seedItem(g, ab));
           /* flowers spring up all over the arena floor */
           for (let k = 0; k < 14; k++) {   /* on the lowest floor of that column (never on top of the ceiling) */
             const x = 40 + this.rand() * (r.pw - 80), tx = Math.floor(x / TILE); let ty = r.h - 2;
@@ -1017,6 +1032,7 @@ class Sim {
     else if (g.kind === 'cloud') this.cloud(g, tgt, slow, spd);
     else if (g.kind === 'heart') this.heart(g, tgt, slow, spd);
   }
+  ceilY(x, fl) { const r = this.room, tx = clamp(Math.floor(x / TILE), 0, r.w - 1); let ty = Math.floor(fl / TILE) - 1; while (ty > 0 && !r.solid(tx, ty - 1)) ty--; return ty * TILE; }
   pick(g, opts) {   /* the next move: never the same three times running; every third move it gets tired */
     g.combo++;
     if (g.combo > 3) { g.combo = 0; return 'tired'; }
@@ -1028,7 +1044,7 @@ class Sim {
     const r = this.room, ph2 = g.phase > 1, fl = g.floor;
     g.spin += g.vx / 40;
     if (g.st === 'idle') { g.squash *= 0.9; g.vx *= 0.9; g.face = sgn(p.x - g.x) || g.face; if (g.t > (ph2 ? 34 : 54) * slow) { const m = this.pick(g, ph2 ? ['hop', 'lash', 'burr', 'hop'] : ['hop', 'lash', 'hop']); this.gs(g, m === 'tired' ? 'tired' : m + 'Tell'); this.ev('gtell', g.kind, g.st); } }
-    else if (g.st === 'hopTell') { g.squash = Math.min(1, g.t / 30); if (g.t > 34 * slow) { const tx = clamp(p.x, 80, r.pw - 80); g.vx = (tx - g.x) / 52; g.vy = -9.6; this.gs(g, 'hop'); this.ev('hop', g.x, g.y); g.squash = 0; } }
+    else if (g.st === 'hopTell') { g.squash = Math.min(1, g.t / 30); if (g.t > 34 * slow) { const tx = clamp(p.x, 120, r.pw - 120); g.vx = (tx - g.x) / 52; g.vy = -9.6; this.gs(g, 'hop'); this.ev('hop', g.x, g.y); g.squash = 0; } }
     else if (g.st === 'hop') {
       g.vy += 0.37; g.x += g.vx; g.y += g.vy; g.x = clamp(g.x, 40, r.pw - 40);
       if (g.vy > 0 && g.y >= fl - g.h / 2) { g.y = fl - g.h / 2; g.vy = 0; g.vx = 0; this.gs(g, 'land'); this.shake = 8; this.ev('slam', g.x, fl); g.squash = 1;
@@ -1057,13 +1073,13 @@ class Sim {
       if (g.t > (ph2 ? 110 : 140)) this.gs(g, 'idle');
     }
     else if (g.st === 'ventTell') {
-      if (g.t === 1) { const xs = []; const n = ph2 ? 4 : 3; let x0 = clamp(p.x, 40, r.pw - 40); for (let k = 0; k < n; k++) { const x = clamp(x0 + (k - (n - 1) / 2) * 150, 30, r.pw - 30); if (Math.abs(x - g.x) > g.w / 2) xs.push(x); } for (const x of xs) this.hazard('steam', x - 16, 20, 32, fl - 20, 46 * slow, 52); }
+      if (g.t === 1) { const xs = []; const n = ph2 ? 4 : 3; let x0 = clamp(p.x, 40, r.pw - 40); for (let k = 0; k < n; k++) { const x = clamp(x0 + (k - (n - 1) / 2) * 150, 30, r.pw - 30); if (Math.abs(x - g.x) > g.w / 2) xs.push(x); } for (const x of xs) { const top = this.ceilY(x, fl); this.hazard('steam', x - 16, top, 32, fl - top, 46 * slow, 52); } }
       if (g.t > 46 * slow) { this.gs(g, 'vent'); this.ev('vent', g.x, g.y); }
     }
     else if (g.st === 'vent') { if (g.t > 54) this.gs(g, 'idle'); }
     else if (g.st === 'boltTell') { if (g.t > 32 * slow) { this.gs(g, 'bolt'); const n = ph2 ? 5 : 3; for (let k = 0; k < n; k++) { const tx = p.x + (k - (n - 1) / 2) * 70, t = 70; r.shots.push({ kind: 'bolt', x: g.x, y: g.y - g.h / 2, vx: (tx - g.x) / t * spd, vy: -7 * spd, r: 7, t: 0, life: 260, own: -1, g: 0.2 * spd * spd, bounces: 2 }); } this.ev('throw', g.x, g.y); } }
     else if (g.st === 'bolt') { if (g.t > 40) this.gs(g, 'idle'); }
-    else if (g.st === 'slamTell') { if (g.t === 1) { g.tx = clamp(p.x, 40, r.pw - 40); this.hazard('slam', g.tx - 30, 0, 60, fl, 48 * slow, 18); } if (g.t > 48 * slow) { this.gs(g, 'slam'); this.shake = 9; this.ev('slam', g.tx, fl); } }
+    else if (g.st === 'slamTell') { if (g.t === 1) { g.tx = clamp(p.x, 40, r.pw - 40); const top = this.ceilY(g.tx, fl); this.hazard('slam', g.tx - 30, top, 60, fl - top, 48 * slow, 18); } if (g.t > 48 * slow) { this.gs(g, 'slam'); this.shake = 9; this.ev('slam', g.tx, fl); } }
     else if (g.st === 'slam') { if (g.t > 36) this.gs(g, 'idle'); }
     else if (g.st === 'tired') { if (g.t === 1) this.ev('vent', g.x, g.y); if (g.t > 130 * slow) this.gs(g, 'idle'); }
     else this.gs(g, 'idle');
@@ -1091,7 +1107,7 @@ class Sim {
     if (g.st === 'shed') { if (g.t === 1) this.shake = 12; if (g.t > 90) this.gs(g, 'idle'); }
     else if (g.st === 'idle') { if (g.t > 50 * k * slow) { const m = this.pick(g, ph === 1 ? ['sweep', 'orb', 'sweep'] : ph === 2 ? ['sweep', 'orb', 'summon', 'sweep'] : ['sweep', 'orb', 'summon', 'drop']); this.gs(g, m === 'tired' ? 'tired' : m === 'summon' ? 'summon' : m + 'Tell'); if (m !== 'tired' && m !== 'summon') this.ev('gtell', g.kind, g.st); } }
     else if (g.st === 'sweepTell') {
-      if (g.t === 1) { g.dir = this.rand() < 0.5 ? -1 : 1; g.high = ph > 1 && this.rand() < 0.4; const y = g.high ? fl - 92 : fl - 26, x = g.dir > 0 ? -60 : r.pw; this.hazard('vine', x, y, 60, g.high ? 40 : 26, 50 * slow, 120, g.dir * 4.4 * spd * (ph === 3 ? 1.15 : 1)); }
+      if (g.t === 1) { g.dir = this.rand() < 0.5 ? -1 : 1; g.high = ph > 1 && this.rand() < 0.4; const y = g.high ? fl - 92 : fl - 26, sp = 4.4 * spd * (ph === 3 ? 1.15 : 1), x = g.dir > 0 ? Math.max(-60, p.x - 420) : Math.min(r.pw, p.x + 360); this.hazard('vine', x, y, 60, g.high ? 40 : 26, 50 * slow, Math.ceil(880 / sp), g.dir * sp); }
       if (g.t > 50 * slow) this.gs(g, 'sweep');
     }
     else if (g.st === 'sweep') { if (g.t > 60 * k) this.gs(g, 'idle'); }

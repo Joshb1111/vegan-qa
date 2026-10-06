@@ -34,9 +34,11 @@ function makeCtx(id, ab, opened, calm) {
   sim.enterRoom(id, 100, 100, {});
   const r = sim.room;
   r.foes = []; r.hazards = []; r.shots = []; r.drops = [];
-  if (r.guard) { r.guard.awake = !!(calm && calm[r.guard.kind]); r.guard.done = !!(calm && calm[r.guard.kind]); r.updateGates(save, true); r.guard = null; }
   /* seal/arena/calm gates by context */
-  for (const g of r.gates) { if (g.kind === 'arena') g.shut = false; if (g.kind === 'seal') g.shut = !(save.calm.knot && save.calm.boiler && save.calm.cloud); if (g.kind === 'calm') g.shut = !(def.guardian && save.calm[def.guardian]); if (g.kind === 'lever' || g.kind === 'sun') g.shut = !save.open[g.key]; g.o = g.shut ? 0 : 1; }
+  /* the sim's own gate rules (the guardian calmed or not by context), with arenas open (a fight is assumed won) */
+  if (def.guardian) { const G = { knot: 'dash', boiler: 'grip', cloud: 'puff' }[def.guardian]; r.guard = { kind: def.guardian, done: !!save.calm[def.guardian], awake: false }; if (G && save.calm[def.guardian]) save.ab[G] = 1; }
+  r.updateGates(save, true); r.guard = null;
+  for (const g of r.gates) { if (g.kind === 'arena') g.shut = false; g.o = g.shut ? 0 : 1; }
   r.briar.fill(ab.includes('glow') ? 1 : 0);
   let exit = null;
   sim.hooks.door = (p, to) => { exit = { to, x: p.x, y: p.y }; return false; };

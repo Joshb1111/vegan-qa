@@ -202,7 +202,7 @@ ROOM({ id: 'cr_6', area: 'cloud', name: "Storm Gate", cx: 24, cy: -12, cw: 4, ch
     '####################################....########################',
     '####################################....########################'
   ],
-  signs: ['Gloom knights hide behind a shield. Swing when the shield drops!'] });
+  signs: ["Gloom knights hide behind a shield. Wait for the shove, then swing while the shield is down!"] });
 
 ROOM({ id: 'cr_10', area: 'cloud', name: "Rain Pocket", cx: 24, cy: -10, cw: 4, ch: 2,
   /* A rainy pocket with a SUN VESSEL V. N doorway (from the Storm Gate), a hole in the floor (S) down into the Gust Gallery.

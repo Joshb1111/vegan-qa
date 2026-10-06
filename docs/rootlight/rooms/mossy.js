@@ -46,11 +46,12 @@ ROOM({ id: 'mh_2', area: 'mossy', name: "Fernway", cx: 8, cy: 0, cw: 4, ch: 2,
     '................................................................',
     '...................................................=====........',
     '................................................................',
-    '.......b...........t........t.............b.....................',
+    '.......b...........t........t.............b............i........',
     '############...#########..##########...#########################',
     '############xxx#########xx##########xxx#########################',
     '################################################################'
-  ] });
+  ],
+  signs: ["Drip-glooms hang up high. Hold Up and swing to reach them."] });
 
 ROOM({ id: 'mh_4', area: 'mossy', name: "Bramble Run", cx: 2, cy: 0, cw: 6, ch: 2,
   /* A long run (3 screens) with thorn pits and rolling thornlings; moss ledges above the pits. E to Fernway, a hole in the ceiling at the W end (N) from Rolling Ridge (a drop down, also climbable back up via ledges), and at the W wall a breakable root wall % (W doorway) to the Hidden Glade. 3 thornlings, 2 smog puffs, 2 dew clusters.
@@ -283,14 +284,12 @@ ROOM({ id: 'mh_9', area: 'mossy', name: "Knot Gate", cx: 6, cy: 4, cw: 4, ch: 2,
     '................................................................',
     '.....................................======.....................',
     '............................##########..........................',
-    '......i.b..........t........##########..........t...............',
+    '......i.b..........t........##########..........t...........i...',
     '##########...############...##########....############...#######',
     '##########xxx############xxx##########xxxx############xxx#######',
     '################################################################'
   ],
-  signs: [
-    "Something big is tangled up ahead. Hold A (or I) to focus your Sunlight and grow a leaf back."
-  ] });
+  signs: ["Something big is tangled up ahead. Hold A (or I) to focus your Sunlight and grow a leaf back. Blooming glooms fills your Sunlight jar.","In the air, hold Down and swing: you bounce off thorns and glooms!"] });
 
 ROOM({ id: 'mh_10', area: 'mossy', name: "The Tangle", cx: 2, cy: 4, cw: 4, ch: 2,
   /* GUARDIAN ARENA: THE THORN KNOT (G anchor in the middle of the floor, guardian knot). A flat floor 2 screens wide with two low one-way ledges at each side (3 tiles up). The E doorway is an ARENA gate. A 4-wide CALM gate in the floor (S doorway, left of centre) opens down to the Glowcap Caves once the knot is calmed.

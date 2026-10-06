@@ -184,11 +184,12 @@ ROOM({ id: 'cs_9', area: 'crystal', name: "Glass Hollows", cx: 36, cy: 8, cw: 4,
     '.........................KKKKK.............======...............',
     '..........=====..........KKKKK..................................',
     '......................KKKKKKKKKKK...............................',
-    '....K..........k......KKKKKKKKKKK..b..K.........k........K......',
+    '....K..........k......KKKKKKKKKKK..b..K.........k........K..i...',
     '################################################################',
     '################################################################',
     '################################################################'
-  ] });
+  ],
+  signs: ["Gloom knights hide behind a shield. Wait for the shove, then swing while the shield is down!"] });
 
 ROOM({ id: 'cs_8', area: 'crystal', name: "Glass Garden", cx: 32, cy: 8, cw: 4, ch: 2,
   /* Charm room: SWIFT SWING charm C; a NOTCH N too (a little seed-shaped socket). E doorway.
@@ -257,11 +258,12 @@ ROOM({ id: 'cs_7', area: 'crystal', name: "Knight's Hall", cx: 30, cy: 4, cw: 4,
     '...............................b................................',
     '..............................KKKK..............................',
     '..............................KKKK..............................',
-    '.......K..........k.........KKKKKKKK.........k..........K...b...',
+    '.......K..........k.........KKKKKKKK.........k..........K.i.b...',
     '################################################################',
     '################################################################',
     '################################################################'
-  ] });
+  ],
+  signs: ["Gloom knights hide behind a shield. Wait for the shove, then swing while the shield is down!"] });
 
 ROOM({ id: 'cs_10', area: 'crystal', name: "Lever Tunnel", cx: 26, cy: 4, cw: 4, ch: 2,
   /* SHORTCUT: a lever h opens the hatch in the ceiling (N doorway: a LEVER gate on this side) up into Under the Gap (Rootgate). E doorway to the Knight's Hall. Ledges up to the hatch.
