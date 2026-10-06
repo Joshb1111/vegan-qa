@@ -13,21 +13,27 @@
 const G=window.GAME;if(!G||!window.THREE){return;}
 const T=THREE,{npcs,ROADS,atS,offsetFrom,lonLatOf,placeOn,yawFor,gAt,R,solids,LITE,MIN}=G;
 const M=ROADS[0],S0=102,RANGE=25,SPEED=1.05,V='?v=2';
+/* spot: [lane across the street, metres along it from S0, facing +1 up the street / -1 down it]. Two pairs back to back, each pair
+   side by side, so every placard faces open street and nobody holds theirs at someone's back (or at the back of the screen, as Jo did
+   when the front pair stood one behind the other with the screen between them). Sam and Jay face the way you come in from the
+   'Spawn at the Earthlings protest' stop (s 96.5, facing up the street); the screen stands beside Jay, facing the same way */
 const CAST=[
-  {key:'jo',name:'Jo',voice:'Jo',h:1.7,spot:[-1.1,-1.05,1],sign:['EVERY','ANIMAL IS','A SUBJECT','OF A LIFE'],
+  {key:'jo',name:'Jo',voice:'Jo',h:1.7,spot:[-.6,.6,1],sign:['EVERY','ANIMAL IS','A SUBJECT','OF A LIFE'],
    sub:'Earthlings activist',greet:'Hi! We’re out here for the animals today. Ask me anything about veganism.',
    chips:['Is veganism about suffering?','What does “exploitation” actually mean?','Is honey vegan?'],pitch:1.12,rate:1.02,voiceWish:'Tessa'},
-  {key:'josh',name:'Josh',voice:'Josh',h:1.8,spot:[-1.1,1.05,1],sign:['NO EXCUSE','FOR','ANIMAL USE'],
+  {key:'josh',name:'Josh',voice:'Josh',h:1.8,spot:[.6,.6,1],sign:['NO EXCUSE','FOR','ANIMAL USE'],
    sub:'Earthlings activist',greet:'Hey. Got a question about veganism? Ask me, I’ll give you a straight answer.',
    chips:['Isn’t veganism just a diet?','Why do vegans say animals are “property”?','Isn’t eating animals natural?'],pitch:.95,rate:1,voiceWish:'Arthur'},
-  {key:'sam',name:'Sam\u200b',voice:'Sam the activist',drop:6,h:1.8,spot:[1.1,-.7,-1],sign:['ANIMALS','ARE NOT','PROPERTY'],
+  {key:'sam',name:'Sam\u200b',voice:'Sam the activist',drop:6,h:1.8,spot:[-.6,-.6,-1],sign:['ANIMALS','ARE NOT','PROPERTY'],
    sub:'Earthlings activist',greet:'Hi there. Animals are not ours to use. Ask me anything you like.',
    chips:['What’s wrong with free-range eggs?','Isn’t veganism extreme?','What’s the welfare trap?'],pitch:.9,rate:.98,voiceWish:'Alex'},
-  {key:'jay',name:'Jay',h:1.78,spot:[1.1,.7,-1],sign:['ANIMALS','DO NOT','EXIST FOR','HUMANS'],
+  {key:'jay',name:'Jay',h:1.78,spot:[.6,-.6,-1],sign:['ANIMALS','DO NOT','EXIST FOR','HUMANS'],
    sub:'Earthlings activist',greet:'Alright? We’re showing Earthlings by the screen. Ask me anything about veganism.',
    chips:['Is lab-grown flesh vegan?','Isn’t it enough to just eat less “meat”?','Are zoos exploitation?'],pitch:.85,rate:.96,voiceWish:'Daniel'},
 ];
+const SCREEN=[1.85,-.6,-1]; /* the screen: [lane, along, facing] as a spot: beside Jay, its edge 0.7 m from his placard's */
 const rnd=(a,b)=>a+Math.random()*(b-a);
+const _m=new T.Matrix4(),_mb=new T.Matrix4(),_s=new T.Vector3(),_p=new T.Vector3(),_v=new T.Vector3(),_u=new T.Vector3(),_n=new T.Vector3(),_e=new T.Vector3(),_w=new T.Vector3(),_d=new T.Vector3(),_c=new T.Vector3(),_t=new T.Vector3(),_qc=new T.Quaternion(),_qu=new T.Quaternion(),_qf=new T.Quaternion(),_qi=new T.Quaternion(),_qs=new T.Quaternion(),_pp=new T.Vector3(),_pq=new T.Quaternion();
 const A={actors:[],log:[],ready:0,screen:null};window.__activists=A;
 /* ---------- look: the props' toon shading with the ink pass's outlines; the cards are drawn flat ---------- */
 const grad=(()=>{const d=new Uint8Array([204,204,204,255,204,204,204,255,255,255,255,255]);const t=new T.DataTexture(d,3,1,T.RGBAFormat);t.minFilter=t.magFilter=T.NearestFilter;t.needsUpdate=true;return t;})();
@@ -40,7 +46,7 @@ function card(lines,w,h,bg,fg,size,emoji){const cv=document.createElement('canva
   const tex=new T.CanvasTexture(cv);paint();if(document.fonts&&document.fonts.ready)document.fonts.ready.then(paint);
   const m=new T.Mesh(new T.PlaneGeometry(w,h),new T.MeshBasicMaterial({map:tex,side:T.DoubleSide}));m.userData.noInk=true;return m;}
 function placard(lines){const it=new T.Group();it.add(box(.66,.86,.03,0xe9e4d8));const f=card(lines,.62,.82,'#f7f4ee','#14181c',40);f.position.z=.02;it.add(f);
-  it.name='placard';return it;}
+  it.name='placard';it.userData.noCull=true;return it;} /* never horizon-culled: the planet's cull hid one lying over the horizon, and it stayed hidden once picked up (in the hands it's no longer a scene child, so the cull never showed it again) */
 /* ---------- the street: positions are (s along the main road, lane across it in metres) ---------- */
 const C=atS(M,S0);
 const at=(s,lane)=>offsetFrom(atS(M,s),lane);
@@ -94,18 +100,20 @@ function makeActor(cfg,gltf){const root=gltf.scene;
 function setPos(a){const [lo,la]=lonLatOf(at(a.s,a.lane));a.n.lon=lo;a.n.lat=la;a.n.s=a.s;a.solid.c.copy(at(a.s,a.lane)).multiplyScalar(R);}
 function faceDir(a,ds,dl){const sm=atS(M,a.s);const f=sm.t.clone().multiplyScalar(ds).addScaledVector(sm.side,dl);if(f.lengthSq()<1e-8)return a.n.yaw;return yawFor(a.n.lon,a.n.lat,f.normalize().negate());}
 function turnTo(a,y,dt,k){let d=y-a.n.yaw;d=((d+Math.PI)%(2*Math.PI)+2*Math.PI)%(2*Math.PI)-Math.PI;a.n.yaw+=d*Math.min(1,dt*k);}
-/* the placard: in the hands, or lying face up on the road at their spot */
-function hold(a,on){const g=a.sign;if(g.parent)g.parent.remove(g);g.rotation.set(0,0,0);g.position.set(0,0,0);g.scale.setScalar(1);
-  if(on){g.position.set(0,1.04,-.36);g.rotation.y=Math.PI;a.group.add(g);}
-  else{const dir=-a.cfg.spot[2],[s,l]=a.home;const sm=atS(M,s+dir*.55);const p=offsetFrom(sm,l+rnd(-.2,.2));const [lo,la]=lonLatOf(p);
+/* the placard: in both hands at the chest (the hold pose, below), or lying face up on the road just in front of their spot */
+function hold(a,on){const g=a.sign;let from=null;
+  if(on&&g.parent&&g.parent!==a.group){g.updateMatrixWorld(true);from=g.matrixWorld.clone();} /* picked up: it stays where it lies (in the world) while they turn to the street, then rises into the hands */
+  if(g.parent)g.parent.remove(g);g.visible=true;g.rotation.set(0,0,0);g.position.set(0,0,0);g.scale.setScalar(1);a.pick=null;
+  if(on){const I=a.post.ik;g.position.set(I?I.cx:0,I?I.H:1.04,I?-I.z:-.36);g.rotation.y=Math.PI;a.group.add(g);if(from&&I){a.pick=from;a.group.updateMatrixWorld(true);_m.copy(a.group.matrixWorld).invert().multiply(from).decompose(g.position,g.quaternion,_s);}}
+  else{const dir=a.cfg.spot[2],[s,l]=a.home;const sm=atS(M,s+dir*.7);const p=offsetFrom(sm,l+rnd(-.2,.2));const [lo,la]=lonLatOf(p); /* in front of them, on the open side: the pairs stand back to back */
     placeOn(g,lo,la,a.homeYaw+rnd(-.35,.35));let hmax=0;for(const [dx,dz] of [[-.4,-.6],[.4,-.6],[-.4,.6],[.4,.6]]){const q=p.clone().addScaledVector(sm.t,dz/R).addScaledVector(sm.side,dx/R).normalize();hmax=Math.max(hmax,gAt(q)-gAt(p));}
     g.rotateX(-Math.PI/2);g.position.addScaledVector(p,.05+Math.max(0,hmax));g.updateMatrixWorld(true);}
   a.holding=on;G.dirty();}
-/* ---------- the screen: stands on its own between the front pair ---------- */
+/* ---------- the screen: stands on its own beside Jay, at the street side of the pair facing down the street, and faces as they do ---------- */
 function screen(){const g=new T.Group();g.name='protest-screen';
   const fr=box(1.08,.7,.05,0x1b1f23);fr.position.y=1.32;g.add(fr);const scr=card(['SOMEONE,','NOT SOMETHING'],1.0,.62,'#2c2417','#f3efe4',22,'🐄');scr.position.set(0,1.32,.03);g.add(scr);
   for(const x of [-.38,.38]){const leg=box(.045,1.0,.045,0x2a3036);leg.position.set(x,.5,-.02);g.add(leg);const ft=box(.09,.04,.42,0x2a3036);ft.position.set(x,.02,-.02);g.add(ft);}
-  const [s,l]=spotSL([-1.1,0]);const p=at(s,l),[lo,la]=lonLatOf(p);placeOn(g,lo,la,yawFor(lo,la,C.t.clone())); /* faces the same way as the front pair (built facing +Z) */
+  const [s,l]=spotSL(SCREEN);const p=at(s,l),[lo,la]=lonLatOf(p);placeOn(g,lo,la,yawFor(lo,la,C.t.clone().multiplyScalar(SCREEN[2]))); /* built facing +Z: faces as the people beside it (yawFor turns a model's +Z to the direction given) */
   g.updateMatrixWorld(true);solids.push({c:p.clone().multiplyScalar(R),r:.45});A.screen=g;G.dirty();}
 /* ---------- will ---------- */
 const away=()=>A.actors.filter(a=>a.st!=='protest').length;
@@ -155,7 +163,7 @@ function postAdjust(root,cfg,mixer,act){let sk=null;root.traverse(m=>{if(!sk&&m.
   const B=n=>sk.bones.find(b=>b.name===n),arms=['L_Upperarm','R_Upperarm','L_Forearm','R_Forearm'].map(B).filter(Boolean),ti=act.idle.time,tw=act.walk.time;
   /* the arms' calm place = the skin's bind pose (the model as it was made, arms down). The idle doesn't key the arms, so with the walk
      faded out three.js falls back to the nodes' own rest rotations, and on Sam's file those are a T-pose: his arms went up when he stood */
-  sk.pose();const bind=arms.map(b=>b.quaternion.clone());arms.forEach((b,j)=>out.arms.push([b,bind[j]]));
+  sk.pose();const bind=arms.map(b=>b.quaternion.clone());arms.forEach((b,j)=>out.arms.push([b,bind[j]]));out.ik=ikPrep(root,B);
   act.walk.setEffectiveWeight(0);act.idle.setEffectiveWeight(1);act.idle.time=0;mixer.update(0);arms.forEach((b,j)=>b.quaternion.copy(bind[j]));root.updateMatrixWorld(true);
   if(cfg.drop)for(const sd of ['L','R']){const cl=B(sd+'_Clavicle'),ua=B(sd+'_Upperarm');if(!cl||!ua)continue;const q0=cl.quaternion.clone(),y0=root.worldToLocal(ua.getWorldPosition(new T.Vector3())).y;let best=null,bd=1e9;
     const z0=root.worldToLocal(ua.getWorldPosition(new T.Vector3())).z;
@@ -164,13 +172,66 @@ function postAdjust(root,cfg,mixer,act){let sk=null;root.traverse(m=>{if(!sk&&m.
   act.idle.time=ti;act.walk.time=tw;return out;}
 /* after the clips: standing, the arms rest at their calm place; walking, they swing half as far as the clip */
 function postApply(a){const P=a.post,w=a.act.walk.getEffectiveWeight(),k=1-w*(1-P.damp);for(const [b,q] of P.arms)b.quaternion.slerp(q,k);for(const [b,q,u,qi] of P.add){b.quaternion.copy(q);u.quaternion.premultiply(qi);}}
+/* ---------- the hold pose: both hands on the placard's side edges ----------
+   An analytic two-bone IK per arm (upper arm + forearm; the hand bone is the wrist), worked in the group's frame (the character faces -Z).
+   The aim is the middle of the hand's skin (measured once from the vertices weighted to the hand bone) on its edge of the placard; the
+   wrist is sent to that point less the hand's offset as last solved, so the hand itself lands on the edge whatever the rig's proportions.
+   The elbow bends towards a pole down, out and back, and each arm bone is turned from its bind pose by the rotation that carries the
+   bind (bone direction, elbow axis) frame onto the solved one, so the forearm keeps the twist it was modelled with: the palms, which
+   face the thighs in the bind pose, face the placard's edges. The hand keeps its bind angle to the forearm. Set outright after the clips
+   and postApply (Sam's shoulder drop moves the shoulder and the arm is solved from wherever the shoulder is; the breathing still shows
+   in the chest and head while the hands stay put). The placard is then placed from the two hands (midpoint, facing forward), so it
+   sits in them. Blended in and out over 0.4 s when they pick it up or set it down; on pick-up the placard rises from the road into the
+   hands over the same time. A few vector ops and two small matrix decompositions per arm per frame, only for those drawn nearby. */
+const HOLD={drop:.43,z:.26,gx:.32,blend:.4,pole:[.35,-1,.55]}; /* hands this far under the shoulders (the placard's top then comes to the shoulders and leaves the face clear), its middle this far in front of them, the hands' middles this far out from it (its edges are at .33). Held higher or further out, the upper arms rise more and Jay's sleeve parts at the back of the armpit */
+const basisQ=(d,n,q)=>q.setFromRotationMatrix(_mb.makeBasis(d,n,_c.crossVectors(d,n)));
+function aim(I){for(const R_ of I.arms){R_.pole.set(R_.side*HOLD.pole[0],HOLD.pole[1],HOLD.pole[2]).normalize();R_.tg.set(I.cx+R_.side*HOLD.gx,I.sy-HOLD.drop,-HOLD.z);}I.H=I.sy-HOLD.drop;I.z=HOLD.z;}
+A.HOLD=HOLD;A.retune=()=>{for(const a of A.actors)if(a.post.ik)aim(a.post.ik);};A.holdPose=(a,dt)=>holdPose(a,dt); /* tuning and timing from the console */
+function ikPrep(root,B){const g=root.parent;let mesh=null;root.traverse(m=>{if(!mesh&&m.isSkinnedMesh)mesh=m;});if(!g||!mesh)return null;
+  g.updateMatrixWorld(true);const gi=new T.Matrix4().copy(g.matrixWorld).invert(),F=new T.Vector3(0,0,-1),sk=mesh.skeleton,geo=mesh.geometry;
+  const loc=b=>{const p=new T.Vector3(),q=new T.Quaternion();new T.Matrix4().multiplyMatrices(gi,b.matrixWorld).decompose(p,q,new T.Vector3());return {p,q};};
+  const out={arms:[],cx:0,sy:0};
+  for(const sd of ['L','R']){const up=B(sd+'_Upperarm'),fo=B(sd+'_Forearm'),ha=B(sd+'_Hand');if(!up||!fo||!ha||!up.parent)return null;
+    const U=loc(up),Fo=loc(fo),H=loc(ha),du=Fo.p.clone().sub(U.p),df=H.p.clone().sub(Fo.p),l1=du.length(),l2=df.length();du.normalize();df.normalize();
+    const pre=(d,q)=>basisQ(d,new T.Vector3().crossVectors(d,F).normalize(),new T.Quaternion()).invert().multiply(q); /* bind frame: the elbow axis is (bone x forward), as an arm bending forward has it */
+    /* the middle of the hand's skin, in the hand bone's turned frame (group units) */
+    const hi=sk.bones.indexOf(ha),P=geo.attributes.position,SI=geo.attributes.skinIndex,SW=geo.attributes.skinWeight,M_=new T.Matrix4().multiplyMatrices(gi,ha.matrixWorld).multiply(sk.boneInverses[hi]).multiply(mesh.bindMatrix),v=new T.Vector3(),hc=new T.Vector3();let cnt=0;
+    for(let i=0;i<P.count;i++){let w=0;if(SI.getX(i)===hi)w+=SW.getX(i);if(SI.getY(i)===hi)w+=SW.getY(i);if(SI.getZ(i)===hi)w+=SW.getZ(i);if(SI.getW(i)===hi)w+=SW.getW(i);if(w>.5){hc.add(v.fromBufferAttribute(P,i).applyMatrix4(M_));cnt++;}}
+    if(cnt)hc.multiplyScalar(1/cnt).sub(H.p).applyQuaternion(H.q.clone().invert());else hc.copy(df).multiplyScalar(.08).applyQuaternion(H.q.clone().invert());
+    const side=U.p.x<0?-1:1;out.arms.push({side,up,fo,ha,l1,l2,pu:pre(du,U.q),pf:pre(df,Fo.q),hq:ha.quaternion.clone(),hc,off:new T.Vector3(),pole:new T.Vector3(),tg:new T.Vector3(),grip:new T.Vector3()});
+    out.sy+=U.p.y/2;out.cx+=U.p.x/2;}
+  aim(out);return out;}
+function holdPose(a,dt){const I=a.post.ik;if(!I)return;const g=a.sign,inHand=a.holding&&g.parent===a.group;
+  let dy=a.n.yaw-a.homeYaw;dy=Math.abs(((dy+Math.PI)%(2*Math.PI)+2*Math.PI)%(2*Math.PI)-Math.PI);
+  const want=a.holding&&!(a.pick&&a.hw<=0&&dy>.35)?1:0; /* back at their spot, they face the street before they reach for it */
+  if(a.hw==null)a.hw=want;a.hw+=Math.max(-dt/HOLD.blend,Math.min(dt/HOLD.blend,want-a.hw));
+  _m.copy(a.group.matrixWorld).invert(); /* everything below in the group's frame */
+  if(inHand&&a.pick)_mb.multiplyMatrices(_m,a.pick).decompose(_pp,_pq,_s); /* where it lies, as seen from them now */
+  if(a.hw<=0){if(inHand&&a.pick){g.position.copy(_pp);g.quaternion.copy(_pq);}return;}const w=a.hw*a.hw*(3-2*a.hw);
+  a.root.updateMatrixWorld(true);
+  for(const R_ of I.arms){const {up,fo,ha,l1,l2}=R_;
+    _p.setFromMatrixPosition(up.matrixWorld).applyMatrix4(_m); /* the shoulder, as the clips and the drop left it */
+    _mb.multiplyMatrices(_m,up.parent.matrixWorld).decompose(_t,_qc,_s); /* the clavicle's turn in the group's frame */
+    _d.subVectors(R_.tg,R_.off).sub(_p);const dist=_d.length(),dc=Math.min(Math.max(dist,Math.abs(l1-l2)+1e-3),(l1+l2)*.999);_u.copy(_d).divideScalar(dist||1);
+    const ea=(l1*l1-l2*l2+dc*dc)/(2*dc),eh=Math.sqrt(Math.max(0,l1*l1-ea*ea));
+    _v.copy(R_.pole).addScaledVector(_u,-R_.pole.dot(_u));if(_v.lengthSq()<1e-6)_v.set(R_.side,0,0);_v.normalize();
+    _e.copy(_p).addScaledVector(_u,ea).addScaledVector(_v,eh); /* elbow */_w.copy(_p).addScaledVector(_u,dc); /* wrist */
+    _n.crossVectors(_v,_u).normalize(); /* elbow axis */
+    _d.subVectors(_e,_p).divideScalar(l1);basisQ(_d,_n,_qu).multiply(R_.pu);
+    _d.subVectors(_w,_e).divideScalar(l2);basisQ(_d,_n,_qf).multiply(R_.pf);
+    R_.off.copy(R_.hc).applyQuaternion(_qs.copy(_qf).multiply(R_.hq));R_.grip.copy(_w).add(R_.off); /* where the hand is: next frame's wrist aim allows for it */
+    _qs.copy(_qc).invert().multiply(_qu);up.quaternion.slerp(_qs,w);
+    _qs.copy(_qu).invert().multiply(_qf);fo.quaternion.slerp(_qs,w);ha.quaternion.slerp(R_.hq,w);}
+  if(!inHand)return;
+  _t.addVectors(I.arms[0].grip,I.arms[1].grip).multiplyScalar(.5);_qi.set(0,1,0,0); /* between the hands, facing forward */
+  if(a.pick&&a.hw<1){const r=Math.min(1,a.hw*2),wr=r*r*(3-2*r);g.position.lerpVectors(_pp,_t,w);g.quaternion.copy(_pq).slerp(_qi,wr);} /* it stands up in the first half, out in front, then comes up to the hands: turning all the way it swept through their legs */else{a.pick=null;g.position.copy(_t);g.quaternion.copy(_qi);}}
 /* ---------- the loop: will every frame for the walkers, decisions four times a second, animation only when in view ---------- */
 let last=performance.now(),acc=0;
 function tick(now){requestAnimationFrame(tick);const dt=Math.min(.1,(now-last)/1000);last=now;if(!A.actors.length)return;
   acc+=dt;const decideNow=acc>=.25;if(decideNow)acc=0;
   const pl=G.player();
   for(const a of A.actors){step(a,dt);if(decideNow&&!busy(a))decide(a);
-    const far=a.group.position.distanceTo(pl);if(a.group.visible&&far<(MIN?35:LITE?55:80)){a.mixer.update(dt);postApply(a);}}}
+    const far=a.group.position.distanceTo(pl);if(a.group.visible&&far<(MIN?35:LITE?55:80)){a.mixer.update(dt);postApply(a);holdPose(a,dt);}}}
 /* ---------- loading ---------- */
 function start(){if(!T.GLTFLoader){setTimeout(start,400);return;}
   screen();nearSolids();

@@ -2431,7 +2431,7 @@ window.__wings=WINGS;window.__fly=fly;window.__giveWings=()=>{WINGS.has=true;WIN
 const PROTEST=[];
 (function protest(){const M=ROADS[0];const sm=atS(M,102);const C=sm.n.clone(),along=sm.t.clone(),across=sm.side.clone();
   /* the people: Josh's four Earthlings activists (Jo, Josh, Sam, Jay), talkable residents with placards they set down and pick up again, and the screen on its stand: activists.js */
-  {const sc_=document.createElement('script');sc_.src='activists.js?v=3';sc_.onerror=()=>console.warn('activists not loaded');document.head.appendChild(sc_);}
+  {const sc_=document.createElement('script');sc_.src='activists.js?v=4';sc_.onerror=()=>console.warn('activists not loaded');document.head.appendChild(sc_);}
   const chalk=(text,al,w,dir=1)=>{const cv=document.createElement('canvas');cv.width=1024;cv.height=200;const g=cv.getContext('2d');const tex=new THREE.CanvasTexture(cv);const paint=()=>{g.clearRect(0,0,1024,200);g.fillStyle='rgba(150,205,255,.92)';g.font='700 88px "Patrick Hand","Segoe Print",cursive';g.textAlign='center';g.textBaseline='middle';g.fillText(text,512,100,960);tex.needsUpdate=true;};paint();if(document.fonts&&document.fonts.ready)document.fonts.ready.then(paint); /* painted again once the hand font is in: drawn in a fallback font the line ran off the plane; 960 caps the width either way */const geo=new THREE.PlaneGeometry(w,w*200/1024,28,4);{const pa=geo.attributes.position;for(let i=0;i<pa.count;i++){const x=pa.getX(i),y=pa.getY(i);pa.setZ(i,-(x*x+y*y)/(2*R));}geo.computeVertexNormals();} /* bent onto the planet: a flat plane this long sinks under the road at both ends and the writing was cut off */const m=new THREE.Mesh(geo,new THREE.MeshBasicMaterial({map:tex,transparent:true,depthWrite:false,polygonOffset:true,polygonOffsetFactor:-8,polygonOffsetUnits:-8}));m.userData.noInk=true;m.rotation.set(-Math.PI/2,0,Math.PI);
     const n=_q.copy(C).addScaledVector(along,al/R).normalize().clone();const [l,a]=lonLatOf(n);const g2=new THREE.Group();g2.add(m);placeOn(g2,l,a,yawFor(l,a,along.clone().multiplyScalar(-dir)));g2.updateMatrixWorld(true);{const pa=geo.attributes.position,wp=new THREE.Vector3();for(let i=0;i<pa.count;i++){wp.set(pa.getX(i),pa.getY(i),pa.getZ(i)).applyMatrix4(m.matrixWorld);wp.normalize().multiplyScalar(gAt(wp)+.1);m.worldToLocal(wp);pa.setXYZ(i,wp.x,wp.y,wp.z);}pa.needsUpdate=true;geo.computeBoundingSphere();} /* every vertex laid on the ground it is over, 4 cm above the asphalt: the street runs across a hillside, so a flat plane sank under the road at one end and the line was cut off */g2.userData.noCull=true;}; /* chalked across the asphalt, read by whoever walks up the street towards them */
   chalk('understand-veganism.com',3.4,5.6);chalk('Animals are not ours to us(e)',4.6,5.6);chalk('earthlingsexperience.com',-3.4,5.6,-1); /* and one on the far side, read by whoever comes down the street the other way */})();
@@ -2703,7 +2703,7 @@ async function ask(text){unlockAudio();
 $('#ask').addEventListener('submit',e=>{e.preventDefault();ask(q.value);});
 })();
 </script>
-<script src="planet-dress.js?v=14"></script>
+<script src="planet-dress.js?v=15"></script>
 <script src="breeze-room.js?v=6"></script>
 <script src="vine-room.js?v=1"></script>
 </body>
