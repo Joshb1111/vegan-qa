@@ -276,7 +276,7 @@ function doAsk(s, q) {
   else if (type === 7) { if (!follow && W().rooms[q[2]] && q[2] !== s.room.id) { follow = { host: true, t: 0, to: q[2], x: +q[3], y: +q[4], vx: +q[5], vy: +q[6], face: q[7] < 0 ? -1 : 1, dy: q[8] | 0 }; toast(opp() + ' went on ahead', 'following…'); } }
   else if (type === 8) { const sp = r.spots[0]; if (sp) s.rest(G, sp); }
   else if (type === 9) { const sw = r.switches.find(x => x.n === q[2] && !x.on); if (sw) s.flipSwitch(sw); }
-  else if (type === 10) { const sh = r.shots.find(x => x.id === q[2] && !x.dead); if (sh) { sh.dead = true; s.ev('pop', sh.kind, sh.x, sh.y); } }
+  else if (type === 10) { const sh = r.shots.find(x => x.id === q[2] && !x.spent); if (sh) { sh.spent = true; s.ev('pop', sh.kind, sh.x, sh.y); } }
 }
 function doFollow(s, f) {
   const d = W().rooms[f.to], pw = d.cw * 16 * 20, x = clamp(f.x, 12, pw - 12);   /* a step inside the doorway, never on its edge */
@@ -499,7 +499,7 @@ function guestSetup(s) {
   H.swingItem = (p, it) => { it.hurt = 8; s.ev('crack', it.x, it.y); ask(3, it.id); return false; };
   H.swingBreak = (p, b) => { b.hurt = 10; s.ev('crack', b.x + b.w / 2, b.y + b.h / 2); ask(4, b.n); return false; };
   H.swingLever = (p, l) => { ask(5, l.n); return false; };
-  H.swingShot = (p, sh) => { popped.add(sh.id); sh.dead = true; s.ev('pop', sh.kind, sh.x, sh.y); ask(10, sh.id); return false; };
+  H.swingShot = (p, sh) => { popped.add(sh.id); sh.spent = true; s.ev('pop', sh.kind, sh.x, sh.y); ask(10, sh.id); return false; };
   H.pickup = (p, it) => { if (it.kind === 'cluster') return false; if (!it.asked) { it.asked = 1; ask(6, it.key || it.id); } return false; };
   H.door = (p, to) => {
     if (!waitDoor) {

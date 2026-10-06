@@ -721,8 +721,8 @@ class Sim {
       if (!(this.hooks.swingGuard && this.hooks.swingGuard(p, g) === false)) { this.hitGuard(g, 1, p); p.sun = Math.min(p.sunMax, p.sun + this.st.sunHit); }
       if (sw.dir === 'd') bounce = true; else if (sw.dir === 'f') recoil = true;
     }
-    for (const sh of r.shots) if (sh.kind !== 'beam' && sh.kind !== 'drop' && !sh.dead && ov(bx, by, bw, bh, sh.x - sh.r - 3, sh.y - sh.r - 3, sh.r * 2 + 6, sh.r * 2 + 6) && hitOnce(sh)) {
-      if (!(this.hooks.swingShot && this.hooks.swingShot(p, sh) === false)) { sh.dead = true; this.ev('pop', sh.kind, sh.x, sh.y); } if (sw.dir === 'd') bounce = true;
+    for (const sh of r.shots) if (sh.kind !== 'beam' && sh.kind !== 'drop' && !sh.spent && ov(bx, by, bw, bh, sh.x - sh.r - 3, sh.y - sh.r - 3, sh.r * 2 + 6, sh.r * 2 + 6) && hitOnce(sh)) {
+      if (!(this.hooks.swingShot && this.hooks.swingShot(p, sh) === false)) { sh.spent = true; this.ev('pop', sh.kind, sh.x, sh.y); } if (sw.dir === 'd') bounce = true;
     }
     for (const b of r.buds) if (!b.open && ov(bx, by, bw, bh, b.x - 10, b.y - (b.ceil ? 0 : 20), 20, 20) && hitOnce(b)) { if (!(this.hooks.swingBud && this.hooks.swingBud(p, b) === false)) this.openBud(b); }
     for (const fl of r.flowers) if (!fl.temp && !r.gotSun.has(fl) && ov(bx, by, bw, bh, fl.x - 8, fl.y - (fl.ceil ? 0 : 18), 16, 18)) { r.gotSun.add(fl); p.sun = Math.min(p.sunMax, p.sun + 3); this.ev('sway', fl.x, fl.y); }
@@ -917,40 +917,40 @@ class Sim {
     const r = this.room;
     for (const s of r.shots) {
       if (!s.id) s.id = ++this.shotN;
-      s.t++; if (s.t > s.life) s.dead = true;
+      s.t++; if (s.t > s.life) s.spent = true;
       if (s.kind === 'beam') {
         s.x += s.vx;
-        if (s.ghost || (this.role === 'guest' && s.own !== this.me)) { if (r.solid(Math.floor((s.x + sgn(s.vx) * 6) / TILE), Math.floor(s.y / TILE))) s.dead = true; continue; }   /* someone else's ray: only to see */
-        if (r.solid(Math.floor((s.x + sgn(s.vx) * 6) / TILE), Math.floor(s.y / TILE)) || s.x < -20 || s.x > r.pw + 20) { s.dead = true; this.ev('beamEnd', s.x, s.y); }
+        if (s.ghost || (this.role === 'guest' && s.own !== this.me)) { if (r.solid(Math.floor((s.x + sgn(s.vx) * 6) / TILE), Math.floor(s.y / TILE))) s.spent = true; continue; }   /* someone else's ray: only to see */
+        if (r.solid(Math.floor((s.x + sgn(s.vx) * 6) / TILE), Math.floor(s.y / TILE)) || s.x < -20 || s.x > r.pw + 20) { s.spent = true; this.ev('beamEnd', s.x, s.y); }
         const auth = this.role !== 'guest', H = this.hooks;
         for (const f of r.foes) if (f.alive && !s.hit.has(f) && ov(s.x - 12, s.y - s.r, 24, s.r * 2, f.x - f.w / 2, f.y - f.h / 2, f.w, f.h)) { s.hit.add(f); if (auth) this.hitFoe(f, s.dmg, this.players[s.own] || this.players[0], s.x - s.vx * 3); else if (H.beamFoe) H.beamFoe(s, f); }
         const g = r.guard; if (g && g.awake && !g.done && !s.hit.has(g) && ov(s.x - 12, s.y - s.r, 24, s.r * 2, g.x - g.w / 2, g.y - g.h / 2, g.w, g.h)) { s.hit.add(g); if (auth) this.hitGuard(g, s.dmg, null); else if (H.beamGuard) H.beamGuard(s, g); }
         for (const sw of r.switches) if (!sw.on && !s.hit.has(sw) && Math.abs(s.x - sw.x) < 14 && Math.abs(s.y - sw.y) < 16 + s.r) { s.hit.add(sw); if (auth) this.flipSwitch(sw); else if (H.beamSwitch) H.beamSwitch(s, sw); }
         for (const b of r.buds) if (!b.open && !s.hit.has(b) && Math.abs(s.x - b.x) < 12 && Math.abs(s.y - b.y) < 20) { s.hit.add(b); if (auth) this.openBud(b); else if (H.beamBud) H.beamBud(s, b); }
-        for (const sh of r.shots) if (sh !== s && sh.kind !== 'beam' && !sh.dead && Math.abs(sh.x - s.x) < 14 && Math.abs(sh.y - s.y) < s.r + sh.r) { if (auth) { sh.dead = true; this.ev('pop', sh.kind, sh.x, sh.y); } else if (H.beamShot) H.beamShot(s, sh); }
+        for (const sh of r.shots) if (sh !== s && sh.kind !== 'beam' && !sh.spent && Math.abs(sh.x - s.x) < 14 && Math.abs(sh.y - s.y) < s.r + sh.r) { if (auth) { sh.spent = true; this.ev('pop', sh.kind, sh.x, sh.y); } else if (H.beamShot) H.beamShot(s, sh); }
         continue;
       }
-      if (s.kind === 'spore') { s.vy += Math.sin(s.t / 14) * 0.012; s.x += s.vx; s.y += s.vy; if (r.solid(Math.floor(s.x / TILE), Math.floor(s.y / TILE))) { s.dead = true; this.ev('pop', 'spore', s.x, s.y); } }
-      else if (s.kind === 'drop') { s.y += s.vy; s.x += s.vx; if (r.solid(Math.floor(s.x / TILE), Math.floor((s.y + 4) / TILE)) || s.y > r.ph) { s.dead = true; this.ev('splash', s.x, s.y); } }
+      if (s.kind === 'spore') { s.vy += Math.sin(s.t / 14) * 0.012; s.x += s.vx; s.y += s.vy; if (r.solid(Math.floor(s.x / TILE), Math.floor(s.y / TILE))) { s.spent = true; this.ev('pop', 'spore', s.x, s.y); } }
+      else if (s.kind === 'drop') { s.y += s.vy; s.x += s.vx; if (r.solid(Math.floor(s.x / TILE), Math.floor((s.y + 4) / TILE)) || s.y > r.ph) { s.spent = true; this.ev('splash', s.x, s.y); } }
       else {   /* burr, bolt, orb: lobbed, they bounce a few times */
         s.vy = Math.min(s.vy + (s.g || 0.18), 7); s.x += s.vx;
         if (r.solid(Math.floor((s.x + sgn(s.vx) * s.r) / TILE), Math.floor(s.y / TILE))) { s.vx = -s.vx * 0.7; s.x += s.vx * 2; }
         s.y += s.vy;
-        if (s.vy > 0 && r.solid(Math.floor(s.x / TILE), Math.floor((s.y + s.r) / TILE))) { s.y = Math.floor((s.y + s.r) / TILE) * TILE - s.r; s.vy = -s.vy * 0.62; s.bn = (s.bn || 0) + 1; this.ev('bonk', s.kind, s.x, s.y); if (s.bn > (s.bounces || 2)) { s.dead = true; this.ev('pop', s.kind, s.x, s.y); } }
+        if (s.vy > 0 && r.solid(Math.floor(s.x / TILE), Math.floor((s.y + s.r) / TILE))) { s.y = Math.floor((s.y + s.r) / TILE) * TILE - s.r; s.vy = -s.vy * 0.62; s.bn = (s.bn || 0) + 1; this.ev('bonk', s.kind, s.x, s.y); if (s.bn > (s.bounces || 2)) { s.spent = true; this.ev('pop', s.kind, s.x, s.y); } }
         if (s.vy < 0 && r.solid(Math.floor(s.x / TILE), Math.floor((s.y - s.r) / TILE))) s.vy = Math.abs(s.vy) * 0.5;
       }
-      if (s.own < 0 && !s.dead) for (const p of this.players) if (p.alive && p.inv <= 0 && !this.ext[p.i] && ov(p.x - 6, p.y - PH.H + 2, 12, PH.H - 2, s.x - s.r + 1, s.y - s.r + 1, s.r * 2 - 2, s.r * 2 - 2)) { if (this.hurt(p, s.x, s.kind) && s.kind !== 'drop') s.dead = true; }
+      if (s.own < 0 && !s.spent) for (const p of this.players) if (p.alive && p.inv <= 0 && !this.ext[p.i] && ov(p.x - 6, p.y - PH.H + 2, 12, PH.H - 2, s.x - s.r + 1, s.y - s.r + 1, s.r * 2 - 2, s.r * 2 - 2)) { if (this.hurt(p, s.x, s.kind) && s.kind !== 'drop') s.spent = true; }
     }
-    if (r.shots.some(s => s.dead)) r.shots = r.shots.filter(s => !s.dead);
+    if (r.shots.some(s => s.spent)) r.shots = r.shots.filter(s => !s.spent);
   }
   stepHazards() {
     const r = this.room;
     for (const h of r.hazards) {
       if (h.tell > 0) { h.tell--; if (h.tell === 0) { h.live = true; this.ev('hazard', h.kind, h.x + h.w / 2, h.y + h.h / 2); } continue; }
-      h.t++; if (h.vx) h.x += h.vx; if (h.t >= h.dur) h.dead = true;
+      h.t++; if (h.vx) h.x += h.vx; if (h.t >= h.dur) h.spent = true;
       if (h.live) for (const p of this.players) if (p.alive && !this.ext[p.i] && ov(p.x - 6, p.y - PH.H + 3, 12, PH.H - 3, h.x, h.y, h.w, h.h)) this.hurt(p, h.x + h.w / 2, h.kind);
     }
-    if (r.hazards.some(h => h.dead)) r.hazards = r.hazards.filter(h => !h.dead);
+    if (r.hazards.some(h => h.spent)) r.hazards = r.hazards.filter(h => !h.spent);
   }
   stepDrops() {
     if (this.role === 'guest') return;   /* online the host's dew; the guest draws its copies */
