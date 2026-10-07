@@ -77,7 +77,7 @@ FF.S1 = {
     { id: 'skip-doorR',   x0: 107.1,  x1: 107.2,  y0: 0.22,  y1: 0.32, kind: 'ceiling', z0: -0.8, z1: 0.8,
       note: 'A10: the rear door hangs half open; the crouch-look light slides under it and stops visibly short of the core' },
     { id: 'fence',        x0: 113.0,  x1: 113.5,  y0: 0.20,  y1: 3.20, kind: 'wall', z0: -3.0, z1: 0.8 },     // corrugated sheet; its bent corner is the gap
-    { id: 'lean-to',      x0: 119.6,  x1: 123.4,  y0: 0.33,  y1: 0.37, kind: 'ceiling' },
+    { id: 'lean-to',      x0: 119.6,  x1: 123.4,  y0: 0.53,  y1: 0.57, kind: 'ceiling', note: 'integration: raised from 0.33 so the rabbit can sit up, listen and groom beneath it (0.45 m) without its ears piercing the sheet' },
     { id: 'channel-edge', x0: 127.0,  x1: 127.2,  y0: 0.00,  y1: 3.00, kind: 'edge', note: 'not drawn: the rabbit stops at the channel lip, looks down, sniffs towards the Works, turns back' },
   ],
 
@@ -104,7 +104,7 @@ FF.S1 = {
     { id: 'pallet-B', x0: 101.0, x1: 103.4, y1: 0.26, core: [101.85, 102.55], refuge: [101.85, 102.55], kneelEnds: [101.0, 103.4], mask: true },
     { id: 'skip-C',   x0: 105.0, x1: 107.2, y1: 0.32, core: [105.8, 106.4],   refuge: [105.8, 106.4],   kneelEnds: [105.0, 107.2], mask: true, checkpoint: 'search-skip' },
     { id: 'gap',      x0: 113.0, x1: 113.5, y1: 0.20, core: [113.15, 113.5],  refuge: [113.15, 113.5], kneelEnds: [],             mask: false, exit: true, note: 'through the gap = out of the Search' },
-    { id: 'lean-to',  x0: 119.6, x1: 123.4, y1: 0.33, core: null, refuge: null, rest: [120.2, 122.8] },
+    { id: 'lean-to',  x0: 119.6, x1: 123.4, y1: 0.53, core: null, refuge: null, rest: [120.2, 122.8] },
   ],
   /* light and sight blockers in the lane plane; the same boxes build the torch's shadow casters */
   occluders: ['A0-shelf', 'A0-skirtR', 'deck-A', 'deck-skirtR', 'pallet-B', 'pallet-skirtL', 'pallet-skirtR', 'skip-C', 'skip-flapL', 'skip-doorR', 'fence'],
@@ -146,7 +146,7 @@ FF.S1 = {
   camera: {
     base: { fov: 26, dist: 8.2, height: 1.15, horizon: 0.57, lookAhead: 1.3, follow: 2.6, jumpFollow: 0.25, edge: 0.15, maxDist: 12.5, blend: 1.5 },
     zones: [
-      { id: 'title',        shot: true, x: 4.6, y: 1.6, dist: 11.0, horizon: 0.62, toPlay: 2.5 },
+      { id: 'title',        shot: true, x: 3.9, y: 1.0, dist: 8.6, horizon: 0.6, toPlay: 2.5 },   // integration: closer (was x 4.6, y 1.15, dist 11): the grooming rabbit was small and low (lead's note 8)
       { id: 'verge',        x0: 0.6,  x1: 30.5, dist: 8.6, height: 1.05, lookAhead: 1.6, runAhead: 2.2, follow: 2.2, minX: 3.6,
         attend: { event: 'vehicle-arrive', x: 'vehicle', w: 0.35, t: 6.0 } },
       { id: 'verge-gate',   x0: 30.5, x1: 38.5, span: [31.0, 39.4], height: 1.10, horizon: 0.58, hold: true },

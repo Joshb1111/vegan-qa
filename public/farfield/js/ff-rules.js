@@ -2,9 +2,9 @@
    Source: docs/farfield/SEQUENCE-1.md Appendix A, AS AMENDED on 7 Oct (Josh's approval + the design critic's verified issues;
    see "Amendments" at the top of SEQUENCE-1.md, A1-A24). Geometry, camera zones and checkpoints: FF.S1 (ff-level-s1.js).
    The searcher's path and the scripted beats: FF.S1.searcher / .verge / .walkway (ff-script-s1.js).
-   OWNER: architect / integrator. FROZEN while the four builders work in parallel: a builder that needs a number changed
-   overrides it in ITS OWN file in one block marked  RULES OVERRIDE (fold into ff-rules.js at integration)  and lists it in
-   its report. Perception and searcher numbers change only with the Search checker re-run (docs/farfield/checks/). */
+   OWNER: architect / integrator. Folded at integration (7 Oct): rabbit.jumpCutAfter (the rabbit builder), sight.touch.stillBelow
+   and the alert-tracking rule (the humans builder; FF.AI.track = seeAlert, used by the game and tools/check-search.mjs alike).
+   Perception and searcher numbers change only with the Search checker re-run (public/farfield/tools/check-search.mjs). */
 'use strict';
 window.FF = window.FF || {};
 
@@ -22,6 +22,7 @@ FF.RULES = {
     lowPoseUnder: 0.35,                                                     // under any ceiling lower than this the rabbit flattens: crouched sight points (visual + sight only, not speed)
     push: 0.62, accel: 5.0, decel: 10.0, turn: 14.0, airAccel: 4.0,
     gravity: 21.0, fallGravity: 1.35, jumpHeight: 0.52, jumpCut: 0.5, coyote: 0.10, buffer: 0.13, stepUp: 0.10,
+    jumpCutAfter: 0.15,                                                     // the early-release cut applies only after this long in the air: a quick tap still hops ~0.46 m (the post 0.30, the box 0.44); no precise jumps (§1)
     hw: 0.16, h: 0.24, hCrouch: 0.15,
     samples: { stand: [[0.14, 0.16], [0, 0.20], [-0.12, 0.10]], crouch: [[0.13, 0.10], [0, 0.12], [-0.12, 0.07]] },  // sight points (x fwd, y)
     climbIn: { maxDx: 0.35, time: 0.8 },
@@ -56,7 +57,12 @@ FF.RULES = {
     eye: 1.62, kneelEye: 0.95,
     area: { range: 9.0, weight: 0.6 },                                      // door spill, floodlight: he faces the rabbit, clear line from the eye
     dark: { front: 1.75, behind: 0.5, weight: 1.0, t: 0.8 },                // A6: never ignored at close range, even in darkness (still telegraphed: NOTICE at 0.28 s)
-    touch: { front: 0.6, behind: 0.3, wind: 0.45, sameFloor: 0.1 },         // walking into his legs: same floor + line of sight; the normal lunge wind-up
+    touch: { front: 0.6, behind: 0.3, wind: 0.45, sameFloor: 0.1, stillBelow: 0.3 },  // walking into his legs: same floor + line of sight; the normal lunge wind-up.
+                                                                            // stillBelow: a rabbit slower than this that HE walks into makes him stop dead (NOTICE) and the close-range
+                                                                            // rule runs with its telegraph (~1.6 s to a grab); only a rabbit running into his legs gets the bare lunge
+    /* once alert (SPOTTED, AIM, PURSUE, LOWER, the hide check), "can he still see it" = a clear line from his lens to the rabbit's
+       centre sight point, not in a core, not through the gap, within the torch's range (FF.AI.track). An entry cut short by an
+       alert does not count as seen: a restart at search-arrive replays it (the aim demonstration shows the way out). */
     fill: { tNear: 0.9, dNear: 3.0, tFar: 1.6, dFar: 10.0, grace: 0.5, decay: 0.5, notice: 0.35, investigateBelow: 0.15 },
     coreMaskSoft: 0.1, coreMaskOnlyWhereProvenDark: true, tick: 60,
   },

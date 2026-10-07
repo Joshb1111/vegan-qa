@@ -297,6 +297,11 @@ addEventListener('pagehide', teardown);
 canvas.addEventListener('webglcontextlost', e => { e.preventDefault(); if (!alive) return; call('UI', 'message', 'The picture was lost. Click to continue.', () => location.reload()); }, false);
 
 /* ---------------------------------------------------------------- test handle (§10) */
+/* test stepping: one fixed step; presentation every second step with the exact time that passed (so frame-driven timers
+   run at the same rate as the simulation however a test chunks its steps) */
+let tpend = 0;
+function tstep() { if (stepping()) stepOnce(); if (++tpend >= 2) flush(); }
+function flush() { if (!tpend) return; const dt = FIX * tpend; tpend = 0; present(dt); if (!frozen) time += dt; }
 const lite = () => ({ t: +G.t.toFixed(3), mode: G.mode, place: G.place, cp: G.checkpoint, control: G.control, fade: +G.fade.toFixed(3),
   rabbit: G.rabbit ? { x: +G.rabbit.x.toFixed(3), y: +G.rabbit.y.toFixed(3), vx: +(G.rabbit.vx || 0).toFixed(3), face: G.rabbit.face, grounded: !!G.rabbit.grounded, crouch: !!G.rabbit.crouch, mode: G.rabbit.mode, mood: G.rabbit.mood } : null,
   box: G.box ? { x: +G.box.x.toFixed(3) } : null,
@@ -307,18 +312,18 @@ window.__ff = {
   apply() { FF.applyShading((FF.World && FF.World.look) || L0); call('World', 'apply'); call('Camera', 'project'); },
   pause(on) { loopPaused = on !== false; }, freeze(on) { frozen = on !== false; },
   /* advance n fixed steps (1/120 s each; presentation every 2 steps) and draw once */
-  step(n, render) { n = n || 1; for (let i = 0; i < n; i++) { if (stepping()) stepOnce(); if (i % 2 === 1 || i === n - 1) { present(FIX * 2); if (!frozen) time += FIX * 2; } } if (render !== false) draw(); return lite(); },
-  draw,
+  step(n, render) { n = n || 1; for (let i = 0; i < n; i++) tstep(); if (render !== false) { flush(); draw(); } return lite(); },
+  draw, tick: tstep, flush,
   hold: (a, on) => FF.Input.hold(a, on), press: a => FF.Input.press(a), release: () => FF.Input.release(),
   /* run n steps; plan(state, i) returns { left, right, jump, up, down, walk } holds (true/false) before each step */
   run(n, plan, every) {
     const log = []; every = every || 60;
     for (let i = 0; i < n; i++) {
       const s = lite(); if (plan) { const want = plan(s, i) || {}; for (const a of ['left', 'right', 'up', 'down', 'jump', 'walk']) { const on = !!want[a]; if (on && !FF.Input.down(a)) FF.Input.press(a); FF.Input.hold(a, on); } }
-      if (stepping()) stepOnce(); if (i % 2 === 1) present(FIX * 2);
+      tstep();
       if (i % every === 0) log.push(s);
     }
-    draw(); return log;
+    flush(); draw(); return log;
   },
   until(pred, max, plan) { for (let i = 0; i < (max || 12000); i++) { const s = lite(); if (pred(s)) { draw(); return { ok: true, steps: i, state: s }; } this.run(1, plan ? (st) => plan(st, i) : null); } draw(); return { ok: false, steps: max, state: lite() }; },
   /* jump straight into play at a checkpoint id (or {x, y, face}) */

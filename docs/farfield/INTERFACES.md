@@ -4,6 +4,29 @@ Architect, 7 Oct 2026. **The contract between the game's files.** The design is 
 
 The skeleton already runs: `public/farfield/index.html` boots, shows the content notice, the title over the live Verge, and play along the whole 135 m lane (a greybox). Every module exists as a **working stub** with this API (§14 says what each stub does today). Builders replace the insides and keep the API.
 
+## Integration, 7 Oct (read this first; it updates the sections below)
+
+The parallel build is over and every module is live (`stub: false`). The integrator owns every file now. What this contract gained or changed:
+
+- **Rules folded into `ff-rules.js`** (no longer frozen; the `RULES OVERRIDE` blocks are gone): `rabbit.jumpCutAfter` 0.15 (a quick tap still hops ~0.46 m), `sight.touch.stillBelow` 0.3 (a rabbit sitting still that he walks into makes him stop dead first: NOTICE, then the close-range rule with its telegraph), and the alert-tracking rule (`FF.AI.track`: once alert, he keeps sight along a clear line from his lens to the rabbit's centre point, not into a core, not through the gap, within 10 m). An entry cut short by an alert replays after a restart at `search-arrive`. The checker (`public/farfield/tools/check-search.mjs`) reads the same rules and still passes 18/18.
+- **The light rig** (World; created once, never resized). Each logical light owns a rig slot only while its light set is active:
+
+  | set | K0 (shadow) | K1 (shadow) | P0 | P1 | B0 | B1 | D0 (shadow) |
+  |---|---|---|---|---|---|---|---|
+  | `VD` verge + drain | headlights | vergeTorch | worklight | gateGlare | pipeFill | scrapeFill | sky |
+  | `C` courtyard | window | skylight | opening | walkwayDoor | bounce | amber | – |
+  | `SR` search + rest | torch | flood | doorSpill | – | doorLamp | – | moon (rest) |
+
+  Owners (Events, Humans, AI) drive theirs through `World.spot(id)` / `World.point(id)`; `World.reset()` puts every driven light out and the owners re-drive them. A few take a derived fallback so a place reads even undriven (`gateGlare` from the headlights, `doorSpill` from door N0, `walkwayDoor` from its leaf, `amber` from the walkway).
+- **`FF.Humans.reset()`** hides every figure and puts its torch out; each owner re-drives its figure in its own `frame()` (which runs after `Humans.frame`), so nothing from before a restart draws for one frame.
+- **Bus events added by the builders** (payloads in each file's header): Level `walkway-start {cause, t}`, `rest {auto}`; Player `transit {phase}`, `search-entry`, `rabbit:step {x, y, run, surface, place}`, `rabbit:land {x, y, h, surface, place}`, `rabbit:jump`, `rabbit:squeeze {phase, id, short, x}`, `rabbit:reach-fail {x, n}`, `rabbit:pose {pose, kind, step, chain, x}`, `rabbit:mood {mood, from}`, `box {moving, v, x}`, `end {phase: 'settled'}`; AI `ai:state {from, to, x, d, why}`, `ai:aim {phase}`, `ai:hidecheck {phase, cover}`, `entry {phase, interrupted}`, `fail {kind, x, by, state}`; Events `vehicle` (approach · stop · door · leave · gone), `gate` (rattle {dur, hard} · lit-pause · lock · slide · close), `person` (out · kneel · wait · stand · sweep · in), `torch-down` (on · reach · end), `walkway` (boots · lamp · door-open · out · rail · rail-leave · door-r · shut · thud · done), `lamp {id, on}`, `checkpoint {id}`, `end` (pullout · fade · card).
+- **Sound** (`ff-audio.js`, its header holds the cue catalogue): footsteps and most world sounds are derived by Audio from movement and published on the bus as `sound {cue, x, y, z, gain, id, src: 'audio'}` (loops every 0.5 s with `loop: true`, ended with `stop: true`), so the rabbit's ears hear them; an explicit `sound` from another module switches off Audio's own derivation of that cue. **N toggles the ambience beds and the music** (every sound cue stays), M all sound.
+- **The room** calls the game's `__ff.teardown()` when it stops (a `leave` posted just before the frame is removed dies with it).
+- **Debug handle:** `__ff.tick()` (one fixed step; presentation every second step with the true elapsed time) and `__ff.flush()`; `step(n)` and `run(n)` use the same timing, so frame-driven timers keep the simulation's pace however a test chunks its steps.
+- **Tests** live in `docs/farfield/tests/` (`bash docs/farfield/tests/run-all.sh`; `PROGRESS.md`). Default port 9921, devtools +100.
+- **Cache:** the scripts carry `?v=11`; the room loads `farfield/index.html?v=2`.
+- **Status for Josh:** `STATUS.md`.
+
 ## 0. Rules for builders
 
 - **Own only your files** (§1). Need something from another module? Code against this API, guard against it being a stub (`if (FF.X && FF.X.fn)`), and write the need in your report: the integrator wires it.
@@ -420,7 +443,7 @@ Storage: the room `planet-ff-mute`, `planet-ff-music`; the game `ff-mute`, `ff-m
 - **Budgets** (SEQUENCE-1.md §19): 60 fps on the M2 Air at high, ≤ 12 ms a frame (p95 ≤ 14), ≤ 110 draws, at most 2 shadow maps updating a frame, JS ≤ 2 ms a frame, ~250 KB of our JS.
 - **Readability:** the rabbit has darkness behind it and light on it at rest points; ≥ 3.0× luminance contrast in play frames.
 
-## 14. What the skeleton does today (all `stub: true` except `FF.Level`)
+## 14. What the skeleton did (history; every module is now live: see the Integration section above and `STATUS.md`)
 
 | module | today | the builder makes it |
 |---|---|---|

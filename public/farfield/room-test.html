@@ -3,29 +3,52 @@
 <title>Far Field · room test</title>
 <base href="/">
 <link rel="icon" href="data:,">
-<!-- Test page for public/farfield-room.js (the arcade wrapper) outside the planet: mounts the room as planet.html would, so
-     the menu, the content notice, Play, mute/music messages, Exit and teardown can be tested. OWNER: the audio + UI + room
-     builder. Not linked from anywhere. Served from /farfield/room-test.html, so the room's iframe path is made relative to /. -->
+<!-- Test page for public/farfield-room.js (the arcade wrapper) outside the planet. It mounts the room the way planet.html's
+     enterHouse does (a #house with its header bar: title, spacer, "Back to town"; the room in #house-body) and copies the
+     planet's own '#arcade' rules, so the room's quiet overrides, the header buttons, Play, the mute / music messages, Exit
+     and teardown are tested as they will run in the planet. Not linked from anywhere. ?mute=1 passes through to the game
+     (no sound, no storage); ?music=0 starts as if the planet's music were off (the room then starts muted).
+     OWNER: the audio + UI + room builder. window.__room = { stop, enter, msgs } for tests. -->
 <style>
-html,body{margin:0;height:100%;background:#0b0d10;color:#c6ced6;font:14px/1.5 ui-sans-serif,system-ui,sans-serif}
-#house{position:absolute;inset:0}
-#arcade{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center}
-#arcade h3{letter-spacing:.4em;font-weight:300;margin:0 0 6px}
-#arcade .sub,#arcade .msg{max-width:520px;color:#9aa6b2;margin:4px 16px}
-#arcade button{font:inherit;color:#c6ced6;background:transparent;border:1px solid #3a434c;border-radius:3px;padding:7px 18px;margin-top:12px;cursor:pointer}
-#arcade .tyframe{position:absolute;inset:0;width:100%;height:100%;border:0;background:#000}
-#bar{position:absolute;right:8px;top:8px;z-index:5;display:flex;gap:6px}
-#bar button{font:12px ui-monospace,Menlo,monospace;color:#c6ced6;background:rgba(8,10,12,.7);border:1px solid #3a434c;border-radius:3px;padding:3px 8px;cursor:pointer}
+:root{--hand:"Comic Sans MS","Chalkboard SE",cursive;--cream:#f3efe4}
+html,body{margin:0;height:100%;background:#0b0d10;color:#c6ced6;font:14px/1.5 ui-sans-serif,system-ui,sans-serif;overflow:hidden}
+#house{position:absolute;inset:0;display:flex;flex-direction:column;background:#141019}
+#house[hidden]{display:none}
+#house .hbar{display:flex;align-items:center;gap:10px;padding:8px 12px;font-family:var(--hand);font-size:24px;color:var(--cream);flex:none}
+#house .hbar .sp{flex:1}
+#house .hbar button{font-family:var(--hand);font-size:19px;padding:5px 14px;cursor:pointer;color:#26333a;background:#f4c945;border:0}
+#house-body{position:relative;flex:1;min-height:0}
+/* the planet's arcade rules (planet.html), so the room's overrides are tested against them */
+#arcade{position:absolute;inset:0;overflow:auto;padding:24px 20px;background:radial-gradient(ellipse at 50% 0%,#2a1f3d,#0d0b16 70%);color:#f3efe4;font-family:var(--hand)}
+#arcade h3{margin:0 0 6px;font-size:40px;font-weight:normal;color:#f4c945;letter-spacing:2px}
+#arcade .sub{margin:0 0 18px;font-size:19px;color:#d8cfe6;max-width:560px}
+#arcade .row{display:flex;gap:12px;flex-wrap:wrap}
+#arcade button{font-family:var(--hand);font-size:22px;padding:10px 18px;background:#f4c945;color:#26333a;border:0;cursor:pointer;box-shadow:0 4px 0 #a87b12}
+#arcade .msg{margin-top:16px;font-size:19px;color:#f4c945;min-height:24px}
+#arcade .fine{margin-top:26px;font-size:14px;color:#9a90ad}
+#arcade iframe.tyframe{position:absolute;inset:0;width:100%;height:100%;border:0;background:#000}
+#arcade .clickme{position:absolute;inset:0;z-index:3;display:grid;place-items:center;pointer-events:none;background:rgba(0,0,0,.45);color:#fff4c0;font-size:30px;text-shadow:0 2px 4px #000}
+#arcade .clickme[hidden]{display:none}
+#dev{position:absolute;right:8px;bottom:8px;z-index:9;display:flex;gap:6px;opacity:.75}
+#dev button{font:12px ui-monospace,Menlo,monospace;color:#c6ced6;background:rgba(8,10,12,.8);border:1px solid #3a434c;border-radius:3px;padding:3px 8px;cursor:pointer}
+#town{position:absolute;inset:0;display:grid;place-items:center;color:#5f6b76}
 </style></head><body>
-<div id="house"></div>
-<div id="bar"><button id="leave" type="button">leave room</button><button id="enter" type="button">enter room</button></div>
+<div id="town">the town (the room is closed) · <button id="reenter" type="button">enter the Far Field cabinet</button></div>
+<div id="house"><div class="hbar"><b id="house-t">Far Field</b><span class="sp"></span><button id="house-x" type="button">Back to town</button></div><div id="house-body"></div></div>
+<div id="dev"><button id="leave" type="button">stop room</button><button id="enter" type="button">enter room</button></div>
 <script src="/farfield-room.js?v=1"></script>
 <script>
 'use strict';
-let stop = null;
-const enter = () => { if (stop) return; stop = farfieldRoom(document.getElementById('house'), { musicOn: true }); window.__room = { stop }; };
-document.getElementById('enter').onclick = enter;
-document.getElementById('leave').onclick = () => { if (stop) { stop(); stop = null; } };
+const Q = new URLSearchParams(location.search), house = document.getElementById('house');
+let stop = null; const msgs = [];
+addEventListener('message', e => { if (e.origin === location.origin && e.data && e.data.ty) msgs.push({ ty: e.data.ty, on: e.data.on, t: Math.round(performance.now()) }); });
+const enter = () => { if (stop) return; house.hidden = false; const body = document.getElementById('house-body'); body.innerHTML = ''; stop = farfieldRoom(body, { musicOn: Q.get('music') !== '0' }); window.__room.stop = stop; };
+const leave = () => { if (stop) { stop(); stop = null; } house.hidden = true; };
+window.__room = { enter, leave, msgs, stop: null };
+document.getElementById('enter').onclick = enter; document.getElementById('reenter').onclick = enter;
+document.getElementById('leave').onclick = leave; document.getElementById('house-x').onclick = leave;
+/* the planet's rule: Esc in a house closes it (only reached when the game frame does not have the keyboard) */
+addEventListener('keydown', e => { if (e.key === 'Escape' && stop) leave(); });
 enter();
 </script>
 </body></html>

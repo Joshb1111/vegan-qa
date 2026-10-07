@@ -102,6 +102,26 @@ Until then the person waits at the inlet, scraping at the slab with the torch on
 
 **Josh's answers to the six questions** (Part 1 and §24): 1 → A1 (dusk to night). 2 → yes, keep the hard cut to black and the muffled report; judge it in motion. 3 → A2 (no listen key unless it earns its place; ↑ jumps). 4 → no (A3). 5 → yes (A4). 6 → yes, beneath partial shelter (A5). **New question 7:** digging (Josh's first two briefs) is not in Sequence 1; default: it arrives in a later beat, in clearly marked soft ground.
 
+## Integration notes (7 Oct, after the build; these also win over the text below)
+
+What the build settled, measured or changed. Status for Josh: `STATUS.md`; how to test: `PROGRESS.md`.
+
+**I1 · A6 as built.** Two rules joined the detection model, in `ff-rules.js` and in the checker alike: a rabbit sitting still (under 0.3 m/s) that **he** walks into makes him stop dead first (NOTICE, then the close-range rule with its telegraph: about 1.6 s to a grab); only a rabbit that runs into his legs gets the bare 0.45 s lunge. Once he is alert, he keeps sight of the rabbit along a clear line from his lens to its centre point (`FF.AI.track`), never into a core or through the gap. An entry cut short by an alert does not count as seen: a restart at `search-arrive` replays it. When several terms apply, the one that fills suspicion fastest counts. Checker: PASS 18/18.
+
+**I2 · Warning times measured in the game** (A7): NOTICE → caught 1.58 s near him in torchlight; NOTICE → shot 2.73–2.77 s (the aim 1.5 s, the click 1.0 s before the shot); NOTICE → caught 2.27 s in darkness 1.55 m from where he turns. A test player reacting 0.6 s after SPOTTED escapes into the deck core and through the gap. A fresh human tester is still owed (STATUS §4).
+
+**I3 · Failure flow as built** (§10): black until 0.79 s, control at 0.99 s, full picture at 1.24 s, at the last core reached undetected (`search-arrive`, `search-platform`, `search-skip`).
+
+**I4 · The first squeeze's hesitation** (A9) belongs to the hoarding only; after a restart or a Continue a Search skirt could otherwise be the "first" squeeze in the session (a 0.45 s stall during an escape).
+
+**I5 · Changes to the places.** The lean-to in the breathing space is 0.53 m over the lane (was 0.33), on two short props, so the rabbit can sit up and groom beneath it (it stands 0.41 m to the ear tips, 0.45 sitting up). The Verge gate's opening ends at a lintel at 2.6 m (was 6.0). The gate's seam and the wall's joints no longer let the headlights' real light through (it drew razor-thin lines on the grass; the joints still glow). The puddle discs in the Courtyard and the Search are gone (they read as holes). The title camera is closer (x 3.9, y 1.0, dist 8.6).
+
+**I6 · Light** (A1): the Verge and the breathing space were darkened at integration (they read as an overcast day and a pale evening); the Verge keeps only a faint warm last light in the far haze.
+
+**I7 · §20 R4** uses A6's 0.45 s wind-up and the data's loop time 39.5 (not 0.3 s and 38.0).
+
+**I8 · Controls and sound** (A2, §15, §16): no listen key (the ears carry the information: they track the unseen searcher ahead, overhead and behind, and hold on him when his footsteps stop). N toggles the ambience beds and the music; every sound cue stays.
+
 ---
 
 # PART 1 · For Josh: the sequence on one page
@@ -1167,7 +1187,7 @@ Run headless through `tools/cdp.mjs` with one Chrome per agent on its own port, 
 | R1 | **sneak-through, patient** | from search-arrive; A0 → deck during the entry → wait → leave 0.5 s into the deck look → skip core → wait the crouch-look → leave 2.5 s after it | max suspicion < 0.35, never NOTICE; reaches x ≥ 113.15; checkpoints platform and skip saved |
 | R2 | **sneak-through, bold** | from search-platform; leave 0.5 s into the deck look, run to the gap | never NOTICE; reaches the gap within 7.5 s |
 | R3 | **detected and escape** | from search-skip; stand in the skip's right margin (106.75) through the crouch-look, then flee left to the deck refuge | SPOTTED; the aim or grab never completes; LOST within 8 s; no failure; the loop resumes |
-| R4 | **caught → checkpoint** | from search-skip; leave 0.5 s after the crouch-look ends (into his feet) | touch grab after its 0.3 s wind-up; the cut frame is black (pixel mean < 2) **on the contact frame**; control returns ≤ 1.0 s after the cut, full picture at 1.25 s; rabbit at 106.1 crouched; searcher at loop t 38.0; no rabbit audio cue fired in the black |
+| R4 | **caught → checkpoint** | from search-skip; leave 0.5 s after the crouch-look ends (into his feet) | touch grab after its 0.45 s wind-up (A6); the cut frame is black (pixel mean < 2) **on the contact frame**; control returns ≤ 1.0 s after the cut, full picture at 1.25 s; rabbit at 106.1 crouched; searcher at loop t 39.5 (I7); no rabbit audio cue fired in the black |
 | R5 | **shot → checkpoint** | from search-platform; at loop t 9.0 step out right into the torch at 5–7 m and stand still | NOTICE, then SPOTTED, then aim (beam half-angle 5°, the click), then the shot at reaction 0.6 + 1.5 s; the cut frame has no muzzle flash; restart at 94.8 with the searcher at loop t 9.0 |
 | R6 | the aim cancels | as R5, but break the line of sight 0.3 s into the hold (back under the deck) | the aim is cancelled and lowered; pursuit to the last-seen point; hide check on a refuge falls short; no failure |
 | R7 | the pursuit map | for x in 89…112 step 0.5, SPOTTED with the searcher 2/4/7 m behind or 3 m ahead; flee to the nearest refuge | survives in every case (as `check-search.mjs`) |

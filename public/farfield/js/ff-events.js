@@ -1,76 +1,392 @@
-/* FAR FIELD — ff-events.js: FF.Events, the staged beats and the flow around them: the Verge (the van stopping beyond the
-   wall, headlights, door, boots, the gate's chain, the glare reaction, the lock giving, the person at the culvert, the torch
-   down the crack, the reach that falls short; A8 + A14: event-driven, looping while the player lingers, never pushing), the
-   Courtyard walkway worker (A4: unarmed, indifferent) with the amber lamp and the far thud, checkpoints and saves, the
-   failure flow (cut to black -> restart at the checkpoint, §10), and the end (settle -> pull-out -> card -> title).
-   OWNER: the humans + events builder. API contract: docs/farfield/INTERFACES.md §8.7 and §9. SKELETON: checkpoint tracking,
-   the complete failure flow, flags, and placeholders that log each beat's trigger; the staging is the builder's. */
+/* FAR FIELD — ff-events.js: FF.Events, the staged beats and the flow around them.
+   THE VERGE (no fail; A8: event-driven, nothing pushes the player, the staging waits or loops while they linger): from x 21
+   an engine beyond the wall; the van's headlights travel along the wall and it stops at the gate (at min(6.0 s, the moment
+   the rabbit reaches x 29), never before 3.5 s; its speed adapts invisibly); the glare floods under the gate; the door
+   slams; boots walk up and stand in the glare; the chain rattles in bursts FOR AS LONG AS THE RABBIT STAYS (no give-up).
+   Step into the glare: the rattle stops dead, the boots turn, 1.0 s of silence, then harder (at most every 4 s).
+   The rabbit drops into the culvert -> the lock gives at max(drop + 0.6, stop + 4.0); the gate slides 0.8 m; the person
+   walks to the culvert, kneels and waits (scraping, the torch on the grass) until the rabbit is 0.6 m into the squeeze pipe
+   (A14); only then the torch comes down the crack for 3.0 s, lighting the chamber floor 38.5-39.0 and never the rabbit
+   (withdrawn at once if it heads back past 39.3); an arm reaches in and falls short (A11); they stand, sweep the verge,
+   go back through the gate, it shuts, the van reverses and leaves. Driven by the data FF.S1.verge (ff-script-s1.js).
+   THE COURTYARD: the walkway worker (A4: unarmed, no torch; never notices anything): boots on steel, the amber lamp clicks
+   on, the door opens, they walk out, stop at the rail looking AWAY, walk on, go in; the far Works thud starts (Audio keeps
+   its 4 s cadence and emits the 'thud' fact). Starts at the earliest of: the first push, the first reach-fail, 6 s after
+   the rabbit reaches x 71, 25 s after it enters the Courtyard (FF.S1.walkway).
+   Checkpoints and saves; THE FAILURE FLOW (§10: cut to black on the step of the grab or shot, restart at the checkpoint at
+   0.80 s, control at 1.00 s, picture at 1.25 s; nothing is counted, nothing rewards harm); THE END (settled -> held 4 s ->
+   the pull-out 8 s -> fade 2 s -> 0.5 s -> the card -> the title).
+   Phase facts emitted (Audio, Camera, World, Player listen): vehicle {phase: approach|stop|door|leave|gone, x, z},
+   gate {phase: rattle (dur, hard)|lit-pause|jolt|lock|slide|close}, person {phase: out|kneel|wait|stand|sweep|back|in},
+   torch-down {phase: on|reach|end (withdraw: true when the rabbit heads back)}, walkway {phase: boots|lamp|door-open|out|rail|rail-leave|door-r|shut|thud|done},
+   lamp {id: 'amber', on}, checkpoint {id}, end {phase: pullout|fade|card}. FF.Events.van is the van object (FF.Humans).
+   OWNER: the humans + events builder. API contract: docs/farfield/INTERFACES.md §8.7 and §9. */
 'use strict';
 window.FF = window.FF || {};
 (function () {
-const G = () => FF.G;
-const st = { cp: 'verge-start', failing: null, scripted: 0, beats: {} };
+const U = FF.util, G = () => FF.G;
+const st = { cp: 'verge-start', failing: null, beats: {} };
 const searchCps = ['search-arrive', 'search-platform', 'search-skip'];
+let person = null, worker = null, van = null;
+const lit = {};                                          // light handles this module has switched on (put out on beat end / reset)
+function spot(id) { return FF.World && FF.World.spot ? FF.World.spot(id) : null; }
+function point(id) { return FF.World && FF.World.point ? FF.World.point(id) : null; }
+function prop(id) { return FF.World && FF.World.prop ? FF.World.prop(id) : null; }
+/* move a set piece through the World's convention (gate leaves slide in metres; doors swing 0 shut .. 1 open) */
+function openProp(id, v) { if (FF.World && FF.World.open) { prop(id); FF.World.open(id, v); return; } const p = prop(id); if (!p) return; const ud = p.userData; if (ud.bx == null) { ud.bx = p.position.x; ud.by = p.rotation.y; } if (/gateLeaf/.test(id)) p.position.x = ud.bx + (id === 'gateLeafL' ? -v : v); else p.rotation.y = ud.by + (id === 'walkwayDoorR' ? 1.55 : -1.55) * v; }
+function lightOn(id, o) { const h = spot(id); if (!h) return; if (!lit[id]) { h.on(true); if (h.beam) h.beam(true); lit[id] = h; } h.set(o); }
+function lightOff(id) { const h = lit[id]; if (!h) return; h.on(false); if (h.beam) h.beam(false); delete lit[id]; }
+const emit = (n, d) => FF.bus.emit(n, d || {});
+const rnd = (a, b) => a + (b - a) * FF.rng();
 
 function setCheckpoint(id) {
   if (st.cp === id) return; st.cp = id; G().checkpoint = id;
   const cp = FF.Level.checkpoint(id); if (cp && cp.save) FF.Game.save(id);
-  FF.bus.emit('checkpoint', { id });
+  emit('checkpoint', { id });
 }
 
+/* ================================================================== THE VERGE */
+const V = { on: false, t: 0, s: 0, v: 0, T: 6.0, stopped: false, stopT: null, phase: 'idle', dropT: null, outT: null, q: [], qi: 0, qt: 0, gone: false,
+  rattle: { on: false, burst: 0, pause: 0, hard: 0, silence: 0, cool: 0, dur: 0 }, leaf: 0, leafTo: 0, door: 0, doorTo: 0, brake: 0, glance: 0, torchT: 0, scrapeT: 0,
+  van: { x: -12, z: -8.5, yaw: Math.PI / 2 }, p: { x: 31.6, z: -5.6, yaw: 0, anim: 'idle', speed: 0, vis: false, kneel: false, torch: null }, leave: null };
+const VAN_HALF_TO_FRONT = 0.8;                           // FF.S1.verge.vehicle.stop is 1.8 m behind the bumper (production blockout); the stand-in's origin is its centre
+function vanPath() {
+  const D = FF.S1.verge.vehicle, zc = D.stop[1] - VAN_HALF_TO_FRONT, P0 = [D.turnAtX, D.pathZ], P1 = [D.turnAtX + 2.0, D.pathZ], P2 = [D.stop[0], D.pathZ + 0.1], P3 = [D.stop[0], zc];
+  const pts = []; let L = 0; const N = 24; let prev = P0;
+  for (let i = 0; i <= N; i++) { const u = i / N, a = (1 - u) ** 3, b = 3 * u * (1 - u) ** 2, c = 3 * u * u * (1 - u), d = u ** 3; const p = [a * P0[0] + b * P1[0] + c * P2[0] + d * P3[0], a * P0[1] + b * P1[1] + c * P2[1] + d * P3[1]]; L += Math.hypot(p[0] - prev[0], p[1] - prev[1]); pts.push({ p, L }); prev = p; }
+  const L0 = D.turnAtX - D.fromX;
+  return { L0, arc: pts, S: L0 + L, at(s) {
+    if (s <= L0) return { x: D.fromX + s, z: D.pathZ, yaw: Math.PI / 2 };
+    const r = s - L0; let i = 1; while (i < pts.length - 1 && pts[i].L < r) i++;
+    const a = pts[i - 1], b = pts[i], k = U.clamp((r - a.L) / Math.max(1e-6, b.L - a.L), 0, 1), x = U.lerp(a.p[0], b.p[0], k), z = U.lerp(a.p[1], b.p[1], k);
+    return { x, z, yaw: Math.atan2(b.p[0] - a.p[0], b.p[1] - a.p[1]) };
+  } };
+}
+let VP = null;
+function vergeReset(done) {
+  Object.assign(V, { on: false, t: 0, s: 0, v: 0, T: FF.S1.verge.vehicle.stopAt.t, stopped: false, stopT: null, phase: done ? 'gone' : 'idle', dropT: null, outT: null, q: [], qi: 0, qt: 0, gone: !!done,
+    leaf: 0, leafTo: 0, door: 0, doorTo: 0, brake: 0, glance: 0, torchT: 0, scrapeT: 0, leave: null, inPipe: false, back: false, slammed: false, closed: false, walk: null });
+  Object.assign(V.rattle, { on: false, burst: 0, pause: 0, hard: 0, silence: 0, cool: 0, dur: 0 });
+  Object.assign(V.van, { x: FF.S1.verge.vehicle.fromX, z: FF.S1.verge.vehicle.pathZ, yaw: Math.PI / 2 });
+  Object.assign(V.p, { x: 31.6, z: -5.6, yaw: 0, anim: 'idle', speed: 0, vis: false, kneel: false, torch: null });
+}
+function vergeStart() {
+  if (V.on || V.gone || G().flags.vergeDone) return;
+  V.on = true; V.t = 0; V.phase = 'drive'; V.s = 0; V.v = 0; VP = VP || vanPath();
+  emit('vehicle', { phase: 'approach' });                  // (no x: the camera follows the headlights while it drives)
+}
+function vergeStep(dt) {
+  if (!V.on || V.gone) return;
+  const D = FF.S1.verge, B = D.beforeDrop, r = G().rabbit; V.t += dt;
+  /* ---- the van: drive, adapting its speed so it stops at min(6.0 s, rabbit at x 29), never before 3.5 s */
+  if (V.phase === 'drive') {
+    const S = D.vehicle.stopAt;
+    if (r && r.x < S.orRabbitX) { const eta = V.t + (S.orRabbitX - r.x) / Math.max(1.2, Math.abs(r.vx || 0)); V.T = U.clamp(Math.min(V.T, eta), S.notBefore, S.t); }
+    else if (r) V.T = U.clamp(Math.min(V.T, V.t), S.notBefore, S.t);
+    if (V.t >= 0.5) {
+      /* behind the wall only its light and sound are perceived, so the timing wins: it may hurry (a sprinting rabbit) */
+      const rem = VP.S - V.s, left = Math.max(0.15, V.T - V.t);
+      const vWant = Math.min(30, 1.9 * rem / left, Math.sqrt(2 * 9.0 * rem) + 0.4);
+      V.v = U.approach(V.v, vWant, 40 * dt); V.s = Math.min(VP.S, V.s + V.v * dt);
+      V.brake = U.clamp((V.v - vWant) / 3, 0, 1);
+      if (VP.S - V.s < 0.02) { V.s = VP.S; V.v = 0; V.stopped = true; V.stopT = V.t; V.phase = 'stopped'; V.brake = 1; emit('vehicle', { phase: 'stop', x: V.van.x, z: V.van.z }); }
+    }
+    Object.assign(V.van, VP.at(V.s));
+  }
+  V.brake = U.approach(V.brake, 0, dt * 1.5);
+  /* ---- before the drop: door, boots to the gate, the chain (looping), the glare reaction */
+  if (V.stopped && !V.outT) {
+    const ts = V.t - V.stopT;
+    if (ts >= B.doorSlam - 0.4 && V.doorTo === 0 && !V.slammed) { V.doorTo = 1; }
+    if (ts >= B.doorSlam && !V.slammed) { V.slammed = true; V.doorTo = 0; emit('vehicle', { phase: 'door' }); V.p.vis = true; Object.assign(V.p, { x: 31.55, z: -5.55, yaw: 0.6 }); }
+    if (ts >= B.boots[0] && ts < B.boots[1]) {             // boots on gravel up to the gate: (31.55, -5.55) -> (33.7, -4.45)
+      const k = U.clamp((ts - B.boots[0]) / (B.boots[1] - B.boots[0]), 0, 1); V.p.x = U.lerp(31.55, 33.7, k); V.p.z = U.lerp(-5.55, -4.45, k); V.p.anim = 'walk'; V.p.speed = 1.2; V.p.yaw = Math.atan2(2.15, 1.1);
+    } else if (ts >= B.boots[1]) { V.p.x = 33.7; V.p.z = -4.45; V.p.speed = 0; V.p.anim = V.rattle.on && V.rattle.burst > 0 ? 'unlock' : 'unlock'; V.p.yaw = U.approach(V.p.yaw, V.glance, dt * 2.5); }
+    if (ts >= B.rattleFrom && !V.rattle.on) { V.rattle.on = true; V.rattle.burst = 0; V.rattle.pause = 0.05; }
+    if (V.rattle.on) rattleStep(dt);
+    /* step into the glare (31-35, at the lane): the rattle stops dead, the boots turn, 1.0 s of silence, then harder */
+    const R = V.rattle; R.cool = Math.max(0, R.cool - dt);
+    if (r && R.on && r.x >= D.gate.x0 && r.x <= D.gate.x1 && r.y > -0.3 && R.cool <= 0 && R.silence <= 0) {
+      R.silence = B.glareReaction.silence; R.cool = B.glareReaction.cooldown; R.burst = 0; R.hard = 1;
+      V.glance = U.clamp(Math.atan2(r.x - V.p.x, 4.45), -0.7, 0.7);
+      emit('gate', { phase: 'lit-pause', x: r.x });
+    }
+  }
+  /* ---- the drop: the lock gives at max(drop + 0.6, stop + 4.0), then the person's list (FF.S1.verge.afterDrop) */
+  if (V.dropT != null && V.stopped && V.outT == null) { V.outT = Math.max(V.dropT + 0.6, V.stopT + 4.0); }
+  if (V.outT != null && V.t >= V.outT && V.phase !== 'after') { V.phase = 'after'; V.q = D.afterDrop.slice(); V.qi = 0; V.qt = 0; V.rattle.on = false; V.rattle.burst = 0; startStep(); }
+  if (V.phase === 'after') afterStep(dt);
+  /* ---- the leaf and the van door ease */
+  V.leaf = U.approach(V.leaf, V.leafTo, dt / 0.6 * 0.8);
+  V.door = U.approach(V.door, V.doorTo, dt / 0.35);
+}
+function rattleStep(dt) {
+  const R = V.rattle, B = FF.S1.verge.beforeDrop;
+  if (R.silence > 0) { R.silence -= dt; V.p.shake = 0; if (R.silence <= 0) { R.pause = 0; } return; }
+  V.glance = U.approach(V.glance, 0, dt * 0.5);
+  if (R.burst > 0) { R.burst -= dt; V.p.shake = 1; if (R.burst <= 0) { R.pause = rnd(B.rattlePause[0], B.rattlePause[1]) * (R.hard > 0.3 ? 0.6 : 1); } }
+  else { R.pause -= dt; V.p.shake = 0; if (R.pause <= 0) { R.burst = rnd(B.rattleBurst[0], B.rattleBurst[1]) * (R.hard > 0.3 ? 1.2 : 1); R.dur = R.burst; emit('gate', { phase: 'rattle', dur: +R.burst.toFixed(2), hard: R.hard > 0.3 }); } }
+  R.hard = Math.max(0, R.hard - dt / 10);
+}
+/* the after-drop list, one step at a time */
+function startStep() {
+  const a = V.q[V.qi]; if (!a) return; V.qt = 0; const kind = a[0], P = V.p;
+  switch (kind) {
+    case 'lock-gives': emit('gate', { phase: 'lock' }); V.p.shake = 0; break;
+    case 'gate-crack': V.leafTo = FF.S1.verge.gate.crack; emit('gate', { phase: 'slide' }); break;
+    case 'step-out': emit('person', { phase: 'out' }); break;
+    case 'walk': if (V.back) { V.walk = { x0: P.x, z0: P.z, x1: 33.4, z1: -3.3, v: a[2] }; } else V.walk = { x0: P.x, z0: P.z, x1: a[1] + 0.1, z1: -0.6, v: a[2] }; break;
+    case 'kneel': emit('person', { phase: 'kneel' }); break;
+    case 'wait-for': emit('person', { phase: 'wait' }); break;
+    case 'torch-down': V.torchT = 0; emit('torch-down', { phase: 'on' }); break;
+    case 'reach-in': emit('torch-down', { phase: 'reach' }); break;
+    case 'stand': emit('torch-down', { phase: 'end' }); emit('person', { phase: 'stand' }); break;
+    case 'walk-sweep': V.walk = { x0: P.x, z0: P.z, x1: a[1], z1: -0.9, v: a[2] }; emit('person', { phase: 'sweep' }); V.back = true; break;
+    case 'gate-close': emit('person', { phase: 'in' }); break;
+    case 'vehicle-leave': V.leave = { t: 0 }; emit('vehicle', { phase: 'leave' }); break;
+  }
+}
+function nextStep() { V.qi++; startStep(); }
+function afterStep(dt) {
+  const a = V.q[V.qi], P = V.p, r = G().rabbit; if (!a) return;
+  V.qt += dt; const kind = a[0], t = V.qt;
+  P.torch = null; P.shake = 0;
+  switch (kind) {
+    case 'lock-gives': P.anim = 'unlock'; if (t >= 0.05) nextStep(); break;
+    case 'gate-crack': P.anim = 'idle'; if (t >= a[1]) nextStep(); break;
+    case 'step-out': P.anim = 'walk'; P.speed = 1.4; P.x = U.lerp(33.7, 33.4, U.clamp(t / a[1], 0, 1)); P.z = U.lerp(-4.45, -3.3, U.clamp(t / a[1], 0, 1)); P.yaw = 0; if (t >= a[1]) nextStep(); break;
+    case 'walk': case 'walk-sweep': {
+      /* timed by the x distance, as the design's numbers are (33 -> 38 at 1.8 m/s = 2.8 s); the path also crosses in z */
+      const w = V.walk, Lx = Math.max(0.3, Math.abs(w.x1 - w.x0)), L = Math.hypot(w.x1 - w.x0, w.z1 - w.z0), k = U.clamp(t * w.v / Lx, 0, 1);
+      P.x = U.lerp(w.x0, w.x1, k); P.z = U.lerp(w.z0, w.z1, k); P.anim = kind === 'walk-sweep' ? 'walk-search' : 'walk'; P.speed = w.v * L / Lx; P.yaw = Math.atan2(w.x1 - w.x0, w.z1 - w.z0);
+      if (kind === 'walk-sweep') { const sx = P.x - 2.2 - 0.8 * Math.sin(V.t * 1.3); P.torch = { on: true, target: [sx, 0, -0.2 + 0.6 * Math.sin(V.t * 0.9)], half: 11, intensity: 18 }; }
+      if (k >= 1) { if (kind === 'walk' && V.back) { V.inT = 0; V.qt = 0; V.q.splice(V.qi + 1, 0, ['through-gate', 1.6]); } nextStep(); }
+      break; }
+    case 'through-gate': {                                 // back through the gap and into the van (implicit in the data)
+      const k = U.clamp(t / a[1], 0, 1); P.anim = 'walk'; P.speed = 1.3;
+      if (k < 0.5) { P.x = 33.4; P.z = U.lerp(-3.3, -4.6, k * 2); P.yaw = Math.PI; } else { P.x = U.lerp(33.4, 31.6, (k - 0.5) * 2); P.z = U.lerp(-4.6, -5.6, (k - 0.5) * 2); P.yaw = -2.1; V.doorTo = 1; }
+      if (k >= 1) { P.vis = false; V.doorTo = 0; nextStep(); }
+      break; }
+    case 'kneel': P.anim = 'kneel'; P.speed = 0; P.yaw = Math.PI / 2; P.torch = { on: true, target: [37.6, 0, -0.1], half: 12, intensity: 16 }; if (t >= a[1]) nextStep(); break;
+    case 'wait-for': {                                     // A8 + A14: wait at the inlet, scraping, the torch searching the grass, until the rabbit is in the pipe
+      P.anim = 'kneel'; P.speed = 0; P.yaw = Math.PI / 2;
+      P.torch = { on: true, target: [37.4 + 0.9 * Math.sin(V.t * 0.7), 0, -0.35 + 0.55 * Math.sin(V.t * 0.43)], half: 12, intensity: 16 };
+      if (r && r.x >= 40.2 && r.y < -0.5) nextStep();         // in-pipe (A14): checked directly, so it comes again after a withdrawal
+      break; }
+    case 'torch-down': {
+      const o = a[2] || {}, sh = o.shaft || [38.5, 39.0];
+      P.anim = 'torch-down'; P.yaw = Math.PI / 2;
+      /* withdrawn at once if the rabbit heads back past 39.3: back to waiting (it comes down again when the rabbit is in the pipe) */
+      if (r && r.x < (o.withdrawIfRabbitX || 39.3)) { emit('torch-down', { phase: 'end', withdraw: true }); V.qi--; startStep(); break; }
+      V.torchT += dt; P.torch = { on: true, target: [(sh[0] + sh[1]) / 2 + 0.02, -1.0, -0.08], half: 6.5, intensity: 22, lens: [38.62, 0.22, -0.32] };
+      if (V.torchT >= a[1]) nextStep();
+      break; }
+    case 'reach-in': { const sh = (V.q[V.qi - 1] && V.q[V.qi - 1][2] && V.q[V.qi - 1][2].shaft) || [38.5, 39.0];
+      P.anim = 'reach'; P.reach = U.clamp(t / 0.6, 0, 1) * (t < a[1] - 0.3 ? 1 : (a[1] - t) / 0.3); P.torch = { on: true, target: [(sh[0] + sh[1]) / 2 + 0.02, -1.0, -0.08], half: 6.5, intensity: 22, lens: [38.62, 0.22, -0.32] };
+      if (t >= a[1]) { P.reach = 0; nextStep(); } break; }
+    case 'stand': P.anim = 'idle'; P.kneel = false; if (t >= a[1]) nextStep(); break;
+    case 'gate-close': V.leafTo = 0; if (!V.closed) { V.closed = true; emit('gate', { phase: 'close' }); } if (t >= a[1]) nextStep(); break;
+    case 'vehicle-leave': leaveStep(dt); break;
+  }
+}
+/* the van reverses out (yaw 0 -> PI/2, 2.0 s) and drives away along +x; its lights pass over the slab gap at 46 */
+function leaveStep(dt) {
+  const L = V.leave, D = FF.S1.verge.vehicle; L.t += dt; const t = L.t;
+  if (t < 0.6) { V.door = 0; return; }
+  if (t < 2.6) { const k = U.ease.inOutSine((t - 0.6) / 2.0), zc = D.stop[1] - VAN_HALF_TO_FRONT; V.van.x = U.lerp(D.stop[0], D.stop[0] - 1.2, k); V.van.z = U.lerp(zc, D.pathZ, k); V.van.yaw = U.lerp(0, Math.PI / 2, k); L.v = 0; L.x = V.van.x; return; }
+  L.v = Math.min(14, (L.v || 0) + 5 * dt); L.x += L.v * dt; V.van.x = L.x; V.van.z = D.pathZ; V.van.yaw = Math.PI / 2;
+  if (V.van.x > 75) vergeFinish();
+}
+function vergeFinish() {
+  if (V.gone) return; V.gone = true; V.on = false; V.phase = 'gone'; V.p.vis = false; G().flags.vergeDone = true;
+  lightOff('headlights'); lightOff('worklight'); if (person && person.torchHandle) person.set({ torch: { on: false } });
+  emit('vehicle', { phase: 'gone' });
+}
+function vergeFrame(dt) {
+  if (!van) return;
+  const place = G().place, active = V.on && !V.gone && (place === 'verge' || place === 'drain');
+  if (V.on && !V.gone && !(place === 'verge' || place === 'drain')) vergeFinish();
+  /* the van */
+  const showVan = active || (V.gone && (place === 'search' || place === 'rest') && G().flags.vergeDone);
+  if (active) {
+    van.set({ visible: true, x: V.van.x, z: V.van.z, yaw: V.van.yaw, lights: true, markers: true, door: V.door, engine: true, brake: V.brake });
+    /* K0 headlights: along the wall while driving (slivers through the joints are the world's), into the gate when stopped */
+    const a = van.headlightAnchors(), pos = [(a[0].x + a[1].x) / 2, 0.82, (a[0].z + a[1].z) / 2], f = van.forward();
+    const turned = V.van.yaw < 0.6;
+    const tgt = V.leave && V.leave.t > 2.6 ? [pos[0] + 9, 0.0, -1.0] : turned ? [pos[0] + f.x * 6, 0.05, pos[2] + 6.0] : [pos[0] + f.x * 10, 0.4, pos[2] + 3.6];
+    lightOn('headlights', { pos, target: tgt, angle: 24 * Math.PI / 180, penumbra: 0.5, intensity: 34, color: '#ffe3bd', distance: 26, decay: 1.2 });
+    const w = van.workAnchor(); lightOn('worklight', { pos: [w.x, w.y, w.z], target: [w.x + f.x * 4, 2.2, w.z + f.z * 4], angle: 0.6, penumbra: 0.8, intensity: 6, color: '#e7edf2', distance: 7, decay: 2 });
+  } else if (showVan) {
+    /* the Search: the same van parked behind the gateway, lights off, markers on, engine ticking (Audio) */
+    van.set({ visible: true, x: 101.5, z: -5.6, yaw: -Math.PI / 2, lights: false, markers: true, door: 0, engine: false, brake: 0 });
+    lightOff('headlights'); lightOff('worklight');
+  } else { van.set({ visible: false }); lightOff('headlights'); lightOff('worklight'); }
+  /* the person */
+  if (person) {
+    const P = V.p, vis = active && P.vis;
+    const tl = P.torch;
+    person.set({ visible: vis, x: P.x, y: 0, z: P.z, yaw: P.yaw, face: 0, anim: P.anim, speed: P.speed, gait: (person.st.gait || 0) + (vis ? (P.speed || 0) * dt / 0.65 : 0), shakeAmt: P.shake || 0, reach: P.reach || 0,
+      torch: tl ? { on: true, target: tl.target, half: tl.half, intensity: tl.intensity, color: '#e6ecf2', distance: 10 } : { on: false } });
+    if (tl && tl.lens && person.torchHandle && vis) person.lensOverride = tl.lens; else person.lensOverride = null;
+  }
+  /* the gate leaves: jolt in bursts (prop offsets from their built position), one slides 0.8 m when the lock gives */
+  const jolt = active && V.rattle.on && V.rattle.burst > 0 ? 0.006 * Math.sin(V.t * 47) * (1 + V.rattle.hard) : 0;
+  if (active || V.leaf > 0 || V.jolted) { openProp('gateLeafL', -jolt); openProp('gateLeafR', V.leaf - jolt); V.jolted = active; }
+}
+
+/* ================================================================== THE COURTYARD: the walkway worker */
+const W = { on: false, at: null, t: 0, done: false, sent: {}, x: 78, z: -15.3, yaw: 0, anim: 'idle', speed: 0, vis: false, doorL: 0, doorR: 0, enterT: null, x71: null };
+function walkwayReset(done) { Object.assign(W, { on: false, at: null, t: 0, done: !!done, sent: {}, x: 78, z: -15.3, yaw: 0, anim: 'idle', speed: 0, vis: false, doorL: done ? 1 : 0, doorR: 0, enterT: null, x71: null }); }
+function walkwaySchedule(delay, cause) {
+  if (W.on || W.done || G().flags.walkwayDone) return;
+  const at = G().t + Math.max(0, delay || 0); if (W.at == null || at < W.at) { W.at = at; W.cause = cause; }
+}
+function walkwayStep(dt) {
+  if (W.done) return;
+  const now = G().t, r = G().rabbit;
+  if (!W.on) {
+    if (r && G().place === 'courtyard' && W.enterT == null) { W.enterT = now; walkwaySchedule(25, 'courtyard+25s'); }
+    if (r && r.x >= 71.0 && W.x71 == null && G().place === 'courtyard') { W.x71 = now; walkwaySchedule(6.0, 'x71+6s'); }
+    if (W.at != null && now >= W.at) { W.on = true; W.t = 0; emit('walkway', { phase: 'boots', cause: W.cause }); }
+    return;
+  }
+  W.t += dt; const T = FF.S1.walkway.t, WK = Object.assign({}, FF.S1.walkway), t = W.t;
+  if (typeof WK.rail !== 'number') WK.rail = 81.0;           // (the data once named its note 'rail' too)
+  const once = (k, f) => { if (!W.sent[k]) { W.sent[k] = true; f(); } };
+  if (t >= T.doorOpen) once('door', () => { G().flags.amberOn = true; emit('lamp', { id: 'amber', on: true }); emit('walkway', { phase: 'lamp' }); emit('walkway', { phase: 'door-open' }); });
+  if (t >= T.out) once('out', () => { W.vis = true; emit('walkway', { phase: 'out' }); });
+  /* path: out of door L (z -15.3 -> walkway -14.45), right at 1.3 m/s, the rail (looking AWAY), on to door R, in */
+  if (t < T.out) { W.x = WK.doorL; W.z = -15.3; }
+  else if (t < T.out + 0.5) { W.x = WK.doorL; W.z = U.lerp(-15.3, WK.z, (t - T.out) / 0.5); W.anim = 'walk'; W.speed = 1.3; W.yaw = 0.4; }
+  else if (t < T.atRail) { const k = U.clamp((t - T.out - 0.5) / (T.atRail - T.out - 0.5), 0, 1); W.x = U.lerp(WK.doorL, WK.rail, k); W.z = WK.z; W.anim = 'walk'; W.speed = WK.speed; W.yaw = Math.PI / 2; }
+  else if (t < T.leaveRail) { W.x = WK.rail; W.anim = 'rail-look-out'; W.speed = 0; W.yaw = U.approach(W.yaw, Math.PI, dt * 3); once('rail', () => emit('walkway', { phase: 'rail' })); }
+  else if (t < T.atDoorR) { const k = U.clamp((t - T.leaveRail) / (T.atDoorR - T.leaveRail), 0, 1); W.x = U.lerp(WK.rail, WK.doorR, k); W.anim = 'walk'; W.speed = WK.speed; W.yaw = U.approach(W.yaw, Math.PI / 2, dt * 4); once('rail-leave', () => emit('walkway', { phase: 'rail-leave' })); }
+  else if (t < T.doorShut) { const k = U.clamp((t - T.atDoorR) / (T.doorShut - T.atDoorR), 0, 1); W.x = WK.doorR; W.z = U.lerp(WK.z, -15.4, k); W.anim = 'walk'; W.speed = 1.0; W.yaw = Math.PI; once('door-r', () => emit('walkway', { phase: 'door-r' })); }
+  else { W.vis = false; once('shut', () => emit('walkway', { phase: 'shut' })); }
+  if (t >= T.worksThud) once('thud', () => { emit('walkway', { phase: 'thud' }); });
+  if (t >= T.worksThud + 0.5) { W.done = true; W.on = false; G().flags.walkwayDone = true; emit('walkway', { phase: 'done' }); }
+}
+function walkwayFrame(dt) {
+  if (!worker) return;
+  const place = G().place, here = place === 'courtyard' || place === 'drain';
+  worker.set({ visible: here && W.vis && W.on, x: W.x, y: FF.S1.walkway.deckY, z: W.z, yaw: W.yaw, face: 0, anim: W.anim, speed: W.speed, gait: (worker.st.gait || 0) + (W.vis ? W.speed * dt / 0.68 : 0), torch: { on: false } });
+  /* door R opens for them and clanks shut. Door L, its warm slab of light and the amber lamp are the World's, timed from the
+     'walkway' {phase: 'boots'} fact and G.flags.amberOn / walkwayDone. */
+  const wantR = W.sent['door-r'] && !W.sent.shut ? 1 : 0;
+  if (W.on || W.doorR > 0) { W.doorR = U.approach(W.doorR, wantR, dt / (wantR ? 0.45 : 0.25)); openProp('walkwayDoorR', U.ease.inOutSine(W.doorR)); }
+}
+
+/* ================================================================== THE END: settled -> held 4 s -> the pull-out -> fade -> card */
+const E = { phase: '', t: 0 };
+function endStep(dt) {
+  if (!E.phase) return;
+  E.t += dt; const r = G().rabbit;
+  if (E.phase === 'hold') {
+    if (r && (Math.abs(r.vx || 0) > 0.05 || !r.grounded)) { E.phase = ''; return; }    // any movement before the pull-out cancels it
+    if (E.t >= FF.RULES.behave.settle.loafHold) { E.phase = 'pullout'; E.t = 0; FF.Game.control(false); if (FF.Camera && FF.Camera.shot) FF.Camera.shot('pull-out'); emit('end', { phase: 'pullout' }); }
+  } else if (E.phase === 'pullout') {
+    const zone = (FF.S1.camera.zones.find(z => z.id === 'pull-out') || {}).time || 8.0;
+    if (E.t >= zone) { E.phase = 'fade'; E.t = 0; FF.Game.fade(1, 2.0); emit('end', { phase: 'fade' }); }
+  } else if (E.phase === 'fade') {
+    if (E.t >= 2.5) { E.phase = ''; emit('end', { phase: 'card' }); FF.Game.endCard(); }
+  }
+}
+
+/* ================================================================== the module */
 const Events = FF.Events = {
-  stub: true,
+  stub: false,
+  get van() { return van; },
   init() {
     const on = (n, f) => FF.bus.on(n, f);
-    /* the failure flow (§9): AI emits 'fail' { kind: 'shot' | 'caught' } on the frame of the shot or the grab */
+    if (FF.Humans && FF.Humans.create) {
+      person = FF.Humans.create('verge'); const vt = spot('vergeTorch'); if (vt) person.attachTorch(vt);
+      worker = FF.Humans.create('worker');
+      van = FF.Humans.createVan();
+      /* the culvert torch: the light sits over the crack, not at the standing lens (the 2D rule only governs the Search) */
+      const base = person.torchLens; person.torchLens = () => person.lensOverride ? { x: person.lensOverride[0], y: person.lensOverride[1], z: person.lensOverride[2] } : base();
+    }
+    VP = vanPath();
+    /* the failure flow (§9): the AI emits 'fail' { kind: 'shot' | 'caught' } on the step of the shot or the grab */
     on('fail', d => Events.fail(d.kind));
-    /* beats (SKELETON: recorded only; the builder stages them from FF.S1.verge / .walkway) */
+    on('vehicle-arrive', () => vergeStart());
+    on('person-out', () => { if (V.on && V.dropT == null) V.dropT = V.t; });
+    on('rabbit-in-pipe', () => { V.inPipe = true; });
+    /* the walkway: the earliest of its four causes (Level may announce the start itself) */
+    on('walkway-start', d => walkwaySchedule(0, d && d.cause));
+    on('walkway-timer', d => walkwaySchedule(d && d.arg != null ? +d.arg : 6.0, (d && d.cause) || 'x71+6s'));
+    on('box', d => { if (d && d.moving) walkwaySchedule(0, 'first-push'); });
+    on('first-push', () => walkwaySchedule(0, 'first-push'));
+    on('rabbit:reach-fail', () => walkwaySchedule(0, 'reach-fail'));
+    on('reach-fail', () => walkwaySchedule(0, 'reach-fail'));
+    /* the end */
+    on('end', d => { if (d && d.phase === 'settled' && !E.phase) { E.phase = 'hold'; E.t = 0; } });
     for (const n of ['vehicle-arrive', 'gate-lit', 'person-out', 'rabbit-in-pipe', 'walkway-timer', 'shake-off', 'safe', 'rest', 'sound-cue', 'camera-shot'])
-      on(n, d => { st.beats[n] = (st.beats[n] || 0) + 1; });
+      on(n, () => { st.beats[n] = (st.beats[n] || 0) + 1; });
   },
   reset(cp, opts) {
-    st.cp = cp.id; G().checkpoint = cp.id; st.failing = null; st.scripted = 0;
-    if (opts && opts.reason !== 'fail') st.beats = {};
-    /* progress flags implied by where we start (a warp or continue skips earlier beats) */
+    st.cp = cp.id; G().checkpoint = cp.id; st.failing = null; timers.length = 0;
+    if (!opts || opts.reason !== 'fail') st.beats = {};
     const f = G().flags;
-    if (cp.x > 38.5) f.vergeDone = true;
-    if (cp.x > 86.0) f.walkwayDone = true;
-    if (cp.id !== 'search-arrive' && cp.x > 89.0) f.entryDone = true;
     if (opts && (opts.reason === 'title' || opts.reason === 'start')) for (const k in f) delete f[k];
+    /* progress flags implied by where we start (a warp or continue skips earlier beats) */
+    if (cp.x > 38.5) f.vergeDone = true;
+    if (cp.x > 86.0) { f.walkwayDone = true; f.amberOn = true; }
+    if (cp.id !== 'search-arrive' && cp.x > 89.0) f.entryDone = true;
+    /* stop any beat; restart the ones that belong after cp */
+    vergeReset(!!f.vergeDone); walkwayReset(!!f.walkwayDone);
+    for (const id of Object.keys(lit)) lightOff(id);
+    E.phase = ''; E.t = 0;
   },
   step(dt) {
-    const r = G().rabbit; if (!r || st.failing) return;
-    /* progress checkpoints: passing x; Search checkpoints: the whole body in that cover's core and the searcher not alert */
-    for (const c of FF.S1.checkpoints) {
-      if (c.id === st.cp) continue;
-      const idx = FF.S1.checkpoints.indexOf(c), cur = FF.S1.checkpoints.findIndex(k => k.id === st.cp);
-      if (searchCps.includes(c.id)) {
-        const cover = FF.S1.covers.find(k => k.checkpoint === c.id);
-        /* the last hide core reached undetected is the restart point (in any order) */
-        if (cover && cover.core && r.x >= cover.core[0] && r.x <= cover.core[1] && !(FF.AI && FF.AI.danger && FF.AI.danger()) && cur >= FF.S1.checkpoints.findIndex(k => k.id === 'courtyard')) setCheckpoint(c.id);
-      } else if (idx > cur && r.x >= c.x && (c.y == null || Math.abs(r.y - c.y) < 0.6)) setCheckpoint(c.id);
+    const r = G().rabbit; if (!r) return;
+    if (!st.failing) {
+      vergeStep(dt); walkwayStep(dt); endStep(dt);
+      /* progress checkpoints: passing x; Search checkpoints: the centre in that cover's core and the searcher not alert
+         (the last core reached undetected is the restart point, in any order) */
+      const list = FF.S1.checkpoints, cur = list.findIndex(k => k.id === st.cp), court = list.findIndex(k => k.id === 'courtyard');
+      for (let i = 0; i < list.length; i++) {
+        const c = list[i]; if (c.id === st.cp) continue;
+        if (searchCps.includes(c.id)) {
+          const cover = FF.S1.covers.find(k => k.checkpoint === c.id);
+          if (cover && cover.core && r.x >= cover.core[0] && r.x <= cover.core[1] && (!r.mode || r.mode === 'play') && !(FF.AI && FF.AI.danger && FF.AI.danger()) && cur >= court && st.cp !== 'rest') setCheckpoint(c.id);
+        } else if (i > cur && r.x >= c.x && (c.y == null || Math.abs(r.y - c.y) < 0.6)) setCheckpoint(c.id);
+      }
     }
   },
-  /* cut to black on this frame, the report or scuff under black (audio listens to 'fail'), restart at the checkpoint after
-     FF.RULES.fail.black, picture back over fadeIn, control at controlAt. Nothing is counted, nothing rewards harm. */
+  /* cut to black on this step, the report or the scuff under black (Audio listens to 'fail'), restart at the checkpoint after
+     FF.RULES.fail.black, the picture back over fadeIn, control at controlAt. Nothing is counted, nothing rewards harm. */
   fail(kind) {
     if (st.failing) return; const F = FF.RULES.fail;
     st.failing = { kind, t: 0 };
     FF.Game.cut(); FF.Game.control(false);
     setTimeoutSim(F.black, () => {
       FF.Game.restart(st.cp, { reason: 'fail', kind });
+      FF.Game.control(false); st.failing = { kind, t: F.black, back: true };
       FF.Game.fade(0, F.fadeIn);
       setTimeoutSim(F.controlAt - F.black, () => { FF.Game.control(true); st.failing = null; });
     });
   },
-  /* true while a scripted beat runs (main holds the automatic quality step-down) */
-  scripted() { return st.scripted > 0 || !!st.failing; },
-  frame(dt) { tickTimers(dt); },
-  debug() { return { stub: true, cp: st.cp, failing: st.failing && st.failing.kind, beats: Object.assign({}, st.beats), flags: Object.assign({}, G().flags) }; },
+  /* true while a staged beat or the failure flow runs (main holds the automatic quality step-down) */
+  scripted() {
+    const s = G().searcher;
+    return !!st.failing || (V.on && !V.gone) || (W.on && !W.done) || !!E.phase || !!(s && s.active && (s.state === 'entry' || s.state === 'wait'));
+  },
+  frame(dt) {
+    tickTimers(dt);
+    vergeFrame(dt); walkwayFrame(dt);
+  },
+  dispose() { for (const id of Object.keys(lit)) lightOff(id); },
+  debug() {
+    return { cp: st.cp, failing: st.failing && st.failing.kind, beats: Object.assign({}, st.beats), flags: Object.assign({}, G().flags),
+      verge: { on: V.on, gone: V.gone, phase: V.phase, t: +V.t.toFixed(2), T: +V.T.toFixed(2), stopT: V.stopT == null ? null : +V.stopT.toFixed(2), van: { x: +V.van.x.toFixed(2), z: +V.van.z.toFixed(2) }, dropT: V.dropT == null ? null : +V.dropT.toFixed(2), outT: V.outT == null ? null : +V.outT.toFixed(2),
+        step: V.phase === 'after' && V.q[V.qi] ? V.q[V.qi][0] : null, rattle: { on: V.rattle.on, burst: +V.rattle.burst.toFixed(2), silence: +V.rattle.silence.toFixed(2), hard: +V.rattle.hard.toFixed(2) }, person: { x: +V.p.x.toFixed(2), z: +V.p.z.toFixed(2), vis: V.p.vis, anim: V.p.anim }, torchT: +V.torchT.toFixed(2) },
+      walkway: { on: W.on, done: W.done, t: +W.t.toFixed(2), at: W.at == null ? null : +W.at.toFixed(2), cause: W.cause || null, x: +W.x.toFixed(2), vis: W.vis },
+      end: E.phase || null, lights: Object.keys(lit) };
+  },
 };
 
 /* timers on presentation time (they keep running under the black, where steps are still taken) */
 const timers = [];
 function setTimeoutSim(sec, fn) { timers.push({ t: sec, fn }); }
-function tickTimers(dt) { for (let i = timers.length - 1; i >= 0; i--) { timers[i].t -= dt; if (timers[i].t <= 0) { const f = timers[i].fn; timers.splice(i, 1); try { f(); } catch (e) { FF.report(e, 'Events.timer'); } } } }
+function tickTimers(dt) { for (let i = timers.length - 1; i >= 0; i--) { if (!timers[i]) continue; timers[i].t -= dt; if (timers[i].t <= 0) { const f = timers[i].fn; timers.splice(i, 1); try { f(); } catch (e) { FF.report(e, 'Events.timer'); } } } }
 })();

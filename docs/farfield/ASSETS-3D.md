@@ -125,7 +125,7 @@ Replaces the earlier human outline (SEQUENCE-1.md §14 and Amendment A4/A21). **
 - **Skeleton:** a standard humanoid with **Mixamo-compatible bone names** (`mixamorig:Hips`, `mixamorig:Spine`, …), so library animations can be retargeted. At most 4 influences per vertex.
 - **Mesh:** ≤ 15,000 triangles, plus a **≤ 4,000** low-detail version for distant figures (beat 5 later has several at once).
 - **Material:** one matte material in dark charcoal (about `#1a1d21`). They read as silhouettes (cap with a forward brim, coat, backpack with a rolled mat on top: the hump that makes the shape), not detail. No face detail needed.
-- **Props as separate rigid nodes** (shown or hidden by role): `prop_torch` (with a `torch_emitter` empty at the lens, +Z along the beam), `prop_longgun` (a plain, generic long gun shape, no real-world model, with a `gun_muzzle` empty), `prop_coil`.
+- **Props as separate rigid nodes** (shown or hidden by role): `prop_torch` (with a `torch_emitter` empty at the lens, +Z along the beam), `prop_longgun` (a plain, generic long gun shape, no real-world model, with a `gun_muzzle` empty), `prop_coil`, and `prop_pack` (the backpack as its own node, so the walkway worker can go without it, as the stand-in already does: his silhouette then differs from the two armed figures as well as his behaviour).
 - **Sockets (named empties):** `hand_L_socket`, `hand_R_socket`, `back_socket` (the sling).
 
 **Clips (30 fps, in place, no root motion; the game moves the figure):**

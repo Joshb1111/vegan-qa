@@ -77,5 +77,5 @@ FF.S1.verge = {
    never reacts to the rabbit or the box). t = 0 at the walkway trigger */
 FF.S1.walkway = { z: -14.45, deckY: 3.6, doorL: 78.0, rail: 81.0, doorR: 85.0, speed: 1.3,
   t: { boots: [0.0, 2.5], doorOpen: 2.5, amberOn: 2.5, out: 3.0, atRail: 5.3, leaveRail: 7.8, atDoorR: 10.9, doorShut: 11.5, worksThud: 13.5 },
-  rail: 'stops facing AWAY from the hall, out over the far haze (a slow searchlight, a distant horn); never reacts to the rabbit or the box',
+  railNote: 'stops facing AWAY from the hall, out over the far haze (a slow searchlight, a distant horn); never reacts to the rabbit or the box',
   thud: { every: 4.0, note: 'the far Works thud: begins at worksThud, continues quietly through the Search and the rest' } };
