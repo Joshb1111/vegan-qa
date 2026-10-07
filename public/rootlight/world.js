@@ -205,7 +205,7 @@ ROOM({ id: 'rg_gap', area: 'rootgate', name: "The Long Gap", cx: 26, cy: 0, cw: 
     '########################........################################'
   ],
   signs: [
-    "Too far to jump. Calm the Thorn Knot further down and it teaches you the Leaf Dash ({dash})."
+    "Too far to jump. The Thorn Knot teaches the Leaf Dash ({dash}): go west to Mossy Steps and drop down the hole at its far end."
   ] });
 
 ROOM({ id: 'rg_door', area: 'rootgate', name: "Seal Door Hall", cx: 20, cy: 2, cw: 6, ch: 2,
@@ -397,7 +397,7 @@ ROOM({ id: 'mh_1', area: 'mossy', name: "Mossy Steps", cx: 12, cy: 0, cw: 4, ch:
     '########....####################################################',
     '########....####################################################'
   ],
-  signs: ["Moss ledges: jump up through them from below. Hold {down} and press {jump} to drop back down."] });
+  signs: ["Moss ledges: jump up through them from below. Hold {down} and press {jump} to drop back down. The way to the Thorn Knot is down the hole at the far end of this hall."] });
 
 ROOM({ id: 'mh_2', area: 'mossy', name: "Fernway", cx: 8, cy: 0, cw: 4, ch: 2,
   map: [

@@ -61,7 +61,7 @@ function rootlightRoom(body, ctx) {
   const play = q => {
     window.__duck = 1; /* the game has its own music */
     dropFrame(); el.innerHTML = '';
-    frame = document.createElement('iframe'); frame.className = 'tyframe'; frame.title = 'Rootlight'; frame.src = 'rootlight/index.html?v=2' + (q || ''); frame.allow = 'autoplay; fullscreen'; el.appendChild(frame);
+    frame = document.createElement('iframe'); frame.className = 'tyframe'; frame.title = 'Rootlight'; frame.src = 'rootlight/index.html?v=3' + (q || ''); frame.allow = 'autoplay; fullscreen'; el.appendChild(frame);
     /* online: '#arcade .net' stays in the room while a match is on (planet.html's Esc rule looks for it); it shows only on an upright phone */
     if (st) { const tag = document.createElement('div'); tag.className = 'net kband'; tag.hidden = true; st.tag = tag; el.appendChild(tag); }
     bar = document.createElement('span'); bar.className = 'kbar';
