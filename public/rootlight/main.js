@@ -122,7 +122,7 @@ function keyMask(p) {
   if (players === 1) {
     const aLeft = wasdAt > arrowAt;
     if (any('ArrowLeft') || (aLeft && any('KeyA'))) m |= IN.L; if (any('ArrowRight', 'KeyD')) m |= IN.R; if (any('ArrowUp', 'KeyW')) m |= IN.U; if (any('ArrowDown', 'KeyS')) m |= IN.D;
-    if (any('KeyZ', 'KeyJ', 'Space')) m |= IN.JUMP; if (any('KeyX', 'KeyK')) m |= IN.SWING; if (any('KeyC', 'KeyL', 'ShiftLeft', 'ShiftRight')) m |= IN.DASH;
+    if (any('KeyZ', 'KeyJ', 'Space')) m |= IN.JUMP; if (any('ShiftLeft', 'ShiftRight', 'KeyX', 'KeyK')) m |= IN.SWING; if (any('KeyC', 'KeyL')) m |= IN.DASH; /* Shift swings (Josh: X was awkward on a laptop); X still works */
     if (any('KeyI') || (!aLeft && any('KeyA'))) m |= IN.FOCUS;
   } else if (p === 0) {
     if (any('KeyA')) m |= IN.L; if (any('KeyD')) m |= IN.R; if (any('KeyW')) m |= IN.U; if (any('KeyS')) m |= IN.D;
@@ -409,7 +409,7 @@ function ctl(name) {
   if (pad) return { jump: 'A', swing: 'X', dash: 'RB', focus: 'B', up: 'Up', down: 'Down', map: 'Back', beam: 'Y' }[name];
   if (players === 2) return { jump: 'F or J', swing: 'G or K', dash: 'H or L', focus: 'T or I', up: 'Up (W)', down: 'Down (S)', map: 'Tab', beam: 'Up + T or I' }[name];
   const w = wasdAt > arrowAt;
-  return (w ? { jump: 'J', swing: 'K', dash: 'L', focus: 'I', up: 'W', down: 'S', map: 'Tab or M', beam: 'W + I' } : { jump: 'Z', swing: 'X', dash: 'C', focus: 'A', up: 'Up', down: 'Down', map: 'Tab or M', beam: 'Up + A' })[name];
+  return (w ? { jump: 'J', swing: 'K', dash: 'L', focus: 'I', up: 'W', down: 'S', map: 'Tab or M', beam: 'W + I' } : { jump: 'Z', swing: 'Shift', dash: 'C', focus: 'A', up: 'Up', down: 'Down', map: 'Tab or M', beam: 'Up + A' })[name];
 }
 const tok = text => String(text || '').replace(/\{(jump|swing|dash|focus|up|down|map|beam)\}/g, (_, k) => ctl(k));
 function getCard(kind, id) {
@@ -489,7 +489,7 @@ function render() {
 }
 function keysCard() {
   if (touchMode || coarse) return [['', 'Left side: move   ·   Right side: jump, swing, dash, focus']];
-  return [['One player', 'Arrows + Z jump, X swing, C dash, A focus   or   WASD + J, K, L, I'], ['Two players', 'SPRIG: WASD + F G H T   ·   MARIGOLD: arrows + J K L I'], ['', 'Up at a Watering Spot: rest   ·   Tab or M: map   ·   Esc: pause']];
+  return [['One player', 'Arrows + Z jump, Shift swing, C dash, A focus   or   WASD + J, K, L, I'], ['Two players', 'SPRIG: WASD + F G H T   ·   MARIGOLD: arrows + J K L I'], ['', 'Up at a Watering Spot: rest   ·   Tab or M: map   ·   Esc: pause']];
 }
 function touchS() { const m = touchMask(); const L = TL; return { band: L.band, stick: L.stick, knob: stick ? { x: stick.x, y: stick.y, ox: stick.ox, oy: stick.oy } : null, btn: L.btn.map(b => Object.assign({}, b, { down: (b.id === 'jump' && m & IN.JUMP) || (b.id === 'swing' && m & IN.SWING) || (b.id === 'dash' && m & IN.DASH) || (b.id === 'focus' && m & IN.FOCUS) })) }; }
 function drawOver(scr) {

@@ -205,7 +205,7 @@ ROOM({ id: 'rg_gap', area: 'rootgate', name: "The Long Gap", cx: 26, cy: 0, cw: 
     '########################........################################'
   ],
   signs: [
-    "Too far to jump... maybe a dash?"
+    "Too far to jump. Calm the Thorn Knot further down and it teaches you the Leaf Dash ({dash})."
   ] });
 
 ROOM({ id: 'rg_door', area: 'rootgate', name: "Seal Door Hall", cx: 20, cy: 2, cw: 6, ch: 2,
