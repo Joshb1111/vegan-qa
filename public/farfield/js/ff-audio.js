@@ -724,9 +724,10 @@ function deriveSearcher(now, r) {
 }
 function onEntryCue() {
   const now = GG().t || 0; D.entry = { t0: now };
-  /* footsteps beyond the door before it opens (light and sound before the danger), then the door */
-  for (let k = 0; k < 4; k++) later(0.3 + k * 0.55, () => { if (!xp('step:searcher')) cue('step', { x: 110 + rr(-0.4, 0.4), y: 0, z: -3.9 - (3 - k) * 0.6 }, { surface: 'concrete', id: 'searcher', w: 0.8 }); }, 'entry');
+  /* four footsteps behind the door, all before it opens (the cue is 1.35 s since the door reveal shortened the entry) */
   const segs = (FF.S1 && FF.S1.searcher && FF.S1.searcher.entry) || []; const doorAt = segs.length ? segs[0][1] : 2.5;
+  const gap = Math.min(0.55, Math.max(0.25, (doorAt - 0.4) / 3));
+  for (let k = 0; k < 4; k++) later(0.3 + k * gap, () => { if (!xp('step:searcher')) cue('step', { x: 110 + rr(-0.4, 0.4), y: 0, z: -3.9 - (3 - k) * 0.6 }, { surface: 'concrete', id: 'searcher', w: 0.8 }); }, 'entry');
   later(doorAt + 0.15, () => { if (D.entry && !D.entry.door && !xp('door-open')) { D.entry.door = true; cue('door-open', { x: 110.0, y: 1.0, z: -3.0 }); } }, 'entry');
 }
 

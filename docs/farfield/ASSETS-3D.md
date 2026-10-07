@@ -47,7 +47,8 @@ Notes on the skeleton:
 - **In place, no root motion**: the game moves the rabbit. The `hips` may bob up and down.
 - 30 fps.
 - Loops must start and end on the same pose.
-- Make each moving loop at the ground speed given below, so the feet do not slide. The game speeds playback up or down to match.
+- Make each moving loop at about the ground speed given below. **Since 7 Oct the game measures each moving clip's real stride when it loads** (how fast its planted feet travel back) and plays it at exactly the rabbit's speed, so the speeds need not be exact; a moving clip whose feet hardly travel is skipped and drawn by the game's own animation instead. Any clip a file lacks is drawn by the game's own animation, retargeted onto the model's bones. Export only clips that look better than that. The plan, the Tripo route and what to supply: `CHARACTERS.md`.
+- **Speeds since Josh's playtest (7 Oct):** the cautious walk is **0.95 m/s** (a slow half-bound, distinct from the run); the run (Shift) 2.75; the flee 3.6; the crouch-walk 0.75.
 
 ### Clips
 
@@ -59,7 +60,7 @@ Notes on the skeleton:
 | `idle_ear_twitch` | 18–24 | one-shot | One ear flicks and turns |
 | `sniff` | 30 | one-shot | Nose and head bob, whiskers if any |
 | `listen` | 45 | one-shot | Sits up on the haunches, ears turn |
-| `walk` | 10–12 | loop | Slow hop, authored at **1.0 m/s** |
+| `walk` | 10–12 | loop | The cautious walk: a slow half-bound (forefeet one after the other, the hind feet together), about **0.95 m/s** |
 | `hop_run` | 8–10 | loop | Bounding run at **2.75 m/s** |
 | `jump_start` | 4–6 | one-shot | Short crouch, push off |
 | `jump_air` | 10–12 | loop or hold | Stretched rising into reaching down |
@@ -73,7 +74,9 @@ Notes on the skeleton:
 | `flee` | 8 | loop | Fastest bound, at **3.6 m/s**, tail up |
 | `startle` | 4–6 | one-shot, additive | A 0.15 s flinch of surprise (the searcher has seen it); control is kept |
 
-**Not needed:** `caught` and `hit`. The game cuts to black on the exact frame of a grab or a shot, so the rabbit is never shown caught or hit (SEQUENCE-1.md §10).
+**Not needed:** `caught` and `hit`. The game cuts to black on the exact frame of a grab or a shot, so the rabbit is never shown caught or hit (SEQUENCE-1.md §10). (Optional: a file that has them plays them under the black.)
+
+**Optional bone:** a shoulder-blade bone each side between `chest` and `front_upper_L/R` (any name) lets the forelegs reach as a real rabbit's do; without it the game fakes it by sliding the shoulder joint up to 4 cm (`CHARACTERS.md`).
 
 **Also for Sequence 1** (the rabbit as an individual: SEQUENCE-1.md §4.2, §11):
 

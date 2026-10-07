@@ -3,8 +3,11 @@
    machine (notice -> title -> play <-> pause -> end -> title), module wiring, checkpoint restart, the parent-page protocol,
    mute/music settings, teardown and the window.__ff test handle.
    OWNER: architect / integrator. The contract every module follows is docs/farfield/INTERFACES.md.
-   Keys: <- -> / A D move (hold to run, Shift walk), Space / Up / W jump (Up also climbs in), Down / S crouch, Esc or P pause
-   (Esc on the notice or title: back to the arcade), M sound, N music, Q quality, F frame rate, O debug overlay (?debug=1).
+   Keys (Josh's playtest, 7 Oct §9.1): <- -> / A D move at the cautious walk (for as long as held; it never speeds up by
+   itself), Shift + a direction runs, Space / Up / W jump (Up also climbs in), Down / S crouch (deliberate; crouch-walk),
+   Esc or P pause (Esc on the notice or title: back to the arcade), M sound, N music, Q quality, F frame rate, O debug
+   overlay (?debug=1). Gamepad: stick or d-pad move, X / RB / RT (buttons 2, 5, 7) run, A jump, Y or d-pad up climb in,
+   B or d-pad down crouch, Start pause.
    URL: ?q=high|medium|low  ?mute=1 (no audio, no storage)  ?seed=n  ?cp=<checkpoint id> (skip notice + title, start there)
         ?clean=1 (no hints, no fps)  ?debug=1  ?rabbit=procedural|<file under models/> */
 'use strict';
@@ -74,18 +77,31 @@ addEventListener('resize', () => resize());
 
 /* ---------------------------------------------------------------- input (§6) */
 const KEYMAP = { ArrowLeft: ['left'], KeyA: ['left'], ArrowRight: ['right'], KeyD: ['right'], Space: ['jump'], ArrowUp: ['up', 'jump'], KeyW: ['up', 'jump'],
-  ArrowDown: ['down'], KeyS: ['down'], ShiftLeft: ['walk'], ShiftRight: ['walk'] };
-const keys = {}, pressed = {}, bot = {}, pad = {};
+  ArrowDown: ['down'], KeyS: ['down'], ShiftLeft: ['run'], ShiftRight: ['run'] };
+const keys = {}, pressed = {}, bot = {}, pad = {}, latched = {};
 let lastInputT = 0;
+const rawDown = a => !!(keys[a] || bot[a] || pad[a]);
+/* THE LATCH (the door reveal, Josh 7 Oct §9.5: "holding forward must not carry him beyond it"): when a takeover gives control
+   back, every listed action still held counts as NOT held until it is let go and pressed again. A held key on a real
+   keyboard auto-repeats keydown without ever releasing (that sets no new press), so clearing the input would not do. A
+   fresh press (keydown after keyup, a pad button's rising edge, a bot press) ends it at once, even when the release and
+   the press fall inside one fixed step; a release seen at the end of a step ends it too. */
+const fresh = a => { if (latched[a] && pressed[a]) latched[a] = false; };
 FF.Input = {
-  /* held now (keyboard, gamepad or a bot hold) */
-  down: a => !!(keys[a] || bot[a] || pad[a]),
+  /* held now (keyboard, gamepad or a bot hold), unless latched */
+  down: a => { fresh(a); return !latched[a] && rawDown(a); },
+  /* held now, ignoring the latch (tests, and the latch itself) */
+  raw: rawDown,
   /* consume an edge press made since the last fixed step (presses are dropped after every step: modules buffer if they want) */
-  took: a => { const p = !!pressed[a]; pressed[a] = false; return p; },
-  peek: a => !!pressed[a],
+  took: a => { fresh(a); const p = !!pressed[a]; pressed[a] = false; return p && !latched[a]; },
+  peek: a => { fresh(a); return !latched[a] && !!pressed[a]; },
   axis: () => (FF.Input.down('right') ? 1 : 0) - (FF.Input.down('left') ? 1 : 0),
-  clear() { for (const k in keys) keys[k] = false; for (const k in pressed) pressed[k] = false; for (const k in pad) pad[k] = false; },
-  endStep() { for (const k in pressed) pressed[k] = false; },
+  /* latch every action in `list` that is held now; returns the ones latched */
+  latch(list) { const out = []; for (const a of list) if (rawDown(a)) { latched[a] = true; out.push(a); } return out; },
+  unlatch() { for (const k in latched) latched[k] = false; },
+  get latched() { return Object.keys(latched).filter(k => latched[k]); },
+  clear() { for (const k in keys) keys[k] = false; for (const k in pressed) pressed[k] = false; for (const k in pad) pad[k] = false; for (const k in latched) latched[k] = false; },
+  endStep() { for (const k in pressed) pressed[k] = false; for (const k in latched) if (latched[k] && !rawDown(k)) latched[k] = false; },
   get lastInputT() { return lastInputT; },
   /* bot hooks (also on __ff) */
   hold(a, on) { bot[a] = on !== false; if (on !== false) lastInputT = G.t; },
@@ -100,8 +116,8 @@ function pollPad() {
   const b = i => !!(gp.buttons[i] && gp.buttons[i].pressed), ax = gp.axes[0] || 0;
   const was = Object.assign({}, padPrev);
   pad.left = ax < -0.35 || b(14); pad.right = ax > 0.35 || b(15); pad.jump = b(0) || b(3) || b(12); pad.up = b(3) || b(12); pad.down = b(1) || b(13);
-  pad.walk = Math.abs(ax) > 0.05 && Math.abs(ax) < 0.85 && !b(14) && !b(15);
-  for (const k of ['jump', 'up', 'down', 'left', 'right']) if (pad[k] && !was[k]) { pressed[k] = true; lastInputT = G.t; if (G.mode !== 'play') onCommandKey(k === 'jump' ? 'Enter' : k === 'left' ? 'ArrowLeft' : k === 'right' ? 'ArrowRight' : k === 'up' ? 'ArrowUp' : 'ArrowDown'); }
+  pad.run = b(2) || b(5) || b(7);           // X, RB or RT + a direction runs (a tilted stick alone is the cautious walk, like an arrow)
+  for (const k of ['jump', 'up', 'down', 'left', 'right', 'run']) if (pad[k] && !was[k]) { pressed[k] = true; lastInputT = G.t; if (G.mode !== 'play' && k !== 'run') onCommandKey(k === 'jump' ? 'Enter' : k === 'left' ? 'ArrowLeft' : k === 'right' ? 'ArrowRight' : k === 'up' ? 'ArrowUp' : 'ArrowDown'); }
   if (b(9) && !padPrev.start) onCommandKey('Escape');
   Object.assign(padPrev, pad); padPrev.start = b(9);
 }
@@ -197,6 +213,7 @@ addEventListener('keydown', e => {
     /* "the first movement begins play" (§16): an arrow that started play also moves the rabbit at once; Space/Enter do not jump */
     const carry = was === 'title' && G.mode === 'play' && acts && (acts[0] === 'left' || acts[0] === 'right');
     if (!carry) return;
+    if (e.shiftKey) keys.run = true;          // Shift held down on the title (its keydown was a title key): Shift + → runs at once
   }
   if (!acts) return; e.preventDefault();
   for (const a of acts) { if (!keys[a]) pressed[a] = true; keys[a] = true; }
@@ -315,11 +332,12 @@ window.__ff = {
   step(n, render) { n = n || 1; for (let i = 0; i < n; i++) tstep(); if (render !== false) { flush(); draw(); } return lite(); },
   draw, tick: tstep, flush,
   hold: (a, on) => FF.Input.hold(a, on), press: a => FF.Input.press(a), release: () => FF.Input.release(),
-  /* run n steps; plan(state, i) returns { left, right, jump, up, down, walk } holds (true/false) before each step */
+  /* run n steps; plan(state, i) returns { left, right, jump, up, down, run } holds (true/false) before each step (a plan
+     holding through the door reveal stays latched, as a held key does) */
   run(n, plan, every) {
     const log = []; every = every || 60;
     for (let i = 0; i < n; i++) {
-      const s = lite(); if (plan) { const want = plan(s, i) || {}; for (const a of ['left', 'right', 'up', 'down', 'jump', 'walk']) { const on = !!want[a]; if (on && !FF.Input.down(a)) FF.Input.press(a); FF.Input.hold(a, on); } }
+      const s = lite(); if (plan) { const want = plan(s, i) || {}; for (const a of ['left', 'right', 'up', 'down', 'jump', 'run']) { const on = !!want[a]; if (on && !FF.Input.raw(a)) FF.Input.press(a); FF.Input.hold(a, on); } }
       tstep();
       if (i % every === 0) log.push(s);
     }

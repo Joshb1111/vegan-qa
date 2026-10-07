@@ -5,14 +5,18 @@ const J = n => { try { return JSON.parse(fs.readFileSync(path.join(OUT, n), 'utf
 const rows = []; const row = (name, ok, info) => rows.push([ok ? 'PASS' : 'FAIL', name, info || '']);
 const clean = R => R && !R.err && (!R.errs || !R.errs.length) && (!R.state || !R.state.errors || !R.state.errors.length);
 let txt = ''; try { txt = fs.readFileSync(path.join(OUT, 'check-search.txt'), 'utf8'); } catch (e) {}
-row('Search checker (tools/check-search.mjs)', /PASS \(18\/18\)/.test(txt), (txt.match(/(PASS|FAIL) \(\d+\/\d+\)/) || [''])[0]);
+{ const m = txt.match(/(PASS|FAIL) \((\d+)\/(\d+)\)/); row('Search checker (tools/check-search.mjs, RUN and WALK modes)', !!m && m[1] === 'PASS' && m[2] === m[3] && +m[3] >= 21, m ? m[0] : ''); }
 const beat = (marks, a, b) => { const A = marks.find(m => m.name === a), B = marks.find(m => m.name === b); return A && B ? +(B.t - A.t).toFixed(1) : null; };
 for (const [f, label, mute] of [['sneak-fast-mute.json', 'sneak route, notice -> title -> ... -> end card -> title (?mute=1)', true], ['firsttimer.json', 'first-timer route with one failure (sound on)', false]]) {
   const R = J(f); if (!R) { row(label, false, 'no result'); continue; }
   const m = R.marks || [];
-  const ok = clean(R) && R.afterEnd && R.afterEnd.mode === 'title' && (!mute || (R.state.ac === 0 && R.state.stored.length === 0));
+  const ok = clean(R) && R.afterEnd && R.afterEnd.mode === 'title' && (!mute || (R.state.ac === 0 && R.state.stored.length === 0)) && (!R.flat || R.flat.open === 0);
   const times = { verge: beat(m, 'play', 'drop'), drain: beat(m, 'drop', 'courtyard'), courtyard: beat(m, 'courtyard', 'search-landed'), search: beat(m, 'search-landed', 'through-gap'), rest: beat(m, 'through-gap', 'end-card') };
   let extra = ''; if (!mute) { const f0 = m.find(x => x.name === 'fail'), r0 = m.find(x => x.name === 'restarted'); extra = f0 && r0 ? ` · fail -> full picture ${(r0.t - f0.t).toFixed(2)} s` : ' · (no failure seen)'; }
+  const hint = (R.hints || []).find(h => h[1] === 'run'), rv = (R.reveal || []).find(e => e[1] === 'start'), rc = (R.reveal || []).find(e => e[1] === 'control');
+  extra += hint ? ` · Shift-run hint at x ${hint[2]}` : ' · (no run hint)';
+  extra += R.flat ? ` · flat in the open ${R.flat.open} of ${R.flat.steps} steps` : '';
+  extra += rv && rc ? ` · door reveal (${rv[2]}) ${(rc[0] - rv[0]).toFixed(2)} s from its start to control` : ' · (no door reveal)';
   row(label, ok, `game time to the card ${m.length ? m[m.length - 1].t : '?'} s · per beat ${JSON.stringify(times)}${mute ? ' · AudioContexts ' + (R.state && R.state.ac) + ', storage writes ' + (R.state && R.state.stored.length) : ''}${extra}`);
 }
 const S = J('scen.json') || {};
@@ -25,6 +29,32 @@ for (const [k, want] of [['caught', 'caught'], ['shot', 'shot'], ['escapeCore', 
   const warn = notice && fe ? ` · NOTICE -> ${fe[2]} ${(fe[0] - notice[0]).toFixed(2)} s` : '';
   row('scenario ' + k + (want ? ' (-> ' + want + ', restart)' : ' (detected, escapes)'), ok, (want ? `cut frame mean ${W.cutMean} (${W.cutAfter} s after), restart ${W.restart && W.restart.dt} s, control ${W.controlBack} s, full picture ${W.fullPicture} s, back at ${W.after && W.after.cp}` : `ends ${v.end && v.end.ai}, no failure`) + warn);
 }
+const C = J('t-controls.json');
+if (C) row('controls: cautious walk (30 s), Shift run, Down crouch, no flattening in the open, gait, hint', C.pass, `${(C.checks || []).filter(c => c.ok).length}/${(C.checks || []).length}` + ((C.checks || []).filter(c => !c.ok).map(c => ' FAIL ' + c.name).join(';')) + (C.err ? ' ERR ' + C.err.slice(0, 120) : ''));
+else row('controls (t-controls.mjs)', false, 'no result');
+const RV = J('t-reveal.json');
+if (RV) {
+  const take = ['still', 'cautious', 'hold', 'run', 'jump', 'hops', 'fullpath'];
+  const bad = [];
+  for (const k of take) { const v = RV[k]; if (!v) { bad.push(k + ': no result'); continue; } const tm = v.timing || {};
+    if (v.err || (v.errors || []).length || (v.errs || []).length) bad.push(k + ': errors');
+    if (!(tm.controlFromCue >= 4.0 && tm.controlFromCue <= 6.2)) bad.push(k + ': cue -> control ' + tm.controlFromCue);
+    if (!(tm.maxX < 92.0)) bad.push(k + ': went to x ' + tm.maxX);
+    if (v.heldMoved != null && v.heldMoved !== 0) bad.push(k + ': a held key moved it ' + v.heldMoved);
+    if (v.W && v.W.maxSTake > 0) bad.push(k + ': suspicion ' + v.W.maxSTake);
+    if (v.repress && !(v.repress.moved > 0.3)) bad.push(k + ': a fresh press did not move it'); }
+  const x = RV;
+  if (x.retry && (x.retry.revealStartsAfterFail || x.retry.entryReplayed)) bad.push('retry replays it');
+  if (x.still && x.still.cpAfterLanding !== 'search-arrive') bad.push('checkpoint after landing ' + x.still.cpAfterLanding);
+  if (x.restartMid && !(x.restartMid.second && x.restartMid.second.ok)) bad.push('restart mid-takeover');
+  if (x.restartGrace && x.restartGrace.replay && x.restartGrace.replay.controlOffSeconds > 0) bad.push('restart in the grace takes control');
+  if (x.unseen && !(x.unseen.protected3s && x.unseen.protected3s.s === 0 && x.unseen.unprotected && x.unseen.unprotected.ai === 'notice')) bad.push('unseen guarantee');
+  if (x.autorepeat && !(x.autorepeat.autoRepeat && x.autorepeat.autoRepeat.moved === 0)) bad.push('auto-repeat ends the latch');
+  if (x.quickrepress && !(x.quickrepress.quick && x.quickrepress.quick.moved > 0.2 && !x.quickrepress.quick.latchedAfter.length)) bad.push('quick re-press');
+  if (x.smooth && x.smooth.smooth && x.smooth.smooth.velocityJumpsOver3) bad.push('camera jumps');
+  const tms = take.filter(k => RV[k] && RV[k].timing).map(k => k + ' ' + RV[k].timing.cause + ' stop x ' + RV[k].timing.stopX + ' ctl ' + RV[k].timing.controlFromCue + ' s').join('; ');
+  row('door reveal: completes for still / cautious / forward held / run / running jump / hops / full path; no harm; retries', !bad.length, bad.length ? bad.join('; ') : tms);
+} else row('door reveal (t-reveal.mjs)', false, 'no result');
 const D = J('t-detect.json');
 if (D) { row('detection model: cover blocks, darkness shortens but never hides up close (static)', D.static && D.static.pass, (D.static.tests || []).filter(t => !t.ok).map(t => t.name).join('; ') || D.static.tests.length + ' cases');
   const L = D.live || {}; const cores = ['A0', 'deck', 'pallet', 'skip'].every(c => L[c] && L[c].maxS === 0);

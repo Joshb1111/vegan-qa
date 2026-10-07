@@ -10,6 +10,15 @@
         The play framing is followed with exponential damping and keeps running underneath any shot.
      2. SHOTS blend over it: title, courtyard-reveal, search-entry-hold (A12), duct-transit (scripted dolly), pull-out (scripted),
         each eased in and released into the live play framing (toPlay / release), so nothing ever jumps.
+   TAKEOVERS (Josh's playtest, 7 Oct §9.5: "use this deliberate camera takeover for essential reveals only; ordinary background
+   storytelling should remain discoverable during play"). Audited:
+     - search-entry-hold is the ONE takeover: the door reveal (the man, his gun, the aim at the fence that shows the way out).
+       FF.Events runs it (control off, the rabbit stopped, the shot, the return, control back); this file only frames it, eased
+       in over opts.ease and back over opts.release. It no longer starts by itself or lets go when the rabbit moves.
+     - courtyard-reveal is a held establishing frame, never control: the rabbit stays in it and moving 1.5 m releases it.
+     - the van behind the wall and the walkway worker are attention leans inside the play framing (the edge rule keeps the
+       rabbit >= 15% from the frame edge); the worker's lean plays only while the rabbit is still. Discoverable, never forced.
+     - duct-transit runs while the rabbit is inside the wall (no control by nature), the pull-out after it has settled (the end).
    Listens on the bus: camera-shot (Level trigger), transit, entry, ai:state, vehicle-arrive, walkway-start / walkway,
    torch-down, end, restart. OWNER: the world builder. API contract: docs/farfield/INTERFACES.md §8.2. */
 'use strict';
@@ -23,7 +32,7 @@ const TAN13x2 = 2 * Math.tan(13 * Math.PI / 180);      // frame height per metre
 let cam = null, aspect = 16 / 9, offs = [];
 const out = { x: 4.6, y: 1.6, dist: 11, horizon: 0.62 };            // what the lens shows
 const play = { x: 4.6, y: 1.15, dist: 8.2, horizon: 0.57, ok: false }; // the damped play framing (always running)
-const st = { lead: 1, zone: '', shot: null, w: 0, rel: null, mods: { watch: 0, held: 0, danger: 0, intimate: 0 }, torchDown: false, torchT: -1, entryHeld: false, lastIdeal: null };
+const st = { lead: 1, zone: '', shot: null, w: 0, rel: null, mods: { watch: 0, held: 0, danger: 0, intimate: 0 }, torchDown: false, torchT: -1, lastIdeal: null };
 const attends = {};      // key -> { x, y?, w, t (seconds left or Infinity), k (eased weight), still (only while the rabbit is still), fn }
 const base = () => FF.S1.camera.base;
 const zones = () => FF.S1.camera.zones;
@@ -79,7 +88,7 @@ function ideal(dt) {
   /* 2. attention: leans the frame towards a point of interest, never pushing the rabbit out (the edge rule follows) */
   const halfW = widthAt(dist) / 2;
   for (const key in attends) {
-    const a = attends[key]; let ax = a.fn ? a.fn() : a.x; const live = ax != null && (a.t > 0) && (!a.still || (r.still || 0) > 0.4) && (!a.within || Math.abs(ax - r.x) < a.within) && !(key === 'searcher' && (st.mods.watch > 0.5 || st.mods.danger > 0.5));
+    const a = attends[key]; let ax = a.fn ? a.fn() : a.x; const live = ax != null && (a.t > 0) && (!a.still || (r.still || 0) > 0.4) && (!a.within || Math.abs(ax - r.x) < a.within) && (!a.place || (G() && G().place === a.place)) && !(key === 'searcher' && (st.mods.watch > 0.5 || st.mods.danger > 0.5));
     a.k = damp(a.k || 0, live ? 1 : 0, 1 / 0.9, dt); if (a.t !== Infinity) a.t -= dt;
     if (a.k < 1e-3 || ax == null) { if (a.t <= 0 && a.k < 1e-3 && !a.keep) delete attends[key]; continue; }
     x += clamp((ax - x) * a.w * a.k, -halfW * 0.55, halfW * 0.55);
@@ -124,7 +133,7 @@ function ideal(dt) {
 const SHOTS = {
   title:              { ease: 0, release: 2.5 },
   'courtyard-reveal': { ease: 1.2, release: 1.5 },
-  'search-entry-hold':{ ease: 1.0, release: 0.6 },
+  'search-entry-hold':{ ease: 1.1, release: 1.0 },      // the door reveal (FF.Events passes its own ease / release)
   'duct-transit':     { ease: 0, release: 1.0, scripted: true },
   'pull-out':         { ease: 0, release: 2.0, scripted: true },
 };
@@ -132,7 +141,8 @@ function shotParams(sh, dt) {
   const z = zoneById(sh.id), r = rabbit();
   if (sh.id === 'title') return { x: z.x != null ? z.x : 4.6, y: z.y != null ? z.y : 1.6, dist: z.dist || 11, horizon: z.horizon || 0.62 };
   if (sh.id === 'courtyard-reveal') return { x: z.x != null ? z.x : 58.5, y: (z.height || base().height) + Math.max(0, FF.Level.groundY(r.x)), dist: z.dist || 10.5, horizon: z.horizon || 0.64 };
-  if (sh.id === 'search-entry-hold') return { x: z.x != null ? z.x : 109.0, y: 1.3, dist: z.dist || 12.5, horizon: z.horizon || 0.60 };
+  /* the door reveal: the skip, the door and the fence corner with its gap, fitted to the aspect (the gap never at the very edge) */
+  if (sh.id === 'search-entry-hold') { const sp = z.span || [104.3, 114.5]; return { x: (sp[0] + sp[1]) / 2, y: 1.3, dist: clamp(fitDist(sp[1] - sp[0]), 10.5, z.dist || 12.5), horizon: z.horizon || 0.60 }; }
   if (sh.id === 'duct-transit') { const to = z.to || { x: 90.4, dist: 10.6, height: 1.3, horizon: 0.6 }, k = easeIO(sh.t / (z.time || 3.6)), f = sh.from;
     return { x: lerp(f.x, to.x, k), y: lerp(f.y, to.height, k), dist: lerp(f.dist, to.dist, k), horizon: lerp(f.horizon, to.horizon, k) }; }
   if (sh.id === 'pull-out') { const to = z.to || { dist: 22, height: 3.5, horizon: 0.52, driftX: 2.5 }, k = easeIO(sh.t / (z.time || 8.0)), f = sh.from, floor = Math.max(0, FF.Level.groundY(f.x));
@@ -140,7 +150,7 @@ function shotParams(sh, dt) {
   return { x: z.x != null ? z.x : out.x, y: z.y != null ? z.y : out.y, dist: z.dist || out.dist, horizon: z.horizon || out.horizon };
 }
 function startShot(id, opts) {
-  const def = SHOTS[id] || { ease: 1.0, release: 1.0 }, r = rabbit();
+  const def = Object.assign({ ease: 1.0, release: 1.0 }, SHOTS[id], opts && opts.ease != null ? { ease: opts.ease } : null, opts && opts.release != null ? { release: opts.release } : null), r = rabbit();
   st.shot = { id, t: 0, opts: opts || {}, def, from: { x: out.x, y: out.y, dist: out.dist, horizon: out.horizon }, rx0: r.x };
   st.rel = null; st.w = def.ease ? 0 : 1;          // eased shots blend from the frame showing now (out) to the shot
 }
@@ -163,17 +173,14 @@ const Camera = FF.Camera = {
     on('camera-shot', d => { if (d && d.arg && G().mode === 'play') Camera.shot(d.arg); });
     /* the duct: dolly over the divide wall while the rabbit is inside it; release after the pop-out */
     on('transit', d => { if (!d) return; if (d.phase === 'start' || d.phase === 'climb') { if (!st.shot || st.shot.id !== 'duct-transit') { if (d.phase === 'start') Camera.shot('duct-transit'); } } else if (d.phase === 'end') { if (st.shot && st.shot.id === 'duct-transit') releaseShot(); } });
-    /* A12: the establishing frame holds from the door light until the gun lowers */
-    on('entry', d => {
-      if (!d) return; const r = rabbit();
-      if (d.phase === 'cue' && r.x < 91) { Camera.shot('search-entry-hold'); st.entryHeld = true; }
-      if ((d.phase === 'aim-lowered' || d.phase === 'done') && st.shot && st.shot.id === 'search-entry-hold') releaseShot();
-    });
+    /* A12 as revised (7 Oct): the establishing frame is the door reveal's takeover, started and released by FF.Events. Safety
+       only: if his entry is cut short, nothing keeps holding it */
+    on('entry', d => { if (d && d.phase === 'done' && d.interrupted && st.shot && st.shot.id === 'search-entry-hold') releaseShot(0.6); });
     /* attention: the van beyond the wall (35% for 6 s from the trigger), the walkway worker (30%, only while the rabbit is still) */
     on('vehicle-arrive', () => { const z = zones().find(k => k.attend && k.attend.event === 'vehicle-arrive') || { attend: { w: 0.35, t: 6 } }; st.vehicleT = G().frameT;
       attends.vehicle = { w: z.attend.w, t: z.attend.t, k: 0, fn: vehicleX }; });
     on('vehicle', d => { if (d && d.x != null) st.vehicleX = d.x; });
-    const walkway = () => { const z = zones().find(k => k.attend && k.attend.event === 'walkway') || { attend: { x: 81.5, w: 0.3 } }; if (!attends.walkway) attends.walkway = { x: z.attend.x, w: z.attend.w, t: 11.5, k: 0, still: !!z.attend.onlyWhenStill }; };
+    const walkway = () => { const z = zones().find(k => k.attend && k.attend.event === 'walkway') || { attend: { x: 81.5, w: 0.3 } }; if (!attends.walkway) attends.walkway = { x: z.attend.x, w: z.attend.w, t: 11.5, k: 0, still: !!z.attend.onlyWhenStill, place: 'courtyard' }; };
     on('walkway-start', walkway); on('walkway', d => { if (d && (d.phase === 'start' || d.phase === 'boots')) walkway(); });
     /* the drain hold extends to 45 while the torch is down the crack */
     on('torch-down', d => { st.torchDown = !!(d && d.phase !== 'end' && d.phase !== 'up' && d.on !== false); });
@@ -184,7 +191,7 @@ const Camera = FF.Camera = {
   /* apply fov and the lens shift that puts eye level `horizon` of the way down the frame */
   project() { if (!cam) return; cam.fov = base().fov; cam.updateProjectionMatrix(); cam.projectionMatrix.elements[9] = 2 * out.horizon - 1; cam.projectionMatrixInverse.copy(cam.projectionMatrix).invert(); },
   reset(cp) {
-    st.shot = null; st.rel = null; st.w = 0; st.torchDown = false; st.entryHeld = false;
+    st.shot = null; st.rel = null; st.w = 0; st.torchDown = false;
     for (const k in st.mods) st.mods[k] = 0; for (const k in attends) delete attends[k]; standingAttends();
     st.vehicleT = -1; st.vehicleX = null;
     Camera.snap();
@@ -196,7 +203,8 @@ const Camera = FF.Camera = {
     if (!st.shot) { st.w = 0; st.rel = null; Object.assign(out, { x: play.x, y: play.y, dist: play.dist, horizon: play.horizon }); }
     apply();
   },
-  /* a scripted shot or held frame: 'title', 'courtyard-reveal', 'search-entry-hold', 'duct-transit', 'pull-out'; null ends it */
+  /* a scripted shot or held frame: 'title', 'courtyard-reveal', 'search-entry-hold', 'duct-transit', 'pull-out'; null ends it.
+     opts: { ease (s, the blend in), release (s, the blend back; with null) } */
   shot(id, opts) {
     if (!id) { releaseShot(opts && opts.release); return; }
     if (st.shot && st.shot.id === id) return;
@@ -205,7 +213,8 @@ const Camera = FF.Camera = {
   },
   /* ease from the current shot to the play framing over `seconds` (the title's first input) */
   toPlay(seconds) { if (st.shot) releaseShot(seconds || 2.5); else { st.rel = { from: { x: out.x, y: out.y, dist: out.dist, horizon: out.horizon }, t: 0, dur: seconds || 2.5 }; } },
-  /* attention request: Camera.attend('vehicle', { x, w, t }) ... Camera.attend('vehicle', null). t in seconds (default: until removed) */
+  /* attention request: Camera.attend('vehicle', { x, w, t, still, within, place }) ... Camera.attend('vehicle', null). t in seconds
+     (default: until removed); place: only while the rabbit is in that place (the walkway lean never follows it into the Search) */
   attend(key, a) { if (a) attends[key] = Object.assign({ k: attends[key] ? attends[key].k : 0, t: Infinity, w: 0.3 }, a); else if (attends[key]) attends[key].t = 0; },
   frame(dt) {
     if (!cam) return;
@@ -226,9 +235,10 @@ const Camera = FF.Camera = {
       if (sh.def.ease > 0) st.w = Math.min(1, st.w + dt / sh.def.ease);
       const sp = shotParams(sh, dt), k = sh.def.ease > 0 ? easeIO(st.w) : 1, f = sh.from;
       o = { x: lerp(f.x, sp.x, k), y: lerp(f.y, sp.y, k), dist: lerp(f.dist, sp.dist, k), horizon: lerp(f.horizon, sp.horizon, k) };
-      /* releases: the reveal after 3 s or 1.5 m of movement; the entry hold if the rabbit leaves the nook (x > 91) or the gun is down */
+      /* releases: the courtyard frame after 3 s or 1.5 m of movement. The door reveal is released by FF.Events; a safety here
+         only if his entry is over or cut short while it still holds (never because the rabbit moved: it cannot, by then) */
       if (sh.id === 'courtyard-reveal') { const z = zoneById('courtyard-reveal'); if (sh.t >= (z.hold || 3.0) || Math.abs(r.x - sh.rx0) >= (z.releaseOnMove || 1.5)) releaseShot(); }
-      else if (sh.id === 'search-entry-hold') { const s = g.searcher || {}; if (r.x > 91.0 || (s.entryT != null && s.entryT >= 10.55) || (g.flags && g.flags.entryDone) || (s.state && s.state !== 'entry' && s.state !== 'wait')) releaseShot(); }
+      else if (sh.id === 'search-entry-hold') { const s = g.searcher || {}; if ((g.flags && g.flags.entryDone) || !s.active || (s.state && s.state !== 'entry' && s.state !== 'wait')) releaseShot(0.8); }
       else if (sh.id === 'duct-transit' && r.mode === 'play' && sh.t > 1.0) releaseShot();
     } else if (st.rel) {
       const R = st.rel; R.t += dt; const k = easeIO(R.t / R.dur);

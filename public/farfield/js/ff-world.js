@@ -114,7 +114,11 @@ FF.LOOKS = {
     shafts: { density: 0.0, haze: 0.0 },
     rain: { rate: 0.0 },
     rabbit: { rimStrength: 0.30, lift: 0.035 },
-    grade: { saturation: 0.70, contrast: 1.08, lift: [0.020, 0.024, 0.030], gain: [0.99, 1.0, 1.02], vignette: 0.70, bottomWeight: 0.35, grain: 0.035, bloom: 0.35, bloomThreshold: 4.0 },
+    /* fixer, 7 Oct (lead's note 8: dark places must still show their shapes faintly): contrast 1.08 with a 0.020 lift clipped
+       everything below sRGB ~5/255 to pure black, and the 0.70 vignette pushed the arrival nook (the duct housing, the shelf
+       around the hidden rabbit) and the deck's ends under it. Now the deepest values sit just above black (+3-5/255), mid-tones
+       move by ~2/255, highlights by -1: the same night, but the shapes in it read */
+    grade: { saturation: 0.70, contrast: 1.06, lift: [0.026, 0.030, 0.037], gain: [0.99, 1.0, 1.02], vignette: 0.64, bottomWeight: 0.35, grain: 0.035, bloom: 0.35, bloomThreshold: 4.0 },
   },
   /* 4. BREATHING SPACE: night, the rain has stopped, the cloud stays; the moon only a faint glow through it (A1). Low contrast,
      lifted shadows, light fog so the distant shapes read; the colossal Works waits beyond the channel. */
@@ -959,7 +963,137 @@ function buildCourtyard() {
     const mesh = new T.Mesh(FF.geo.merge(pl), mat('crate')); mesh.castShadow = mesh.receiveShadow = true; crate.add(mesh);
     const coreM = new T.Mesh(FF.geo.merge(core), FF.mat({ color: '#1e1c1a', roughness: 1 })); coreM.castShadow = true; crate.add(coreM); }
   buildWindowBeam(P);
+  paintedOver(P);
   P.done();
+}
+
+/* =========================================================================================== a trace of resistance (Josh, brief 9.7) */
+/* The one restrained detail of Sequence 1: END ANIMAL USE, sprayed by hand on one of the Courtyard's back-wall panels and later
+   buffed out with one hasty coat of fresh grey masonry paint that doesn't quite match the concrete: vertical roller strokes of
+   uneven length, thick where the roller was freshly loaded and dry elsewhere, so some letters ghost through and others are nearly
+   gone; the apex of the first A and the end of the last E escape the roller; a touch-up coat in a third grey over the start;
+   runs below the patch, one spray drip longer than the paint, two flakes where the new paint has let go.
+   A decal 3 mm in front of the panel with the wall's own shading (wall fill, haze, fog, shadows): no light, camera, sound or UI of
+   its own; it sits between the reveal's hold and the puzzle's span (FF.S1.decor 'painted-over'), so it is only ever passed.
+   Painted once at init with its own seeded random: rnd(), and so every other placement in the world, is unchanged. The texture
+   is a DataTexture whose transparent texels carry the wall's colour, so filtering and mipmaps never draw a dark rim around it. */
+const GLYPH = {   /* hand-lettered skeletons: [width, ...strokes]; x 0..width, y 0 (cap) .. 1 (baseline); '~' = a smooth stroke */
+  E: [0.56, [[0.58, 0], [0, 0.02], [0, 1], [0.6, 0.98]], [[0, 0.5], [0.44, 0.48]]],
+  N: [0.7, [[0, 1], [0, 0], [0.7, 1], [0.7, -0.02]]],
+  D: [0.66, [[0, 0], [0, 1]], ['~', [0, 0], [0.34, 0], [0.6, 0.16], [0.68, 0.5], [0.6, 0.84], [0.34, 1], [0, 1]]],
+  A: [0.72, [[0, 1], [0.36, 0], [0.72, 1]], [[0.17, 0.62], [0.56, 0.6]]],
+  I: [0.06, [[0.03, 0], [0.03, 1]]],
+  M: [0.86, [[0, 1], [0.02, 0], [0.43, 0.6], [0.84, 0], [0.86, 1]]],
+  L: [0.5, [[0, 0], [0, 1], [0.54, 0.98]]],
+  U: [0.64, ['~', [0, 0], [0, 0.66], [0.1, 0.9], [0.32, 1], [0.54, 0.9], [0.64, 0.66], [0.64, 0]]],
+  S: [0.6, ['~', [0.6, 0.15], [0.42, 0.01], [0.15, 0.03], [0.02, 0.22], [0.14, 0.43], [0.46, 0.55], [0.6, 0.77], [0.48, 0.97], [0.18, 1], [0, 0.85]]],
+};
+function catmull(p, n) {
+  const o = [];
+  for (let i = 0; i < p.length - 1; i++) {
+    const a = p[Math.max(0, i - 1)], b = p[i], c = p[i + 1], d = p[Math.min(p.length - 1, i + 2)];
+    for (let k = 0; k < n; k++) { const t = k / n, t2 = t * t, t3 = t2 * t; o.push([0, 1].map(j => 0.5 * (2 * b[j] + (c[j] - a[j]) * t + (2 * a[j] - 5 * b[j] + 4 * c[j] - d[j]) * t2 + (3 * b[j] - a[j] - 3 * c[j] + d[j]) * t3))); }
+  }
+  o.push(p[p.length - 1]); return o;
+}
+function paintedOver(P) {
+  const D = (FF.Level.decor && FF.Level.decor('painted-over')) || { x0: 65.8, x1: 68.58, y0: 0.45, y1: 1.84, z: -5.0 };
+  const W = 1024, Hc = 512, ppm = W / (D.x1 - D.x0), R = prng(0x51ab7e), J = a => (R() - 0.5) * 2 * a;
+  const X = m => m * ppm, Y = h => (D.y1 - h) * ppm;           // metres along the decal -> px; height on the wall -> px row
+  const canvas = (w, h) => { const c = document.createElement('canvas'); c.width = w || W; c.height = h || Hc; return c; };
+  const Lc = canvas(), lx = Lc.getContext('2d'), Fc = canvas(), fx = Fc.getContext('2d');
+  const line = (c, pts) => { c.beginPath(); pts.forEach((p, i) => i ? c.lineTo(p[0], p[1]) : c.moveTo(p[0], p[1])); c.stroke(); };
+  /* 1. the letters: black spray from a hand-held can, stamped along each stroke as soft dots (a varying width, a heavier blob
+     where the can paused at the ends), a rising line, leaning and uneven letters, the last word squeezed in */
+  const dot = canvas(64, 64); { const d = dot.getContext('2d'), gr = d.createRadialGradient(32, 32, 0, 32, 32, 32);
+    gr.addColorStop(0, 'rgba(22,24,27,1)'); gr.addColorStop(0.45, 'rgba(22,24,27,0.85)'); gr.addColorStop(0.75, 'rgba(22,24,27,0.18)'); gr.addColorStop(1, 'rgba(22,24,27,0)'); d.fillStyle = gr; d.fillRect(0, 0, 64, 64); }
+  const cap = 0.26 * ppm, sw = 0.042 * ppm, at = [];
+  const spray = pts => {
+    let ph = R() * 9;
+    for (let i = 0; i < pts.length - 1; i++) {
+      const [ax, ay] = pts[i], [bx, by] = pts[i + 1], n = Math.max(1, Math.ceil(Math.hypot(bx - ax, by - ay) / 1.6));
+      for (let k = 0; k < n; k++) {
+        const t = k / n, end = Math.min(i + t, pts.length - 1 - i - t), r = sw * (0.62 + 0.16 * Math.sin(ph += 0.11) + 0.08 * R()) * (end < 0.12 ? 1.25 : 1);
+        lx.globalAlpha = 0.2; lx.drawImage(dot, ax + (bx - ax) * t - r, ay + (by - ay) * t - r, 2 * r, 2 * r);
+      }
+    }
+    lx.globalAlpha = 0.22; for (let i = 0; i < 40; i++) { const p = pts[(R() * pts.length) | 0], q = sw * (0.9 + R() * 1.6), th = R() * 6.283; lx.fillRect(p[0] + Math.cos(th) * q, p[1] + Math.sin(th) * q, 1.4, 1.4); }   // overspray
+  };
+  lx.fillStyle = lx.strokeStyle = '#16181b'; lx.lineCap = 'round';
+  let x = X(0.11);
+  ['END', 'ANIMAL', 'USE'].forEach((word, wi) => {
+    const s = wi === 2 ? 0.86 : 1;
+    for (const ch of word) {
+      const g = GLYPH[ch], h = cap * s * (1 + J(0.07)), base = Y(1.13) - (x / W) * 0.06 * ppm + J(0.016 * ppm), slant = 0.04 + J(0.06);
+      lx.save(); lx.translate(x, base); lx.rotate(J(0.07));
+      for (let k = 1; k < g.length; k++) {
+        let st = g[k]; const smooth = st[0] === '~'; if (smooth) st = st.slice(1);
+        let pts = st.map(([u, v]) => { const yy = (v - 1) * h + J(0.045 * h); return [u * h - yy * slant + J(0.045 * h), yy]; }); if (smooth) pts = catmull(pts, 6);
+        spray(pts);
+      }
+      lx.restore(); at.push({ ch, x, w: g[0] * h, h, base });
+      x += g[0] * h + 0.2 * cap * s * (1 + J(0.3));
+    }
+    x += 0.36 * cap;
+  });
+  /* spray runs where the can was held too close: the one under END's N outlasts the paint */
+  lx.globalAlpha = 0.6; lx.lineWidth = 2.0;
+  for (const [i, len] of [[1, 0.26], [6, 0.11], [7, 0.08]]) { const a = at[i], x0 = a.x + a.w * (i === 1 ? 0.04 : 0.5), y0 = a.base - 2; line(lx, [[x0, y0], [x0 + J(1.5), y0 + len * ppm]]); lx.beginPath(); lx.arc(x0, y0 + len * ppm, 2.2, 0, 6.283); lx.fill(); }
+  /* years of weather: the black has faded unevenly */
+  lx.globalCompositeOperation = 'destination-out'; lx.globalAlpha = 1;
+  for (let i = 0; i < 40; i++) { const cx = R() * W, cy = Y(1.42) + R() * 0.36 * ppm, r = 12 + R() * 36, gr = lx.createRadialGradient(cx, cy, 0, cx, cy, r); gr.addColorStop(0, 'rgba(0,0,0,' + (0.1 + R() * 0.3).toFixed(2) + ')'); gr.addColorStop(1, 'rgba(0,0,0,0)'); lx.fillStyle = gr; lx.fillRect(cx - r, cy - r, 2 * r, 2 * r); }
+  lx.globalCompositeOperation = 'source-over';
+  fx.drawImage(Lc, 0, 0);
+  /* 2. the buff: one hasty coat of vertical roller strokes, left to right, ragged where they start and stop, two batches of grey,
+     neither the concrete's tone. Black is hard to cover in one coat: where the roller ran dry the letters still ghost through
+     (D, the first A, I M, L, U S), where it was freshly loaded they are nearly gone (E N, N, the second A). One stroke stops
+     short of the first A's apex; the paint runs out half way across the final E */
+  const last = at[at.length - 1], stopX = last.x + last.w * 0.45, apex = at[3], rw = 0.215 * ppm;
+  const thin = [0.88, 0.8, 0.5, 0.3, 0.85, 0.32, 0.36, 0.78, 0.3, 0.55, 0.3, 0.26];   // coverage over each letter in turn
+  const under = xc => { let k = 0; for (let j = 0; j < at.length; j++) if (xc >= at[j].x - 0.1 * cap) k = j; return k; };
+  const ragged = (x0, x1, y, amp) => { const p = []; for (let xx = x0; xx <= x1 + 0.1; xx += 5) p.push([Math.min(xx, x1), y + J(amp)]); return p; };
+  let sx = X(0.06), i = 0;
+  while (sx < stopX) {
+    const w = Math.min(rw * (1 + J(0.04)), Math.max(0.4 * rw, stopX - sx)), c = Math.min(thin[under(sx + Math.min(rw, stopX - sx) / 2)], sx + rw > stopX ? 0.26 : 1) + J(0.03);
+    let top = Y(1.5 + J(0.07)); const bot = Y(0.98 + J(0.06));
+    if (apex.x + apex.w * 0.5 > sx + w * 0.15 && apex.x + apex.w * 0.5 < sx + w * 0.85) top = apex.base - apex.h + 0.035 * ppm;   // the A's apex escapes
+    fx.save(); fx.translate(sx + w / 2, 0); fx.rotate(J(0.025)); fx.translate(-w / 2, 0);
+    fx.fillStyle = fx.strokeStyle = (i >> 2) % 2 ? '#545654' : '#585a57';
+    fx.globalAlpha = c; fx.beginPath(); const tp = ragged(0, w, top, 2.5 + (1 - c) * 14), bp = ragged(0, w, bot, 2 + (1 - c) * 10).reverse();
+    [...tp, ...bp].forEach((p, k) => k ? fx.lineTo(p[0], p[1]) : fx.moveTo(p[0], p[1])); fx.closePath(); fx.fill();
+    /* the nap of the roller: faint vertical streaks; on a dry stroke, gaps */
+    for (let k = 0; k < 26; k++) { const xx = R() * w; fx.globalAlpha = 0.05 + 0.06 * R(); fx.fillStyle = R() < 0.5 ? '#5d5f5c' : '#3f4241'; fx.fillRect(xx, top + 4, 1 + R() * 1.5, bot - top - 8); }
+    if (c < 0.7) { fx.globalCompositeOperation = 'destination-out'; for (let k = 0; k < 10; k++) { fx.globalAlpha = 0.15 + 0.2 * R(); fx.fillRect(R() * w, top + R() * 20, 1 + R() * 2, (bot - top) * (0.3 + 0.6 * R())); } fx.globalCompositeOperation = 'source-over'; }
+    /* runs off the roller's lower edge */
+    if (c > 0.72 && R() < 0.7) { fx.fillStyle = fx.strokeStyle = '#585a57'; fx.globalAlpha = 0.8; fx.lineWidth = 2.6 + R(); const rx = w * (0.2 + 0.6 * R()), len = (0.03 + R() * 0.13) * ppm; line(fx, [[rx, bot - 3], [rx + J(1), bot + len]]); fx.beginPath(); fx.arc(rx, bot + len, 2.0, 0, 6.283); fx.fill(); }
+    fx.restore(); sx += rw * 0.86 * (1 + J(0.05)); i++;
+  }
+  /* a second, later coat over the start, in yet another grey (the paint layers) */
+  { const x0 = at[0].x - 0.03 * ppm, x1 = at[1].x + at[1].w * 0.8, t = Y(1.44), b = Y(1.03);
+    fx.save(); fx.fillStyle = '#5b5c59'; fx.globalAlpha = 0.5; fx.beginPath(); const tp = ragged(x0, x1, t, 4), bp = ragged(x0, x1, b, 3).reverse();
+    [...tp, ...bp].forEach((p, k) => k ? fx.lineTo(p[0], p[1]) : fx.moveTo(p[0], p[1])); fx.closePath(); fx.fill(); fx.restore(); }
+  /* 3. two flakes where the new paint has already let go (the black shows again), and rain water down the fresh grey */
+  for (const [k, u, v, r] of [[0, 0.25, 0.52, 10], [8, 0.08, 0.5, 8]]) {
+    const a = at[k], cx = a.x + a.w * u, cy = a.base - a.h * (1 - v);
+    fx.save(); fx.beginPath(); for (let j = 0; j < 9; j++) { const th = j / 9 * 6.283, rr = r * (0.6 + 0.6 * R()); fx.lineTo(cx + Math.cos(th) * rr * 1.3, cy + Math.sin(th) * rr); } fx.closePath(); fx.clip();
+    fx.clearRect(cx - 3 * r, cy - 3 * r, 6 * r, 6 * r); fx.globalAlpha = 1; fx.drawImage(Lc, 0, 0); fx.restore();
+  }
+  fx.globalCompositeOperation = 'source-atop';
+  for (const [u, w0, a] of [[0.29, 9, 0.08], [0.57, 15, 0.06], [0.81, 7, 0.09]]) { const gr = fx.createLinearGradient(0, Y(1.55), 0, Y(0.95)); gr.addColorStop(0, 'rgba(30,33,36,0)'); gr.addColorStop(0.3, 'rgba(30,33,36,' + a + ')'); gr.addColorStop(1, 'rgba(30,33,36,' + (a * 0.4).toFixed(3) + ')'); fx.fillStyle = gr; fx.globalAlpha = 1; fx.fillRect(u * W, 0, w0, Hc); }
+  fx.globalCompositeOperation = 'source-over';
+  /* 4. to a texture: rows flipped (a DataTexture's v = 0 is its first row); transparent texels take the wall's colour */
+  const src = fx.getImageData(0, 0, W, Hc).data, out = new Uint8Array(W * Hc * 4), wc = [0x3e, 0x43, 0x4a];
+  for (let y = 0; y < Hc; y++) for (let k = 0; k < W; k++) {
+    const s = (y * W + k) * 4, o = ((Hc - 1 - y) * W + k) * 4, a = src[s + 3], f = Math.min(1, a / 24);
+    for (let j = 0; j < 3; j++) out[o + j] = Math.round(wc[j] + (src[s + j] - wc[j]) * f);
+    out[o + 3] = a;
+  }
+  const tex = new T.DataTexture(out, W, Hc, T.RGBAFormat);
+  tex.encoding = T.sRGBEncoding; tex.magFilter = T.LinearFilter; tex.minFilter = T.LinearMipmapLinearFilter; tex.generateMipmaps = true;
+  tex.anisotropy = Math.min(4, ctx.renderer.capabilities.getMaxAnisotropy()); tex.needsUpdate = true;
+  const m = FF.mat({ color: '#ffffff', roughness: 0.95, mottle: 0.03, wallFill: 1.0 }, { map: tex, transparent: true, depthWrite: false, polygonOffset: true, polygonOffsetFactor: -1, polygonOffsetUnits: -2 });
+  const g = new T.PlaneGeometry(D.x1 - D.x0, D.y1 - D.y0); g.translate((D.x0 + D.x1) / 2, (D.y0 + D.y1) / 2, D.z + 0.003);
+  const me = new T.Mesh(g, m); me.name = 'paintedOver'; me.receiveShadow = true; me.castShadow = false; P.obj(me);
 }
 
 /* =========================================================================================== THE SEARCH (86.0 .. 113.5), night */
@@ -1259,14 +1393,16 @@ function derivedLights(dt) {
     let open = Math.abs(dw ? dw.rotation.y : 0) / 1.55;
     if (!asked.walkwayDoorL && S.walkwayT >= 0) { const t = G.frameT - S.walkwayT; open = t < 2.5 ? 0 : t < 3.0 ? (t - 2.5) / 0.5 : t < 11.5 ? 1 : Math.max(0, 1 - (t - 11.5) / 0.6); World.open('walkwayDoorL', open); S.mine.walkwayDoorL = dw.rotation.y; }
     H.walkwayDoor.st.derived = SPOT_DEF.walkwayDoor.intensity * clamp(open, 0, 1); if (walkwayGlowL) walkwayGlowL.visible = open > 0.02; }
-  /* door N0: the room lights at the entry's cue (light under the door, a torch behind its glass), the leaf opens at 2.5 s */
+  /* door N0: the room lights at the entry's cue (light under the door, a torch behind its glass), the leaf opens over 0.5 s
+     from the start of the entry's doorway segment (1.35 s since the door reveal shortened the entry; FF.AI.entrySegs) */
   { const s = G.searcher || {}, entryT = s.entryT != null && s.state !== 'off' ? s.entryT : -1, done = !!(G.flags && G.flags.entryDone);
+    const dwSeg = FF.AI && FF.AI.entrySegs && FF.AI.entrySegs.find(q => q.kind === 'doorway'), doorAt = dwSeg ? dwSeg.t0 : 2.5;
     const roomOn = done || entryT >= 0 || (s.active && s.state !== 'wait' && s.state !== 'off');
     const dn = props.doorN0; if (dn && S.mine.doorN0 != null && Math.abs(dn.rotation.y - S.mine.doorN0) > 1e-4) asked.doorN0 = true;
     let open = Math.abs(dn ? dn.rotation.y : 0) / 1.55;
-    if (!asked.doorN0) { const want = done || (s.active && s.state !== 'wait' && s.state !== 'off' && entryT < 0) ? 1 : entryT >= 2.5 ? clamp((entryT - 2.5) / 0.6, 0, 1) : 0; open = want; World.open('doorN0', open); S.mine.doorN0 = dn.rotation.y; }
+    if (!asked.doorN0) { const want = done || (s.active && s.state !== 'wait' && s.state !== 'off' && entryT < 0) ? 1 : entryT >= doorAt ? clamp((entryT - doorAt) / 0.5, 0, 1) : 0; open = want; World.open('doorN0', open); S.mine.doorN0 = dn.rotation.y; }
     H.doorSpill.st.derived = SPOT_DEF.doorSpill.intensity * clamp(open, 0, 1);
-    const flick = roomOn ? 1 : 0, torchBehind = entryT >= 0 && entryT < 2.5 ? 0.5 + 0.5 * Math.sin(G.frameT * 2.3) : 0;
+    const flick = roomOn ? 1 : 0, torchBehind = entryT >= 0 && entryT < doorAt ? 0.5 + 0.5 * Math.sin(G.frameT * 2.3) : 0;
     if (doorRoom) doorRoom.material.color.copy(FF.lin('#d9e2ea')).multiplyScalar(1.2 * flick);
     if (doorGlass) doorGlass.material.color.copy(FF.lin('#d9e2ea')).multiplyScalar(roomOn ? 0.9 + 3.5 * torchBehind : 0.02);
     if (doorUnder) doorUnder.material.color.copy(FF.lin('#d9e2ea')).multiplyScalar(roomOn ? 0.35 * (1 - clamp(open, 0, 1)) : 0); }

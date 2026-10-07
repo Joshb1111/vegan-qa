@@ -17,8 +17,9 @@ let root = null, el = {}, titleSel = 0, titleSave = null, pendingHint = null, hi
 const seenHints = {};
 const K = s => '<kbd>' + s + '</kbd>';
 const HINTS = {
-  move: K('←') + K('→') + ' move <i>·</i> hold to run',
-  jump: K('Space') + ' or ' + K('↑') + ' jump',
+  move: K('←') + K('→') + ' move',
+  run: K('Shift') + ' + ' + K('→') + ' run',
+  jump: K('Space') + ' jump',
   push: K('→') + ' push',
   'go-in': K('↑') + ' go in',
 };
@@ -117,7 +118,7 @@ const UI = FF.UI = {
     const coarse = !!(window.matchMedia && matchMedia('(pointer: coarse)').matches && !matchMedia('(pointer: fine)').matches);
     div('small', (coarse ? 'Far Field needs a keyboard or a gamepad. ' : '') + 'Enter to continue' + (inFrame ? ' · Esc to go back' : '') + (FF.SILENT ? '' : ' · best with sound (M)'), el.notice);
     /* the title */
-    el.title = div('scr title', `<h1>FAR FIELD</h1><div class="keys">${K('←')}${K('→')} move <i>·</i> hold to run <i>·</i> ${K('Space')} or ${K('↑')} jump <i>·</i> ${K('↓')} crouch</div><div class="go">press ${K('→')} to begin</div><div class="cont"></div>`);
+    el.title = div('scr title', `<h1>FAR FIELD</h1><div class="keys">${K('←')}${K('→')} move <i>·</i> ${K('Shift')} run <i>·</i> ${K('Space')} jump <i>·</i> ${K('↓')} crouch</div><div class="go">press ${K('→')} to begin</div><div class="cont"></div>`);
     div('foot', (FF.SILENT ? '' : 'M sound <i>·</i> N music <i>·</i> ') + 'Esc pause' + (inFrame ? ' <i>·</i> Esc here: back to the arcade' : ''), el.title);
     el.title.querySelector('.cont').addEventListener('click', () => { if (titleSave) act('start:' + titleSave); });
     /* pause */

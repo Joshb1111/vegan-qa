@@ -25,7 +25,7 @@ window.SCEN = (function () {
   const reactAndFlee = (name, fromState, react, toX) => [
     watchLeg(name + ':wait-' + fromState, s => st() === fromState || W.fail, () => ({}), 20),
     { name: name + ':react', f: s => { watch(); if (s.t >= react) return true; return {}; } },
-    watchLeg(name + ':flee', s => W.fail || (toX < s.r.x ? s.r.x <= toX + 0.15 : s.r.x >= toX - 0.15), s => (toX < s.r.x ? { left: 1 } : { right: 1 }), 10),
+    watchLeg(name + ':flee', s => W.fail || (toX < s.r.x ? s.r.x <= toX + 0.15 : s.r.x >= toX - 0.15), s => (toX < s.r.x ? { left: 1, run: 1 } : { right: 1, run: 1 }), 10),   /* the flee is Shift + a direction (a direction alone stays the cautious walk) */
     watchLeg(name + ':stop', s => W.fail || Math.abs(s.r.vx) < 0.05, () => ({}), 3),
   ];
   /* shots of the telegraphs, wherever they happen: NOTICE (0.3 s in: footsteps stopped, torch drifting) and the aim hold */
@@ -38,14 +38,14 @@ window.SCEN = (function () {
     /* (c) caught: from the skip core, step out into his path as he comes back from the door, and freeze there */
     caught: () => [
       watchLeg('wait-door-side', s => loopT() >= 0.3 && loopT() < 1.2, () => ({}), 20),
-      R.goto('step-out', 107.9, { max: 5 }),
+      R.goto('step-out', 107.9, { max: 5, run: true }),
       { name: 'freeze-shots', f: s => { watch(); const a = st(); if (a === 'notice' && !W.noticeShot) { W.noticeShot = true; return { done: true, shot: 'alert-notice-caught' }; } if (W.fail) return true; if (s.t > 10) throw new Error('not caught'); return {}; } },
       ...afterFail(),
     ],
     /* (d) shot: from the deck core, walk out in front of him as he walks towards the steps, and freeze in his torch */
     shot: () => [
       R.wait('settle', 0.2),
-      R.goto('walk-out', 99.0, { max: 6 }),
+      R.goto('walk-out', 99.0, { max: 6, run: true }),
       { name: 'freeze-shots', f: s => { watch(); const a = st(), ai = FF.AI.debug();
         if (a === 'notice' && !W.noticeShot && ai.modeT > 0.25) { W.noticeShot = true; return { done: true, shot: 'alert-notice' }; }
         if (a === 'aim' && !W.aimShot && ai.modeT >= 0.9) { W.aimShot = true; return { done: true, shot: 'aim-hold' }; }
@@ -55,7 +55,7 @@ window.SCEN = (function () {
     /* (b) detected and escape: walk out, get SPOTTED, react 0.6 s later (a first-timer), flee back into the deck core */
     escapeCore: () => [
       R.wait('settle', 0.2),
-      R.goto('walk-out', 99.0, { max: 6 }),
+      R.goto('walk-out', 99.0, { max: 6, run: true }),
       ...reactAndFlee('back-to-deck', 'spotted', 0.6, 95.0),
       watchLeg('hidden-until-calm', s => W.fail || ['patrol', 'wary'].includes(st()), () => ({}), 40),
       R.wait('linger', 1.0),
@@ -70,7 +70,7 @@ window.SCEN = (function () {
        still in the dark 1.55 m from the spot where he turns round (the turn has the torch down: only the dark rule counts) */
     darkClose: () => [
       R.wait('settle', 0.05),
-      R.goto('behind-him', 108.45, { max: 6 }),
+      R.goto('behind-him', 108.45, { max: 6, run: true }),
       { name: 'freeze', f: s => { watch(); if (W.fail) return true; if (s.t > 10) throw new Error('never noticed'); return {}; } },
       ...afterFail(),
     ],

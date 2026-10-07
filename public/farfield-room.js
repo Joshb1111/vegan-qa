@@ -6,7 +6,7 @@
    Test it with public/farfield/room-test.html.
      farfieldRoom(body, ctx) -> stop()
    The menu: FAR FIELD, one line, the CONTENT NOTICE (pursuit, capture and non-graphic violence towards the rabbit), Play.
-   The game's own first screen repeats the notice. The iframe exists only while playing (farfield/index.html?v=2); stop()
+   The game's own first screen repeats the notice. The iframe exists only while playing (farfield/index.html?v=3); stop()
    and the game's Exit both remove it (the game frees its GPU on 'leave').
    The Sound and Music buttons sit in the house's header bar beside its title (on a page without one, a row at the top
    right); they never cover the game. Music in this game is the ambience and the little music it has; Sound is everything.
@@ -108,7 +108,7 @@ function farfieldRoom(body, ctx) {
   const play = () => {
     dropFrame(); window.__duck = 1;   /* the game has its own sound: the planet's music steps back */
     [...el.children].forEach(c => { if (c !== bar) c.remove(); });
-    const f = frame = document.createElement('iframe'); f.className = 'tyframe'; f.title = 'Far Field'; f.src = 'farfield/index.html?v=2' + (silent ? '&mute=1' : ''); f.allow = 'autoplay; fullscreen; gamepad';
+    const f = frame = document.createElement('iframe'); f.className = 'tyframe'; f.title = 'Far Field'; f.src = 'farfield/index.html?v=3' + (silent ? '&mute=1' : ''); f.allow = 'autoplay; fullscreen; gamepad';
     el.insertBefore(f, el.firstChild);
     toGame({ ty: 'mute', on: muted || silent }); toGame({ ty: 'music', on: music });
     /* a frame only gets the keyboard once it has been clicked or focused */

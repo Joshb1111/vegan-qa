@@ -1,10 +1,25 @@
 /* FAR FIELD — ff-player.js: FF.Player, the rabbit as a living individual (SEQUENCE-1.md §4 as amended; INTERFACES.md §8.4).
    OWNER: the rabbit builder (with ff-rabbit.js).
-   MOVEMENT (the look test's feel, on FF.S1): walk / run / crouch / jump (Space or Up; coyote, buffer, cut), step-up, the box
-     (head-push only), auto-squeeze (A9: a 0.1 s duck then 1.6 m/s, 2.4 fleeing; the drain's pipe is a creep at 0.75 m/s
-     after a 0.2 s duck; the first squeeze ever, the hoarding, hesitates 0.35 s), flee (3.6 m/s, only while the searcher
-     is SPOTTED / AIM / PURSUE / GRAB / LOWER within 15 m), the reach-fail (A15), the links (the culvert drop, the climb
-     into the raised opening, the duct transit, the pop-out), the channel lip at 127.0 ("not yet").
+   MOVEMENT (the look test's feel, on FF.S1; controls revised after Josh's playtest, 7 Oct §9.1-9.3):
+     - a direction alone (arrows, A D, the stick or d-pad) = the CAUTIOUS walk (0.95 m/s); it never speeds up by itself,
+       however long it is held. Shift (the 'run' action; the pad's run button) + a direction = the run (2.75 m/s); while the
+       searcher is SPOTTED / AIM / PURSUE / GRAB / LOWER within 15 m a run is the flee (3.6 m/s). No speed is ever raised
+       unasked: a squeeze only caps the speed asked for (A9: a duck-under 1.6, 2.4 fleeing; the drain's pipe a creep at
+       0.75 after a 0.2 s duck; the first squeeze ever, the hoarding, hesitates 0.35 s).
+     - Down (↓ / S, the pad's B or d-pad down) = a deliberate crouch and crouch-walk (0.75 m/s). The rabbit lowers by itself
+       ONLY under something low (a squeeze, or any ceiling below lowPoseUnder 0.35 m), head and shoulders first and the hips
+       following, rising again as each part clears. The danger / glare reflex in the open is a freeze (ears back, a slight
+       lowering), never a flattening.
+     - jump (Space or Up; coyote, buffer, cut), step-up, the box (head-push only), the reach-fail (A15), the links (the
+       culvert drop, the climb into the raised opening, the duct transit, the pop-out), the channel lip at 127.0 ("not yet").
+     - GAIT TIMING (presentation, but it lives here so it follows the movement exactly): the stride phase advances with the
+       distance actually travelled (phase += |dx| / stride), so a planted foot never slides; the cautious walk and the run
+       are distinct cycles (GAITS below: stance windows per foot, stride length by speed), and the body's vertical motion is
+       derived from that cycle (an end of the body rises only while its feet are off the ground, never higher or longer than
+       gravity allows), so it never floats. ff-rabbit.js reads it from the anim input: anim.gait, anim.crouchFront/Rear,
+       anim.squeeze (INTERFACES.md §8.3). The footstep event (rabbit:step) fires on the hind feet's touchdown in this cycle.
+     - the one "Shift run" hint (bus 'hint' {arg: 'run'}): once, in a safe stretch early in the Verge (after the post, before
+       the van), unless the player has already run; a second chance on entering the Courtyard (a Continue from a save).
    NO LISTEN ACTION (A2, Josh 7 Oct): Up jumps. The ears, head and posture react to sounds by themselves: every 'sound' event
      on the bus, the scripted cues (far boom, engine, gate, walkway, the searcher's door) and every visible human are
      weighed by salience (§4.2); the two strongest take one ear each; the head follows the strongest by 35% when still.
@@ -47,7 +62,42 @@ const P = {
   srcMin: 0.12,            // salience below this is ignored by the ears
   afraidNear: 8, alertCue: 0.45,
   rimEase: 2.5,
+  /* crouch transitions (7 Oct): the head and shoulders go first, the hips follow; each part rises once it has cleared */
+  crouchLead: 0.05, crouchLeadPerV: 0.12,     // the front looks this far ahead of the head (m, + per m/s): it dips just before the edge
+  crouchDown: [0.075, 0.13],                  // ease time constants going down: [front, rear] (s)
+  crouchUp: [0.15, 0.2],                      // and rising: [front, rear]
+  crouchFollow: 0.06,                         // a deliberate crouch (Down): the hips follow the shoulders this much later (s)
+  runHint: { x0: 13.0, x1: 20.5, court: [57.5, 66.0], ranBefore: 1.0 },   // where the one "Shift run" hint may show; skipped once the player has run this long
 };
+
+/* ------------------------------------------------------------------ the gaits (timing only; ff-rabbit.js draws them)
+   phase 0 = the hind feet touch down. Each foot's stance window [on, off] is in phase units (it may run past 1). The stride
+   (m per cycle) grows with speed as stride * (v / ref)^exp, so the cadence rises a little and the stride a lot as it speeds
+   up. lift: [front, rear] fraction of the ballistic arc an end of the body may make while its feet are off the ground (never
+   more than gravity allows in that time), capped at `cap` m; dip = the legs flexing under load during a stance. */
+const GAITS = {
+  /* the cautious walk: a slow, deliberate half-bound. The forefeet are placed one after the other, the hind feet land
+     together behind them; the hips swing up over the planted forefeet, the shoulders lift a little off the hind push. */
+  walk:   { ref: 0.95, stride: 0.34, exp: 0.6, hindL: [0.00, 0.46], hindR: [0.01, 0.47], foreL: [0.38, 0.86], foreR: [0.46, 0.94], lift: [0.25, 0.35], cap: 0.018, dip: 0.004 },
+  /* the run (and the flee, longer): a bound with two flights, extended after the hind push and gathered after the forefeet */
+  run:    { ref: 2.75, stride: 0.78, exp: 0.6, hindL: [0.00, 0.24], hindR: [0.03, 0.27], foreL: [0.50, 0.64], foreR: [0.56, 0.70], lift: [0.55, 0.6], cap: 0.05, dip: 0.012 },
+  /* low: the crouch-walk, the creep and the duck-under; the feet move one by one, the body stays level */
+  crouch: { ref: 0.75, stride: 0.20, exp: 0.5, hindL: [0.00, 0.62], hindR: [0.50, 1.12], foreL: [0.25, 0.87], foreR: [0.75, 1.37], lift: [0.06, 0.06], cap: 0.004, dip: 0.0015 },
+  /* pushing the box with the head: short treading steps, the feet one by one */
+  push:   { ref: 0.62, stride: 0.16, exp: 0.5, hindL: [0.00, 0.66], hindR: [0.50, 1.16], foreL: [0.20, 0.86], foreR: [0.70, 1.36], lift: [0.04, 0.04], cap: 0.003, dip: 0.002 },
+};
+const FEET = ['hindL', 'hindR', 'foreL', 'foreR'];
+const GRAV = 9.81;
+const strideOf = (g, v) => Math.max(0.05, g.stride * Math.pow(Math.max(v, 0.01) / g.ref, g.exp));
+/* is phase p inside the window [a, b] (b may run past 1)? */
+const inWin = (w, p) => (p >= w[0] && p < w[1]) || (p + 1 >= w[0] && p + 1 < w[1]);
+/* the interval around p (in unwrapped phase, a <= p < b) during which none of the windows `ws` holds: null if one holds */
+function gapAround(ws, p) {
+  if (ws.some(w => inWin(w, p))) return null;
+  let a = -Infinity, b = Infinity;
+  for (const w of ws) for (const k of [-1, 0, 1]) { const on = w[0] + k, off = w[1] + k; if (off <= p && off > a) a = off; if (on > p && on < b) b = on; }
+  return [a, b];
+}
 /* local deterministic generator for behaviour timing */
 let rs = 1; const rnd = () => { let t = (rs += 0x6D2B79F5); t = Math.imul(t ^ (t >>> 15), t | 1); t ^= t + Math.imul(t ^ (t >>> 7), t | 61); return ((t ^ (t >>> 14)) >>> 0) / 4294967296; };
 const rr = (a, b) => a + (b - a) * rnd();
@@ -64,7 +114,7 @@ function freshB(keepSeen) {
     reachFails: 0, lookedAtBox: false, lipCool: 0, idleNext: rr(0.6, 1.2), twitchNext: rr(2, 5), sniffNext: rr(3, 8), groomCool: 0, sniffCool: 0, edgeCool: 0,
     pushBlockT: 0, boxSniffCool: 0, beamD: 99, vehicleT: -1, vehicleStopped: false, gateOpen: false, personOutT: -1, torchDownT: -1,
     srPrevX: null, srMoving: false, holdWant: null, holdWantT: 0, srWasMoving: false, aimK: 0, grabK: 0, noticeT: -1, flinchK: 0, wasBoxMoving: false, firstSqueezeId: null,
-    drainRecovered: false, escaped: false, lastPlace: null, walkwayT: -1,
+    drainRecovered: false, escaped: false, lastPlace: null, walkwayT: -1, ranT: 0,
   });
   B.seen = seen; B.src.clear();
   B.add = { startle: 9, shake: 9, splash: 9, sniff: 9, twitchL: 9, twitchR: 9, look: 9, lookDir: -1, snap: 9 };
@@ -302,13 +352,14 @@ function schedule(dt, dir) {
   if (chainStep(dt)) return;
   if (!free) return;
   if (dir || !S.grounded || S.push) return;
-  /* 3. danger: freeze in the open, flatten under cover (and in the glare), peek at a cover's edge */
+  /* 3. danger: freeze in the open, flatten only under something low or when the player holds Down, peek at a cover's edge */
   const danger = mm === 'afraid' || mm === 'flee' || (B.humanVisible && mm !== 'calm');
   if (danger && still > 0.15) {
-    /* flat under anything low (§4.2), in a beam or the glare, or when a far human stops; watching (ears live) from cover
-       that is not low (under the deck); peeking at a cover's reachable end; frozen in the open */
+    /* flat ONLY under anything low (§4.2) or when the player holds Down (Josh 7 Oct §9.2: it must not flatten by itself in
+       open space); watching (ears live) from cover that is not low (under the deck); peeking at a cover's reachable end;
+       anywhere else, a beam, the gate's glare or a far human who stops included, it freezes: ears back, a slight lowering */
     let want = 'freeze'; const c = FF.Level.coverAt(S.x, 0), inCore = c && c.core && S.x >= c.core[0] && S.x <= c.core[1];
-    if (S.low || B.beamD < 0.5 || (B.humanStill && B.humanVisible && G.place === 'courtyard')) want = 'hide';
+    if (S.low || S.crouchHeld) want = 'hide';
     else if (inCore || B.hideHold) want = 'watch';
     else if (G.place === 'search' && c && c.core) want = 'peek';
     /* a short hysteresis so a beam or a shadow edge hovering at a threshold cannot flicker the posture */
@@ -354,8 +405,120 @@ function chainStep(dt) {
   return true;
 }
 
+/* the solid a horizontal move to nx runs into. A solid the body already overlapped in x before the move is not a wall to
+   it (it is over or under it, or dropping past its edge): the floor and fall logic own that one. Fix (7 Oct): walking off
+   the fallen post's far edge at the cautious walk, the body still overlaps the post by ~2 cm as it starts to drop, and the
+   old test (any overlap, resolved by the direction of travel) snapped the rabbit back to the post's near side. */
+function xHit(nx, y0, y1) {
+  const hw = RB().hw, ox0 = S.x - hw, ox1 = S.x + hw;
+  for (const s of FF.Level.solidsIn(nx - hw, nx + hw, y0, y1)) if (!(ox1 > s.x0 + 1e-6 && ox0 < s.x1 - 1e-6)) return s;
+  return null;
+}
+
+/* ------------------------------------------------------------------ the run input */
+/* Shift / the pad's run button (X, RB, RT): ff-main.js maps them to the 'run' action. */
+function runHeld() { return !!FF.Input.down('run'); }
+
+/* the one quiet "Shift run" hint (Josh 7 Oct §9.1): a first-timer meets it in a safe stretch early in the Verge (after the
+   post, before the van comes), while moving; skipped if the player has already found Shift; a second chance on entering
+   the Courtyard (a Continue from a save). UI shows each hint once per session (and never in the Search). */
+function runHint(dt, ctl) {
+  if (S.run && Math.abs(S.vx) > 1.6) B.ranT += dt;
+  if (B.seen.runHint || !ctl || S.mode !== 'play' || !S.grounded || S.squeeze || Math.abs(S.vx) < 0.3 || B.ranT >= P.runHint.ranBefore) return;
+  const H = P.runHint, place = FF.G.place;
+  const verge = place === 'verge' && S.x >= H.x0 && S.x <= H.x1 && B.vehicleT < 0, court = place === 'courtyard' && S.x >= H.court[0] && S.x <= H.court[1];
+  if (!verge && !court) return;
+  B.seen.runHint = true;
+  FF.bus.emit('hint', { id: 'hint-run', arg: 'run', x: +S.x.toFixed(2) });
+}
+
+/* ------------------------------------------------------------------ crouch transitions (presentation of the crouch) */
+const ease = (k, t, tau, dt) => k + (t - k) * (1 - Math.exp(-dt / tau));
+/* is anything lower than lowPoseUnder over the lane span [x0, x1] (either order) at the rabbit's floor? */
+function lowOver(x0, x1) { const a = Math.min(x0, x1), b = Math.max(x0, x1); return FF.Level.ceilingAbove((a + b) / 2, (b - a) / 2, S.y) - S.y < RB().lowPoseUnder; }
+/* the front (centre to nose, looking a little ahead) lowers as it reaches something low; the rear (tail to centre, a shorter
+   look ahead) follows; each rises once its own part has cleared. Down lowers the front at once, the hips 0.06 s later. The
+   collision crouch (S.crouch) is unchanged: this is only how the body gets there. */
+function crouchStep(dt) {
+  const R = RB(), f = S.face || 1, v = Math.abs(S.vx), lead = P.crouchLead + P.crouchLeadPerV * v;
+  const held = !!(S.crouchHeld || B.hideHold || (S.mode !== 'play' && S.crouch));
+  S.crouchHeldT = held ? S.crouchHeldT + dt : 0;
+  const frontLow = lowOver(S.x, S.x + f * (R.hw + lead)), rearLow = lowOver(S.x - f * R.hw, S.x + f * lead * 0.8);
+  const tf = held || frontLow ? 1 : 0, tr = (held && S.crouchHeldT >= P.crouchFollow) || rearLow ? 1 : 0;
+  S.crouchF = ease(S.crouchF, tf, tf > S.crouchF ? P.crouchDown[0] : P.crouchUp[0], dt);
+  S.crouchR = ease(S.crouchR, tr, tr > S.crouchR ? P.crouchDown[1] : P.crouchUp[1], dt);
+  /* the squeeze, for the animation: 'in' while the hips have not reached it yet (head and shoulders first), 'under' while
+     the nose has not passed its far side, 'out' while the hips are still under it; k = progress across it */
+  const q = S.squeeze;
+  if (!q) { S.sq = null; return; }
+  const s = q.solid, near = f > 0 ? s.x0 : s.x1, far = f > 0 ? s.x1 : s.x0, past = (x, e) => (x - e) * f >= 0;
+  const nose = S.x + f * R.hw, tail = S.x - f * R.hw;
+  const phase = !past(tail, near) ? 'in' : !past(nose, far) ? 'under' : 'out';
+  S.sq = { phase, id: s.id, short: q.short, clear: +q.clear.toFixed(3), k: clamp((S.x - near) * f / Math.max(0.05, s.x1 - s.x0), 0, 1) };
+}
+
+/* ------------------------------------------------------------------ the gait (timing only; see GAITS) */
+function freshGait() { return { name: 'idle', phase: 0, stride: GAITS.walk.stride, cadence: 0, speed: 0, runK: 0, feet: { hindL: true, hindR: true, foreL: true, foreR: true }, stance: null, lift: { front: 0, rear: 0 } }; }
+/* the stance windows of the gait now (walk and run blend by speed) */
+function windowsOf(name, runK) {
+  if (name === 'crouch' || name === 'push') return GAITS[name];
+  const W = GAITS.walk, Rn = GAITS.run, o = {};
+  for (const k of FEET) o[k] = [lerp(W[k][0], Rn[k][0], runK), lerp(W[k][1], Rn[k][1], runK)];
+  o.lift = [lerp(W.lift[0], Rn.lift[0], runK), lerp(W.lift[1], Rn.lift[1], runK)]; o.cap = lerp(W.cap, Rn.cap, runK); o.dip = lerp(W.dip, Rn.dip, runK);
+  return o;
+}
+/* the support interval of an end around p (the union of its two feet's windows), unwrapped */
+function supportAround(ws, p) {
+  let iv = null; for (const w of ws) for (const k of [-1, 0]) if (p >= w[0] + k && p < w[1] + k) iv = iv ? [Math.min(iv[0], w[0] + k), Math.max(iv[1], w[1] + k)] : [w[0] + k, w[1] + k];
+  if (!iv) return null;
+  for (let n = 0; n < 2; n++) for (const w of ws) for (const k of [-1, 0, 1]) { const a = w[0] + k, b = w[1] + k; if (b > iv[0] && a < iv[1]) iv = [Math.min(iv[0], a), Math.max(iv[1], b)]; }
+  return iv;
+}
+/* the vertical offset of one end of the body at phase p: off the ground it follows a parabola no higher than gravity allows
+   in the time it is up (k of the ballistic apex, capped); on the ground the legs flex a little under the load */
+function endLift(ws, p, cad, k, cap, dip, on) {
+  const gap = gapAround(ws, p);
+  if (gap) {
+    const T = (gap[1] - gap[0]) / Math.max(cad, 1e-3), h = Math.min(cap, k * GRAV * T * T / 8) * on, u = (p - gap[0]) / (gap[1] - gap[0]);
+    return h * 4 * u * (1 - u);
+  }
+  const iv = supportAround(ws, p); if (!iv) return 0;
+  return -dip * on * Math.sin(Math.PI * clamp((p - iv[0]) / (iv[1] - iv[0]), 0, 1));
+}
+function gaitTakeoff() { const g = S.gait; if (!g) return; const w = windowsOf(g.name === 'crouch' || g.name === 'push' ? g.name : 'walk', g.runK); g.phase = Math.max(w.hindL[1], w.hindR[1]) % 1; }
+/* every fixed step: which cycle, the stride for this speed, the phase from the distance moved, the feet, the body's lift */
+function gaitStep(dt) {
+  const g = S.gait; if (!g) return;
+  const v = Math.abs(S.vx), lowNow = S.crouch || S.low || S.crouchF > 0.5 || !!S.squeeze;
+  let name;
+  if (S.mode !== 'play') name = 'idle';
+  else if (!S.grounded) name = 'air';
+  else if (S.push) name = 'push';
+  else if (lowNow) name = v > 0.02 ? 'crouch' : 'idle';
+  else name = v > 0.02 ? 'walk' : 'idle';
+  const runK = name === 'walk' ? sstep(1.35, 2.1, v) : 0;
+  const cyc = name === 'crouch' || name === 'push' ? name : 'walk';
+  const stride = cyc === 'walk' ? lerp(strideOf(GAITS.walk, v), strideOf(GAITS.run, v), runK) : strideOf(GAITS[cyc], v);
+  const W = windowsOf(cyc, runK);
+  /* the phase moves only with the rabbit's own travel over the ground (not while riding the box, not in the air) */
+  if (name !== 'air' && name !== 'idle') {
+    g.phase += v * dt / stride;
+    if (g.phase >= 1) {
+      g.phase -= 1;
+      /* the hind feet touch down: the footstep (none crouched: the creep and the squeeze are silent, as before) */
+      if (v > 0.3 && name !== 'crouch' && S.mode === 'play') FF.bus.emit('rabbit:step', { x: +S.x.toFixed(2), y: +S.y.toFixed(2), run: +clamp((v - 0.9) / 1.5, 0, 1).toFixed(2), gait: runK > 0.5 ? 'run' : name, surface: surface(), place: FF.G.place });
+    }
+  }
+  const cad = name === 'air' || name === 'idle' ? 0 : v / stride, on = name === 'air' || name === 'idle' ? 0 : sstep(0.12, 0.5, v);
+  g.name = name === 'walk' && runK > 0.5 ? 'run' : name; g.runK = runK; g.stride = stride; g.cadence = cad; g.speed = v; g.stance = W;
+  for (const k of FEET) g.feet[k] = name === 'idle' ? true : name === 'air' ? false : inWin(W[k], g.phase);
+  g.lift.front = cad ? endLift([W.foreL, W.foreR], g.phase, cad, W.lift[0], W.cap, W.dip, on) : 0;
+  g.lift.rear = cad ? endLift([W.hindL, W.hindR], g.phase, cad, W.lift[1], W.cap, W.dip, on) : 0;
+}
+
 /* ------------------------------------------------------------------ the module */
 const Player = FF.Player = {
+  GAITS,
   stub: false,
   async init(c) {
     ctx = c; freshB(false); ductLink = link('duct');
@@ -420,7 +583,7 @@ const Player = FF.Player = {
     rs = (hash(String(cp.id || 'warp') + ':' + (FF.Q.get('seed') || 1)) || 1) >>> 0;
     freshB(!newGame);
     Object.assign(S, { x: cp.x, y: cp.y || 0, z: 0, vx: 0, vy: 0, face: cp.face || 1, grounded: true, crouch: cp.pose === 'hide', squeeze: null, onBox: false, push: false, effort: 0,
-      holdT: 0, holdDir: 0, airT: 0, landed: false, cut: false, coyote: 0, buf: 0, yaw: Math.PI / 2 * (cp.face || 1), mode: 'play', modeT: 0,
+      run: false, crouchHeld: false, crouchHeldT: 0, crouchF: cp.pose === 'hide' ? 1 : 0, crouchR: cp.pose === 'hide' ? 1 : 0, gait: freshGait(), sq: null, airT: 0, landed: false, cut: false, coyote: 0, buf: 0, yaw: Math.PI / 2 * (cp.face || 1), mode: 'play', modeT: 0,
       mood: 'calm', pose: cp.pose || null, still: 0, visible: true, low: false, inCore: false, hidden: false, fleeing: false, settle: null, duckT: 0, peakY: cp.y || 0,
       blockedBy: null, ears: B.ears, breath: 1 });
     S.y = floorAt(S.x, S.y + 0.05);
@@ -437,8 +600,8 @@ const Player = FF.Player = {
   step(dt) {
     const G = FF.G, In = FF.Input, R = RB(); S.landed = false; S.modeT += dt;
     tickTimers(dt);
-    if (S.mode !== 'play') { stepLink(dt); behave(dt, 0, false); return; }
-    if (B.frozen) { S.vx = 0; behave(dt, 0, false); return; }
+    if (S.mode !== 'play') { stepLink(dt); crouchStep(dt); gaitStep(dt); behave(dt, 0, false); return; }
+    if (B.frozen) { S.vx = 0; crouchStep(dt); gaitStep(dt); behave(dt, 0, false); return; }
     const ctl = G.control && !B.locked;
     let dir = ctl ? In.axis() : 0;
     let up = ctl && In.took('up'), jumpP = ctl && In.took('jump');
@@ -485,18 +648,21 @@ const Player = FF.Player = {
     }
     S.squeeze = sq;
     const want = ctl && In.down('down') && S.grounded;
+    S.crouchHeld = !!want;
     if (want || sq || B.hideHold) S.crouch = true; else if (S.crouch && FF.Level.ceilingAbove(S.x, R.hw, S.y) - S.y >= R.h) S.crouch = false;
 
-    if (dir !== S.holdDir) { S.holdDir = dir; S.holdT = 0; } else if (dir) S.holdT += dt;
+    /* the speed is only what the player asks for (Josh 7 Oct §9.1): a direction alone = the cautious walk, for as long as it
+       is held; Shift + a direction = the run, which is the flee while he is chasing (fleeRunsAtOnce: no ramp); Down = the
+       crouch-walk (also the speed while stuck under something lower than the standing height). A squeeze only CAPS it. */
     const flee = fleeing(); S.fleeing = flee;
-    let top = flee ? R.flee : R.walk + (R.run - R.walk) * clamp((S.holdT - R.runAfter) / R.runRamp, 0, 1);
-    if (ctl && In.down('walk') && !flee) top = R.walk;
-    if (S.crouch) top = R.crouch;
+    const run = !!(ctl && dir && runHeld()); S.run = run;
+    let top = run ? (flee ? R.flee : R.run) : R.walk;
+    if (want || B.hideHold || (S.crouch && !sq)) top = R.crouch;
     let sqTop = 0;
-    if (sq) top = sqTop = sq.short ? (flee ? R.duckUnder.fleeSpeed : R.duckUnder.speed) : R.creep.speed;
+    if (sq) { sqTop = sq.short ? (flee ? R.duckUnder.fleeSpeed : R.duckUnder.speed) : R.creep.speed; top = Math.min(top, sqTop); }
     if (S.duckT > 0) { S.duckT -= dt; top = 0; }
     const tgt = dir * top;
-    const a = !S.grounded ? R.airAccel : dir === 0 ? R.decel : (S.vx * dir < -0.05 ? R.turn : (Math.abs(S.vx) > top ? R.decel : R.accel * (flee ? 1.2 : 1)));
+    const a = !S.grounded ? R.airAccel : dir === 0 ? R.decel : (S.vx * dir < -0.05 ? R.turn : (Math.abs(S.vx) > top ? R.decel : R.accel * (flee && run ? 1.2 : 1)));
     S.vx = approach(S.vx, tgt, a * dt);
     if (sq && sqTop && Math.abs(S.vx) > sqTop) S.vx = Math.sign(S.vx) * sqTop;        // the Search checker's squeeze clamp
     if (dir) S.face = dir;
@@ -513,7 +679,7 @@ const Player = FF.Player = {
     /* move x against the solids (step up <= stepUp), the ground profile and the box */
     S.push = false; S.blockedBy = null;
     let nx = S.x + S.vx * dt; const h = heightNow();
-    const hit = FF.Level.hitSolid(nx - R.hw, nx + R.hw, S.y + 0.001, S.y + h);
+    const hit = xHit(nx, S.y + 0.001, S.y + h);
     if (hit) {
       if (S.grounded && hit.y1 - S.y <= R.stepUp && FF.Level.ceilingAbove(nx, R.hw, hit.y1) - hit.y1 >= R.hCrouch) S.y = hit.y1;
       else { nx = S.vx > 0 ? hit.x0 - R.hw - 1e-4 : hit.x1 + R.hw + 1e-4; S.vx = 0; S.blockedBy = hit; }
@@ -550,6 +716,7 @@ const Player = FF.Player = {
     if (S.buf > 0 && S.coyote > 0 && !S.crouch && FF.Level.ceilingAbove(S.x, R.hw, S.y) - S.y > P.jumpHeadroom) {
       S.vy = Math.sqrt(2 * R.gravity * R.jumpHeight); S.grounded = false; S.coyote = 0; S.buf = 0; S.airT = 0; S.cut = false; S.onBox = false;
       if (B.pose && B.pose.cancel !== 'none') cancelPose(0.1);
+      gaitTakeoff();
       FF.bus.emit('rabbit:jump', { x: +S.x.toFixed(2), y: +S.y.toFixed(2) });
     }
     if (!S.grounded && S.vy > 0 && !(ctl && (In.down('jump') || In.down('up'))) && !S.cut && S.airT >= P.jumpCutAfter) { S.vy *= R.jumpCut; S.cut = true; }
@@ -572,6 +739,8 @@ const Player = FF.Player = {
     }
     if (!S.grounded) S.airT += dt;
     S.still = Math.abs(S.vx) < 0.05 && S.grounded && !dir ? S.still + dt : 0;
+    crouchStep(dt); gaitStep(dt);
+    runHint(dt, ctl);
     behave(dt, dir, up || jumpP);
   },
   frame(dt) {
@@ -584,7 +753,7 @@ const Player = FF.Player = {
     rig.object.visible = S.visible !== false;
     rig.object.position.set(S.x, S.y, S.z); rig.object.rotation.y = S.yaw;
     rig.update(dt, animInput());
-    if (rig.footfall && S.grounded && S.mode === 'play') FF.bus.emit('rabbit:step', { x: +S.x.toFixed(2), y: +S.y.toFixed(2), run: +clamp((Math.abs(S.vx) - 0.9) / 1.5, 0, 1).toFixed(2), surface: surface(), place: FF.G.place });
+    /* the footsteps (rabbit:step) now come from the gait cycle in step(): the hind feet's touchdown */
     if (FF.World && FF.World.prop) FF.World.prop('box').position.set(box.x, 0, 0);
     const L = FF.LOOK, look = (FF.World && FF.World.look) || L;
     FF.setAOBox(0, [box.x, box.h / 2, 0], [box.w / 2, box.h / 2, box.d / 2], L.ao.objects, L.ao.objectReach);
@@ -620,7 +789,10 @@ const Player = FF.Player = {
       fleeing: S.fleeing, inCore: S.inCore, hidden: S.hidden, ears: { pL: +B.ears.pL.toFixed(2), pR: +B.ears.pR.toFixed(2), yL: +B.ears.yL.toFixed(2), yR: +B.ears.yR.toFixed(2) },
       head: { yaw: +B.head.yaw.toFixed(2), pitch: +B.head.pitch.toFixed(2) }, top: B.top || [], reachFails: B.reachFails, inv: B.inv ? B.inv.kind : null, locked: B.locked, frozen: B.frozen,
       seen: Object.keys(B.seen), queue: B.queue.map(q => q.name), add: Object.fromEntries(Object.entries(B.add).map(([k, v]) => [k, typeof v === 'number' ? +v.toFixed(2) : v])),
-      aimK: +B.aimK.toFixed(2), flinchK: +B.flinchK.toFixed(2), vehicle: { t: +B.vehicleT.toFixed(2), stopped: B.vehicleStopped, gateOpen: B.gateOpen } };
+      aimK: +B.aimK.toFixed(2), flinchK: +B.flinchK.toFixed(2), vehicle: { t: +B.vehicleT.toFixed(2), stopped: B.vehicleStopped, gateOpen: B.gateOpen },
+      run: !!S.run, crouchHeld: !!S.crouchHeld, crouchF: +S.crouchF.toFixed(3), crouchR: +S.crouchR.toFixed(3), sq: S.sq ? S.sq.phase : null, ranT: +B.ranT.toFixed(2),
+      gait: S.gait ? { name: S.gait.name, phase: +S.gait.phase.toFixed(3), stride: +S.gait.stride.toFixed(3), cadence: +S.gait.cadence.toFixed(2), runK: +S.gait.runK.toFixed(2),
+        feet: FEET.filter(k => S.gait.feet[k]).join(','), lift: [+S.gait.lift.front.toFixed(4), +S.gait.lift.rear.toFixed(4)] } : null };
   },
 };
 
@@ -681,15 +853,23 @@ function behave(dt, dir, act) {
   S.ears = B.ears; S.breath = B.hz; S.mood = B.mood; S.pose = B.pose ? B.pose.name : null; S.settle = B.pose && B.pose.kind === 'chain' ? B.pose.step : (B.mood === 'settled' ? 'lie' : null);
 }
 
-/* the anim input for the rig (presentation) */
+/* the anim input for the rig (presentation). 7 Oct: plus the gait and the crouch transitions (INTERFACES.md §8.3):
+     gait {name ('idle'·'walk'·'run'·'crouch'·'push'·'air'), phase (0..1, 0 = the hind feet touch down; it advances with the
+       distance travelled, |dx| / stride), stride (m per cycle), cadence (Hz), speed (m/s), runK (0 walk .. 1 run, by speed),
+       feet {hindL, hindR, foreL, foreR} (planted now), stance {hindL: [on, off], …, lift, cap, dip} (the windows in use),
+       lift {front, rear} (m: the shoulders' and the hips' rise from the hop cycle; add to the body, it never floats)},
+     crouchFront, crouchRear (0..1: head and shoulders lead, the hips follow; each rises once it has cleared), crouchK (their
+     mean), crouchHeld (Down), run (Shift held while moving), squeeze ({phase 'in'·'under'·'out', id, short, clear, k} or null).
+     The old fields keep their meaning (crouch = the collision crouch or under something low). */
 function env(t, dur) { return t < dur ? Math.sin(Math.PI * t / dur) : 0; }
 function animInput() {
   const A = B.add;
   return {
+    gait: S.gait, crouchFront: S.crouchF, crouchRear: S.crouchR, crouchK: (S.crouchF + S.crouchR) / 2, crouchHeld: !!S.crouchHeld, run: !!S.run, squeeze: S.sq,
     speed: S.mode === 'climb' || S.mode === 'popout' ? 0 : Math.abs(S.vx), vx: S.vx, vy: S.vy, grounded: S.grounded || S.mode !== 'play', crouch: S.crouch || S.low,
     push: S.push, effort: S.effort, landed: S.landed, airT: S.airT, driven: true,
     pose: B.pose ? B.pose.name : null, poseT: B.pose ? B.pose.t : null, poseOut: B.out, poseData: B.pose ? B.pose.data : null,
-    ears: B.ears, head: B.head, breath: { hz: B.hz, amp: B.amp }, flee: S.fleeing || (B.mood === 'afraid' && Math.abs(S.vx) > 2.0), low: S.low, near: S.face > 0 ? 'R' : 'L',
+    ears: B.ears, head: B.head, breath: { hz: B.hz, amp: B.amp }, flee: (S.fleeing && Math.abs(S.vx) > 1.6) || (B.mood === 'afraid' && Math.abs(S.vx) > 2.0), low: S.low, near: S.face > 0 ? 'R' : 'L',
     add: { startle: env(A.startle, 0.15) + 0.5 * env(A.snap, 0.18), flinch: B.flinchK, shake: env(A.shake, 0.5), shakeT: A.shake, splash: env(A.splash, 0.4), sniff: env(A.sniff, 0.9),
       twitchL: env(A.twitchL, 0.32), twitchR: env(A.twitchR, 0.32), lookBack: A.look < 1.2 ? sstep(0, 0.3, A.look) * (1 - sstep(0.9, 1.2, A.look)) : 0, lookDir: A.lookDir },
   };

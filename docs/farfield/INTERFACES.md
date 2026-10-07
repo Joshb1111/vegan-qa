@@ -1,6 +1,6 @@
 # Far Field · Sequence 1 · Interfaces
 
-Architect, 7 Oct 2026. **The contract between the game's files.** The design is `SEQUENCE-1.md`: its **Amendments** (A1–A24, at the top) win over the rest of it. This file says which module does what, the API each one exposes, how they talk, and who owns which file, so four builders can work at the same time without touching each other's files.
+Architect, 7 Oct 2026. **The contract between the game's files.** The design is `SEQUENCE-1.md`: its **Amendments** (A1–A24 and the playtest changes V1–V7, at the top) win over the rest of it. This file says which module does what, the API each one exposes, how they talk, and who owns which file, so four builders can work at the same time without touching each other's files.
 
 The skeleton already runs: `public/farfield/index.html` boots, shows the content notice, the title over the live Verge, and play along the whole 135 m lane (a greybox). Every module exists as a **working stub** with this API (§14 says what each stub does today). Builders replace the insides and keep the API.
 
@@ -24,8 +24,44 @@ The parallel build is over and every module is live (`stub: false`). The integra
 - **The room** calls the game's `__ff.teardown()` when it stops (a `leave` posted just before the frame is removed dies with it).
 - **Debug handle:** `__ff.tick()` (one fixed step; presentation every second step with the true elapsed time) and `__ff.flush()`; `step(n)` and `run(n)` use the same timing, so frame-driven timers keep the simulation's pace however a test chunks its steps.
 - **Tests** live in `docs/farfield/tests/` (`bash docs/farfield/tests/run-all.sh`; `PROGRESS.md`). Default port 9921, devtools +100.
-- **Cache:** the scripts carry `?v=11`; the room loads `farfield/index.html?v=2`.
+- **Cache:** the scripts carry `?v=12`; the room loads `farfield/index.html?v=3` (v2, after Josh's playtest).
 - **Status for Josh:** `STATUS.md`.
+
+## Sequence 1 v2, 7 Oct evening (Josh's playtest, BRIEFS §9; SEQUENCE-1.md V1-V7; updates §0, §6, §8.2-§8.9, §12)
+
+### Controls, crouch and gait (V1-V3)
+
+- **Speeds are only what the player asks for** (`ff-player.js`, `FF.RULES.rabbit`): a direction alone is the cautious walk (`walk` 0.95 m/s) for as long as it is held (no hold-to-run: `runAfter` / `runRamp` are gone); **Shift + a direction runs** (`run` 2.75), and while a searcher within 15 m is SPOTTED / AIM / PURSUE / GRAB / LOWER a run is the flee (3.6, at once); a direction alone stays the walk even then. **Down** is the deliberate crouch and crouch-walk (`crouch` 0.75). Squeeze speeds are caps on the speed asked for (a duck-under never speeds a walker up).
+- **Input (§6):** the action **`run`** replaces `walk`: main maps ShiftLeft / ShiftRight and the pad's X, RB, RT (buttons 2, 5, 7) to it; a tilted stick alone is the walk, like an arrow. `__ff.run` plans and bot holds use `run`. Shift held down on the title carries into play with the first arrow.
+- **Hint:** the Player emits `hint {id: 'hint-run', arg: 'run', x}` once, while moving in the Verge between x 13.0 and 20.5 before the van comes (or, failing that, entering the Courtyard), unless the player has already run for 1 s. UI text `HINTS.run` = "Shift + → run". The title line (§8.9) is now "← → move · Shift run · Space jump · ↓ crouch"; the move hint "← → move"; the jump hint "Space jump" (↑ still jumps and climbs in).
+- **No automatic flattening in the open:** the danger / glare reflex in the open is the `freeze` pose (ears back, a slight lowering); `hide` (flat) only under anything lower than `lowPoseUnder` or while Down is held. Watch / peek under cover are unchanged.
+- **The anim input gains (§8.3; ff-rabbit.js draws them, every old field keeps its meaning):**
+  - `gait {name, phase, stride, cadence, speed, runK, feet, stance, lift}`: `name` 'idle'·'walk'·'run'·'crouch'·'push'·'air'; `phase` 0..1 with 0 = the hind feet touch down, advanced by the distance travelled (`|vx|·dt / stride`, so a planted foot never slides; held in the air at the hind lift-off); `stride` m per cycle (grows with speed); `cadence` Hz; `runK` 0 walk … 1 run (by speed, 1.35–2.1 m/s); `feet {hindL, hindR, foreL, foreR}` planted now; `stance` the windows in use (`{hindL: [on, off], …, lift, cap, dip}`, from `FF.Player.GAITS`); `lift {front, rear}` m, the shoulders' and hips' rise from the hop cycle (an end rises only while its feet are off the ground, never higher or longer than gravity allows; a small dip while loaded). The walk is a slow half-bound (forefeet one after the other, the hind feet together, the hips arcing over the planted forefeet); the run a bound with an extended and a gathered flight.
+  - `crouchFront`, `crouchRear` (0..1, eased: the head and shoulders lower first, the hips follow, each rises once it has cleared), `crouchK` (their mean), `crouchHeld` (Down), `run` (Shift held while moving), `squeeze` (`{phase: 'in'·'under'·'out', id, short, clear, k}` or null; a squeeze thinner than the body goes 'in' → 'out').
+  - `rabbit:step` (footsteps) now fires from this cycle (the hind feet's touchdown), with `gait` in its payload; `rig.footfall` is no longer read.
+- **Checker:** `check-search.mjs` models the same inputs (plans give `{dir, run, crouch}`): RUN mode (Shift) reproduces every amended verdict, WALK mode (the cautious pace) checks fairness at a walk; with the shorter entry, PASS 21/21.
+- **`ff-rabbit.js` (§8.3)** draws the gait with leg IK (planted feet). Model path: every moving clip's ground speed is measured at load (clips need not be authored at an exact speed); a clip the file lacks is drawn procedurally, retargeted onto the model's bones; a moving clip whose feet hardly travel is skipped and drawn procedurally (said in the console); `?rabbitanim=auto|clips|proc`; `rig.debug()`; `FF.Rabbit.last` (the rig, for tests). `caught` / `hit` clips, if a file has them, play under the black on the bus `fail` (optional). Nothing probes for a model file: `models/models.json` names it (`"rabbit": "ff_rabbit.glb"`) or `?rabbit=<file>`.
+- **`ff-humans.js` (§8.5)**, visuals only: legs placed by IK on the step count the AI keeps (`gait`), stride measured from the figure's own travel, heel-to-toe roll, arms against the legs, a weight shift standing, a heavier silhouette. No AI or timing change.
+- **What Josh supplies and the plan for the real characters:** `CHARACTERS.md`.
+
+### The door reveal (V5): the one camera takeover
+
+- **`FF.Events` runs it** (`ff-events.js` REVEAL): start = the earlier of the entry's `cue` and the rabbit's centre at x 90.0, first time only → `Game.control(false)`, `G.flags.revealSafe = true` → the rabbit stops by its own physics; once still `Player.setPose('listen')` then `'freeze'` (under the shelf `'watch'`; mid-squeeze nothing) → `Camera.shot('search-entry-hold', {ease: 1.25})` 0.3 s after the cue → `Camera.shot(null, {release: 1.3})` 1.2 s into `aim-demo` → control back 1.0 s later, with `FF.Input.latch(['left', 'right', 'up', 'jump'])` → 1.2 s grace → `revealSafe` cleared. A safety gives control back at once if his entry ends or is cut short, or after 12 s. Bus: `reveal {phase: start·pan·return·control·end, cause: 'cue'·'trigger', x}`. Debug: `FF.Events.reveal()` → `{phase ('' · hold · show · return · grace), cause, done, held, pose, t, maxX, latched, log}` (also in `debug().reveal`). `reset`: a pause → Restart mid-takeover gives control back and it replays in full; once control has returned it never replays (only a 1 s camera lean if his entry ever replays); a new game forgets it.
+- **`FF.Input` latch (main, §6):** `latch(list)` → the listed actions held now count as not held until let go and pressed again (a fresh keydown, a pad rising edge or a bot `press` ends it at once, even inside one step; a release ends it at the step's end; auto-repeat keydown never does); `unlatch()`, `latched` (array), `raw(a)` (held, ignoring the latch). `clear()` also clears the latch.
+- **`FF.AI` (§8.6):** while `G.flags.revealSafe` the searcher gets no sight points and no tracking: nothing can see, touch or grab the rabbit.
+- **The entry is shorter** (`ff-script-s1.js`, 7.65 s: cue 1.35, doorway 0.6, step-in 1.1, sweep-left 0.25, turn 0.45, aim-demo 2.0, turn-sweep 1.9). The World opens door N0 from the start of the `doorway` segment (`FF.AI.entrySegs`) over 0.5 s and stops the torch behind its glass there; Audio's four footsteps behind the door all fall before it opens.
+- **`FF.Camera` (§8.2):** `shot(id, {ease, release})`; `search-entry-hold` fits the span [104.3, 114.5] to the aspect (dist 10.5–12.5) and no longer starts, holds or releases itself (only a safety release if his entry is cut short); `attend(key, {…, place})` limits a lean to one place (the walkway lean stays in the Courtyard). Audit: the reveal is the only takeover; the Courtyard establishing frame releases on movement; the van and walkway leans never take control.
+
+### The world (V6, V7)
+
+- **One sign of resistance:** `FF.S1.decor` `painted-over` (Courtyard back wall, x 65.80–68.58, y 0.45–1.84, z −5.0), drawn by `ff-world.js` `paintedOver()`: a canvas texture painted once at start-up on a panel 3 mm off the wall, lit by the wall's own shading; one draw call; its own seed. No collision, cover, trigger, light, sound, camera or UI. It sits between the Courtyard reveal frame and the puzzle framing, so it is passed, never shown.
+- **The Search grade** (`FF.LOOKS.search.grade`): contrast 1.06, lift [0.026, 0.030, 0.037], vignette 0.64 (dark places show their shapes).
+
+### Tests (§12)
+
+`docs/farfield/tests/`: `t-controls.mjs` (22 checks: the walk never speeds up, 30 s held; Shift run and back; the hint; the post; squeeze order and easing; Down; the glare freeze vs Down; flee only with Shift; the gait follows distance), `t-reveal.mjs` + `reveal-page.js` (15 scenarios: still, cautious, forward held through it, Shift run, a running jump into the trigger, hops, the full path from the Courtyard, the lens path, the no-detection guarantee, auto-repeat, mid-skirt, quick re-press, caught after it, pause → Restart in it and in its grace). The bot (`bot.js`) holds `run` for Shift and lets go while control is off; `routes.js` runs on open stretches only in the quick route.
+
+
 
 ## 0. Rules for builders
 
@@ -51,7 +87,7 @@ The parallel build is over and every module is live (`stub: false`). The integra
 - **Search geometry and perception change only with the checker re-run** (`docs/farfield/checks/`, §12).
 - **Use `FF.rng()`, never `Math.random()`,** in anything that affects play, so headless runs are deterministic (`?seed=n`, `__ff.seed(n)`).
 - **Collision and sight are 2D data, never meshes.** The x/y lane plane; z only places things in 3D.
-- **Content rules** (SEQUENCE-1.md §1): the rabbit is the only animal; no cages, bars or mesh near the rabbit, no labs, no rescue story, no animal-derived items; no hands, weapons or combat for the rabbit; no blood, no body, no slow motion, nothing that rewards harm; no slogans; never the words "go vegan".
+- **Content rules** (SEQUENCE-1.md §1): the rabbit is the only animal; no cages, bars or mesh near the rabbit, no labs, no rescue story, no animal-derived items; no hands, weapons or combat for the rabbit; no blood, no body, no slow motion, nothing that rewards harm; no slogans (one exception, V6: sparse, weathered, physical signs that some people resist animal use, such as the painted-over graffiti, never in UI, dialogue or a camera emphasis); never the words "go vegan".
 
 ## 1. Files and owners
 
@@ -182,11 +218,13 @@ Add events freely; list new ones in your report with their payloads.
 
 ## 6. Input: `FF.Input` (main)
 
-Actions: `left`, `right`, `jump`, `up`, `down`, `walk`. Keys: ← / A, → / D, **Space → jump; ↑ / W → up and jump** (A2), ↓ / S, Shift → walk. Gamepad (standard mapping, polled while focused): stick / d-pad move (a partial stick holds a walk), A jump, Y or d-pad up → up + jump, B or d-pad down → crouch, Start → pause.
+Actions: `left`, `right`, `jump`, `up`, `down`, `run` (V1; was `walk`). Keys: ← / A, → / D (the cautious walk), **Space → jump; ↑ / W → up and jump** (A2), ↓ / S, **Shift → run**. Gamepad (standard mapping, polled while focused): stick / d-pad move, **X, RB or RT → run**, A jump, Y or d-pad up → up + jump, B or d-pad down → crouch, Start → pause.
 
 | call | meaning |
 |---|---|
-| `FF.Input.down(a)` | held now (keyboard, gamepad or a bot hold) |
+| `FF.Input.down(a)` | held now (keyboard, gamepad or a bot hold), unless latched |
+| `FF.Input.raw(a)` | held now, ignoring the latch |
+| `FF.Input.latch(list)` / `unlatch()` / `latched` | the takeover latch (V5): listed actions held now count as not held until let go and pressed again |
 | `FF.Input.took(a)` | consume a press made since the last fixed step; presses are dropped after every step (buffer in your module if you want, e.g. the jump buffer) |
 | `FF.Input.peek(a)` | look without consuming |
 | `FF.Input.axis()` | −1 … 1 |
@@ -261,9 +299,9 @@ Directs the one `THREE.PerspectiveCamera` main made. Side-on, fov 26°, eye leve
 | `resize(w, h)` | main calls on size changes; re-projects |
 | `project()` | apply fov + lens shift |
 | `snap()` | jump to the current play framing (warps, continue, restart) |
-| `shot(id, opts)` | a scripted shot or held zone: `title`, `courtyard-reveal`, `search-entry-hold`, `duct-transit`, `pull-out`; `shot(null)` ends it |
+| `shot(id, opts)` | a scripted shot or held zone: `title`, `courtyard-reveal`, `search-entry-hold` (the door reveal, run by Events, V5), `duct-transit`, `pull-out`; `shot(null)` ends it. `opts {ease, release}` (s) |
 | `toPlay(seconds)` | ease from the title shot into play |
-| `attend(key, {x, y, w, t})` / `attend(key, null)` | attention requests (the van, the walkway worker, the searcher) |
+| `attend(key, {x, y, w, t, still, within, place})` / `attend(key, null)` | attention requests (the van, the walkway worker, the searcher); `place`: only while the rabbit is there |
 | `reset(cp)`, `frame(dt)`, `debug()` | `debug()` → `{zone, shot, x, y, dist, horizon, attends}` |
 
 The camera reads `G.rabbit` and `G.searcher` itself, and listens to `transit`, `entry`, `ai:state`, `torch-down`, `end`.
@@ -318,7 +356,8 @@ The Verge (the van, headlights along the joints, the stop at the gate, the glare
 | `fail(kind)` | starts the failure flow (also on the bus event `fail`) |
 | `scripted()` | true while a staged beat or the failure flow runs (main holds the tier step-down) |
 | `reset(cp, opts)` | progress flags implied by `cp`; stops any beat; (re)starts the beats that belong after `cp` |
-| `step(dt)` | checkpoint activation: progress checkpoints by x; Search checkpoints when the rabbit's centre is in that cover's core and `!FF.AI.danger()` |
+| `step(dt)` | checkpoint activation: progress checkpoints by x; Search checkpoints when the rabbit's centre is in that cover's core and `!FF.AI.danger()`; the door reveal (V5) |
+| `reveal()` | the door reveal's state: `{phase, cause, done, held, pose, t, maxX, latched, log}` |
 
 ### 8.8 `FF.Audio` (audio + UI + room builder)
 
@@ -337,10 +376,10 @@ The engine only; main owns the settings, storage and the parent protocol (§11).
 | call | contract |
 |---|---|
 | `showNotice()` / `hideNotice()` | the content notice, the game's first screen every launch (SEQUENCE-1.md §17): Continue, Back to the arcade |
-| `showTitle({save})` / `hideTitle()` | "FAR FIELD", the controls line ("← → move · hold to run · Space or ↑ jump · ↓ crouch"), "press → to begin", Continue from a save |
+| `showTitle({save})` / `hideTitle()` | "FAR FIELD", the controls line ("← → move · Shift run · Space jump · ↓ crouch", V1), "press → to begin", Continue from a save |
 | `showPause()` / `hidePause()` | Resume, Restart from checkpoint, Back to the arcade |
 | `key(code, mode)` | keys outside play: return a command string (`'continue'`, `'start'`, `'start:<cp>'`, `'resume'`, `'restart'`, `'exit'`, `'title'`), `true` (consumed) or `null` (main's default) |
-| `hint(id)` | first-time hints (bottom-left, 4 s; `move`, `jump`, `push`, `go-in`); only in play, never in the Search, none with `?clean=1` |
+| `hint(id)` | first-time hints (bottom-left, 4 s; `move`, `run` (V1: "Shift + → run", sent by the Player), `jump`, `push`, `go-in`); only in play, never in the Search, none with `?clean=1` |
 | `endCard()` → Promise | "to be continued": fade in 1.0 s, hold 3.5, fade out 1.0; any key skips after 1 s |
 | `message(text, onClick)` | e.g. the WebGL context was lost |
 
@@ -403,7 +442,7 @@ For headless tests (rAF is throttled headless: drive frames yourself).
 | `step(n, render = true)` | n fixed steps (1/120 s; presentation every 2) and one draw → `state` lite |
 | `draw()` | one draw |
 | `hold(a, on)`, `press(a)`, `release()` | input as a bot |
-| `run(n, plan, every)` | n steps; `plan(state, i)` returns holds `{left, right, jump, up, down, walk}` before each step; returns a log every `every` steps |
+| `run(n, plan, every)` | n steps; `plan(state, i)` returns holds `{left, right, jump, up, down, run}` before each step (v2: `run` = Shift; a hold kept through the door reveal stays latched, like a held key); returns a log every `every` steps |
 | `until(pred, max, plan)` | step until `pred(state)` |
 | `warp(cpId or {x, y, face})` | straight into play at a checkpoint (or anywhere) |
 | `start()` | notice → title → play |

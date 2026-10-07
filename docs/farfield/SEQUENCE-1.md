@@ -69,7 +69,7 @@ Checked with the floodlight as an area light, the duck-under speeds and a 0.6 s 
 
 **A11 · Every hide core is a refuge** (critic 2). Cores are the dark middles deeper than his reach from any end he can kneel at (an arm, 0.65 m, under anything lower than 0.5 m; 1.0 m under the deck): **A0 88.2–88.95, deck 93.2–96.3, pallet 101.85–102.55, skip 105.8–106.4, the gap ≥ 113.15**. If he saw the rabbit go in, he kneels at the nearer end, shines under and gropes; in a core the hand falls short (a 1.5 s held-breath beat), then LOST and WARY. The ends of a hide are within reach and stay unsafe after being seen; they look it, because they are where his light reaches. The Verge person's arm into the culvert, falling short, shows the rule first, in safety. Failure only happens in the open, in a reachable end, mid-squeeze or from an aim. Every Search checkpoint sits in a core.
 
-**A12 · The entry camera** (critic 3). The establishing frame (**centre x 109.0, dist 12.5**: the door, the skip and the fence gap all in frame) holds from the door light until the gun lowers (entry t 10.55), then eases back over 0.6 s. Movement inside the arrival nook doesn't release it; leaving the nook (x > 91) does. Test: a held frame at entry t 9.5 shows the gun line, the narrowed beam and the gap.
+**A12 · The entry camera** (critic 3). **Replaced by V5** (the door reveal is a takeover that always completes). The original: the establishing frame (**centre x 109.0, dist 12.5**: the door, the skip and the fence gap all in frame) holds from the door light until the gun lowers (entry t 10.55), then eases back over 0.6 s. Movement inside the arrival nook doesn't release it; leaving the nook (x > 91) does. Test: a held frame at entry t 9.5 shows the gun line, the narrowed beam and the gap.
 
 **A13 · Danger framing** (critic 4). Whenever he is NOTICE, SPOTTED, AIM or PURSUE within 10 m, the camera fits the rabbit and the searcher (dist up to 12.5), keeping the rabbit ≥ 15% from the frame edge. This replaces the 6 m chase zone. search-watch may widen to 12.5 while the rabbit is hidden.
 
@@ -101,6 +101,40 @@ Until then the person waits at the inlet, scraping at the slab with the torch on
 **A24 · A world that feels slightly wrong** (critic 18). One or two unexplained, slow, controlled silhouettes behind the annex wall: a tall gantry arm that swings a few degrees and stops, every 20 s, and a stack whose vapour pulses with the far 4 s thud. No mechanics.
 
 **Josh's answers to the six questions** (Part 1 and §24): 1 → A1 (dusk to night). 2 → yes, keep the hard cut to black and the muffled report; judge it in motion. 3 → A2 (no listen key unless it earns its place; ↑ jumps). 4 → no (A3). 5 → yes (A4). 6 → yes, beneath partial shelter (A5). **New question 7:** digging (Josh's first two briefs) is not in Sequence 1; default: it arrives in a later beat, in clearly marked soft ground.
+
+## Sequence 1 v2: Josh's playtest (7 Oct, about 16:45; these win over everything else in this document)
+
+Josh played the preview and kept the atmosphere, tension, music and core mechanics. These are the only changes (`farfield-look/BRIEFS-josh.md` §9). Status: `STATUS.md`.
+
+**V1 · Speeds and controls** (§9.1; replaces the walk / run / flee rows of §4.1, §16's keys and hints, and the title line). Holding a direction no longer speeds the rabbit up: the old hold-to-run ramp (1.15 → 2.75 m/s after 0.30 s) is gone.
+- A direction alone is the **cautious walk, 0.95 m/s, for as long as it is held**.
+- **Shift + a direction runs, 2.75 m/s.** While the searcher (within 15 m) is SPOTTED, AIM, PURSUE, GRAB or LOWER, a run is the **flee, 3.6 m/s**, at once; a direction alone stays the walk even then.
+- **↓ is the deliberate crouch**, and ↓ + a direction the crouch-walk, 0.75 m/s.
+- Squeeze speeds (A9) are now **caps**: a walking rabbit is never sped up under a skirt (a run is held to 1.6, a flee to 2.4; the creep to 0.75).
+- Gamepad: stick or d-pad move (the walk), X, RB or RT + a direction run, A jump, Y or d-pad up climb in, B or d-pad down crouch.
+- Title line: "← → move · Shift run · Space jump · ↓ crouch" (↑ still jumps and climbs in). Hints: "← → move" at the start; "Space jump" at the post; **"Shift + → run" once**, while walking in the Verge's safe stretch (x 13.0–20.5, before the van), skipped if the player has already run for 1 s, with a second chance on entering the Courtyard (a Continue from a save).
+- The Search checker models the same inputs and runs every route twice: RUN (Shift; every amended verdict holds) and WALK (the cautious pace; fair: every alert beyond the close-range rule is survivable by running at once). PASS 21/21.
+
+**V2 · Crouching** (§9.2). The rabbit lowers by itself only under something low: a squeeze, or any ceiling below 0.35 m (`lowPoseUnder`, kept: it reads as natural). The danger reflex in the open (torchlight, the gate's glare, a far human who stops) is now a **freeze** (ears back, a slight lowering), never a flattening; ↓ flattens it there deliberately. Going under something, the head and shoulders lower first (just before the edge), the hips follow, and each rises once it has cleared, eased rather than snapped.
+
+**V3 · Gait timing and the temporary rabbit** (§9.3). The stride advances with the distance travelled, so planted feet don't slide; the cautious walk (0.34 m stride, a slow half-bound) and the run (0.78 m, a bound with two flights) are distinct cycles; the body's rise comes from that cycle and never exceeds what gravity allows, so it doesn't float; footsteps fall on the hind feet's touchdown. `ff-rabbit.js` draws it with leg IK on the placeholder (hind knee forward, the long hind foot rolling onto its toes at push-off, a sliding shoulder, the back curling as the hind feet gather). The placeholder is still made of rounded shapes: what must change in the model, rig and animation, and what Josh needs to supply, is in **`CHARACTERS.md`**. A supplied model's clip speeds are now measured at load (they need not be exact).
+
+**V4 · The temporary people** (§9.4; visuals only, no AI or timing change): feet placed by IK on the AI's own step count (no sliding), heel-to-toe roll, hips riding on the supporting leg, arms swinging against the legs, a slow weight shift when standing, a heavier silhouette (coat, boots, rounded shoulders, head slightly low). The plan for the real figures: `CHARACTERS.md`.
+
+**V5 · The door reveal** (§9.5; replaces A12 and the timing in §9.3). The searcher's entrance is the **one deliberate camera takeover** in Sequence 1, and it always completes:
+- **Start:** the earlier of the door cue (1.5 s after the rabbit lands from the duct) and the rabbit's centre reaching **x 90.0** (just out from under the A0 shelf's skirt), first time only.
+- **Stop:** control goes off at once; the rabbit's own physics stop it (a run slides about 0.4 m; in the air it lands first). It is never moved by script. Furthest stop measured: x 90.32 (the deck starts at 92.0); he is 19.7 m or more away throughout.
+- **Reaction:** the ears snap to the footsteps; once still it sits up to listen, then freezes (under the shelf it watches low; mid-squeeze it stays crouched).
+- **The shot:** 0.3 s after the cue the camera eases over 1.25 s to the door frame (fitted to [104.3, 114.5]: the door, the skip, the fence corner and its gap): the door light, the silhouette in the doorway, the step out, the clatter, the aim that lights the gap. It starts back 1.2 s into the aim (1.3 s ease); **control returns 1.0 s into the way back: 5.95 s after the cue** (6.08 s when the trigger started it).
+- **The entry is shorter** (`ff-script-s1.js`, 7.65 s; same beats, order and nodes): cue 1.35, doorway 0.6, step out 1.1, a glance 0.25, turn to the clatter 0.45, the aim demonstration 2.0 (unchanged), a turn-sweep 1.9 (no second clatter); then the loop.
+- **Held keys:** a direction or jump held through the takeover does nothing until it is let go and pressed again (`FF.Input.latch`; keyboard auto-repeat does not release it). Shift and ↓ stay live.
+- **No harm while it runs:** from the start until 1.2 s after control returns (`G.flags.revealSafe`) the searcher is given no sight of the rabbit at all (`FF.AI`). Rain, sound and the world keep running.
+- **Retries:** once control has returned it never replays (a restart after a failure goes straight back to his routine). A pause → Restart in the middle of it gives control back and it plays once more in full (it was never seen).
+- Every other camera hold stays discoverable during play: the Courtyard's establishing frame releases on 1.5 m of movement; the van and walkway-worker leans never take control (the walkway lean is now limited to the Courtyard).
+
+**V6 · One sign of resistance** (§9.7: "for the current section, one restrained detail is enough"; an exception to §1's "no slogans", physical only). On one back-wall panel of the Courtyard (x 65.8–68.6, chest height), hand-sprayed **END ANIMAL USE** has been buffed out with a hasty coat of grey that doesn't match the concrete; some letters ghost through the dry strokes, the tip of the first A and half of the last E stick out. Lit like the wall, no light, sound, camera move, hint or UI of its own; it is never in a camera hold (passed, not shown). Data: `decor` id `painted-over` in `ff-level-s1.js`.
+
+**V7 · The Search's darkness shows shapes** (the lead's note §8): the Search grade lifts the deepest values a little (contrast 1.08 → 1.06, lift +0.006, vignette 0.70 → 0.64), so the duct housing and the shelf around the hiding rabbit read on arrival. The same night.
 
 ## Integration notes (7 Oct, after the build; these also win over the text below)
 
@@ -187,7 +221,7 @@ What the build settled, measured or changed. Status for Josh: `STATUS.md`; how t
   - About a second later you are back under cover nearby.
   - No injury is ever shown, and nothing counts your failures.
 
-**Controls.** ← → move (hold to run), Space or ↑ jump (↑ or Space climbs into the opening from the box), ↓ crouch (optional). No listen key: the ears react by themselves (A2). A gamepad also works. A content notice comes before play, both in the arcade menu and on the game's first screen.
+**Controls** (V1). ← → move (the cautious walk), Shift + ← → run, Space or ↑ jump (↑ or Space climbs into the opening from the box), ↓ crouch (deliberate; squeezes crouch by themselves). No listen key: the ears react by themselves (A2). A gamepad also works. A content notice comes before play, both in the arcade menu and on the game's first screen.
 
 **Questions for you.** Answered by Josh on 7 Oct: see the end of the Amendments. My default is in brackets.
 1. Is it OK for the weather and time of day to run from afternoon rain to a moonlit night over five minutes, with each change hidden in the drain or the duct? (yes)
@@ -207,7 +241,7 @@ Units: metres and seconds. +x is right along the journey, +y up, +z towards the 
 
 **What the game must and must not contain**
 - **The rabbit:** an individual with its own goal. It moves on four legs, with no hands, clothes, weapons or combat. It is the only animal in the game: no birds, no other creatures as tools or enemies.
-- **Never:** cages (including anything that reads as bars around the rabbit), labs, rescue stories or animal-derived items. No slogans or calls to action anywhere (Josh has ruled out the usual vegan slogan; any later copy uses rights and justice framing).
+- **Never:** cages (including anything that reads as bars around the rabbit), labs, rescue stories or animal-derived items. No slogans or calls to action anywhere (Josh has ruled out the usual vegan slogan; any later copy uses rights and justice framing). **Exception (V6, Josh §9.7):** sparse, weathered, physical signs that some people resist animal use (the painted-over graffiti in the Courtyard), never in UI, dialogue or a camera emphasis.
 - **Story:** no dialogue, no written lore, no text in play beyond the first-time key hints (§16).
 - **Humans:** stand-ins, swappable through the ASSETS-3D slots. Some are indifferent.
 
@@ -303,12 +337,12 @@ Calm (≤ 3) is a little over half of play; ≥ 7 is about an eighth. The peaks 
 
 | move | input | numbers | notes |
 |---|---|---|---|
-| walk | tap ← →, or hold Shift | 1.15 m/s | |
-| run | hold ← → | opens after 0.30 s, then ramps over 0.55 s to **2.75 m/s**; accel 5.0, decel 10, turn 14 m/s² | look test |
-| **flee** | automatic while a searcher within 15 m is SPOTTED, PURSUING, AIMING or GRABBING | top speed **3.6 m/s** (ramp 0.4 s); the run opens at once, with no 0.3 s wait | `flee` bound: longer, lower, tail up. Never available otherwise, so the chase always feels different |
+| walk (**V1**) | hold ← → | **0.95 m/s, for as long as it is held** (it never speeds up by itself) | the cautious walk: a slow half-bound |
+| run (**V1**) | **Shift** + ← → | **2.75 m/s**; accel 5.0, decel 10, turn 14 m/s² | look test |
+| **flee** (**V1**) | Shift + ← → while a searcher within 15 m is SPOTTED, PURSUING, AIMING, GRABBING or LOWERING | top speed **3.6 m/s**, at once; without Shift it stays the walk | `flee` bound: longer, lower, tail up. Never available otherwise, so the chase always feels different |
 | jump | Space or ↑ (A2) | apex **0.52 m**; gravity 21 (×1.35 falling); ~0.41 s airborne; length ~0.47 m walking, 1.14 running, ~1.5 fleeing; ×0.5 cut on early release; coyote time 0.10 s; input buffer 0.13 s | |
 | step up | automatic | ≤ 0.10 m (the lip and kerb) | taller needs a jump |
-| crouch | hold ↓ | height 0.24 → 0.15; 0.75 m/s | optional everywhere; it only changes the body's height (lower sight points). Not a stealth mode |
+| crouch | hold ↓ | height 0.24 → 0.15; 0.75 m/s | deliberate (V2); it only changes the body's height (lower sight points). Not a stealth mode. In the open the rabbit never flattens by itself |
 | **squeeze** | automatic: walk into any clearance of **0.16–0.235 m** (↓ also works) | **A9:** a squeeze ≤ 0.6 m long is a duck-under: 0.1 s duck, up to **1.6 m/s** (**2.4 m/s** fleeing). The 3.4 m squeeze pipe is a creep: 0.75 m/s, 0.2 s duck. **The first time only** (the hoarding) a 0.35 s hesitation, head forward | the hoarding, the culvert corner, the squeeze pipe (creep), the skirts, flaps and the skip's rear door, the fence gap |
 | head-push | walk into the box (standing, grounded) | box accelerates at 1.6 m/s² to **0.62 m/s**; friction 5.0 stops it in ~0.12 s; the rabbit moves with the box | push only, no pull; the box cannot climb any step ≥ 0.02 m |
 | listen | **removed (A2)**: the ears, head and posture react by themselves | | |
@@ -434,7 +468,7 @@ Listening makes no noise, changes nothing about being seen, and is never require
 |---|---|---|---|
 | title | the live scene: the rabbit in its scrape at 2.0 beneath the leaning sheet (A5), grooming; rain beyond | washing its face, pausing, ears flicking off water | rain on grass, a far hum |
 | first input | the title fades (1.5 s), the camera eases to play (2.5 s) | breaks off mid-wipe, shakes its head | |
-| 2–6 | move hint once ("← →", "hold to run") | | |
+| 2–6 | move hint once ("← → move"); **V1:** "Shift + → run" once at 13.0–20.5 (before the van) unless the player has run | | |
 | 6–10.8 | open grass (run) | run gait, ears back with speed | soft wet thuds per hop |
 | 10.8–11.1 | the fallen post (0.30) | walking into it: stops, rears a little, sniffs the top. Jump hint after 1.5 s stopped there | |
 | 12.5 | the far boom beyond the wall, right | ears and head turn right; sits up 1.2 s only if still (A2); no hint | boom, then a machinery rhythm |
@@ -617,9 +651,9 @@ There is one rule set: crouching only lowers the sight points, and **noise never
 - Lit at 10 m: SPOTTED in 1.6 s.
 - The nearest hide is ≤ 1.1 s away at a run. A rabbit that moves at the first sign usually makes cover before SPOTTED, and one caught close in the open can still escape.
 
-### 9.3 Entry (first time only; starts 1.5 s after the rabbit lands; 11.6 s)
+### 9.3 Entry (first time only; starts 1.5 s after the rabbit lands; ~~11.6 s~~ **7.65 s, V5**)
 
-> **Amended** (A12, A16): the establishing frame (centre 109.0, dist 12.5) holds through the whole entry until the gun lowers (t 10.55); he steps in to the path at z −1.15.
+> **Amended** (A16): he steps in to the path at z −1.15. **V5 replaces the timing and the camera below:** the entry is the door reveal, a takeover that always completes (cue 1.35, doorway 0.6, step out 1.1, glance 0.25, turn 0.45, aim demonstration 2.0, turn-sweep 1.9; control back 5.95 s after the cue). The table keeps the original beats in order.
 
 | t | event | fairness role |
 |---|---|---|
@@ -1027,17 +1061,18 @@ Procedural Web Audio, like the other arcade games, so there is nothing extra to 
 
 | key | does |
 |---|---|
-| ← → or A D | move (hold to break into a run after 0.3 s; Shift holds a walk) |
+| ← → or A D | move: the cautious walk, for as long as held (V1) |
+| Shift + ← → | run (V1); the flee while he is chasing |
 | Space | jump; climbs into the opening when on the box under it |
 | ↑ or W | jump (A2: no listen key); climbs into the opening when on the box under it |
-| ↓ or S | crouch (optional) |
+| ↓ or S | crouch, deliberately (V2); with ← → the crouch-walk |
 | Esc | pause in play (Resume / Restart from checkpoint / Back to the arcade); on the title or the notice: back to the arcade (`{ty:'exit'}`) |
 | P | pause |
 | M | mute toggle (sends the change to the room) |
 | Q, F, O | quality tier, fps, debug overlays: kept as in the look test; O only with `?debug=1` |
 
 **Gamepad** (standard mapping, cheap to add):
-- left stick or d-pad: move (the stick runs past 0.85 deflection held 0.3 s);
+- left stick or d-pad: move (the cautious walk); **X, RB or RT + a direction: run** (V1);
 - A: jump; Y or d-pad up: jump / climb in; B: crouch; Start: pause.
 - The game polls only while focused.
 
@@ -1047,7 +1082,7 @@ Procedural Web Audio, like the other arcade games, so there is nothing extra to 
 
 **Title.** It plays over the live Verge scene: rain, and the rabbit grooming in its scrape beneath the leaning sheet (A5).
 - "FAR FIELD" in thin, widely spaced capitals, in the upper third, off-white at about 70%.
-- Below, small: "← → move · hold to run · Space or ↑ jump · ↓ crouch".
+- Below, small: "← → move · Shift run · Space jump · ↓ crouch" (V1).
 - "press → to begin" (or Enter).
 - If progress is saved: "Continue from the Courtyard" or "Continue from the Search" (↑ ↓ to choose).
 - The first movement begins play; the title fades as the rabbit stops grooming.
@@ -1056,8 +1091,9 @@ Procedural Web Audio, like the other arcade games, so there is nothing extra to 
 
 | hint | when |
 |---|---|
-| "← → move · hold to run" | at the start |
-| "Space or ↑ jump" | stopped 1.5 s at the post |
+| "← → move" | at the start |
+| "Space jump" | stopped 1.5 s at the post |
+| "Shift + → run" (V1) | once, walking in the Verge at x 13.0–20.5 before the van (skipped if the player has run 1 s); else entering the Courtyard |
 | "→ push" | still 3 s near the box |
 | "↑ go in" | on the box under the opening |
 
@@ -1303,7 +1339,7 @@ Defaults are in brackets; the build starts with the defaults.
 ```js
 FF.RULES = {
   rabbit: {
-    walk: 1.15, run: 2.75, runAfter: 0.30, runRamp: 0.55,
+    walk: 0.95, run: 2.75, runNeedsShift: true,           // V1 (7 Oct playtest): was walk 1.15 with a hold-to-run ramp (runAfter 0.30, runRamp 0.55)
     flee: 3.6, fleeRamp: 0.4, fleeWithin: 15, fleeRunsAtOnce: true,
     crouch: 0.75, squeeze: [0.16, 0.235], squeezeSpeed: 0.75, squeezeDuck: 0.2, firstSqueezeHesitate: 0.35,
     push: 0.62, accel: 5.0, decel: 10.0, turn: 14.0, airAccel: 4.0,

@@ -9,6 +9,14 @@ const t0 = Date.now();
 try {
   await b.ev(fs.readFileSync(path.join(DIR, 'bot.js'), 'utf8'));
   await b.ev(fs.readFileSync(path.join(DIR, 'routes.js'), 'utf8'));
+  /* no unexpected flattening in the open (Josh §9.2): every fixed step in play, a flat pose (hide) or a lowered front while
+     nothing is low overhead, no cover is over it, no squeeze and Down is not held, counts */
+  await b.ev(`window.__FLAT = { steps: 0, open: 0, ex: [] }; (() => { const tk = __ff.tick; __ff.tick = function () { tk(); const g = FF.G, r = g.rabbit;
+    if (g.mode !== 'play' || !r || r.mode !== 'play' || !r.grounded) return; __FLAT.steps++; const p = FF.Player.debug();
+    if (!(p.pose === 'hide' || p.crouchF > 0.6)) return;
+    if (p.crouchHeld || p.squeeze || p.low || FF.Level.coverAt(r.x, 0) || FF.Level.ceilingAbove(r.x, FF.RULES.rabbit.hw * 3, r.y) - r.y < 0.5) return;
+    __FLAT.open++; if (__FLAT.ex.length < 8) __FLAT.ex.push([+g.t.toFixed(2), +r.x.toFixed(2), p.pose, p.crouchF, g.place]); }; })(); true`);
+  await b.ev(`window.__HINTS = []; FF.bus.on('hint', d => __HINTS.push([+FF.G.t.toFixed(2), d.arg, d.x])); window.__REVEAL = []; FF.bus.on('reveal', d => __REVEAL.push([+FF.G.t.toFixed(2), d.phase, d.cause, d.x])); true`);
   R.boot = await b.ev('(() => ({ mode: __ff.G.mode, errors: FF.errors.slice(), ac: window.__probe.ac }))()');
   await b.ev('__ff.step(60); true');
   await shot(b, label + '-00-notice');
@@ -33,7 +41,7 @@ try {
   R.calls = n;
   R.marks = await b.ev('BOT.marks.filter(m => !/^leg-done/.test(m.name))');
   R.fails = await b.ev("__ff.bus.log.filter(e => e.name === 'fail').map(e => [e.t, e.data.kind, e.data.x])");
-  R.endMode = await b.ev('__ff.G.mode');
+  R.endMode = await b.ev('__ff.G.mode'); R.hints = await b.ev('__HINTS'); R.reveal = await b.ev('__REVEAL'); R.flat = await b.ev('__FLAT');
   if (R.endMode === 'end') {                                   // the end card runs on real-time timers (6.5 s), then the title
     for (let i = 0; i < 40; i++) { await sleep(300); await b.ev('__ff.step(6); true'); if (i === 8) await shot(b, label + '-card'); if (await b.ev('__ff.G.mode') === 'title') break; }
     await b.ev('__ff.step(240); true'); await sleep(1600); await b.ev('__ff.step(2); true');

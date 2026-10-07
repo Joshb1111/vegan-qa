@@ -1,8 +1,28 @@
-# Far Field: status of Sequence 1 (7 Oct 2026)
+# Far Field: status of Sequence 1 (7 Oct 2026, v2 after your playtest)
+
+## 0. After your playtest (v2, 7 Oct evening)
+
+You kept the atmosphere, tension, music and core mechanics; nothing about them changed. Only your points 1, 2, 3, 4, 5 and 7 were worked on. The design notes are `SEQUENCE-1.md` V1–V7. Progress shots: `farfield-look/progress/s1v2-01` … `s1v2-11`.
+
+**Your questions, answered from the code:**
+- *Did holding a direction speed him up?* Yes. After 0.3 s of holding, he ramped from a walk (1.15 m/s) to a run (2.75 m/s). That ramp is gone.
+- *Did he crouch by himself?* Yes, in two places. He went low under anything lower than 0.35 m (kept: it reads as natural, and it is how he fits under things). And a danger reflex flattened him in torchlight, in the gate's glare, and when the walkway worker stopped. That reflex now makes him freeze instead (ears back, a slight lowering); he goes flat in the open only when you hold ↓.
+- *Are his model and animations temporary?* Yes, both, and the people's too. What has to change and what I need from you is in **`CHARACTERS.md`**.
+
+**What changed:**
+1. **Speed and controls.** An arrow alone is now a cautious walk (0.95 m/s, a little slower than before) for as long as you hold it; it never speeds up by itself. **Shift + an arrow runs** (2.75 m/s). In the Search, a run becomes the flee (3.6 m/s) while he is chasing; an arrow alone stays the walk even then. ↓ crouches deliberately, and ↓ + an arrow creeps (0.75 m/s). The title reads "← → move · Shift run · Space jump · ↓ crouch". A one-time "Shift + → run" hint appears early in the Verge, after the post and before the van, unless you have already run. Gamepad: X, RB or RT + a direction runs (not yet tried with a real pad).
+2. **Crouching.** No more flattening in the open by itself (tested: none in two full play-throughs). Going under something, the head and shoulders lower first, the hips follow, and each rises once it has cleared, eased, not snapped.
+3. **The rabbit's movement.** His feet now stay where they land (measured slide about 0 m/s, was 0.8 m/s). The stride follows the distance he actually travels. The cautious walk and the run are two different gaits: the walk a slow, careful half-bound; the run a bound with two flights. The hind legs gather under him, push off, roll onto the toes and extend; the forepaws land one after the other; the back curls and stretches. His body rises only as far as gravity allows, so he no longer floats. He is still the rounded stand-in: a connected silhouette needs the real model (`CHARACTERS.md`: the Tripo route is about 20–40 minutes of your time).
+4. **The people.** Still the blocky stand-in, but grounded: feet planted, heel-to-toe, the hips riding on the supporting leg, arms swinging against the legs (before, each arm swung with the leg on the same side), a slow weight shift when standing, a heavier coat-and-boots silhouette with rounded shoulders and the head a little low. Their behaviour and timing are unchanged. The plan for the real figures: `CHARACTERS.md`.
+5. **The door reveal always completes.** When the man comes through the door, the game now takes the camera deliberately, the only time it does so in this section. Control goes off; the rabbit stops by its own momentum (a run slides about 0.4 m, a jump lands first) at least 19 m from him; its ears snap to the footsteps and it sits up to listen (under the shelf it watches low). The camera eases to the door: the light, the man in the doorway, the step out, the clatter, the aim that lights the gap. It eases back and you have control again **5.95 s after the first footsteps**. Rain, sound and the world keep going. While it runs, and for 1.2 s after, he cannot see or touch the rabbit at all. A key held through it does nothing until you let go and press again, so holding forward (your son's case) or jumping into it never carries the rabbit on. Tested: no input, a cautious walk, forward held from inside the duct, a Shift run, a running jump into the trigger, repeated hops, and the whole path from the box. After a failure later in the Search it never replays.
+6. **One sign of resistance.** On one back-wall panel of the Courtyard, "END ANIMAL USE" sprayed by hand and buffed out with a hasty coat of grey that doesn't quite match the concrete; some letters ghost through the strokes. Nothing points at it: no light, sound, camera move or hint. You pass it while working out the box. It is deliberately faint; judge it on your own screen (`s1v2-03`).
+7. **Dark places show their shapes.** The Search's darkest values were lifted a little, so the duct housing and the shelf around the hiding rabbit read on arrival. It is the same night.
+
+**Also fixed while wiring it together:** walking off the far edge of the fallen post at the new walking pace snapped the rabbit back about 0.6 m (fixed); the walkway worker's camera lean could follow the rabbit into the Search and pull its framing 2.5 m left (fixed); a pause → Restart right after landing in the Search sent you back to the Courtyard's box puzzle (it now restarts under the shelf, as designed).
 
 **In short:** Sequence 1 is playable from start to finish with the temporary models: the content notice, the title over the live Verge, the Verge at dusk in heavy rain, the drain, the Courtyard puzzle, the Search, the breathing space, "to be continued", and back to the title. It takes a careful player about 3 to 5 minutes. Nothing blocks you from playing it now. What is still temporary is mostly how things look and sound (the rabbit, the people, the van and the buildings are stand-ins), and two things need a person rather than a test: a first-time player trying the Search, and someone listening to the sound.
 
-How to play it and how to run the tests: `PROGRESS.md`. Progress shots: `farfield-look/progress/integrator-01` … `14`.
+How to play it and how to run the tests: `PROGRESS.md`. Progress shots: `farfield-look/progress/s1v2-01` … `11` (v2), `integrator-01` … `14` (the first version).
 
 ## 1. What you can play
 
@@ -10,7 +30,7 @@ How to play it and how to run the tests: `PROGRESS.md`. Progress shots: `farfiel
 
 **1 · The Verge** (you cannot fail here)
 - Dusk in heavy rain at the foot of an enormous precast wall. It gets darker the further you go, never on a timer.
-- You learn to run, to hop a fallen post, and to slip under a hoarding (the rabbit hesitates there once, the first time).
+- You learn to move carefully (an arrow is a walk for as long as you hold it), to hop a fallen post, to run with Shift (a hint shows once, after the post), and to slip under a hoarding (the rabbit hesitates there once, the first time).
 - A far boom beyond the wall turns the rabbit's ears by themselves.
 - At the halfway point an engine starts beyond the wall. Its light glows through the wall's joints, then it stops behind a gate ahead. Light floods out under the gate, boots appear in it, and a chain rattles.
 - Step into that light and the rattling stops dead for a second. Stay as long as you like: the rattling just keeps going.
@@ -25,15 +45,14 @@ How to play it and how to run the tests: `PROGRESS.md`. Progress shots: `farfiel
 
 **3 · The Search** (the only place you can fail)
 - It is night when you come out of the duct. The van from the verge is parked behind a wall.
-- Light shows under a door, then footsteps, then a man with a cap, a backpack, a slung gun and a torch steps out.
-- A clatter at the fence makes him raise the gun at the fence corner. He doesn't fire, and his torch shows you the gap: your way out.
+- Light shows under a door, then footsteps. The camera takes over once (v2): a man with a cap, a backpack, a slung gun and a torch steps out; a clatter at the fence makes him raise the gun at the fence corner. He doesn't fire, and his torch shows you the gap: your way out. The camera comes back and you have control again about 6 s after the footsteps.
 - He has a fixed routine: he kneels to shine his torch under the skip, climbs onto a platform and walks over your hiding place, then looks back towards where you came in for 6 seconds. That is the moment to move.
-- If he notices you, his footsteps stop and his torch drifts onto you. If you stay, he either lunges (close) or raises the gun (further away); the beam narrows, there is a click, and you have a second to get out of his line of sight. Once he is chasing, the rabbit runs faster than he does, and every hiding place's dark middle is safe even after he has seen you go in: he kneels, reaches in, and his hand falls short.
+- If he notices you, his footsteps stop and his torch drifts onto you. If you stay, he either lunges (close) or raises the gun (further away); the beam narrows, there is a click, and you have a second to get out of his line of sight. Once he is chasing, the rabbit running with Shift is faster than he is (an arrow alone stays the walk), and every hiding place's dark middle is safe even after he has seen you go in: he kneels, reaches in, and his hand falls short.
 - If he catches or shoots the rabbit, the screen cuts to black on that exact frame, with one muffled sound. About a second later you are back under the nearest cover you reached.
 
 **4 · Breathing space.** Behind the fence: wet grass, a low wall, a sheet of corrugated iron propped over the grass. Stay still and the rabbit listens, sniffs, nibbles, washes its face (the first music), shakes and settles into a loaf. The camera pulls out to show how small it is at the foot of something colossal. Fade, "to be continued", back to the title.
 
-**Also working:** pause (Resume, Restart from checkpoint, Sound, Music, Back), M and N for sound and music, the first-time key hints (small, above the rabbit, gone after use), the three quality tiers with a quiet automatic step-down, saved progress ("Continue from the Courtyard / the Search / the breathing space" on the title), the arcade wrapper with its own content notice (not yet wired into the planet), `?mute=1` (no sound at all and nothing stored).
+**Also working:** pause (Resume, Restart from checkpoint, Sound, Music, Back), M and N for sound and music, the first-time key hints (small, above the rabbit, gone after use: move, Shift run, jump, push, go in), the three quality tiers with a quiet automatic step-down, saved progress ("Continue from the Courtyard / the Search / the breathing space" on the title), the arcade wrapper with its own content notice (not yet wired into the planet), `?mute=1` (no sound at all and nothing stored).
 
 ## 2. Your approval adjustments, and how each is met
 
@@ -51,12 +70,12 @@ How to play it and how to run the tests: `PROGRESS.md`. Progress shots: `farfiel
 
 ## 3. Temporary or placeholder
 
-- **The rabbit:** a procedural stand-in made of rounded shapes, with 20 poses on one skeleton (run, hop, squeeze, push, sniff, groom, nibble, sit up, shake, settle, hide, flatten, flinch …). No eyelids, so the half-closed eyes of the settled loaf don't show; the tail lift is subtle. The model slot is ready (`ASSETS-3D.md`): a supplied model gets the same poses through its named clips.
-- **The people:** one blocky stand-in figure posed in code: no inverse kinematics, some foot sliding on turns, stiff arms when aiming. The model slot is ready (one model, Mixamo bone names, props by node: torch, gun, coil, backpack).
+- **The rabbit:** a procedural stand-in made of rounded shapes, with 20 poses on one skeleton (walk, run, hop, squeeze, push, sniff, groom, nibble, sit up, shake, settle, hide, flatten, flinch …). Since v2 its feet are planted and the walk and run are distinct gaits, but the body is still separate rounded shapes and the forelegs are short (a sliding shoulder fakes the shoulder blade). No eyelids; the tail lift is subtle. **What has to change and what I need from you: `CHARACTERS.md`** (the Tripo route, about 20–40 minutes of your time plus 1–2 hours here; or a commission, 3–5 weeks). The model slot is ready: a supplied model's clips play by name at their measured stride, and any clip it lacks is drawn by the same code on its bones.
+- **The people:** one blocky stand-in figure posed in code. Since v2 the legs are placed by inverse kinematics (feet planted, heel to toe, arms against the legs, a heavier silhouette); still: a slight slide when they stop or freeze (about 0.2 s), turns step in place, the kneel and aim poses are stiff. The plan (a Tripo figure plus Mixamo clips, or a commission) and the 24 downloads with their file names: `CHARACTERS.md`. The model slot is ready (one model, Mixamo bone names, props by node: torch, gun, coil, backpack).
 - **The van:** a boxy stand-in, seen mostly as light behind the wall; its turn in is a short arc.
 - **The places:** simple matte geometry in the approved look. The Works revealed at the end is a few grey masses in the haze. No puddles in the Courtyard or the Search (they read as holes in the floor and were taken out; the wet shows through the floor's sheen).
 - **Sound:** everything is made in code and the levels were set by measurement only: nobody has listened to it. The heartbeat, the rabbit's breathing and the torch buzz are deliberately subtle and may need tuning by ear.
-- **Controls:** keyboard tested; gamepad written but not tried with a real pad; no touch controls in Sequence 1.
+- **Controls:** keyboard tested; gamepad written (stick or d-pad walk, X / RB / RT run) but not tried with a real pad; no touch controls in Sequence 1.
 - **Digging** is not in Sequence 1 (as agreed: it arrives in a later beat, in clearly marked soft ground).
 
 ## 4. Actual blockers
@@ -65,20 +84,30 @@ Nothing blocks playing it. These need you or another person:
 1. **A first-time human tester for the Search.** The tests measure the warning times and a test player with a first-timer's reaction escapes, but your brief asks for a fresh person who doesn't know the rules. If they fail at the same place twice without understanding why, tell me where: the warning times can be lengthened without changing anything else.
 2. **Listening.** The soundscape (`farfield-look/progress/shell-05-soundscape-preview.m4a` is a 2-minute preview) needs a human ear, especially the shot's report in the black.
 3. **Wiring the cabinet into the planet** (`planet.html` / `planet-dress.js`) is a separate change for you to approve. The wrapper is built and tested on its own page.
-4. **Models to commission** before the look can go further: the rabbit first, then the human and the van (`ASSETS-3D.md` has sizes, bone names, clips and props).
+4. **Models** before the look can go further: the rabbit first, then the human and the van. `CHARACTERS.md` says what to make or download and how (the quick Tripo + Mixamo routes, or commissions); `ASSETS-3D.md` has the sizes, bone names, clips and props.
+5. **A feel-check of the new controls by you:** the cautious walk's pace (0.95 m/s), and the door reveal's length (5.95 s; it can be shortened) and its held-key rule (a key held through it must be pressed again; it could instead resume as a slow walk after about 1 s).
 
 ## 5. Known issues (small)
+
+New in v2:
+- **At the walking pace the Search is a little stricter.** Walking (no Shift) from the deck to the skip late in his look, or walking the whole way from the deck to the gap, gets you noticed; with Shift both work, and every alert beyond arm's reach can still be escaped by running at once (the checker shows it). The "Shift + → run" hint teaches Shift in the Verge for this reason. If you want the Search fully sneakable at a walk, his look would need to be longer.
+- A walking hop started more than about 0.3 m before the fallen post lands short of it (you just hop again); a hop from against the post always clears it.
+- During the door reveal the rabbit is off-screen while the camera is at the door; its reaction (ears to the footsteps, sitting up) shows for about half a second before the camera moves, and under the shelf it is subtle.
+- The painted-over graffiti is hard to read at 1× with the film grain (it reads on Retina and on the low tier). On screens wider than about 2.3:1 the left edge of the paint patch may just enter the Courtyard's opening frame.
+- The "Shift + → run" hint shows for 4 s whether or not you press Shift.
+
+From before:
 
 - On a Retina screen the high tier runs at about 66–87 fps in our headless test (drawing 2160×1080), a little over the 12 ms budget when measured with a hard GPU sync. If your Air dips, the game steps down a tier by itself when nothing is happening; Q changes it by hand.
 - The Courtyard's first view is dark (the hall opens before the window light); the rabbit reads, the room only just does.
 - At the end, the rabbit can't be moved once it has lain down (the ending has started; Esc still pauses).
 - The boots under the gate read only faintly against the gate.
-- When the walkway worker appears, the camera turns towards him and the rabbit can sit close to the left edge of the frame for a few seconds.
+- When the walkway worker appears, the camera turns towards him and the rabbit can sit close to the left edge of the frame for a few seconds (the lean now stays in the Courtyard).
 - After pressing → on the title, the title text takes 1.5 s to fade while you are already moving.
 - The title frame's readability measure is 2.0× (the target for wide frames is 2.5×) because the misty outskirts sit behind the rabbit; by eye the rabbit reads clearly.
 - The first sound can take a fraction of a second to start the very first time (the browser starting its audio device); test this on the Air in normal Chrome.
 
-## 6. What changed while wiring it together (integration)
+## 6. What changed while wiring the first version together (integration, 7 Oct afternoon)
 
 - **Fairness:** the rabbit's one-time hesitation now happens only at the hoarding. After a restart or a Continue it could otherwise happen at a Search skirt, a 0.45 s stall in the middle of an escape.
 - **People:** no figure or torch survives a restart for a single frame (the searcher's lit torch could flash at the Verge after a warp).

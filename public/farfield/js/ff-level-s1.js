@@ -180,5 +180,7 @@ FF.S1 = {
     { id: 'strange-gantry', place: 'search', x: 104.0, z: -14, note: 'A24: a tall gantry arm beyond the annex wall that swings a few degrees and stops, every 20 s' },
     { id: 'strange-stack', place: 'search', x: 98.0, z: -22, note: 'A24: a stack whose vapour pulses with the far 4 s thud' },
     { id: 'works', place: 'rest', note: 'the colossal Works revealed by the pull-out; one vast arm moving with the 4 s thud; one tiny amber light far up' },
+    { id: 'painted-over', place: 'courtyard', x0: 65.80, x1: 68.58, y0: 0.45, y1: 1.84, z: -5.0,
+      note: 'Josh 7 Oct (brief 9, point 7: one restrained detail for this section): hand-sprayed END ANIMAL USE on one back-wall panel (65.42-68.58), buffed out with fresh grey paint that does not match the concrete; the letters ghost through the dry strokes. A decal lit like the wall, no light or camera of its own: it sits between the reveal hold (wall x <= 65.65 at 2:1) and the puzzle span (wall x >= 67.85), so it is only passed. No collision, cover or trigger.' },
   ],
 };

@@ -9,6 +9,12 @@
    The van: a boxy unbranded utility van facing +Z (origin on the ground at its centre, as the model slot): wheels that
    spin with distance, braking dip, idle vibration, a hinged driver door, headlight discs, a roof work light and amber
    side markers (glow), with anchors for the headlight and work-light spots.
+   GROUNDING (characters fixer, 7 Oct; visuals only, no AI timing touched): the legs are placed by inverse kinematics on the
+   gait the owner already counts (st.gait, in steps, in step with the footstep sounds). A foot on the ground stays where it
+   landed (its stance is matched to the step length measured from the figure's own travel), rolls heel to toe at the ends of
+   the stance, and the hips ride on the supporting leg, so no foot slides and the body never floats. Arms swing against the
+   legs. Standing, the weight shifts from leg to leg every few seconds. The silhouette is heavier: broader coat and boots,
+   shoulders rounded forward, head carried a little low.
    Model slots: models/models.json "human" / "van" (ASSETS-3D.md). No file = these stand-ins. A file is loaded lazily
    (GLTFLoader r128) and driven by its named clips; props by node name (prop_torch, prop_longgun, prop_coil, prop_pack).
    OWNER: the humans + events builder. API contract: docs/farfield/INTERFACES.md §8.5. */
@@ -84,16 +90,16 @@ function standInGeometry() {
   const j = n => J[BI[n]];
   /* legs (trousers) and boots */
   for (const s of ['L', 'R']) {
-    add(limb(j('thigh' + s), j('shin' + s), 0.088, 0.066, 9), 'thigh' + s);
-    add(limb(j('shin' + s), j('foot' + s), 0.064, 0.05, 8), 'shin' + s);
-    const f = j('foot' + s); add(boxAt(f[0] - 0.055, f[0] + 0.055, 0.0, 0.1, f[2] - 0.08, f[2] + 0.2), 'foot' + s);
+    add(limb(j('thigh' + s), j('shin' + s), 0.094, 0.07, 9), 'thigh' + s);
+    add(limb(j('shin' + s), j('foot' + s), 0.068, 0.056, 8), 'shin' + s);
+    const f = j('foot' + s); add(boxAt(f[0] - 0.06, f[0] + 0.06, 0.0, 0.11, f[2] - 0.085, f[2] + 0.215), 'foot' + s);   // heavy work boots
   }
   /* pelvis and the coat: tapered, flared at the hem, slightly deeper at the chest */
   { const g = new T.SphereGeometry(0.17, 14, 10); g.scale(1.05, 0.7, 0.78); g.translate(0, 0.95, 0); add(g, 'hips'); }
-  { const g = new T.CylinderGeometry(0.175, 0.205, 0.30, 14, 1, true); g.scale(1, 1, 0.66); g.translate(0, 0.86, 0); add(g, 'hips'); }   // coat skirt (to 0.71)
-  { const g = new T.CylinderGeometry(0.19, 0.175, 0.30, 14); g.scale(1, 1, 0.68); g.translate(0, 1.15, 0); add(g, 'spine'); }
-  { const g = new T.CylinderGeometry(0.215, 0.19, 0.24, 14); g.scale(1, 1, 0.66); g.translate(0, 1.40, 0.0); add(g, 'chest'); }
-  { const g = new T.SphereGeometry(0.215, 14, 8, 0, Math.PI * 2, 0, Math.PI / 2); g.scale(1, 0.42, 0.66); g.translate(0, 1.52, 0); add(g, 'chest'); }   // shoulders
+  { const g = new T.CylinderGeometry(0.185, 0.225, 0.32, 14, 1, true); g.scale(1, 1, 0.68); g.translate(0, 0.85, 0); add(g, 'hips'); }   // coat skirt (to 0.71)
+  { const g = new T.CylinderGeometry(0.2, 0.185, 0.30, 14); g.scale(1, 1, 0.72); g.translate(0, 1.15, 0); add(g, 'spine'); }
+  { const g = new T.CylinderGeometry(0.228, 0.2, 0.24, 14); g.scale(1, 1, 0.7); g.translate(0, 1.40, 0.0); add(g, 'chest'); }
+  { const g = new T.SphereGeometry(0.228, 14, 8, 0, Math.PI * 2, 0, Math.PI / 2); g.scale(1, 0.46, 0.7); g.translate(0, 1.52, 0); add(g, 'chest'); }   // shoulders
   /* neck, head, cap with a forward brim (the facing cue) */
   { const g = new T.CylinderGeometry(0.052, 0.06, 0.12, 10); g.translate(0, 1.56, 0.0); add(g, 'neck'); }
   { const g = new T.SphereGeometry(0.105, 16, 12); g.scale(0.94, 1.08, 1.0); g.translate(0, 1.66, 0.01); add(g, 'head'); }
@@ -101,8 +107,8 @@ function standInGeometry() {
   { const g = boxAt(-0.095, 0.095, 1.712, 1.727, 0.06, 0.205); add(g, 'head'); }
   /* arms (coat sleeves) and mitten hands */
   for (const s of ['L', 'R']) {
-    add(limb(j('upperArm' + s), j('foreArm' + s), 0.062, 0.052, 8), 'upperArm' + s);
-    add(limb(j('foreArm' + s), j('hand' + s), 0.05, 0.043, 8), 'foreArm' + s);
+    add(limb(j('upperArm' + s), j('foreArm' + s), 0.068, 0.056, 8), 'upperArm' + s);
+    add(limb(j('foreArm' + s), j('hand' + s), 0.054, 0.046, 8), 'foreArm' + s);
     const h = j('hand' + s); const g = new T.SphereGeometry(0.048, 10, 8); g.scale(0.8, 1.25, 1.0); g.translate(h[0], h[1] - 0.05, h[2] + 0.005); add(g, 'hand' + s);
   }
   /* backpack 0.32 x 0.42 x 0.21 with a rolled mat on top: the hump that makes the silhouette */
@@ -131,6 +137,36 @@ const ANIM = {
 const LAYERS = ['walk', 'search', 'run', 'notice', 'kneel', 'low', 'climb', 'aim', 'lean', 'reach', 'unlock', 'down', 'rail', 'shake'];
 const RATE = { walk: 5, search: 4, run: 4, notice: 8, kneel: 1.6 / 0.8, low: 2.5, climb: 5, aim: 2.2, lean: 1 / 0.45, reach: 1 / 0.6, unlock: 4, down: 3, rail: 2, shake: 5 };
 
+/* the legs (sagittal plane, [y, z] in the figure's own space): ang(v) 0 = straight down, + = swung back (rotation.x) */
+const LEG1 = 0.44, LEG2 = 0.43, ANK = 0.05, HIPJ = 0.02, TOE = 0.2, HEEL = 0.08;
+const sub2 = (a, b) => [a[0] - b[0], a[1] - b[1]], len2 = v => Math.hypot(v[0], v[1]), ang = v => Math.atan2(-v[1], -v[0]);
+const rot2 = (v, a) => [v[0] * Math.cos(a) - v[1] * Math.sin(a), v[0] * Math.sin(a) + v[1] * Math.cos(a)];
+const smoother = u => u * u * u * (u * (u * 6 - 15) + 10);
+/* thigh and shin from the hip joint J to the ankle A, the knee forward */
+function legSolve(J, A) {
+  const v = sub2(A, J), d = U.clamp(len2(v), 0.05, (LEG1 + LEG2) * 0.999);
+  const aT = ang(v) - Math.acos(U.clamp((LEG1 * LEG1 + d * d - LEG2 * LEG2) / (2 * LEG1 * d), -1, 1));
+  const K = [J[0] - Math.cos(aT) * LEG1, J[1] - Math.sin(aT) * LEG1];
+  return [aT, ang(sub2(A, K))];
+}
+/* where each foot is in its step: one stride = two steps (s.gait counts steps); the left heel strikes at 0, the right at 0.5.
+   A foot on the ground moves back exactly as far as the body moves on (its stance spans 2 * step * duty), so it stays put. */
+function stepFeet(gait, step, run) {
+  const duty = U.lerp(0.5, 0.38, run), u = ((gait / 2) % 1 + 1) % 1, T = 2 * step * duty, out = {};
+  for (const [n, off] of [['L', 0], ['R', 0.5]]) {
+    const q = ((u - off) % 1 + 1) % 1;
+    if (q < duty) out[n] = { d: T / 2 - T * q / duty, lift: 0, stance: true, fwd: 1 - 2 * q / duty };
+    else { const w = (q - duty) / (1 - duty); out[n] = { d: -T / 2 + T * smoother(w), lift: Math.sin(Math.PI * w), stance: false, fwd: -1 + 2 * smoother(w) }; }
+  }
+  const any = out.L.stance || out.R.stance;
+  /* the hips ride on the supporting leg (a little bent, the heel-to-toe roll shortening its arc); in a running flight they rise */
+  const ride = d => ANK + Math.sqrt(Math.pow((LEG1 + LEG2) * 0.975, 2) - Math.pow(0.8 * d, 2));
+  let hip = any ? Math.min(out.L.stance ? ride(out.L.d) : 9, out.R.stance ? ride(out.R.d) : 9) : ride(T / 2);
+  if (!any) { const fp = ((u % 0.5) - duty) / Math.max(0.02, 0.5 - duty); hip += 0.03 * run * Math.sin(Math.PI * U.clamp(fp, 0, 1)); }
+  out.hip = hip; out.T = T;
+  return out;
+}
+
 function poseStandIn(f, dt) {
   const s = f.st, b = f.bones, A = ANIM[s.anim] || {}, k = f.k;
   for (const n of LAYERS) {
@@ -141,14 +177,29 @@ function poseStandIn(f, dt) {
   }
   for (const bn of f.boneList) bn.rotation.set(0, 0, 0);
   const t = f.time, ph = (s.gait || 0) * Math.PI;    // gait counts steps: one step = half a stride
-  const run = k.run, walkA = k.walk * (1 - k.kneel), sw = Math.sin(ph), cw = Math.cos(ph);
-  const legA = (0.42 + 0.28 * run) * walkA, armA = (0.32 + 0.35 * run) * walkA;
+  const run = k.run, walkA = k.walk * (1 - k.kneel), armA = (0.32 + 0.35 * run) * walkA;
   /* hips height: bob with the gait, lowered by kneeling and leaning */
-  b.hips.position.y = 0.94 - 0.42 * k.kneel - 0.10 * k.lean + walkA * (0.018 + 0.02 * run) * Math.abs(cw) - 0.03 * k.low * (1 - k.kneel);
-  /* legs */
-  b.thighL.rotation.x = -legA * sw - k.climb * 0.35 * Math.max(0, sw); b.thighR.rotation.x = legA * sw - k.climb * 0.35 * Math.max(0, -sw);
-  b.shinL.rotation.x = walkA * (0.25 + 0.5 * run + 0.4 * k.climb) * Math.max(0, -cw * (sw > 0 ? 1 : 0.4)) + 0.06 * walkA;
-  b.shinR.rotation.x = walkA * (0.25 + 0.5 * run + 0.4 * k.climb) * Math.max(0, cw * (sw < 0 ? 1 : 0.4)) + 0.06 * walkA;
+  /* legs: placed by IK on the step cycle (walking), planted under a standing figure; the weight shifts now and then */
+  const F = stepFeet(s.gait || 0, f.step || 0.65, run), clear = U.lerp(0.09, 0.16, run) + 0.12 * k.climb;
+  const fwd = { L: 0, R: 0 };
+  for (const n of ['L', 'R']) {
+    const l = F[n]; let th = 0, A = [ANK + clear * l.lift, l.d];
+    /* the heel-to-toe roll: a foot behind rises onto its toes, a foot in front onto its heel, when the leg can't reach flat */
+    const Jh = [F.hip, 0];
+    if (l.stance) for (let i = 0; i < 12 && len2(sub2(A, Jh)) > (LEG1 + LEG2) * 0.995; i++) {
+      th += l.d < 0 ? 0.05 : -0.05;
+      A = l.d < 0 ? [rot2([ANK, -TOE], th)[0], l.d + TOE + rot2([ANK, -TOE], th)[1]] : [rot2([ANK, HEEL], th)[0], l.d - HEEL + rot2([ANK, HEEL], th)[1]];
+    } else th = -0.25 * l.lift * (1 - run * 0.5);
+    const [aT, aS] = legSolve(Jh, A);
+    b['thigh' + n].rotation.x = walkA * aT; b['shin' + n].rotation.x = walkA * (aS - aT); b['foot' + n].rotation.x = walkA * (th - aS);
+    fwd[n] = l.fwd;
+  }
+  b.hips.position.y = U.lerp(0.94, F.hip + HIPJ, walkA) - 0.42 * k.kneel - 0.10 * k.lean - 0.03 * k.low * (1 - k.kneel);
+  b.thighL.rotation.x -= k.climb * 0.35 * Math.max(0, fwd.L); b.thighR.rotation.x -= k.climb * 0.35 * Math.max(0, fwd.R);
+  /* standing: the weight settles on one leg, then the other (the other knee eases), every ~5.5 s */
+  const still = (1 - walkA) * (1 - k.kneel) * (1 - k.lean) * (1 - k.aim), sway = Math.sin(t * 2 * Math.PI / 5.5 + f.swayPh);
+  b.hips.rotation.z = 0.022 * sway * still; b.thighL.rotation.z = b.thighR.rotation.z = -b.hips.rotation.z;
+  for (const [n, w] of [['L', Math.max(0, -sway) * still], ['R', Math.max(0, sway) * still]]) { b['thigh' + n].rotation.x -= 0.08 * w; b['shin' + n].rotation.x += 0.17 * w; b['foot' + n].rotation.x -= 0.06 * w; }
   /* kneel: left foot planted forward, right knee down behind */
   b.thighL.rotation.x += k.kneel * -1.40; b.shinL.rotation.x += k.kneel * 1.40;
   b.thighR.rotation.x += k.kneel * -0.12; b.shinR.rotation.x += k.kneel * 1.62; b.footR.rotation.x = k.kneel * -0.45;
@@ -156,14 +207,14 @@ function poseStandIn(f, dt) {
   b.thighL.rotation.x += k.lean * -0.55; b.shinL.rotation.x += k.lean * 0.55; b.thighR.rotation.x += k.lean * 0.35;
   /* torso */
   const breathe = Math.sin(t * 2 * Math.PI * 0.25) * 0.012;
-  b.spine.rotation.x = 0.04 + 0.10 * k.search * walkA + 0.18 * run * walkA + 0.32 * k.kneel + 0.25 * k.low + 0.55 * k.lean + 0.25 * k.reach + 0.12 * k.down + breathe;
-  b.chest.rotation.x = 0.03 + 0.15 * k.lean + 0.12 * k.low + 0.25 * k.reach - 0.06 * k.aim + breathe;
-  b.spine.rotation.y = 0.05 * walkA * sw;
+  b.spine.rotation.x = 0.06 + 0.10 * k.search * walkA + 0.18 * run * walkA + 0.32 * k.kneel + 0.25 * k.low + 0.55 * k.lean + 0.25 * k.reach + 0.12 * k.down + breathe;
+  b.chest.rotation.x = 0.07 + 0.15 * k.lean + 0.12 * k.low + 0.25 * k.reach - 0.06 * k.aim + breathe;
+  b.spine.rotation.y = 0.06 * walkA * (fwd.L - fwd.R) / 2; b.spine.rotation.z = -0.6 * b.hips.rotation.z;   // shoulders against the hips
   /* head: looks along the torch while searching; notice snaps it; free look target overrides */
-  b.neck.rotation.x = 0.06 * k.search; b.head.rotation.x = 0.10 * k.search + 0.18 * k.down + 0.1 * k.low - 0.12 * k.rail;
+  b.neck.rotation.x = 0.06 + 0.06 * k.search; b.head.rotation.x = 0.04 + 0.10 * k.search + 0.18 * k.down + 0.1 * k.low - 0.12 * k.rail;
   if (s.head) { b.head.rotation.y = U.clamp(s.head.yaw || 0, -1.3, 1.3) * (0.6 + 0.4 * k.notice); b.head.rotation.x += U.clamp(s.head.pitch || 0, -0.6, 0.8); }
   /* right arm: swings; aims the gun; grabs; reaches in; rattles the gate; shakes the sheet */
-  b.upperArmR.rotation.x = armA * sw - 0.15 * k.search * walkA;
+  b.upperArmR.rotation.x = -armA * fwd.L - 0.15 * k.search * walkA;
   b.foreArmR.rotation.x = -0.25 * walkA - 0.25 * run * walkA;
   b.upperArmR.rotation.z = -0.06;
   /* left arm (torch arm): swings when the torch is idle, else held forward along the torch pitch */
@@ -173,7 +224,7 @@ function poseStandIn(f, dt) {
     const jolt = run * walkA * 0.05 * Math.sin(ph * 2);
     b.upperArmL.rotation.x = -0.55 - 0.25 * k.kneel + 0.25 * k.down + jolt; b.foreArmL.rotation.x = -0.75 + 0.2 * k.down;
     b.upperArmL.rotation.z = 0.12;
-  } else { b.upperArmL.rotation.x = -armA * sw; b.foreArmL.rotation.x = -0.25 * walkA - 0.25 * run * walkA; b.upperArmL.rotation.z = 0.06; }
+  } else { b.upperArmL.rotation.x = -armA * fwd.R; b.foreArmL.rotation.x = -0.25 * walkA - 0.25 * run * walkA; b.upperArmL.rotation.z = 0.06; }
   /* aim: right hand at the grip by the shoulder, left hand (and torch) under the fore-end */
   if (k.aim > 0.001) {
     const a = k.aim;
@@ -284,7 +335,7 @@ const Humans = FF.Humans = {
     const props = Object.assign({}, ROLE_PROPS[role] || ROLE_PROPS.searcher);
     fig.lens.visible = !!props.torch;
     const f = {
-      role, object: g, body: fig.body, bones: fig.bones, boneList: fig.boneList, lens: fig.lens, props, k: {}, time: 0, model: null, torchHandle: null, _torchOn: false,
+      role, object: g, body: fig.body, bones: fig.bones, boneList: fig.boneList, lens: fig.lens, props, k: {}, time: 0, model: null, step: 0.65, swayPh: figures.length * 2.1, _g: null, torchHandle: null, _torchOn: false,
       st: { x: 0, y: 0, z: 0, face: -1, yaw: null, anim: 'idle', speed: 0, gait: 0, visible: false, torch: { on: false, pitch: -20, half: 13, target: null, intensity: null },
             aim: null, aimPitch: null, lean: null, reach: null, head: null, shakeAmt: 0 },
       /* pose and look for this frame (INTERFACES §8.5). Extra keys: yaw (explicit body yaw; else from face, turning through the
@@ -386,6 +437,13 @@ const Humans = FF.Humans = {
         continue;
       }
       f.time += dt;
+      /* the step length the legs use: the figure's own travel per step its owner counted (so a planted foot stays put) */
+      const gx = s.gait || 0;
+      if (f._g != null && !s.snap) {
+        const dg = gx - f._g, dd = Math.hypot(s.x - f._x, s.z - f._z);
+        if (dg > 1e-4 && dd < 0.6) f.step = U.lerp(f.step, U.clamp(dd > 1e-4 ? dd / dg : 0.3, 0.2, 1.3), 1 - Math.exp(-8 * dt));
+      }
+      f._g = gx; f._x = s.x; f._z = s.z;
       /* body yaw: explicit, or from facing (turns pass through the camera side, yaw 0) */
       const want = s.yaw != null ? s.yaw : s.face > 0 ? Math.PI / 2 : s.face < 0 ? -Math.PI / 2 : 0;
       if (f.yaw == null || s.snap) f.yaw = want; else f.yaw = U.approach(f.yaw, want, (s.turnRate || 6.0) * dt);

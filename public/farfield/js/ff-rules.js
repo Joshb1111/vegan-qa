@@ -4,22 +4,35 @@
    The searcher's path and the scripted beats: FF.S1.searcher / .verge / .walkway (ff-script-s1.js).
    OWNER: architect / integrator. Folded at integration (7 Oct): rabbit.jumpCutAfter (the rabbit builder), sight.touch.stillBelow
    and the alert-tracking rule (the humans builder; FF.AI.track = seeAlert, used by the game and tools/check-search.mjs alike).
-   Perception and searcher numbers change only with the Search checker re-run (public/farfield/tools/check-search.mjs). */
+   Perception and searcher numbers change only with the Search checker re-run (public/farfield/tools/check-search.mjs).
+   7 Oct, after Josh's playtest (§9.1-9.2): the hold-to-run ramp (runAfter / runRamp) is gone; walk 1.15 -> 0.95 (the
+   cautious pace, a direction alone); run 2.75 and flee 3.6 need Shift; squeeze speeds are caps. No perception or searcher
+   number changed. The checker's movement model needs the same input model (plans give { dir, run, crouch }): re-run with it,
+   RUN mode (Shift) reproduces every amended verdict, WALK mode (the cautious walk) stays fair (survivable with Shift beyond
+   the close-range rule). */
 'use strict';
 window.FF = window.FF || {};
 
 FF.RULES = {
   rabbit: {
-    walk: 1.15, run: 2.75, runAfter: 0.30, runRamp: 0.55,
-    flee: 3.6, fleeRamp: 0.4, fleeWithin: 15, fleeRunsAtOnce: true,       // only while a searcher is SPOTTED / PURSUE / AIM / GRAB within 15 m (the Search only)
-    crouch: 0.75,
+    /* Josh's playtest (7 Oct, §9.1): a direction alone is the CAUTIOUS walk and never speeds up by itself, however long it is
+       held (the hold-to-run ramp, runAfter / runRamp, is gone); Shift (the gamepad's run button) + a direction runs. Nothing
+       raises the speed unasked: the flee speed is what a run becomes while a searcher within fleeWithin is SPOTTED / AIM /
+       PURSUE / GRAB / LOWER (the Search only), so it too needs Shift; a direction alone stays the cautious walk even then.
+       The one-time "Shift run" hint early in the Verge (ff-player.js) makes sure a first-timer knows it before the Search. */
+    walk: 0.95, run: 2.75, runNeedsShift: true,
+    flee: 3.6, fleeRamp: 0.4, fleeWithin: 15, fleeRunsAtOnce: true,       // a run (Shift) while a searcher is SPOTTED / PURSUE / AIM / GRAB within 15 m (the Search only) opens at flee speed at once
+    crouch: 0.75,                                                           // Down: a deliberate crouch-walk (and the speed while stuck under something lower than h)
     /* squeezes (A9): clearance 0.16-0.235 m. A squeeze no longer than shortMax (the hoarding, skirts, flaps, the skip's rear
-       door, the fence gap) is a DUCK-UNDER; only the drain's 3.4 m squeeze pipe is a CREEP. */
+       door, the fence gap) is a DUCK-UNDER; only the drain's 3.4 m squeeze pipe is a CREEP. The speeds are CAPS on the speed
+       the player asked for (7 Oct: a squeeze never speeds a walking rabbit up): walk 0.95 stays 0.95 under a skirt, a run is
+       held to 1.6, a flee to 2.4; the creep holds anything to 0.75. */
     squeeze: [0.16, 0.235], squeezeShortMax: 0.6,
     duckUnder: { speed: 1.6, fleeSpeed: 2.4, duck: 0.1 },
     creep: { speed: 0.75, duck: 0.2 },
     firstSqueezeHesitate: 0.35,                                             // the hoarding only (first squeeze, a safe place)
-    lowPoseUnder: 0.35,                                                     // under any ceiling lower than this the rabbit flattens: crouched sight points (visual + sight only, not speed)
+    lowPoseUnder: 0.35,                                                     // under any ceiling lower than this the rabbit is low: crouched sight points and the low pose (visual + sight only, not speed).
+                                                                            // 7 Oct: this and Down are the ONLY things that flatten it; the danger / glare reflex in the open is a freeze (ears back, a slight lowering)
     push: 0.62, accel: 5.0, decel: 10.0, turn: 14.0, airAccel: 4.0,
     gravity: 21.0, fallGravity: 1.35, jumpHeight: 0.52, jumpCut: 0.5, coyote: 0.10, buffer: 0.13, stepUp: 0.10,
     jumpCutAfter: 0.15,                                                     // the early-release cut applies only after this long in the air: a quick tap still hops ~0.46 m (the post 0.30, the box 0.44); no precise jumps (§1)

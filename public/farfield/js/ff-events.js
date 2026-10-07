@@ -16,13 +16,29 @@
    Checkpoints and saves; THE FAILURE FLOW (§10: cut to black on the step of the grab or shot, restart at the checkpoint at
    0.80 s, control at 1.00 s, picture at 1.25 s; nothing is counted, nothing rewards harm); THE END (settled -> held 4 s ->
    the pull-out 8 s -> fade 2 s -> 0.5 s -> the card -> the title).
+   THE DOOR REVEAL (Josh's playtest, 7 Oct §9.5: "this particular reveal needs to complete reliably"): the ONE deliberate
+   camera takeover in Sequence 1. It starts at the earlier of the searcher's door cue (1.5 s after the rabbit lands from the
+   duct) and the rabbit's centre reaching REVEAL.triggerX (90.0, just out from under the A0 shelf's skirt), first time only:
+     control off at once; the rabbit's own physics bring it to a natural stop (a run slides ~0.4 m; airborne, it lands first;
+     nothing moves it but its momentum) -> the ears snap to the footsteps and, once still, it sits up to listen (under the
+     shelf: it watches low) -> the camera eases to the establishing frame (the door light, the door, the man stepping out,
+     the fence clatter, the aim at the fence that lights the gap) -> the camera eases back while the gun lowers -> control
+     returns as it settles, with every direction or jump key held through the takeover LATCHED until it is let go (FF.Input
+     .latch: a held key never carries the rabbit on) -> a grace (G.flags.revealSafe stays set; FF.AI gives him no sight of
+     the rabbit while it is) during which he turns away from the fence; his routine starts after it. Rain, sound and the
+     world keep running throughout. 5.95 s from the cue to control (the entry's timings: ff-script-s1.js).
+     Retries never replay it: once it has run, a replayed entry (rare: a restart in the last second of it) gets no takeover,
+     only a 1 s lean of the camera. Pause -> Restart during it gives control back. Facts: reveal {phase: start|pan|return|
+     control|end, cause, x}.
    Phase facts emitted (Audio, Camera, World, Player listen): vehicle {phase: approach|stop|door|leave|gone, x, z},
    gate {phase: rattle (dur, hard)|lit-pause|jolt|lock|slide|close}, person {phase: out|kneel|wait|stand|sweep|back|in},
    torch-down {phase: on|reach|end (withdraw: true when the rabbit heads back)}, walkway {phase: boots|lamp|door-open|out|rail|rail-leave|door-r|shut|thud|done},
-   lamp {id: 'amber', on}, checkpoint {id}, end {phase: pullout|fade|card}. FF.Events.van is the van object (FF.Humans).
+   lamp {id: 'amber', on}, checkpoint {id}, end {phase: pullout|fade|card}, reveal {phase, cause, x}. FF.Events.van is the van
+   object (FF.Humans).
    OWNER: the humans + events builder. API contract: docs/farfield/INTERFACES.md §8.7 and §9. */
 'use strict';
 window.FF = window.FF || {};
+
 (function () {
 const U = FF.util, G = () => FF.G;
 const st = { cp: 'verge-start', failing: null, beats: {} };
@@ -276,6 +292,103 @@ function walkwayFrame(dt) {
   if (W.on || W.doorR > 0) { W.doorR = U.approach(W.doorR, wantR, dt / (wantR ? 0.45 : 0.25)); openProp('walkwayDoorR', U.ease.inOutSine(W.doorR)); }
 }
 
+/* ================================================================== THE SEARCH: the door reveal (the one camera takeover) */
+const REVEAL = {
+  triggerX: 90.0,       // the rabbit's centre this far right (out from under the A0 shelf and its skirt, 89.7-89.8) starts it at the latest.
+                        // From any speed it then stops before 91.6 (a run slides ~0.4 m; a running jump off the shelf lands first),
+                        // left of the deck (92.0) and at least 18 m from him at the door: nothing of his can reach it there
+  panAfterCue: 0.3,     // the camera leaves the rabbit this long after the cue (it has stopped, its ears snapped to the footsteps)
+  panIn: 1.25,          // ease to the establishing frame (~20 m, peak ~25 m/s): the door light is in it ~0.25 s before the door opens
+  returnAtAim: 1.2,     // the camera starts back this far into the aim demonstration (gun up, beam narrowed on the gap, the click, held)
+  returnTime: 1.3,      // ease back to the live play framing (peak ~24 m/s)
+  controlAfter: 1.0,    // control returns this far into the ease back: the rabbit is well inside the frame, the lens settling
+  grace: 1.2,           // after control returns, still undetectable (G.flags.revealSafe); his routine starts after it
+  maxTime: 12.0,        // a safety: no takeover lasts longer than this
+  sitClear: 0.5,        // headroom for sitting up to listen (it stands 0.41 m to the ear tips, 0.45 sitting up)
+  watchClear: 0.26,     // under the shelf (0.30): watches low, ears live; lower than this (mid-squeeze) it keeps its crouch
+  latch: ['left', 'right', 'up', 'jump'],
+  glimpse: 1.0,         // a replayed entry after the reveal has run: no takeover, at most this long a lean of the camera
+};
+const RV = { phase: '', t: 0, cause: '', pose: '', poseAt: 0, shot: false, retT: 0, graceT: 0, done: false, glimpsed: false, held: false, log: null, maxX: null };
+/* the held-key latch lives in FF.Input (ff-main.js); the no-detection guard in FF.AI (ff-ai.js), both keyed on this takeover */
+const latched = () => (FF.Input && FF.Input.latched) || [];
+function entrySeg(kind) { const segs = FF.AI && FF.AI.entrySegs; return segs ? segs.find(s => s.kind === kind) || null : null; }
+function headroom(r) { return FF.Level.ceilingAbove(r.x, FF.RULES.rabbit.hw, r.y) - r.y; }
+const rlog = (k, extra) => { if (!RV.log || RV.log[k]) return; const g = G(), r = g.rabbit, s = g.searcher || {}; RV.log[k] = Object.assign({ t: +(g.t - RV.log.t0).toFixed(3), x: +r.x.toFixed(3), vx: +(r.vx || 0).toFixed(3), y: +r.y.toFixed(3), entryT: s.entryT != null ? +s.entryT.toFixed(3) : null }, extra || {}); };
+function revealStart(cause) {
+  const g = G(), r = g.rabbit;
+  RV.phase = 'hold'; RV.t = 0; RV.cause = cause; RV.pose = ''; RV.shot = false; RV.retT = 0; RV.graceT = 0; RV.held = true; RV.maxX = r.x;
+  RV.log = { t0: g.t, cause }; rlog('start', { grounded: !!r.grounded, ai: (g.searcher || {}).state });
+  FF.Game.control(false); g.flags.revealSafe = true;
+  emit('reveal', { phase: 'start', cause, x: +r.x.toFixed(2) });
+}
+function revealPose(name) { if (RV.pose === name || !(FF.Player && FF.Player.setPose)) return; RV.pose = name; RV.poseAt = RV.t; FF.Player.setPose(name); rlog('pose:' + name); }
+/* control back (the takeover's end, or a safety exit): latch what is held, end the scripted reaction, keep the grace */
+function revealControl() {
+  const g = G(); RV.phase = 'grace'; RV.graceT = 0; RV.held = false; RV.done = true;
+  /* the aim at the gap has been shown: a restart from here on never replays his entry (the AI also sets this when it ends) */
+  if (!RV.log || !RV.log.safetyExit) g.flags.entryDone = true;
+  if (RV.pose && FF.Player && FF.Player.setPose) FF.Player.setPose(null); RV.pose = '';
+  const held = FF.Input && FF.Input.latch ? FF.Input.latch(REVEAL.latch) : []; FF.Game.control(true);
+  rlog('control', { latched: held.join(',') || '-' });
+  emit('reveal', { phase: 'control', cause: RV.cause, x: +g.rabbit.x.toFixed(2) });
+}
+function revealEnd() { const g = G(); RV.phase = ''; g.flags.revealSafe = false; rlog('end'); emit('reveal', { phase: 'end', cause: RV.cause, x: +g.rabbit.x.toFixed(2) }); }
+function revealStep(dt) {
+  const g = G(), r = g.rabbit, s = g.searcher; if (!r) return;
+  if (!RV.phase) {
+    if (g.mode !== 'play' || !s || !s.active || g.flags.entryDone || g.place !== 'search') return;
+    const st = s.state;
+    if (RV.done) {           // a replayed entry after the reveal has run: no takeover, at most a 1 s lean towards the door
+      if (st === 'entry' && !RV.glimpsed && (s.entryT || 0) > 0.2) { RV.glimpsed = true; if (FF.Camera && FF.Camera.attend) FF.Camera.attend('entry-glimpse', { x: 109.0, w: 0.5, t: REVEAL.glimpse }); }
+      return;
+    }
+    if (st !== 'wait' && st !== 'entry') return;
+    if (r.mode && r.mode !== 'play') return;
+    if (st === 'entry') revealStart('cue');
+    else if (r.x >= REVEAL.triggerX) revealStart('trigger');
+    return;
+  }
+  RV.t += dt; RV.maxX = Math.max(RV.maxX, r.x);
+  /* the takeover may only run while his entry does: if it ended or was cut short, give control back at once */
+  const live = s && s.active && (s.state === 'wait' || s.state === 'entry');
+  if (RV.held && (!live || RV.t > REVEAL.maxTime)) {
+    if (RV.shot && FF.Camera && FF.Camera.shot) FF.Camera.shot(null, { release: 0.6 });
+    RV.log && (RV.log.safetyExit = { t: +RV.t.toFixed(2), state: s && s.state });
+    revealControl();
+  }
+  if (RV.phase === 'hold' || RV.phase === 'show') {
+    const cue = s.state === 'entry' && s.entryT != null;
+    if (cue) rlog('cue');
+    /* the stop: its own deceleration (and landing); once still, the reaction */
+    const still = r.grounded && Math.abs(r.vx || 0) < 0.05;
+    if (still) rlog('stopped');
+    if (still && cue) {
+      const h = headroom(r);
+      if (h >= REVEAL.sitClear) { if (!RV.pose) revealPose('listen'); else if (RV.pose === 'listen' && RV.t - RV.poseAt > 2.0) revealPose('freeze'); }
+      else if (h >= REVEAL.watchClear && !RV.pose) revealPose('watch');
+    }
+    /* the camera: to the door once the ears have heard it */
+    if (cue && !RV.shot && s.entryT >= REVEAL.panAfterCue) {
+      RV.shot = true; RV.phase = 'show'; rlog('pan');
+      if (FF.Camera && FF.Camera.shot) FF.Camera.shot('search-entry-hold', { ease: REVEAL.panIn });
+      emit('reveal', { phase: 'pan', cause: RV.cause, x: +r.x.toFixed(2) });
+    }
+    /* and back, while the gun lowers */
+    const aim = entrySeg('aim-demo'), backAt = aim ? aim.t0 + REVEAL.returnAtAim : 9.8;
+    if (RV.shot && cue && s.entryT >= backAt) {
+      RV.phase = 'return'; RV.retT = 0; rlog('return');
+      if (FF.Camera && FF.Camera.shot) FF.Camera.shot(null, { release: REVEAL.returnTime });
+      emit('reveal', { phase: 'return', cause: RV.cause, x: +r.x.toFixed(2) });
+    }
+  } else if (RV.phase === 'return') {
+    RV.retT += dt;
+    if (RV.retT >= REVEAL.controlAfter) revealControl();
+  } else if (RV.phase === 'grace') {
+    RV.graceT += dt;
+    if (RV.graceT >= REVEAL.grace) revealEnd();
+  }
+}
 /* ================================================================== THE END: settled -> held 4 s -> the pull-out -> fade -> card */
 const E = { phase: '', t: 0 };
 function endStep(dt) {
@@ -336,11 +449,18 @@ const Events = FF.Events = {
     vergeReset(!!f.vergeDone); walkwayReset(!!f.walkwayDone);
     for (const id of Object.keys(lit)) lightOff(id);
     E.phase = ''; E.t = 0;
+    /* the door reveal: a restart in the middle of it (Pause -> Restart) gives control back (the failure flow and the title
+       set control themselves); a new game forgets that it has run; retries never replay it (RV.done) */
+    const reason = (opts && opts.reason) || 'warp';
+    if (RV.held && reason !== 'fail' && reason !== 'title' && reason !== 'start') FF.Game.control(true);
+    if (reason === 'title' || reason === 'start') RV.done = false;
+    Object.assign(RV, { phase: '', t: 0, cause: '', pose: '', shot: false, retT: 0, graceT: 0, held: false, glimpsed: false });
+    delete f.revealSafe; if (FF.Input && FF.Input.unlatch) FF.Input.unlatch();
   },
   step(dt) {
     const r = G().rabbit; if (!r) return;
     if (!st.failing) {
-      vergeStep(dt); walkwayStep(dt); endStep(dt);
+      vergeStep(dt); walkwayStep(dt); endStep(dt); revealStep(dt);
       /* progress checkpoints: passing x; Search checkpoints: the centre in that cover's core and the searcher not alert
          (the last core reached undetected is the restart point, in any order) */
       const list = FF.S1.checkpoints, cur = list.findIndex(k => k.id === st.cp), court = list.findIndex(k => k.id === 'courtyard');
@@ -351,6 +471,10 @@ const Events = FF.Events = {
           if (cover && cover.core && r.x >= cover.core[0] && r.x <= cover.core[1] && (!r.mode || r.mode === 'play') && !(FF.AI && FF.AI.danger && FF.AI.danger()) && cur >= court && st.cp !== 'rest') setCheckpoint(c.id);
         } else if (i > cur && r.x >= c.x && (c.y == null || Math.abs(r.y - c.y) < 0.6)) setCheckpoint(c.id);
       }
+      /* search-arrive on landing from the duct (SEQUENCE-1.md §9.7; 7 Oct v2): a pause -> Restart right after the drop, or
+         in the middle of the door reveal, restarts in the A0 shelf, never back at the Courtyard's box puzzle */
+      const arrive = list.findIndex(k => k.id === 'search-arrive');
+      if (G().place === 'search' && cur < arrive && cur >= court && (!r.mode || r.mode === 'play') && r.grounded && !(FF.AI && FF.AI.danger && FF.AI.danger())) setCheckpoint('search-arrive');
     }
   },
   /* cut to black on this step, the report or the scuff under black (Audio listens to 'fail'), restart at the checkpoint after
@@ -369,19 +493,21 @@ const Events = FF.Events = {
   /* true while a staged beat or the failure flow runs (main holds the automatic quality step-down) */
   scripted() {
     const s = G().searcher;
-    return !!st.failing || (V.on && !V.gone) || (W.on && !W.done) || !!E.phase || !!(s && s.active && (s.state === 'entry' || s.state === 'wait'));
+    return !!st.failing || (V.on && !V.gone) || (W.on && !W.done) || !!E.phase || !!RV.phase || !!(s && s.active && (s.state === 'entry' || s.state === 'wait'));
   },
   frame(dt) {
     tickTimers(dt);
     vergeFrame(dt); walkwayFrame(dt);
   },
+  /* the door reveal's state (tests and the integrator): phase '' | hold | show | return | grace; log = timings from its start */
+  reveal() { return { phase: RV.phase, cause: RV.cause, done: RV.done, held: RV.held, pose: RV.pose, t: +RV.t.toFixed(3), maxX: RV.maxX == null ? null : +RV.maxX.toFixed(3), latched: latched(), log: RV.log }; },
   dispose() { for (const id of Object.keys(lit)) lightOff(id); },
   debug() {
     return { cp: st.cp, failing: st.failing && st.failing.kind, beats: Object.assign({}, st.beats), flags: Object.assign({}, G().flags),
       verge: { on: V.on, gone: V.gone, phase: V.phase, t: +V.t.toFixed(2), T: +V.T.toFixed(2), stopT: V.stopT == null ? null : +V.stopT.toFixed(2), van: { x: +V.van.x.toFixed(2), z: +V.van.z.toFixed(2) }, dropT: V.dropT == null ? null : +V.dropT.toFixed(2), outT: V.outT == null ? null : +V.outT.toFixed(2),
         step: V.phase === 'after' && V.q[V.qi] ? V.q[V.qi][0] : null, rattle: { on: V.rattle.on, burst: +V.rattle.burst.toFixed(2), silence: +V.rattle.silence.toFixed(2), hard: +V.rattle.hard.toFixed(2) }, person: { x: +V.p.x.toFixed(2), z: +V.p.z.toFixed(2), vis: V.p.vis, anim: V.p.anim }, torchT: +V.torchT.toFixed(2) },
       walkway: { on: W.on, done: W.done, t: +W.t.toFixed(2), at: W.at == null ? null : +W.at.toFixed(2), cause: W.cause || null, x: +W.x.toFixed(2), vis: W.vis },
-      end: E.phase || null, lights: Object.keys(lit) };
+      end: E.phase || null, lights: Object.keys(lit), reveal: { phase: RV.phase, cause: RV.cause, done: RV.done, held: RV.held, pose: RV.pose, latched: latched() } };
   },
 };
 

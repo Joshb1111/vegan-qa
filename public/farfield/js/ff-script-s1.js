@@ -21,16 +21,19 @@ FF.S1.searcher = {
     N5: [93.0,  0.85, -1.15],  // above the rabbit's hide: the look at the duct mouth
   },
   floorMinX: 90.0,
-  /* entry, first time only: starts 1.5 s after the rabbit lands. 11.55 s. The camera holds the establishing frame through
-     it until the gun lowers (A12: entry t 10.55). */
+  /* entry, first time only: starts 1.5 s after the rabbit lands. 7.65 s. It is THE DOOR REVEAL (Josh's playtest, 7 Oct §9.5:
+     the one camera takeover, run by FF.Events): the camera goes to the door 0.3 s into the cue and starts back 1.2 s into the
+     aim demonstration; control returns 5.95 s after the cue. Same beats, same order, same nodes as the first build (10.55 s
+     from the light to the gun lowering, too long for a takeover of 4-6 s), only quicker. The second turn is a turn-sweep (it
+     does not clatter the fence again) and covers the reveal's 1.2 s grace; then the loop. */
   entry: [
-    ['cue', 2.5, 'N0', 'line of light under the door, a torch beam moving behind its small window, footsteps'],
-    ['doorway', 1.0, 'N0', 'silhouette in the door: cap, coat, backpack, long gun slung, torch'],
-    ['step-in', 2.45, 'N1'],
-    ['sweep-left', 2.0, 'N1', 'pitch -35 -> -8'],
-    ['turn', 0.6, 'N1', 'the fence corner clatters (wind); they turn to it'],
+    ['cue', 1.35, 'N0', 'line of light under the door, a torch beam moving behind its small window, footsteps'],
+    ['doorway', 0.6, 'N0', 'silhouette in the door: cap, coat, backpack, long gun slung, torch'],
+    ['step-in', 1.1, 'N1'],
+    ['sweep-left', 0.25, 'N1', 'a glance down the yard'],
+    ['turn', 0.45, 'N1', 'the fence corner clatters (wind); they turn to it'],
     ['aim-demo', 2.0, 'N1', 'raise 0.5, beam 13 -> 5 deg on the gap, click, hold 1.0, lower 0.5: NO SHOT. Lights the exit. Ends = entry-aim-lowered'],
-    ['turn', 1.0, 'N1'],
+    ['turn-sweep', 1.9, 'left', 'turns away from the fence (the torch down while turning), sweeps; covers the reveal\'s grace; then the loop'],
   ],
   /* the loop, 44.85 s (A10: the deck look is 6.0 s), repeats exactly: [action, to node | seconds, speed m/s | facing] */
   loop: [

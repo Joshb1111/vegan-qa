@@ -177,7 +177,7 @@ function pathCost(x, lv, tx, tlv, v) {
 }
 
 /* ================================================================== state */
-let fig = null, entry = [], loop = [], LOOP_T = 44.85, ENTRY_T = 11.55, clock = 0;
+let fig = null, entry = [], loop = [], LOOP_T = 44.85, ENTRY_T = 7.65, clock = 0;
 const ST = { active: false, state: 'off', x: 110, y: 0, z: -1.15, face: -1, pitch: -20, half: 13, kneel: false, torchOn: false, kind: '', loopT: null, entryT: null,
   s: 0, lit: 0, litBy: '', aim: 0, wary: 0, startIn: -1 };
 const I = {
@@ -196,11 +196,15 @@ function setMode(m, why) {
 }
 const rabbit = () => FF.G.rabbit;
 const rabbitStill = () => { const r = FF.G.rabbit; return !!r && Math.abs(r.vx || 0) < (RT().touch.stillBelow || 0.3); };
-function rabbitPts() { return FF.Player && FF.Player.sightPoints ? FF.Player.sightPoints() : null; }
+/* THE DOOR REVEAL (Josh's playtest, 7 Oct §9.5): while FF.Events has control off and through its grace (G.flags.revealSafe)
+   the rabbit cannot be seen, touched, tracked or grabbed: he is given no sight points at all. Geometry already keeps the
+   rabbit 19+ m from him throughout (tested: suspicion stays 0); this makes it a guarantee. */
+const revealSafe = () => !!(FF.G && FF.G.flags && FF.G.flags.revealSafe);
+function rabbitPts() { return !revealSafe() && FF.Player && FF.Player.sightPoints ? FF.Player.sightPoints() : null; }
 /* can he see the rabbit at all right now (for tracking once alert)? Not in a core (every core is a refuge, A11), not through
    the gap, within 10 m, and a clear line from his eye or lens to any sight point. */
 function trackVisible() {
-  const r = rabbit(); if (!r || r.visible === false || (r.mode && r.mode !== 'play')) return false;
+  const r = rabbit(); if (!r || r.visible === false || (r.mode && r.mode !== 'play') || revealSafe()) return false;
   return seeAlert(I.p, r);
 }
 const gapCore = () => { const g = FF.S1.covers.find(c => c.exit); return g ? g.core[0] : 113.15; };
@@ -361,7 +365,7 @@ function applySample(p, wary) {
 function stepEntry(dt) {
   I.entryT += dt; const t = I.entryT, p = sample(entry, t, clock); applySample(p, false);
   ST.entryT = t;
-  /* the door: light under it and a torch moving behind its window, then it opens (2.5 s) and stays open */
+  /* the door: light under it and a torch moving behind its window, then it opens (the doorway segment) and stays open */
   const ph = p.kind;
   if (ph !== I.entryPhase) {
     I.entryPhase = ph;
