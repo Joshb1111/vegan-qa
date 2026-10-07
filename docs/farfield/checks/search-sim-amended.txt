@@ -1,0 +1,212 @@
+ENTRY 11.6 s   LOOP 44.9 s
+
+HIDE AUDIT (standing torch over entry + 3 loops; crouch-look reported separately)
+  A0 shelf (arrival, checkpoint)     span 88-89.8 | core [88.2,88.95] | standing-safe centres 88.16-89.24 | core ok true | crouch-look lights centres null | body depth 0.04  | lit by walk,look
+  deck-A (watching place, refuge)    span 92-98 | core [93.2,96.3] | standing-safe centres 92.16-96.86 | core ok true | crouch-look lights centres null | body depth 1.04 REFUGE | lit by walk
+  pallet-B (skirted both ends)       span 101-103.4 | core [101.85,102.55] | standing-safe centres 101.66-103.08 | core ok true | crouch-look lights centres null | body depth 0.69  | lit by walk
+  skip-C (midpoint, checkpoint)      span 105-107.2 | core [105.8,106.4] | standing-safe centres 105.78-106.7 | core ok true | crouch-look lights centres [106.54,107.04] | body depth 0.64  | lit by walk,descend,turn-sweep,doorway
+  gap (fence corner)                 span 113-113.5 | core [113.15,113.5] | standing-safe centres NONE | core ok false | crouch-look lights centres null | body depth -0.16  | lit by aim-demo,walk
+
+LOOP STEPS [{"i":0,"kind":"walk","start":0,"dur":1.8,"x0":110,"x1":108.2},{"i":1,"kind":"crouch-look","start":1.8,"dur":3.3,"x0":108.2,"x1":108.2},{"i":2,"kind":"walk","start":5.1,"dur":8.8,"x0":108.2,"x1":99.4},{"i":3,"kind":"climb","start":13.9,"dur":1.4,"x0":99.4,"x1":98},{"i":4,"kind":"walk","start":15.3,"dur":5,"x0":98,"x1":93},{"i":5,"kind":"look","start":20.3,"dur":6,"x0":93,"x1":93},{"i":6,"kind":"turn","start":26.3,"dur":1,"x0":93,"x1":93},{"i":7,"kind":"walk","start":27.3,"dur":5,"x0":93,"x1":98},{"i":8,"kind":"descend","start":32.3,"dur":1.4,"x0":98,"x1":99.4},{"i":9,"kind":"walk","start":33.7,"dur":8.15,"x0":99.4,"x1":110},{"i":10,"kind":"turn-sweep","start":41.85,"dur":3,"x0":110,"x1":110}]
+
+  (scan) A1 leave -6
+  {"name":"  (scan) A1 leave -6","startT":68.7,"took":7.42,"endX":106.11,"maxSuspicion":0,"firstLit":null,"notice":null,"alert":null}
+
+  (scan) A1 leave -5
+  {"name":"  (scan) A1 leave -5","startT":68.7,"took":8.42,"endX":106.11,"maxSuspicion":0,"firstLit":null,"notice":null,"alert":null}
+
+  (scan) A1 leave -4
+  {"name":"  (scan) A1 leave -4","startT":68.7,"took":9.42,"endX":106.11,"maxSuspicion":0,"firstLit":null,"notice":null,"alert":null}
+
+  (scan) A1 leave -3
+  {"name":"  (scan) A1 leave -3","startT":68.7,"took":10.42,"endX":106.11,"maxSuspicion":0,"firstLit":null,"notice":null,"alert":null}
+
+  (scan) A1 leave -2
+  {"name":"  (scan) A1 leave -2","startT":68.7,"took":11.42,"endX":106.11,"maxSuspicion":0,"firstLit":null,"notice":null,"alert":null}
+
+  (scan) A1 leave -1
+  {"name":"  (scan) A1 leave -1","startT":68.7,"took":12.42,"endX":106.11,"maxSuspicion":0,"firstLit":null,"notice":null,"alert":null}
+
+  (scan) A1 leave 0
+  {"name":"  (scan) A1 leave 0","startT":68.7,"took":13.42,"endX":106.11,"maxSuspicion":0,"firstLit":null,"notice":null,"alert":null}
+
+  (scan) A1 leave 1
+  {"name":"  (scan) A1 leave 1","startT":68.7,"took":14.42,"endX":106.11,"maxSuspicion":0,"firstLit":null,"notice":null,"alert":null}
+
+  (scan) A1 leave 2
+  {"name":"  (scan) A1 leave 2","startT":68.7,"took":15.42,"endX":106.11,"maxSuspicion":0,"firstLit":null,"notice":null,"alert":null}
+
+  (scan) A1 leave 3
+  {"name":"  (scan) A1 leave 3","startT":68.7,"took":16.42,"endX":106.11,"maxSuspicion":0,"firstLit":null,"notice":null,"alert":null}
+
+  (scan) A1 leave 4
+  {"name":"  (scan) A1 leave 4","startT":68.7,"took":17.42,"endX":106.11,"maxSuspicion":0.11,"firstLit":{"t":15,"x":101.08,"src":"torch","hx":93,"kind":"walk"},"notice":null,"alert":null}
+
+  (scan) A1 leave 5
+  {"name":"  (scan) A1 leave 5","startT":68.7,"took":18.42,"endX":106.11,"maxSuspicion":0.45,"firstLit":{"t":15.52,"x":100.17,"src":"torch","hx":93.52,"kind":"walk"},"notice":{"t":16.02,"x":101.1},"alert":null}
+
+  (scan) A1 leave 6
+  {"name":"  (scan) A1 leave 6","startT":68.7,"took":19.42,"endX":106.11,"maxSuspicion":0.63,"firstLit":{"t":16.35,"x":99.71,"src":"torch","hx":94.35,"kind":"walk"},"notice":{"t":16.8,"x":100.9},"alert":null}
+
+  (scan) A1 leave 7
+  {"name":"  (scan) A1 leave 7","startT":68.7,"took":20.42,"endX":106.11,"maxSuspicion":0.89,"firstLit":{"t":17.18,"x":99.25,"src":"torch","hx":95.18,"kind":"walk"},"notice":{"t":17.59,"x":100.38},"alert":null}
+
+  (scan) A1 leave 8
+  {"name":"  (scan) A1 leave 8","startT":68.7,"took":21.42,"endX":106.11,"maxSuspicion":0.84,"firstLit":{"t":18.33,"x":99.64,"src":"torch","hx":96.33,"kind":"walk"},"notice":{"t":18.72,"x":100.72},"alert":null}
+
+A1 scan (leave the deck core k s after the deck look starts -> outcome): [[-6,"clean, max s 0"],[-5,"clean, max s 0"],[-4,"clean, max s 0"],[-3,"clean, max s 0"],[-2,"clean, max s 0"],[-1,"clean, max s 0"],[0,"clean, max s 0"],[1,"clean, max s 0"],[2,"clean, max s 0"],[3,"clean, max s 0"],[4,"clean, max s 0.11"],[5,"clean, max s 0.45"],[6,"clean, max s 0.63"],[7,"clean, max s 0.89"],[8,"clean, max s 0.84"]]
+
+A1  deck -> skip core during the deck look (leave 0.5 s into the look)
+  {"name":"A1  deck -> skip core during the deck look (leave 0.5 s into the look)","startT":76.7,"took":5.92,"endX":106.11,"maxSuspicion":0,"firstLit":null,"notice":null,"alert":null}
+
+  (scan) leave 0 s after the crouch-look
+  {"name":"  (scan) leave 0 s after the crouch-look","startT":106.36,"took":0.78,"endX":107.05,"maxSuspicion":0.01,"firstLit":{"t":0.78,"x":107.05,"src":"close","hx":107.42,"kind":"walk"},"notice":null,"alert":{"t":0.78,"x":107.05,"hx":107.42,"d":0.36,"by":"touch","thenFleeing":"CAUGHT (grab)"}}
+
+  (scan) leave 0.5 s after the crouch-look
+  {"name":"  (scan) leave 0.5 s after the crouch-look","startT":106.36,"took":3.91,"endX":113.25,"maxSuspicion":0,"firstLit":null,"notice":null,"alert":null}
+
+  (scan) leave 1 s after the crouch-look
+  {"name":"  (scan) leave 1 s after the crouch-look","startT":106.36,"took":4.41,"endX":113.25,"maxSuspicion":0,"firstLit":null,"notice":null,"alert":null}
+
+  (scan) leave 1.5 s after the crouch-look
+  {"name":"  (scan) leave 1.5 s after the crouch-look","startT":106.36,"took":4.91,"endX":113.25,"maxSuspicion":0,"firstLit":null,"notice":null,"alert":null}
+
+  (scan) leave 2 s after the crouch-look
+  {"name":"  (scan) leave 2 s after the crouch-look","startT":106.36,"took":5.41,"endX":113.25,"maxSuspicion":0,"firstLit":null,"notice":null,"alert":null}
+
+  (scan) leave 2.5 s after the crouch-look
+  {"name":"  (scan) leave 2.5 s after the crouch-look","startT":106.36,"took":5.91,"endX":113.25,"maxSuspicion":0,"firstLit":null,"notice":null,"alert":null}
+
+  (scan) leave 3 s after the crouch-look
+  {"name":"  (scan) leave 3 s after the crouch-look","startT":106.36,"took":6.41,"endX":113.25,"maxSuspicion":0,"firstLit":null,"notice":null,"alert":null}
+
+  (scan) leave 3.5 s after the crouch-look
+  {"name":"  (scan) leave 3.5 s after the crouch-look","startT":106.36,"took":6.91,"endX":113.25,"maxSuspicion":0,"firstLit":null,"notice":null,"alert":null}
+
+  (scan) leave 4 s after the crouch-look
+  {"name":"  (scan) leave 4 s after the crouch-look","startT":106.36,"took":7.41,"endX":113.25,"maxSuspicion":0,"firstLit":null,"notice":null,"alert":null}
+
+  (scan) leave 4.5 s after the crouch-look
+  {"name":"  (scan) leave 4.5 s after the crouch-look","startT":106.36,"took":7.91,"endX":113.25,"maxSuspicion":0,"firstLit":null,"notice":null,"alert":null}
+
+  (scan) leave 5 s after the crouch-look
+  {"name":"  (scan) leave 5 s after the crouch-look","startT":106.36,"took":8.41,"endX":113.25,"maxSuspicion":0,"firstLit":null,"notice":null,"alert":null}
+
+  (scan) leave 5.5 s after the crouch-look
+  {"name":"  (scan) leave 5.5 s after the crouch-look","startT":106.36,"took":8.91,"endX":113.25,"maxSuspicion":0,"firstLit":null,"notice":null,"alert":null}
+
+  (scan) leave 6 s after the crouch-look
+  {"name":"  (scan) leave 6 s after the crouch-look","startT":106.36,"took":9.41,"endX":113.25,"maxSuspicion":0,"firstLit":null,"notice":null,"alert":null}
+
+  (scan) leave 6.5 s after the crouch-look
+  {"name":"  (scan) leave 6.5 s after the crouch-look","startT":106.36,"took":9.91,"endX":113.25,"maxSuspicion":0,"firstLit":null,"notice":null,"alert":null}
+
+  (scan) leave 7 s after the crouch-look
+  {"name":"  (scan) leave 7 s after the crouch-look","startT":106.36,"took":10.41,"endX":113.25,"maxSuspicion":0,"firstLit":null,"notice":null,"alert":null}
+
+  (scan) leave 7.5 s after the crouch-look
+  {"name":"  (scan) leave 7.5 s after the crouch-look","startT":106.36,"took":10.91,"endX":113.25,"maxSuspicion":0,"firstLit":null,"notice":null,"alert":null}
+
+  (scan) leave 8 s after the crouch-look
+  {"name":"  (scan) leave 8 s after the crouch-look","startT":106.36,"took":11.41,"endX":113.25,"maxSuspicion":0,"firstLit":null,"notice":null,"alert":null}
+
+A2 scan (seconds after the crouch-look ends -> outcome): [[0,"touch->CAUGHT (grab)"],[0.5,"clean, max s 0"],[1,"clean, max s 0"],[1.5,"clean, max s 0"],[2,"clean, max s 0"],[2.5,"clean, max s 0"],[3,"clean, max s 0"],[3.5,"clean, max s 0"],[4,"clean, max s 0"],[4.5,"clean, max s 0"],[5,"clean, max s 0"],[5.5,"clean, max s 0"],[6,"clean, max s 0"],[6.5,"clean, max s 0"],[7,"clean, max s 0"],[7.5,"clean, max s 0"],[8,"clean, max s 0"]]
+
+A2  skip core -> gap, leave 3.0 s after the crouch-look ends (searcher has walked past, back turned)
+  {"name":"A2  skip core -> gap, leave 3.0 s after the crouch-look ends (searcher has walked past, back turned)","startT":106.36,"took":6.41,"endX":113.25,"maxSuspicion":0,"firstLit":null,"notice":null,"alert":null}
+
+B   impatient: skip core -> gap as the N1 turn-sweep starts
+  {"name":"B   impatient: skip core -> gap as the N1 turn-sweep starts","startT":98.26,"took":1.81,"endX":109.41,"maxSuspicion":0.73,"firstLit":{"t":1,"x":107.33,"src":"torch","hx":110,"kind":"turn-sweep"},"notice":{"t":1.32,"x":108.06},"alert":{"t":1.81,"x":109.41,"hx":110,"d":0.59,"by":"touch","thenFleeing":"CAUGHT (grab)"}}
+
+C1  frozen in the skip margin (x 106.75) through the crouch-look
+  {"name":"C1  frozen in the skip margin (x 106.75) through the crouch-look","startT":57.7,"took":90,"endX":106.75,"maxSuspicion":0.59,"firstLit":{"t":1.61,"x":106.75,"src":"torch","hx":108.2,"kind":"crouch-look"},"notice":{"t":2.55,"x":106.75},"alert":null}
+
+C2  same, but shuffles left into the core when the searcher crouches (0.6 s after the stop)
+  {"name":"C2  same, but shuffles left into the core when the searcher crouches (0.6 s after the stop)","startT":57.7,"took":90,"endX":106.14,"maxSuspicion":0.04,"firstLit":{"t":1.61,"x":106.62,"src":"torch","hx":108.2,"kind":"crouch-look"},"notice":null,"alert":null}
+
+D   ignores the door cue: lands 1.5 s before the cue, straight right at full run
+  {"name":"D   ignores the door cue: lands 1.5 s before the cue, straight right at full run","startT":-1.5,"took":9.81,"endX":109.41,"maxSuspicion":0.96,"firstLit":{"t":8.66,"x":106.93,"src":"torch","hx":110,"kind":"sweep-left"},"notice":{"t":8.98,"x":107.3},"alert":{"t":9.81,"x":109.41,"hx":110,"d":0.59,"by":"touch","thenFleeing":"CAUGHT (grab)"}}
+  D log (t, x, searcher x, step, s): [[0,87.6,110,"cue",0],[0.3,87.83,110,"cue",0],[0.6,88.31,110,"cue",0],[0.9,89.04,110,"cue",0],[1.2,89.66,110,"cue",0],[1.5,90.07,110,"cue",0],[1.8,90.83,110,"cue",0],[2.1,91.65,110,"cue",0],[2.4,92.48,110,"cue",0],[2.7,93.3,110,"cue",0],[3,94.13,110,"cue",0],[3.3,94.95,110,"cue",0],[3.6,95.78,110,"cue",0],[3.9,96.6,110,"cue",0],[4.2,97.43,110,"doorway",0],[4.5,97.89,110,"doorway",0],[4.8,98.39,110,"doorway",0],[5.1,99.19,110,"step-in",0],[5.4,100.01,110,"step-in",0],[5.7,100.84,110,"step-in",0],[6,101.17,110,"step-in",0],[6.3,101.81,110,"step-in",0],[6.6,102.63,110,"step-in",0],[6.9,103.26,110,"step-in",0],[7.2,103.66,110,"step-in",0],[7.5,104.43,110,"sweep-left",0],[7.8,104.99,110,"sweep-left",0],[8.1,105.44,110,"sweep-left",0],[8.4,106.22,110,"sweep-left",0],[8.7,106.99,110,"sweep-left",0.04],[9,107.33,110,"sweep-left",0.36],[9.3,108.02,110,"sweep-left",0.43],[9.6,108.84,110,"turn",0.7]]
+
+E   arrival -> deck core while the searcher walks N2 -> N3 (facing it)
+  {"name":"E   arrival -> deck core while the searcher walks N2 -> N3 (facing it)","startT":63.5,"took":2.63,"endX":94.52,"maxSuspicion":0,"firstLit":null,"notice":null,"alert":null}
+
+F   tailgates 2-3 m behind the searcher walking N3 -> N1
+  {"name":"F   tailgates 2-3 m behind the searcher walking N3 -> N1","startT":84.7,"took":17.08,"endX":107.86,"maxSuspicion":1,"firstLit":{"t":14.56,"x":107.86,"src":"torch","hx":110,"kind":"turn-sweep"},"notice":{"t":14.87,"x":107.86},"alert":{"t":17.08,"x":107.86,"hx":109.48,"d":1.62,"by":"light","thenFleeing":"safe in skip-C"}}
+
+G   deck core -> gap in one run during the deck look
+  {"name":"G   deck core -> gap in one run during the deck look","startT":77.2,"took":8.47,"endX":113.25,"maxSuspicion":0,"firstLit":null,"notice":null,"alert":null}
+
+  (scan) G leave -4
+  {"name":"  (scan) G leave -4","startT":71.7,"took":9.47,"endX":113.25,"maxSuspicion":0,"firstLit":null,"notice":null,"alert":null}
+
+  (scan) G leave -3.5
+  {"name":"  (scan) G leave -3.5","startT":71.7,"took":9.97,"endX":113.25,"maxSuspicion":0,"firstLit":null,"notice":null,"alert":null}
+
+  (scan) G leave -3
+  {"name":"  (scan) G leave -3","startT":71.7,"took":10.47,"endX":113.25,"maxSuspicion":0,"firstLit":null,"notice":null,"alert":null}
+
+  (scan) G leave -2.5
+  {"name":"  (scan) G leave -2.5","startT":71.7,"took":10.97,"endX":113.25,"maxSuspicion":0,"firstLit":null,"notice":null,"alert":null}
+
+  (scan) G leave -2
+  {"name":"  (scan) G leave -2","startT":71.7,"took":11.47,"endX":113.25,"maxSuspicion":0,"firstLit":null,"notice":null,"alert":null}
+
+  (scan) G leave -1.5
+  {"name":"  (scan) G leave -1.5","startT":71.7,"took":11.97,"endX":113.25,"maxSuspicion":0,"firstLit":null,"notice":null,"alert":null}
+
+  (scan) G leave -1
+  {"name":"  (scan) G leave -1","startT":71.7,"took":12.47,"endX":113.25,"maxSuspicion":0,"firstLit":null,"notice":null,"alert":null}
+
+  (scan) G leave -0.5
+  {"name":"  (scan) G leave -0.5","startT":71.7,"took":12.97,"endX":113.25,"maxSuspicion":0,"firstLit":null,"notice":null,"alert":null}
+
+  (scan) G leave 0
+  {"name":"  (scan) G leave 0","startT":71.7,"took":13.47,"endX":113.25,"maxSuspicion":0,"firstLit":null,"notice":null,"alert":null}
+
+  (scan) G leave 0.5
+  {"name":"  (scan) G leave 0.5","startT":71.7,"took":13.97,"endX":113.25,"maxSuspicion":0,"firstLit":null,"notice":null,"alert":null}
+
+  (scan) G leave 1
+  {"name":"  (scan) G leave 1","startT":71.7,"took":14.47,"endX":113.25,"maxSuspicion":0,"firstLit":null,"notice":null,"alert":null}
+
+  (scan) G leave 1.5
+  {"name":"  (scan) G leave 1.5","startT":71.7,"took":14.97,"endX":113.25,"maxSuspicion":0,"firstLit":null,"notice":null,"alert":null}
+
+  (scan) G leave 2
+  {"name":"  (scan) G leave 2","startT":71.7,"took":15.47,"endX":113.25,"maxSuspicion":0,"firstLit":null,"notice":null,"alert":null}
+
+  (scan) G leave 2.5
+  {"name":"  (scan) G leave 2.5","startT":71.7,"took":15.97,"endX":113.25,"maxSuspicion":0,"firstLit":null,"notice":null,"alert":null}
+
+  (scan) G leave 3
+  {"name":"  (scan) G leave 3","startT":71.7,"took":16.47,"endX":113.25,"maxSuspicion":0,"firstLit":null,"notice":null,"alert":null}
+
+  (scan) G leave 3.5
+  {"name":"  (scan) G leave 3.5","startT":71.7,"took":16.97,"endX":113.25,"maxSuspicion":0,"firstLit":null,"notice":null,"alert":null}
+
+  (scan) G leave 4
+  {"name":"  (scan) G leave 4","startT":71.7,"took":17.47,"endX":113.25,"maxSuspicion":0.11,"firstLit":{"t":12,"x":101.08,"src":"torch","hx":93,"kind":"walk"},"notice":null,"alert":null}
+
+G scan (leave the deck core k s after the deck look starts, run to the gap): [[-4,"clean, max s 0, 8.5 s"],[-3.5,"clean, max s 0, 8.5 s"],[-3,"clean, max s 0, 8.5 s"],[-2.5,"clean, max s 0, 8.5 s"],[-2,"clean, max s 0, 8.5 s"],[-1.5,"clean, max s 0, 8.5 s"],[-1,"clean, max s 0, 8.5 s"],[-0.5,"clean, max s 0, 8.5 s"],[0,"clean, max s 0, 8.5 s"],[0.5,"clean, max s 0, 8.5 s"],[1,"clean, max s 0, 8.5 s"],[1.5,"clean, max s 0, 8.5 s"],[2,"clean, max s 0, 8.5 s"],[2.5,"clean, max s 0, 8.5 s"],[3,"clean, max s 0, 8.5 s"],[3.5,"clean, max s 0, 8.5 s"],[4,"clean, max s 0.11, 8.5 s"]]
+
+PURSUIT from x (spotted, flees at once): searcher 2 m behind 
+  89:ok 90:ok 91:ok 92:ok 93:ok 94:· 95:· 96:· 97:ok 98:ok 99:ok 100:ok 101:ok 102:· 103:ok 104:ok 105:ok 106:· 107:ok 108:ok 109:ok 110:ok 111:ok 112:ok
+
+PURSUIT from x (spotted, flees at once): searcher 4 m behind 
+  89:ok 90:ok 91:ok 92:ok 93:ok 94:· 95:· 96:· 97:ok 98:ok 99:ok 100:ok 101:ok 102:· 103:ok 104:ok 105:ok 106:· 107:ok 108:ok 109:ok 110:ok 111:ok 112:ok
+
+PURSUIT from x (spotted, flees at once): searcher 7 m behind 
+  89:ok 90:ok 91:ok 92:ok 93:ok 94:· 95:· 96:· 97:ok 98:ok 99:ok 100:ok 101:ok 102:· 103:ok 104:ok 105:ok 106:· 107:ok 108:ok 109:ok 110:ok 111:ok 112:ok
+
+PURSUIT from x (spotted, flees at once): searcher 3 m ahead (rabbit runs back) 
+  89:ok 90:ok 91:ok 92:ok 93:ok 94:· 95:· 96:· 97:ok 98:ok 99:ok 100:ok 101:ok 102:· 103:ok 104:ok 105:ok 106:· 107:ok 108:ok 109:ok 110:ok 111:ok 112:ok
+
+example: spotted at 109 with the searcher at 106, flees to the gap: {"out":"safe in gap","t":2.2,"state":"aim"}
+example: spotted at 100 with the searcher at 104 (ahead), flees back to the deck: {"out":"safe in deck-A","t":2.12,"state":"lower"}
+example: spotted at 100, searcher 4 m behind at 96, flees to the gap 13 m: {"out":"safe in pallet-B","t":1.6,"state":"pursue"}
+example: frozen (does not flee) at 103, searcher at 98: {"out":"still running","t":20}
+
+FAIRNESS NUMBERS {"cueToTorch_entry":3.5,"litToNotice_near":0.32,"litToAlert_near":0.9,"litToAlert_far":1.6,"alertToShot":2.1,"alertToGrab":1.05,"fleeVsRun":[3.6,2.6]}
+
+wrote /var/folders/jn/md3c78kn1xqbt9b74p3ly5900000gn/T/search-xt.svg

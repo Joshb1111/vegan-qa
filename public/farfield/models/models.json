@@ -1,0 +1,6 @@
+{
+  "rabbit": null,
+  "human": null,
+  "van": null,
+  "_note": "Far Field model manifest (ASSETS-3D.md). Put a file in this folder and write its name here, e.g. \"rabbit\": \"ff_rabbit.glb\". null = the temporary stand-in."
+}

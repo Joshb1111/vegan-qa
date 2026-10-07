@@ -1,224 +1,256 @@
-/* FAR FIELD — ff-main.js: renderer, camera, the rabbit's movement on the 2D lane, the crate, input, the loop.
-   Keys: Left/Right or A/D move (hold to break into a run, Shift to keep to a walk), Space/Up/W jump, Down/S crouch,
-   Up/W in front of the low opening goes through it, Q cycles quality (high/medium/low), F shows frame rate, H help.
-   URL: ?q=high|medium|low  ?rabbit=procedural|<file under models/>  ?clean=1 (no help text)  ?mute=1 (no audio exists yet)
-   Test handle: window.__ff (pause, step, hold/press keys, teleport, tier, stats). */
+/* FAR FIELD — ff-main.js: the game shell for Sequence 1 (index.html). Renderer + post, quality tiers (carried over from the
+   look test, with the step-down held during danger, A22), the fixed 120 Hz loop, input (keyboard + gamepad), the mode
+   machine (notice -> title -> play <-> pause -> end -> title), module wiring, checkpoint restart, the parent-page protocol,
+   mute/music settings, teardown and the window.__ff test handle.
+   OWNER: architect / integrator. The contract every module follows is docs/farfield/INTERFACES.md.
+   Keys: <- -> / A D move (hold to run, Shift walk), Space / Up / W jump (Up also climbs in), Down / S crouch, Esc or P pause
+   (Esc on the notice or title: back to the arcade), M sound, N music, Q quality, F frame rate, O debug overlay (?debug=1).
+   URL: ?q=high|medium|low  ?mute=1 (no audio, no storage)  ?seed=n  ?cp=<checkpoint id> (skip notice + title, start there)
+        ?clean=1 (no hints, no fps)  ?debug=1  ?rabbit=procedural|<file under models/> */
 'use strict';
 (function () {
-const T = THREE, L = FF.LOOK, LV = FF.LEVEL, MV = LV.move;
-const Q = new URLSearchParams(location.search);
-const clamp = (v, a, b) => v < a ? a : v > b ? b : v;
-const approach = (v, t, d) => v < t ? Math.min(t, v + d) : Math.max(t, v - d);
+const T = THREE, U = FF.util, Q = FF.Q, L0 = FF.LOOK;
+const FIX = 1 / 120;
+/* module call order (docs/farfield/INTERFACES.md §3). A missing module or method is skipped; every call is isolated. */
+const INIT = ['Level', 'World', 'Player', 'Humans', 'AI', 'Events', 'Camera', 'Audio', 'UI'];
+const RESET = ['Level', 'World', 'Player', 'Humans', 'AI', 'Events', 'Camera', 'Audio', 'UI'];
+const STEP = ['Player', 'Level', 'AI', 'Events'];
+const FRAME = ['Player', 'Humans', 'AI', 'Events', 'World', 'Camera', 'Audio', 'UI'];
+function call(name, fn, a, b, c) {
+  const m = FF[name]; if (!m || typeof m[fn] !== 'function') return undefined;
+  try { return m[fn](a, b, c); } catch (e) { FF.report(e, name + '.' + fn); return undefined; }
+}
+async function callAsync(name, fn, a) {
+  const m = FF[name]; if (!m || typeof m[fn] !== 'function') return;
+  try { await m[fn](a); } catch (e) { FF.report(e, name + '.' + fn); }
+}
 
+/* ---------------------------------------------------------------- shared state (§4) */
+const G = FF.G = {
+  mode: 'boot', t: 0, frameT: 0, control: false, paused: false, place: 'verge', checkpoint: 'verge-start',
+  rabbit: null, box: null, searcher: null, flags: {}, fade: 1, tier: 'high', debug: Q.get('debug') === '1', clean: Q.get('clean') === '1',
+  muted: false, music: true,
+};
+
+/* ---------------------------------------------------------------- renderer, scene, camera, post */
 const canvas = document.getElementById('c');
 const renderer = new T.WebGLRenderer({ canvas, antialias: false, powerPreference: 'high-performance', stencil: false, depth: true });
 renderer.shadowMap.enabled = true; renderer.shadowMap.type = T.PCFShadowMap; renderer.shadowMap.autoUpdate = true;
 renderer.toneMapping = T.NoToneMapping; renderer.outputEncoding = T.LinearEncoding;
+renderer.info.autoReset = false;
 const scene = new T.Scene(); scene.background = new T.Color(0x0b0d10);
-const camera = new T.PerspectiveCamera(L.camera.fov, 16 / 9, 0.1, 220);
+const camera = new T.PerspectiveCamera(L0.camera.fov, 16 / 9, 0.1, 260);
+camera.position.set(FF.S1.spawn.x + 2, L0.camera.height, L0.camera.dist);
 const post = FF.Post(renderer);
-renderer.info.autoReset = false; /* count the whole frame (scene + post passes), reset in draw() */
+FF.applyShading(L0);
 
-FF.applyShading(L);
-const world = FF.buildScene(scene, L);
-world.apply(L);
-
-/* ---------------------------------------------------------------- tiers */
-const coarse = matchMedia && matchMedia('(pointer: coarse)').matches && Math.min(screen.width, screen.height) < 820;
+/* ---------------------------------------------------------------- tiers (look test) + the danger hold (A22) */
+const coarse = !!(window.matchMedia && matchMedia('(pointer: coarse)').matches) && Math.min(screen.width, screen.height) < 820;
 let tierName = FF.TIERS[Q.get('q')] ? Q.get('q') : (coarse ? 'low' : 'high');
 let tierChosen = !!FF.TIERS[Q.get('q')], slowT = 0, slowN = 0, slowS = 0;
-FF.tier = FF.TIERS[tierName];
+FF.tier = FF.TIERS[tierName]; G.tier = tierName;
 function setTier(name) {
-  tierName = name; FF.tier = FF.TIERS[name];
-  world.setTier(FF.tier);
+  if (!FF.TIERS[name]) return;
+  tierName = name; FF.tier = FF.TIERS[name]; G.tier = name;
+  for (const m of INIT) call(m, 'setTier', FF.tier);
   scene.traverse(o => { if (o.material) { const ms = Array.isArray(o.material) ? o.material : [o.material]; for (const m of ms) if (m.userData && m.userData.ff) m.needsUpdate = true; } });
   resize(true);
-  hudTier();
 }
+/* the automatic step-down never fires while the searcher is alert or a scripted beat runs (a recompile would hitch) */
+const calm = () => G.mode === 'play' && !call('AI', 'danger') && !call('Events', 'scripted');
 
-/* ---------------------------------------------------------------- camera with lens shift (eye level low in frame) */
-function project() {
-  camera.fov = L.camera.fov; camera.updateProjectionMatrix();
-  camera.projectionMatrix.elements[9] = 2 * L.camera.horizon - 1;
-  camera.projectionMatrixInverse.copy(camera.projectionMatrix).invert();
-}
+/* ---------------------------------------------------------------- size */
 let W = 1, H = 1;
 function resize(force) {
   const w = Math.max(1, canvas.clientWidth | 0), h = Math.max(1, canvas.clientHeight | 0);
   if (!force && w === W && h === H) return; W = w; H = h;
   const pr = Math.min(window.devicePixelRatio || 1, FF.tier.dpr);
   renderer.setPixelRatio(pr); renderer.setSize(w, h, false);
-  camera.aspect = w / h; project();
+  camera.aspect = w / h;
+  if (FF.Camera && FF.Camera.resize) call('Camera', 'resize', w, h); else { camera.updateProjectionMatrix(); }
   post.setSize(Math.round(w * pr), Math.round(h * pr), FF.tier);
 }
 addEventListener('resize', () => resize());
 
-/* ---------------------------------------------------------------- the rabbit + level state */
-const S = {
-  x: LV.spawn.x, y: 0, vx: 0, vy: 0, z: 0, grounded: true, face: LV.spawn.face, coyote: 0, buf: 0, crouch: false, push: false, effort: 0,
-  holdT: 0, holdDir: 0, airT: 0, landed: false, cut: false, yaw: Math.PI / 2 * LV.spawn.face, mode: 'play', modeT: 0, onCrate: false,
+/* ---------------------------------------------------------------- input (§6) */
+const KEYMAP = { ArrowLeft: ['left'], KeyA: ['left'], ArrowRight: ['right'], KeyD: ['right'], Space: ['jump'], ArrowUp: ['up', 'jump'], KeyW: ['up', 'jump'],
+  ArrowDown: ['down'], KeyS: ['down'], ShiftLeft: ['walk'], ShiftRight: ['walk'] };
+const keys = {}, pressed = {}, bot = {}, pad = {};
+let lastInputT = 0;
+FF.Input = {
+  /* held now (keyboard, gamepad or a bot hold) */
+  down: a => !!(keys[a] || bot[a] || pad[a]),
+  /* consume an edge press made since the last fixed step (presses are dropped after every step: modules buffer if they want) */
+  took: a => { const p = !!pressed[a]; pressed[a] = false; return p; },
+  peek: a => !!pressed[a],
+  axis: () => (FF.Input.down('right') ? 1 : 0) - (FF.Input.down('left') ? 1 : 0),
+  clear() { for (const k in keys) keys[k] = false; for (const k in pressed) pressed[k] = false; for (const k in pad) pad[k] = false; },
+  endStep() { for (const k in pressed) pressed[k] = false; },
+  get lastInputT() { return lastInputT; },
+  /* bot hooks (also on __ff) */
+  hold(a, on) { bot[a] = on !== false; if (on !== false) lastInputT = G.t; },
+  press(a) { pressed[a] = true; lastInputT = G.t; },
+  release() { for (const k in bot) bot[k] = false; },
 };
-const crate = { x: LV.crate.x, vx: 0, w: LV.crate.w, h: LV.crate.h };
-let rig = null;
-const camS = { x: LV.spawn.x + L.camera.lookAhead * LV.spawn.face, y: 0, lead: LV.spawn.face };
+function pollPad() {
+  for (const k in pad) pad[k] = false;
+  if (!navigator.getGamepads || !document.hasFocus()) return;
+  let gp = null; try { for (const p of navigator.getGamepads()) if (p && p.connected) { gp = p; break; } } catch (_) { return; }
+  if (!gp) return;
+  const b = i => !!(gp.buttons[i] && gp.buttons[i].pressed), ax = gp.axes[0] || 0;
+  const was = Object.assign({}, padPrev);
+  pad.left = ax < -0.35 || b(14); pad.right = ax > 0.35 || b(15); pad.jump = b(0) || b(3) || b(12); pad.up = b(3) || b(12); pad.down = b(1) || b(13);
+  pad.walk = Math.abs(ax) > 0.05 && Math.abs(ax) < 0.85 && !b(14) && !b(15);
+  for (const k of ['jump', 'up', 'down', 'left', 'right']) if (pad[k] && !was[k]) { pressed[k] = true; lastInputT = G.t; if (G.mode !== 'play') onCommandKey(k === 'jump' ? 'Enter' : k === 'left' ? 'ArrowLeft' : k === 'right' ? 'ArrowRight' : k === 'up' ? 'ArrowUp' : 'ArrowDown'); }
+  if (b(9) && !padPrev.start) onCommandKey('Escape');
+  Object.assign(padPrev, pad); padPrev.start = b(9);
+}
+const padPrev = {};
 
-/* ---------------------------------------------------------------- input */
-const keys = {}, pressed = {}, hold = {};
-const MAP = { ArrowLeft: 'left', KeyA: 'left', ArrowRight: 'right', KeyD: 'right', Space: 'jump', ArrowUp: 'up', KeyW: 'up', ArrowDown: 'down', KeyS: 'down', ShiftLeft: 'walk', ShiftRight: 'walk' };
+/* ---------------------------------------------------------------- the mode machine (§3) */
+const setMode = m => { if (m === G.mode) return; const from = G.mode; G.mode = m; FF.Input.clear(); FF.bus.emit('mode', { from, to: m }); };
+let fadeTo = null; /* { from, to, t, dur, resolve } */
+const Game = FF.Game = {
+  get mode() { return G.mode; },
+  /* checkpoint object by id ({x,y} objects pass through) */
+  cp(c) { if (!c) return FF.S1.checkpoints[0]; if (typeof c === 'object') return Object.assign({ id: c.id || 'warp', y: 0, face: 1 }, c); return FF.S1.checkpoints.find(k => k.id === c) || null; },
+  /* put every module at checkpoint cp (§9). opts: { reason: 'fail'|'warp'|'continue'|'title'|'start', first } */
+  restart(c, opts) {
+    const cp = Game.cp(c); if (!cp) { FF.report(new Error('no checkpoint ' + c), 'Game.restart'); return null; }
+    opts = Object.assign({ reason: 'warp' }, opts || {});
+    G.checkpoint = cp.id;
+    for (const m of RESET) call(m, 'reset', cp, opts);
+    FF.Input.clear(); acc = 0;
+    FF.bus.emit('restart', { cp: cp.id, reason: opts.reason });
+    return cp;
+  },
+  /* the cut to black: the very next drawn frame is black (post's final pass), no DOM latency */
+  cut() { fadeTo = null; G.fade = 1; },
+  /* animate the fade (0 = picture, 1 = black) over dur seconds of presentation time */
+  fade(to, dur) { return new Promise(res => { if (fadeTo && fadeTo.resolve) fadeTo.resolve(); if (!(dur > 0)) { G.fade = to; fadeTo = null; res(); return; } fadeTo = { from: G.fade, to, t: 0, dur, resolve: res }; }); },
+  control(on) { G.control = !!on; if (!on) FF.Input.release(); },
+  pause() { if (G.mode !== 'play') return; setMode('pause'); call('UI', 'showPause'); call('Audio', 'hidden', true); },
+  resume() { if (G.mode !== 'pause') return; call('UI', 'hidePause'); call('Audio', 'hidden', false); setMode('play'); },
+  /* notice -> title: the live Verge with the rabbit grooming beneath its shelter (A5) */
+  toTitle() {
+    call('UI', 'hideNotice'); call('UI', 'hidePause');
+    Game.restart(FF.S1.checkpoints[0], { reason: 'title' });
+    Game.control(false); setMode('title');
+    call('Camera', 'shot', 'title');
+    call('UI', 'showTitle', { save: Game.loadSave() });
+    Game.fade(0, G.fade > 0.5 ? 1.5 : 0);
+  },
+  /* title -> play (optionally continuing from a saved checkpoint) */
+  play(cpId) {
+    call('UI', 'hideTitle'); call('UI', 'hideNotice');
+    if (cpId && cpId !== FF.S1.checkpoints[0].id) { Game.restart(cpId, { reason: 'continue' }); Game.fade(0, 0.8); call('Camera', 'snap'); }
+    else call('Camera', 'toPlay', (FF.S1.camera.zones.find(z => z.id === 'title') || {}).toPlay || 2.5);
+    setMode('play'); Game.control(true);
+    FF.bus.emit('play:start', { cp: G.checkpoint });
+  },
+  /* the end (Events calls this after the pull-out and the fade): the card, then the title */
+  async endCard() { setMode('end'); Game.control(false); G.fade = 1; await Promise.resolve(call('UI', 'endCard')); Game.save('completed'); Game.toTitle(); },
+  exit() { postParent({ ty: 'exit' }); },
+  send: o => postParent(o),            /* a message to the parent page (the arcade room) */
+  /* progress save: the furthest of courtyard, search-arrive, rest, completed (localStorage; nothing with ?mute=1) */
+  save(id) { const order = ['courtyard', 'search-arrive', 'rest', 'completed'], cur = Game.loadSave(); if (order.indexOf(id) > order.indexOf(cur)) FF.store.set('ff-s1-progress', id); },
+  loadSave() { return FF.store.get('ff-s1-progress') || null; },
+  setTier, get tier() { return tierName; },
+  setMute(on, quiet) { G.muted = !!on; call('Audio', 'mute', G.muted); FF.store.set('ff-mute', G.muted ? 1 : 0); if (!quiet) postParent({ ty: 'mute', on: G.muted }); FF.bus.emit('mute', { on: G.muted }); },
+  setMusic(on, quiet) { G.music = !!on; call('Audio', 'music', G.music); FF.store.set('ff-music', G.music ? 1 : 0); if (!quiet) postParent({ ty: 'music', on: G.music }); FF.bus.emit('music', { on: G.music }); },
+  scene, renderer, camera, postFX: post,
+};
+
+/* commands from keys or the UI (§3): the UI's key() may return one of these strings */
+function command(cmd, arg) {
+  switch (cmd) {
+    case 'continue': call('Audio', 'unlock'); Game.toTitle(); break;          // the notice's Continue (a user gesture: unlocks audio)
+    case 'start': call('Audio', 'unlock'); Game.play(arg); break;
+    case 'pause': Game.pause(); break;
+    case 'resume': Game.resume(); break;
+    case 'restart': Game.resume(); Game.cut(); Game.restart(G.checkpoint, { reason: 'restart' }); Game.fade(0, 0.45); break;
+    case 'exit': Game.exit(); break;
+    case 'title': Game.toTitle(); break;
+  }
+}
+FF.Game.command = command;
+function onCommandKey(code) {
+  const r = call('UI', 'key', code, G.mode);
+  if (typeof r === 'string') { const [c, a] = r.split(':'); command(c, a); return true; }
+  if (r === true) return true;
+  if (G.mode === 'notice') { if (code === 'Enter' || code === 'Space') { command('continue'); return true; } if (code === 'Escape') { command('exit'); return true; } }
+  else if (G.mode === 'title') { if (['ArrowLeft', 'ArrowRight', 'KeyA', 'KeyD', 'Enter', 'Space'].includes(code)) { command('start'); return true; } if (code === 'Escape') { command('exit'); return true; } }
+  else if (G.mode === 'play') { if (code === 'Escape' || code === 'KeyP') { command('pause'); return true; } }
+  else if (G.mode === 'pause') { if (code === 'Escape' || code === 'KeyP' || code === 'Enter') { command('resume'); return true; } }
+  return false;
+}
 addEventListener('keydown', e => {
   if (e.code === 'KeyQ') { tierChosen = true; setTier(FF.TIER_ORDER[(FF.TIER_ORDER.indexOf(tierName) + 1) % 3]); return; }
   if (e.code === 'KeyF') { fpsEl.hidden = !fpsEl.hidden; return; }
-  if (e.code === 'KeyH') { showHelp(); return; }
-  if (e.code === 'Escape') { if (parent !== window) try { parent.postMessage({ ty: 'exit' }, location.origin); } catch (_) {} return; }
-  const k = MAP[e.code]; if (!k) return; e.preventDefault(); if (!keys[k]) pressed[k] = true; keys[k] = true;
+  if (e.code === 'KeyM') { Game.setMute(!G.muted); return; }
+  if (e.code === 'KeyN') { Game.setMusic(!G.music); return; }
+  if (e.code === 'KeyO' && G.debug) { call('World', 'overlay'); FF.bus.emit('debug:overlay', {}); return; }
+  const acts = KEYMAP[e.code];
+  if (G.mode !== 'play' || e.code === 'Escape' || e.code === 'KeyP') {
+    const was = G.mode, used = onCommandKey(e.code);
+    if (used) e.preventDefault();
+    /* "the first movement begins play" (§16): an arrow that started play also moves the rabbit at once; Space/Enter do not jump */
+    const carry = was === 'title' && G.mode === 'play' && acts && (acts[0] === 'left' || acts[0] === 'right');
+    if (!carry) return;
+  }
+  if (!acts) return; e.preventDefault();
+  for (const a of acts) { if (!keys[a]) pressed[a] = true; keys[a] = true; }
+  lastInputT = G.t;
 });
-addEventListener('keyup', e => { const k = MAP[e.code]; if (k) keys[k] = false; });
+addEventListener('keyup', e => { const acts = KEYMAP[e.code]; if (acts) for (const a of acts) keys[a] = false; });
 addEventListener('blur', () => { for (const k in keys) keys[k] = false; });
-const down = k => !!(keys[k] || hold[k]);
-const took = k => { const p = !!pressed[k]; pressed[k] = false; return p; };
+document.addEventListener('visibilitychange', () => { if (document.hidden) { if (G.mode === 'play') Game.pause(); call('Audio', 'hidden', true); } else if (G.mode !== 'pause') call('Audio', 'hidden', false); });
 
-/* ---------------------------------------------------------------- collision (data only: LV.solids + the crate) */
-const RB = LV.rabbit;
-function rabbitH() { return S.crouch ? RB.hCrouch : RB.h; }
-function hitsStatic(x0, x1, y0, y1) { for (const s of LV.solids) if (x1 > s.x0 && x0 < s.x1 && y1 > s.y0 && y0 < s.y1) return s; return null; }
-function crateBox() { return { x0: crate.x - crate.w / 2, x1: crate.x + crate.w / 2, y0: 0, y1: crate.h }; }
-const ov = (a, b) => a.x1 > b.x0 && a.x0 < b.x1 && a.y1 > b.y0 && a.y0 < b.y1;
-const nearOpening = () => S.grounded && !S.onCrate && Math.abs(S.x - L.opening.x) < 0.2;
+/* ---------------------------------------------------------------- the parent page (the arcade room, §11) */
+function postParent(o) { try { if (parent !== window) parent.postMessage(o, location.origin); } catch (_) {} }
+addEventListener('message', e => {
+  if (e.source !== parent || parent === window || e.origin !== location.origin) return;
+  const d = e.data; if (!d || typeof d !== 'object') return;
+  if (d.ty === 'mute') Game.setMute(!!d.on, true);
+  else if (d.ty === 'music') Game.setMusic(!!d.on, true);
+  else if (d.ty === 'leave') teardown();
+});
 
-function step(dt) {
-  S.landed = false;
-  const dir = (down('right') ? 1 : 0) - (down('left') ? 1 : 0);
-  if (S.mode !== 'play') { stepScripted(dt); return; }
-  if (took('up') && nearOpening()) { S.mode = 'enter'; S.modeT = 0; S.vx = 0; took('jump'); return; }
-  const jp = took('jump') || pressed.up && (pressed.up = false, true);
-
-  /* crouch: only on the ground; stays crouched while something is overhead */
-  const wantC = down('down') && S.grounded;
-  if (wantC) S.crouch = true; else if (S.crouch && !hitsStatic(S.x - RB.hw, S.x + RB.hw, S.y, S.y + RB.h)) S.crouch = false;
-
-  /* horizontal speed: taps hop, holding opens into a run, Shift holds a walk */
-  if (dir !== S.holdDir) { S.holdDir = dir; S.holdT = 0; } else if (dir) S.holdT += dt;
-  let top = MV.walk + (MV.run - MV.walk) * clamp((S.holdT - MV.runAfter) / 0.55, 0, 1);
-  if (down('walk')) top = MV.walk; if (S.crouch) top = MV.crouch;
-  const tgt = dir * top;
-  let a = !S.grounded ? MV.airAccel : dir === 0 ? MV.decel : (S.vx * dir < -0.05 ? MV.turn : (Math.abs(S.vx) > top ? MV.decel : MV.accel));
-  S.vx = approach(S.vx, tgt, a * dt);
-  if (dir) S.face = dir;
-
-  /* the crate slides only when pushed; friction stops it */
-  const pushing = S.push && dir === Math.sign(crate.x - S.x) && S.grounded;
-  if (!pushing) crate.vx = approach(crate.vx, 0, MV.crateFriction * dt);
-  if (crate.vx) {
-    const nx = crate.x + crate.vx * dt, s = hitsStatic(nx - crate.w / 2, nx + crate.w / 2, 0.001, crate.h);
-    if (s) { crate.x = crate.vx > 0 ? s.x0 - crate.w / 2 - 1e-4 : s.x1 + crate.w / 2 + 1e-4; crate.vx = 0; } else crate.x = nx;
-    if (S.onCrate) S.x += crate.vx * dt;
-  }
-
-  /* move x, collide with the static world and the crate's sides */
-  S.push = false;
-  let nx = S.x + S.vx * dt; const h = rabbitH();
-  const box = { x0: nx - RB.hw, x1: nx + RB.hw, y0: S.y + 0.001, y1: S.y + h };
-  const s = hitsStatic(box.x0, box.x1, box.y0, box.y1);
-  if (s) { nx = S.vx > 0 ? s.x0 - RB.hw - 1e-4 : s.x1 + RB.hw + 1e-4; S.vx = 0; }
-  const cb = crateBox(); box.x0 = nx - RB.hw; box.x1 = nx + RB.hw;
-  if (ov(box, cb)) {
-    const side = S.x < crate.x ? -1 : 1;
-    nx = side < 0 ? cb.x0 - RB.hw - 1e-4 : cb.x1 + RB.hw + 1e-4;
-    if (S.grounded && dir === -side && !S.crouch) {
-      S.push = true;
-      crate.vx = approach(crate.vx, dir * MV.push, MV.crateAccel * dt);
-      S.vx = crate.vx;
-    } else S.vx = 0;
-  }
-  S.x = nx;
-  S.effort = approach(S.effort, S.push ? (Math.abs(crate.vx) < 0.15 ? 1 : 0.5) : 0, 4 * dt);
-
-  /* jump: buffered presses, coyote time, a cut when released early */
-  if (jp) S.buf = MV.buffer; else S.buf = Math.max(0, S.buf - dt);
-  S.coyote = S.grounded ? MV.coyote : Math.max(0, S.coyote - dt);
-  if (S.buf > 0 && S.coyote > 0 && !S.crouch) {
-    S.vy = Math.sqrt(2 * MV.gravity * MV.jumpHeight); S.grounded = false; S.coyote = 0; S.buf = 0; S.airT = 0; S.cut = false; S.onCrate = false;
-  }
-  if (!S.grounded && S.vy > 0 && !down('jump') && !down('up') && !S.cut) { S.vy *= MV.jumpCut; S.cut = true; }
-
-  /* move y: land on the floor or the crate's lid, bump heads */
-  S.vy -= MV.gravity * (S.vy < 0 ? MV.fallGravity : 1) * dt;
-  let ny = S.y + S.vy * dt; const wasG = S.grounded; S.grounded = false; S.onCrate = false;
-  const vb = { x0: S.x - RB.hw + 0.002, x1: S.x + RB.hw - 0.002, y0: ny, y1: ny + h };
-  const sv = hitsStatic(vb.x0, vb.x1, vb.y0, vb.y1);
-  if (sv) { if (S.vy <= 0) { ny = sv.y1; S.grounded = true; } else ny = sv.y0 - h - 1e-4; S.vy = 0; }
-  const cbv = crateBox(); vb.y0 = ny; vb.y1 = ny + h;
-  if (ov(vb, cbv)) { if (S.vy <= 0 && S.y >= cbv.y1 - 0.02) { ny = cbv.y1; S.grounded = true; S.onCrate = true; S.vy = 0; } }
-  S.y = ny;
-  if (S.grounded && !wasG) S.landed = true;
-  if (!S.grounded) S.airT += dt;
-}
-
-/* going through the low opening: turn to it, creep in, fade, come back to the start */
-function stepScripted(dt) {
-  S.modeT += dt; const t = S.modeT, O = L.opening;
-  if (S.mode === 'enter') {
-    S.crouch = t > 0.25; S.x += (O.x - S.x) * Math.min(1, dt * 6);
-    if (t > 0.25) S.z = Math.max(-1.05, S.z - dt * 0.75);
-    fade(clamp((t - 1.05) / 0.8, 0, 1));
-    if (t > 2.2) { S.mode = 'back'; S.modeT = 0; reset(); note('Beyond the opening comes next.'); }
-  } else if (S.mode === 'back') { fade(1 - clamp((t - 0.5) / 0.9, 0, 1)); if (t > 1.4) S.mode = 'play'; }
-}
-function reset() {
-  Object.assign(S, { x: LV.spawn.x, y: 0, vx: 0, vy: 0, z: 0, grounded: true, face: LV.spawn.face, crouch: false, push: false, effort: 0, holdT: 0, yaw: Math.PI / 2 * LV.spawn.face });
-  crate.x = LV.crate.x; crate.vx = 0; camS.x = S.x + L.camera.lookAhead * S.face; camS.lead = S.face;
-}
-
-/* ---------------------------------------------------------------- per-frame presentation */
-const tmpV = new T.Vector3();
-function present(dt) {
-  /* rabbit placement and turn: yaw goes through facing the lens (0), so a turn shows the face, not the tail */
-  let yawT = Math.PI / 2 * S.face; if (S.mode === 'enter' && S.modeT > 0.12) yawT = Math.PI;
-  S.yaw += (yawT - S.yaw) * (1 - Math.exp(-dt * (S.mode === 'enter' ? 7 : 16)));
-  if (rig) {
-    rig.object.position.set(S.x, S.y, S.z); rig.object.rotation.y = S.yaw;
-    rig.update(dt, { speed: S.mode === 'enter' && S.modeT > 0.25 && S.z > -1.0 ? 0.6 : Math.abs(S.vx), vx: S.vx, vy: S.vy, grounded: S.grounded || S.mode !== 'play', crouch: S.crouch, push: S.push, effort: S.effort, landed: S.landed, airT: S.airT });
-  }
-  world.crate.position.set(crate.x, 0, 0);
-  FF.setAOBox(0, [crate.x, crate.h / 2, 0], [crate.w / 2, crate.h / 2, LV.crate.d / 2], L.ao.objects, L.ao.objectReach);
-  const ground = S.onCrate ? crate.h : 0, air = Math.max(0, S.y - ground);
-  FF.U.uFFRab.value.set(S.x, ground, S.z, L.ao.rabbit * Math.exp(-air * 7));
-  FF.U.uFFRabAx.value.set(S.mode === 'enter' ? 0.12 : 0.24, S.mode === 'enter' ? 0.2 : 0.12);
-
-  /* camera: gentle follow with look-ahead, rising a little with jumps */
-  camS.lead += (S.face - camS.lead) * (1 - Math.exp(-dt * 1.6));
-  const tx = clamp(S.x + L.camera.lookAhead * camS.lead + 0.12 * S.vx, L.camera.minX, L.camera.maxX);
-  camS.x += (tx - camS.x) * (1 - Math.exp(-dt * L.camera.follow));
-  camS.y += (L.camera.jumpFollow * Math.max(0, S.y) - camS.y) * (1 - Math.exp(-dt * 3));
-  camera.position.set(camS.x, L.camera.height + camS.y, L.camera.dist); camera.rotation.set(0, 0, 0);
-}
-
-/* ---------------------------------------------------------------- HUD */
-const fpsEl = document.getElementById('fps'), helpEl = document.getElementById('help'), fadeEl = document.getElementById('fade'), noteEl = document.getElementById('note');
-const clean = Q.get('clean') === '1';
-function fade(a) { fadeEl.style.opacity = a.toFixed(3); }
-let noteT = 0; function note(t) { noteEl.textContent = t; noteEl.style.opacity = 1; clearTimeout(noteT); noteT = setTimeout(() => { noteEl.style.opacity = 0; }, 2600); }
-let helpT = 0; function showHelp() { if (clean) return; helpEl.style.opacity = 1; clearTimeout(helpT); helpT = setTimeout(() => { helpEl.style.opacity = 0; }, 7000); }
-function hudTier() { if (!fpsEl.hidden) fpsEl.dataset.tier = tierName; }
-
-/* ---------------------------------------------------------------- loop */
-const FIX = 1 / 120; let acc = 0, last = performance.now(), paused = false, frozen = false, time = 0, alive = true;
+/* ---------------------------------------------------------------- the loop: fixed 1/120 s steps, presentation per frame */
+let acc = 0, last = performance.now(), loopPaused = false, frozen = false, time = 0, alive = true, booted = false;
 const ft = new Float32Array(90); let fti = 0, fpsShown = 0;
+const fpsEl = document.getElementById('fps');
+const stepping = () => booted && (G.mode === 'notice' || G.mode === 'title' || G.mode === 'play');
+function stepOnce() {
+  G.t += FIX;
+  for (const m of STEP) call(m, 'step', FIX);
+  FF.Input.endStep();
+}
+function present(dt) {
+  if (fadeTo) { fadeTo.t += dt; const k = U.clamp(fadeTo.t / fadeTo.dur, 0, 1); G.fade = U.lerp(fadeTo.from, fadeTo.to, k); if (k >= 1) { const r = fadeTo.resolve; fadeTo = null; if (r) r(); } }
+  G.frameT += dt;
+  for (const m of FRAME) call(m, 'frame', dt);
+}
+function draw() {
+  resize(); renderer.info.reset(); FF.U.uFFTime.value = time;
+  const look = (FF.World && FF.World.look) || L0;
+  post.render(scene, camera, look, FF.tier, time, G.fade);
+}
 function frame(now) {
   if (!alive) return;
   requestAnimationFrame(frame);
   if (document.hidden) { last = now; return; }
   const dt = Math.min(0.1, (now - last) / 1000); last = now;
   ft[fti++ % ft.length] = dt;
-  /* automatic step down when frames run slow (never up; never after the player chose) */
-  if (!tierChosen && !paused && now > 4000) { slowS += dt; slowN++; slowT += dt; if (slowT > 2) { if (slowS / slowN > 0.021 && tierName !== 'low') setTier(FF.TIER_ORDER[FF.TIER_ORDER.indexOf(tierName) + 1]); slowT = slowS = 0; slowN = 0; } }
-  if (!paused) { acc += dt; let n = 0; while (acc >= FIX && n++ < 24) { step(FIX); acc -= FIX; } present(dt); if (!frozen) time += dt; }
+  if (!tierChosen && !loopPaused && now > 4000 && calm()) { slowS += dt; slowN++; slowT += dt; if (slowT > 2) { if (slowS / slowN > 0.021 && tierName !== 'low') setTier(FF.TIER_ORDER[FF.TIER_ORDER.indexOf(tierName) + 1]); slowT = slowS = 0; slowN = 0; } }
+  else { slowT = slowS = 0; slowN = 0; }
+  pollPad();
+  if (!loopPaused) {
+    if (stepping()) { acc += dt; let n = 0; while (acc >= FIX && n++ < 24) { stepOnce(); acc -= FIX; } if (acc > FIX) acc = 0; }
+    if (G.mode !== 'pause') { present(dt); if (!frozen) time += dt; }
+  }
   draw();
-  if (!fpsEl.hidden && now - fpsShown > 250) { fpsShown = now; const s = stats(); fpsEl.textContent = `${s.fps.toFixed(0)} fps · ${s.ms.toFixed(1)} ms · ${tierName} · ${s.calls} draws · ${(s.tris / 1000).toFixed(0)}k tris · ${s.w}x${s.h}`; }
-}
-function draw() {
-  resize(); renderer.info.reset(); FF.U.uFFTime.value = time; world.update(0, time, renderer.getPixelRatio());
-  post.render(scene, camera, L, FF.tier, time);
+  if (!fpsEl.hidden && now - fpsShown > 250) { fpsShown = now; const s = stats(); fpsEl.textContent = `${s.fps.toFixed(0)} fps · ${s.ms.toFixed(1)} ms · ${tierName} · ${s.calls} draws · ${(s.tris / 1000).toFixed(0)}k tris · ${s.w}x${s.h} · ${G.mode} · x ${G.rabbit ? G.rabbit.x.toFixed(1) : '-'}`; }
 }
 function stats() {
   let s = 0, n = 0; for (let i = 0; i < ft.length; i++) if (ft[i] > 0) { s += ft[i]; n++; }
@@ -226,42 +258,81 @@ function stats() {
   return { fps: ms ? 1000 / ms : 0, ms, calls: ri.calls, tris: ri.triangles, w: renderer.domElement.width, h: renderer.domElement.height, tier: tierName };
 }
 
-/* ---------------------------------------------------------------- start */
-async function start() {
-  rig = await FF.Rabbit.create(L);
-  scene.add(rig.object);
-  rig.object.traverse(o => { if (o.isMesh) { o.castShadow = true; o.receiveShadow = true; } });
+/* ---------------------------------------------------------------- boot */
+async function loadManifest() {
+  try { const r = await fetch('models/models.json', { cache: 'no-cache' }); if (r.ok) { const j = await r.json(); for (const k in FF.MODELS) if (typeof j[k] === 'string' && j[k]) FF.MODELS[k] = j[k]; } } catch (_) {}
+}
+async function boot() {
+  G.muted = FF.SILENT || FF.store.get('ff-mute') === '1'; G.music = FF.store.get('ff-music') !== '0';
+  await loadManifest();
+  const ctx = { THREE: T, scene, renderer, camera, post, G, bus: FF.bus, rules: FF.RULES, level: FF.S1, look: L0, tier: FF.tier, Q, silent: FF.SILENT };
+  FF.ctx = ctx;
+  for (const m of INIT) await callAsync(m, 'init', ctx);
+  call('Audio', 'mute', G.muted); call('Audio', 'music', G.music);
   setTier(tierName);
+  Game.restart(FF.S1.checkpoints[0], { reason: 'title', first: true });
+  Game.control(false);
+  for (let i = 0; i < 2; i++) { stepOnce(); present(FIX); }
+  try { renderer.compile(scene, camera); } catch (e) { FF.report(e, 'compile'); }   /* warm the start tier behind the notice */
+  booted = true;
+  const cpQ = Q.get('cp');
+  if (cpQ && Game.cp(cpQ)) { G.mode = 'title'; Game.restart(cpQ, { reason: 'warp' }); call('Camera', 'snap'); setMode('play'); Game.control(true); G.fade = 0; }
+  else { setMode('notice'); call('Camera', 'shot', 'title'); call('UI', 'showNotice'); G.fade = 0; }
   present(0); draw();
-  if (!clean) showHelp();
   requestAnimationFrame(t => { last = t; frame(t); });
   window.__ff.ready = true;
-  if (parent !== window) try { parent.postMessage({ ty: 'ready' }, location.origin); } catch (_) {}
+  postParent({ ty: 'ready' });
 }
 
-/* the game will live in an iframe in the planet's arcade: free the GPU the moment the page goes away */
+/* ---------------------------------------------------------------- teardown: free the GPU the moment the page goes away */
 function teardown() {
   if (!alive) return; alive = false;
-  scene.traverse(o => { if (o.geometry) o.geometry.dispose(); if (o.material) { const ms = Array.isArray(o.material) ? o.material : [o.material]; for (const m of ms) { if (m.map) m.map.dispose(); m.dispose(); } } });
-  if (world.lights.key.shadow.map) world.lights.key.shadow.map.dispose();
+  for (const m of INIT) call(m, 'dispose');
+  scene.traverse(o => { if (o.geometry) o.geometry.dispose(); if (o.material) { const ms = Array.isArray(o.material) ? o.material : [o.material]; for (const m of ms) { if (m.map) m.map.dispose(); m.dispose(); } } if (o.isLight && o.shadow && o.shadow.map) o.shadow.map.dispose(); });
   post.dispose(); renderer.dispose();
   try { const ext = renderer.getContext().getExtension('WEBGL_lose_context'); if (ext) ext.loseContext(); } catch (_) {}
+  FF.bus.clear();
 }
 addEventListener('pagehide', teardown);
-addEventListener('message', e => { if (e.source !== parent || e.origin !== location.origin) return; const d = e.data || {}; if (d.ty === 'leave') teardown(); });
+canvas.addEventListener('webglcontextlost', e => { e.preventDefault(); if (!alive) return; call('UI', 'message', 'The picture was lost. Click to continue.', () => location.reload()); }, false);
 
-/* ---------------------------------------------------------------- test handle */
+/* ---------------------------------------------------------------- test handle (§10) */
+const lite = () => ({ t: +G.t.toFixed(3), mode: G.mode, place: G.place, cp: G.checkpoint, control: G.control, fade: +G.fade.toFixed(3),
+  rabbit: G.rabbit ? { x: +G.rabbit.x.toFixed(3), y: +G.rabbit.y.toFixed(3), vx: +(G.rabbit.vx || 0).toFixed(3), face: G.rabbit.face, grounded: !!G.rabbit.grounded, crouch: !!G.rabbit.crouch, mode: G.rabbit.mode, mood: G.rabbit.mood } : null,
+  box: G.box ? { x: +G.box.x.toFixed(3) } : null,
+  searcher: G.searcher ? { x: +(G.searcher.x || 0).toFixed(2), state: G.searcher.state, loopT: G.searcher.loopT != null ? +G.searcher.loopT.toFixed(2) : null, s: G.searcher.s != null ? +G.searcher.s.toFixed(3) : null } : null });
 window.__ff = {
-  ready: false, look: L, level: LV, S, crate, renderer, scene, camera, world, three: T,
-  get rig() { return rig; }, get tier() { return tierName; },
-  setTier, stats, reset, project,
-  apply() { FF.applyShading(L); world.apply(L); project(); },
-  pause(on) { paused = on !== false; }, freeze(on) { frozen = on !== false; },
-  /* advance the simulation n fixed steps (1/120 s each) and draw once */
-  step(n, render) { n = n || 1; for (let i = 0; i < n; i++) { step(FIX); if (i % 2 === 1 || i === n - 1) present(FIX * 2); } if (render !== false) draw(); return { x: S.x, y: S.y, vx: S.vx, vy: S.vy, grounded: S.grounded, push: S.push, crate: crate.x, mode: S.mode }; },
-  hold(k, on) { hold[k] = on !== false; }, press(k) { pressed[k] = true; }, release() { for (const k in hold) hold[k] = false; },
-  teleport(x, face) { S.x = x; S.vx = 0; if (face) S.face = face; camS.x = clamp(x + L.camera.lookAhead * S.face, L.camera.minX, L.camera.maxX); camS.lead = S.face; S.yaw = Math.PI / 2 * S.face; },
-  draw, teardown,
+  ready: false, G, look: L0, rules: FF.RULES, level: FF.S1, renderer, scene, camera, three: T, bus: FF.bus,
+  get tier() { return tierName; }, setTier, stats,
+  apply() { FF.applyShading((FF.World && FF.World.look) || L0); call('World', 'apply'); call('Camera', 'project'); },
+  pause(on) { loopPaused = on !== false; }, freeze(on) { frozen = on !== false; },
+  /* advance n fixed steps (1/120 s each; presentation every 2 steps) and draw once */
+  step(n, render) { n = n || 1; for (let i = 0; i < n; i++) { if (stepping()) stepOnce(); if (i % 2 === 1 || i === n - 1) { present(FIX * 2); if (!frozen) time += FIX * 2; } } if (render !== false) draw(); return lite(); },
+  draw,
+  hold: (a, on) => FF.Input.hold(a, on), press: a => FF.Input.press(a), release: () => FF.Input.release(),
+  /* run n steps; plan(state, i) returns { left, right, jump, up, down, walk } holds (true/false) before each step */
+  run(n, plan, every) {
+    const log = []; every = every || 60;
+    for (let i = 0; i < n; i++) {
+      const s = lite(); if (plan) { const want = plan(s, i) || {}; for (const a of ['left', 'right', 'up', 'down', 'jump', 'walk']) { const on = !!want[a]; if (on && !FF.Input.down(a)) FF.Input.press(a); FF.Input.hold(a, on); } }
+      if (stepping()) stepOnce(); if (i % 2 === 1) present(FIX * 2);
+      if (i % every === 0) log.push(s);
+    }
+    draw(); return log;
+  },
+  until(pred, max, plan) { for (let i = 0; i < (max || 12000); i++) { const s = lite(); if (pred(s)) { draw(); return { ok: true, steps: i, state: s }; } this.run(1, plan ? (st) => plan(st, i) : null); } draw(); return { ok: false, steps: max, state: lite() }; },
+  /* jump straight into play at a checkpoint id (or {x, y, face}) */
+  warp(c) { call('UI', 'hideNotice'); call('UI', 'hideTitle'); call('UI', 'hidePause'); if (G.mode !== 'play') { G.mode = 'play'; FF.bus.emit('mode', { from: 'warp', to: 'play' }); } const cp = Game.restart(c, { reason: 'warp' }); call('Camera', 'snap'); Game.control(true); G.fade = 0; fadeTo = null; draw(); return cp ? cp.id : null; },
+  start() { command('continue'); command('start'); return lite(); },
+  command, state() {
+    return Object.assign(lite(), { tier: tierName, errors: FF.errors.slice(),
+      modules: Object.fromEntries(INIT.map(m => [m, FF[m] ? (FF[m].stub ? 'stub' : 'live') : 'missing'])),
+      player: call('Player', 'debug'), ai: call('AI', 'debug'), events: call('Events', 'debug'), camera: call('Camera', 'debug'), world: call('World', 'debug'), audio: call('Audio', 'debug'), ui: call('UI', 'debug'),
+      bus: FF.bus.log.slice(-20) });
+  },
+  get ai() { return call('AI', 'debug'); },
+  seed: n => FF.seed(n), fire: (name, data) => FF.bus.emit(name, data),
+  teardown, Game,
 };
-start().catch(e => { console.error(e); document.getElementById('note').textContent = 'Could not start: ' + e.message; document.getElementById('note').style.opacity = 1; });
+boot().catch(e => { FF.report(e, 'boot'); try { call('UI', 'message', 'Could not start: ' + e.message); } catch (_) {} });
 })();

@@ -1,23 +1,11 @@
-/* FAR FIELD — ff-shading.js: the shared surface look, patched into three.js r128's own materials.
+/* FAR FIELD — FROZEN LOOK TEST COPY (7 Oct 2026; never edit: the game's live files are in ../js/). ff-shading.js: the shared surface look, patched into three.js r128's own materials.
    Every material made with FF.mat() gets, in its shader:
      - depth + height fog with forward scattering towards the key light (replaces three's fog entirely),
      - analytic contact shadows: a crease where walls meet the floor, soft darkening on the floor around boxes
        and under the rabbit (no SSAO pass, a handful of ALU per pixel),
      - very low-frequency mottling so big untextured planes are not dead flat,
      - optional rim light (the rabbit) and a soft rotated-disc PCF shadow filter whose tap count follows the tier.
-   Shared uniforms live in FF.U, so moving the crate or the rabbit updates every material at once.
-   OWNER: architect / integrator (shared; frozen while the builders work in parallel). Builders EXTEND the shading without
-   editing this file through FF.addShadingHook() (see docs/farfield/INTERFACES.md §8.10), called before any material compiles:
-     FF.addShadingHook({ key, uniforms, pars, spot, lights, fog })
-       key      unique name (part of the program cache key)
-       uniforms merged into FF.U (shared by every patched material)
-       pars     GLSL at file scope (after the shared functions; vFFW = world position is available)
-       spot     GLSL inside  void ffSpotMod( const in int i, const in vec3 p, inout vec3 c )  run for every spot light i
-                (i = three's spot index: shadow-casting spots first, in the order they were added), p = world pos, c = colour
-       lights   GLSL after the lighting sums (reflectedLight, diffuseColor, ffN = world normal, ffO = occlusion in scope)
-       fog      GLSL after the fog (gl_FragColor in scope)
-   uFFKeyMode (1 = spot 0 gets the look test's window mask and streaks; 0 = spot 0 is a plain cone).
-   A spot whose shadow.radius is < 0 is dormant: its shadow lookup returns 1 (no taps). */
+   Shared uniforms live in FF.U, so moving the crate or the rabbit updates every material at once. */
 'use strict';
 (function () {
 const T = THREE;
@@ -50,15 +38,7 @@ FF.U = {
   uFFFog2:     { value: new T.Vector4(0, 0, 0, 0) },        // fog: quadratic density term
   uFFWallFill: { value: new T.Color(0, 0, 0) },              // cool fill on the walls (Josh: reveal the wall's surface)
   uFFWallGrad: { value: new T.Vector4(0.5, 4.0, 0.3, 0) },  // value at the floor, height where it reaches full, horizontal lean
-  uFFKeyMode:  { value: 1 },                                 // 1: spot 0 is the window key (mask + streaks); 0: a plain cone
 };
-FF.hooks = [];
-FF.addShadingHook = function (h) {
-  if (!h || !h.key) throw new Error('FF.addShadingHook: a hook needs a key');
-  if (FF.hooks.some(x => x.key === h.key)) return;   // idempotent
-  FF.hooks.push(h); if (h.uniforms) Object.assign(FF.U, h.uniforms);
-};
-const hookCode = part => FF.hooks.map(h => h[part] ? `/* hook ${h.key} */\n${h[part]}\n` : '').join('');
 FF.MAX_AO = MAX_AO;
 
 /* shadow filtering: a rotated disc of N taps with per-pixel rotation (interleaved gradient noise); the film grain hides
@@ -68,7 +48,6 @@ function shadowChunk(taps) {
   const a = src.indexOf('#if defined( SHADOWMAP_TYPE_PCF )'), b = src.indexOf('#elif defined( SHADOWMAP_TYPE_PCF_SOFT )');
   if (a < 0 || b < 0) return src;
   const body = `#if defined( SHADOWMAP_TYPE_PCF )
-      if ( shadowRadius < 0.0 ) return 1.0; /* dormant light: no taps */
       vec2 texelSize = vec2( 1.0 ) / shadowMapSize;
       float ign = fract( 52.9829189 * fract( dot( gl_FragCoord.xy, vec2( 0.06711056, 0.00583715 ) ) ) );
       float ang = ign * 6.2831853;
@@ -116,7 +95,7 @@ const PARS = `
 varying vec3 vFFW;
 uniform vec3 uFFFogCol; uniform vec3 uFFFogGlow; uniform vec4 uFFFog; uniform vec4 uFFFog2;
 uniform vec4 uFFAOc[${MAX_AO}]; uniform vec4 uFFAOh[${MAX_AO}]; uniform vec4 uFFAO; uniform vec4 uFFRab; uniform vec2 uFFRabAx;
-uniform vec4 uFFRim; uniform vec4 uFFHall; uniform vec3 uFFHallCol; uniform vec3 uFFWallFill; uniform vec4 uFFWallGrad; uniform float uFFKeyMode;
+uniform vec4 uFFRim; uniform vec4 uFFHall; uniform vec3 uFFHallCol; uniform vec3 uFFWallFill; uniform vec4 uFFWallGrad;
 ${KEY_GLSL}
 float ffOcclusion( vec3 p, vec3 n ) {
   float o = 1.0;
@@ -167,18 +146,12 @@ function patch(m, opts) {
     if (opts.noAO) defs += '#define FF_NO_AO\n';
     if (opts.lift) defs += 'uniform float uFFLift;\n';
     sh.vertexShader = 'varying vec3 vFFW;\n' + sh.vertexShader.replace('#include <fog_vertex>', '#include <fog_vertex>\n  vFFW = ( modelMatrix * vec4( transformed, 1.0 ) ).xyz;');
-    const spotFn = `
-void ffSpotMod( const in int i, const in vec3 p, inout vec3 c ) {
-  if ( i == 0 && uFFKeyMode > 0.5 ) c *= ffKeyMask( p ) * ( uFFCookie.y + uFFCookie.x * ffBands( p ) );
-  ${hookCode('spot')}
-}
-`;
-    let f = defs + PARS + hookCode('pars') + spotFn + sh.fragmentShader;
+    let f = defs + PARS + sh.fragmentShader;
     f = f.replace('#include <shadowmap_pars_fragment>', shadowChunk(FF.tier ? FF.tier.shadowTaps : 8));
     if (opts.mottle) f = f.replace('#include <color_fragment>', `#include <color_fragment>
       diffuseColor.rgb *= 1.0 + ${(+opts.mottle).toFixed(3)} * ( ffNoise( vFFW * vec3( 0.55, 0.9, 0.55 ) ) + 0.5 * ffNoise( vFFW * 2.3 ) - 0.75 );`);
     if (f.indexOf('#include <lights_fragment_begin>') >= 0) f = f.replace('#include <lights_fragment_begin>', T.ShaderChunk.lights_fragment_begin.replace(
-      'getSpotDirectLightIrradiance( spotLight, geometry, directLight );', 'getSpotDirectLightIrradiance( spotLight, geometry, directLight );\n\t\tffSpotMod( UNROLLED_LOOP_INDEX, vFFW, directLight.color );'));
+      'getSpotDirectLightIrradiance( spotLight, geometry, directLight );', 'getSpotDirectLightIrradiance( spotLight, geometry, directLight );\n\t\tif ( UNROLLED_LOOP_INDEX == 0 ) directLight.color *= ffKeyMask( vFFW ) * ( uFFCookie.y + uFFCookie.x * ffBands( vFFW ) );'));
     if (f.indexOf('#include <lights_fragment_end>') >= 0) {
       f = f.replace('#include <lights_fragment_end>', `#include <lights_fragment_end>
       {
@@ -190,13 +163,12 @@ void ffSpotMod( const in int i, const in vec3 p, inout vec3 c ) {
         ${opts.rim ? `float ffF = 1.0 - clamp( dot( normal, normalize( vViewPosition ) ), 0.0, 1.0 );
         totalEmissiveRadiance += uFFRim.rgb * pow( ffF, uFFRim.w ) * ( 0.55 + 0.45 * clamp( ffN.y + 0.3, 0.0, 1.0 ) );` : ''}
         ${opts.lift ? 'totalEmissiveRadiance += diffuseColor.rgb * uFFLift;' : ''}
-        ${hookCode('lights')}
       }`);
     }
-    if (!opts.noFog) f = f.replace('#include <fog_fragment>', FOG + hookCode('fog'));
+    if (!opts.noFog) f = f.replace('#include <fog_fragment>', FOG);
     sh.fragmentShader = f;
   };
-  m.customProgramCacheKey = () => 'ff|' + (FF.tier ? FF.tier.name : '') + '|' + FF.hooks.map(h => h.key).join(',') + '|' + JSON.stringify(opts);
+  m.customProgramCacheKey = () => 'ff|' + (FF.tier ? FF.tier.name : '') + '|' + JSON.stringify(opts);
   return m;
 }
 FF.patch = patch;

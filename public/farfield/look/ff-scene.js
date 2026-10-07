@@ -1,4 +1,4 @@
-/* FAR FIELD — ff-scene.js: the look-test room. Simple matte boxes and cylinders, one key light from a high window out of
+/* FAR FIELD — FROZEN LOOK TEST COPY (7 Oct 2026; never edit: the game's live files are in ../js/). ff-scene.js: the look-test room. Simple matte boxes and cylinders, one key light from a high window out of
    frame (a soft-edged cone: one broad pool), its beam drawn as a volume through the haze, dust, the glowing low opening,
    the crate, the deep hall with its one amber lamp.
    FF.buildScene(scene, look) -> { lights, crate, beam, motes, update(), setTier(tier), apply(look) } */

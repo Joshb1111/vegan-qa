@@ -1,10 +1,8 @@
-/* FAR FIELD — ff-config.js: the approved LOOK (FF.LOOK, from the look test, unchanged), the quality tiers (FF.TIERS) and the
-   asset manifest default (FF.MODELS). Per-place looks for Sequence 1 (dusk -> night, A1) are PARTIAL overrides of FF.LOOK
-   kept by the world builder in ff-world.js (FF.LOOKS); the world blends them into a live look each frame.
+/* FAR FIELD — FROZEN LOOK TEST COPY (7 Oct 2026; never edit: the game's live files are in ../js/). look test. ff-config.js: every art-direction number in one place.
    Units are metres. World axes: +X is "right" along the walkway, +Y is up, +Z points towards the camera.
-   The rabbit walks on the plane z = 0 (the lane). Colours are written as sRGB hex; the code converts them to linear light.
-   OWNER: architect / integrator (shared; frozen while the builders work in parallel).
-   Tune live from the console: __ff.look.key.intensity = 9; __ff.apply() */
+   The rabbit walks on the plane z = 0 (the lane). Colours are written as sRGB hex (what you would pick in a
+   colour picker); the code converts them to linear light before they reach the renderer.
+   Tune live from the console: __ff.look.key.intensity = 9; __ff.apply()   (apply() pushes the numbers to the scene). */
 'use strict';
 window.FF = window.FF || {};
 
@@ -114,19 +112,31 @@ FF.LOOK = {
 
 /* Quality tiers: Q cycles them. Each line is what that tier pays for. */
 FF.TIERS = {
-  high:   { name: 'high',   dpr: 1.5,  msaa: 4, shadowMap: 2048, shadowTaps: 16, bloom: 2, grain: true,  motes: true,  bounce: true,  amberLight: true,  beamSamples: 10,
-            rain: 4000, splashes: 240, drips: 60, grass: 7000, coneSamples: 8, torchShadow: 2048, skyShadow: 2048, secondShadow: 1024 },
-  medium: { name: 'medium', dpr: 1.25, msaa: 2, shadowMap: 1024, shadowTaps: 8,  bloom: 1, grain: true,  motes: false, bounce: true,  amberLight: false, beamSamples: 6,
-            rain: 2200, splashes: 120, drips: 30, grass: 3500, coneSamples: 5, torchShadow: 1024, skyShadow: 1024, secondShadow: 512 },
-  low:    { name: 'low',    dpr: 1,    msaa: 0, shadowMap: 512,  shadowTaps: 4,  bloom: 0, grain: false, motes: false, bounce: false, amberLight: false, beamSamples: 3,
-            rain: 900,  splashes: 0,   drips: 10, grass: 1200, coneSamples: 3, torchShadow: 512,  skyShadow: 512,  secondShadow: 0 },
+  high:   { name: 'high',   dpr: 1.5, msaa: 4, shadowMap: 2048, shadowTaps: 16, bloom: 2, grain: true,  motes: true,  bounce: true,  amberLight: true,  beamSamples: 10 },
+  medium: { name: 'medium', dpr: 1.25, msaa: 2, shadowMap: 1024, shadowTaps: 8,  bloom: 1, grain: true,  motes: false, bounce: true,  amberLight: false, beamSamples: 6 },
+  low:    { name: 'low',    dpr: 1,   msaa: 0, shadowMap: 512,  shadowTaps: 4,  bloom: 0, grain: false, motes: false, bounce: false, amberLight: false, beamSamples: 3 },
 };
 FF.TIER_ORDER = ['high', 'medium', 'low'];
 /* pixel ratio is capped (a Retina laptop at 2x would draw 4x the pixels for little visible gain: measured 57 fps at 2880x1800
    on an M2 against 136 fps at 1.5x). If frames run slow (> 21 ms average over 2 s) the game steps down a tier by itself,
    unless the player pressed Q or the URL chose ?q=. */
 
-/* Models (ASSETS-3D.md). ff-main.js fetches models/models.json at boot and fills FF.MODELS; null = use the temporary
-   stand-in (no request is made, so the console stays clean). Drop a file in models/ and name it in models.json. */
-FF.MODELS = { rabbit: null, human: null, van: null };
-FF.VERSION = 's1-skeleton-1';
+/* The playable space. Collision is data, independent of the meshes: axis-aligned boxes in the lane's x/y plane. */
+FF.LEVEL = {
+  spawn: { x: -1.75, y: 0, face: 1 },
+  solids: [
+    { name: 'floor',    x0: -30,  x1: 30,   y0: -1, y1: 0 },
+    { name: 'pillar',   x0: -7.6, x1: -5.6, y0: 0,  y1: 12 },    // left end: a massive square column
+    { name: 'bulkhead', x0: 9.2,  x1: 11.0, y0: 0,  y1: 12 },    // right end: the tall wall that closes the walkway
+  ],
+  crate: { x: 0.15, w: 0.52, h: 0.44, d: 0.50 },
+  rabbit: { hw: 0.16, h: 0.24, hCrouch: 0.15 },
+  move: {
+    walk: 1.15, run: 2.75, crouch: 0.75, push: 0.62,  // top speeds m/s
+    accel: 5.0, decel: 10.0, turn: 14.0, airAccel: 4.0,
+    gravity: 21.0, fallGravity: 1.35, jumpHeight: 0.52, jumpCut: 0.5,
+    coyote: 0.10, buffer: 0.13,
+    runAfter: 0.30,           // seconds of holding a direction before the hop opens into a run
+    crateAccel: 1.6, crateFriction: 5.0,
+  },
+};

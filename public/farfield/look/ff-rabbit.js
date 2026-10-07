@@ -1,13 +1,12 @@
-/* FAR FIELD — ff-rabbit.js: the rabbit slot. OWNER: the rabbit builder (with ff-player.js). Keep FF.Rabbit.create's
-   contract (docs/farfield/INTERFACES.md); tools/bake-rabbit.html also uses buildProcedural + ProcAnim.
+/* FAR FIELD — FROZEN LOOK TEST COPY (7 Oct 2026; never edit: the game's live files are in ../js/). ff-rabbit.js: the rabbit slot.
    1. TEMPORARY procedural rabbit: a real skinned mesh (one draw call) built from smooth ellipsoids, rigidly weighted to
       the same skeleton the commissioned model must have (bone names in docs/farfield/ASSETS-3D.md), animated in code.
-   2. Model slot: if models/models.json names a rabbit file (or ?rabbit=<file under models/>), it is loaded with
+   2. Model slot: if public/farfield/models/ff_rabbit.glb exists (or ?rabbit=<file under models/>), it is loaded with
       GLTFLoader (three r128, loaded only then) and driven by its named clips through an AnimationMixer.
       Missing clips fall back to near neighbours; no model at all falls back to the procedural rabbit.
    Conventions (both paths): metres, Y up, the model faces +Z, origin on the ground between the feet.
    The game turns the rabbit to face +X or -X (side-on).
-   FF.Rabbit.create(look, { file }) -> Promise<rig>; rig = { object, update(dt, s), kind, setShadow(on), material } */
+   FF.Rabbit.create(look) -> Promise<rig>; rig = { object, update(dt, s), kind, setShadow(on), material } */
 'use strict';
 (function () {
 const T = THREE;
@@ -320,11 +319,8 @@ FF.Rabbit = {
     opts = opts || {};
     const q = new URLSearchParams(location.search).get('rabbit');
     const holder = new T.Group(); holder.name = 'rabbit';
-    /* the game passes opts.file from models/models.json (FF.MODELS.rabbit); null = no request at all (clean console).
-       ?rabbit=<file under models/> overrides, ?rabbit=procedural forces the temporary rabbit. */
-    const want = q ? q : (opts.file || null);
-    if (want && want !== 'procedural') {
-      const file = want.replace(/[^\w./-]/g, '').replace(/\.\.+/g, '');
+    if (q !== 'procedural') {
+      const file = q ? q.replace(/[^\w./-]/g, '').replace(/\.\.+/g, '') : 'ff_rabbit.glb';
       try {
         const m = await loadModel('models/' + file, L);
         if (m) {

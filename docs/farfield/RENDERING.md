@@ -1,6 +1,6 @@
 # Far Field: how it is rendered (decision, 7 Oct 2026)
 
-Look test: `public/farfield/look.html` (run any static server over `public/`, open `/farfield/look.html`).
+Look test: `public/farfield/look.html` (run any static server over `public/`, open `/farfield/look.html`; frozen in `look/`). The game: `/farfield/index.html` (Sequence 1, `SEQUENCE-1.md`, `INTERFACES.md`).
 Shots: `docs/farfield/shots/` (start with `final-vs-ref.jpg`). The visual target is `reference/visual-target.webp`; the story is `JOURNEY.md`.
 
 ## 1. The verdict in plain English
@@ -114,6 +114,8 @@ None of the beats changes the library decision. They do shape the next steps:
 - **9 The Far Field (open land, distant human world):** a sky gradient dome, distant landscape layers in heavy fog, a grass field (the same instanced grass), long sight lines. The far layers can be simple low-poly cards.
 
 ## 8. Files
+
+> **Since Sequence 1 (7 Oct):** the look test is **frozen** in `public/farfield/look/` (`look.html` loads only those copies, so it never changes under the game). The game is `public/farfield/index.html` + `js/`, split into modules as described in `INTERFACES.md`; its `ff-config.js`, `ff-shading.js` (now with hook points, `FF.addShadingHook`), `ff-post.js` (now with an in-pass fade to black) and `ff-rabbit.js` (now reading `models/models.json`) started as copies of the look test's. The list below describes the look test.
 
 - `look.html` is the page.
 - `js/ff-config.js` holds **all art-direction numbers** (`FF.LOOK`), the quality tiers and the level data.

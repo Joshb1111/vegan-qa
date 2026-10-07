@@ -1,0 +1,36 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
+<title>Far Field</title>
+<link rel="icon" href="data:,">
+<style>
+html,body{margin:0;height:100%;overflow:hidden;background:#0b0d10;touch-action:none;user-select:none;-webkit-user-select:none}
+canvas{display:block;position:absolute;left:0;top:0;width:100%;height:100%;outline:none}
+#fps{position:absolute;left:12px;top:10px;font:12px ui-monospace,Menlo,monospace;color:#c6ced6;background:rgba(8,10,12,.55);padding:3px 7px;border-radius:4px;pointer-events:none;z-index:3}
+</style></head>
+<body>
+<canvas id="c" tabindex="0" aria-label="Far Field: a rabbit's journey along the foot of an enormous wall, at dusk, into the night"></canvas>
+<div id="ui"></div>
+<div id="fps" hidden></div>
+<!-- Far Field (working title), Sequence 1: Verge -> Courtyard -> Search -> breathing space. three.js r128 (the planet's build).
+     The contract between these files is docs/farfield/INTERFACES.md; the design is docs/farfield/SEQUENCE-1.md (with its
+     Amendments). look.html is the frozen look test and loads look/*.js, never these. Load order matters (INTERFACES §2). -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script src="js/ff-config.js?v=10"></script>
+<script src="js/ff-core.js?v=10"></script>
+<script src="js/ff-rules.js?v=10"></script>
+<script src="js/ff-level-s1.js?v=10"></script>
+<script src="js/ff-script-s1.js?v=10"></script>
+<script src="js/ff-shading.js?v=10"></script>
+<script src="js/ff-post.js?v=10"></script>
+<script src="js/ff-level.js?v=10"></script>
+<script src="js/ff-world.js?v=10"></script>
+<script src="js/ff-camera.js?v=10"></script>
+<script src="js/ff-rabbit.js?v=10"></script>
+<script src="js/ff-player.js?v=10"></script>
+<script src="js/ff-humans.js?v=10"></script>
+<script src="js/ff-ai.js?v=10"></script>
+<script src="js/ff-events.js?v=10"></script>
+<script src="js/ff-audio.js?v=10"></script>
+<script src="js/ff-ui.js?v=10"></script>
+<script src="js/ff-main.js?v=10"></script>
+</body></html>

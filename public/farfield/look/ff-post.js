@@ -1,10 +1,7 @@
-/* FAR FIELD — ff-post.js: a tiny hand-rolled post chain (no EffectComposer download).
+/* FAR FIELD — FROZEN LOOK TEST COPY (7 Oct 2026; never edit: the game's live files are in ../js/). ff-post.js: a tiny hand-rolled post chain (no EffectComposer download).
    scene -> HDR target (half float, MSAA on WebGL2 when the tier asks) -> optional bloom (1 or 2 blur levels)
    -> one final pass: exposure, ACES filmic curve, grading (saturation, contrast, cold lift), vignette, grain, sRGB.
-   Every tier goes through the same final pass so the look stays identical; only the cost changes.
-   Sequence 1: render(scene, camera, look, tier, time, fade). fade 0..1 mixes the final image to black IN the final pass, so a
-   cut to black lands on the exact frame (no DOM latency); fade >= 1 skips the scene entirely and outputs pure black.
-   OWNER: architect / integrator (shared). */
+   Every tier goes through the same final pass so the look stays identical; only the cost changes. */
 'use strict';
 (function () {
 const T = THREE;
@@ -33,9 +30,9 @@ FF.Post = function (renderer) {
   const final = new T.ShaderMaterial({
     uniforms: { tScene: { value: null }, tB1: { value: null }, tB2: { value: null }, uBloom: { value: new T.Vector2(0, 0) }, uExposure: { value: 1 },
       uSat: { value: 0.8 }, uCon: { value: 1.05 }, uLift: { value: new T.Vector3() }, uGain: { value: new T.Vector3(1, 1, 1) }, uVig: { value: 0.4 }, uBot: { value: 0 }, uGrain: { value: 0.03 },
-      uTime: { value: 0 }, uRes: { value: new T.Vector2(1, 1) }, uTone: { value: 1 }, uFade: { value: 0 } },
+      uTime: { value: 0 }, uRes: { value: new T.Vector2(1, 1) }, uTone: { value: 1 } },
     vertexShader: FS_VERT, depthTest: false, depthWrite: false,
-    fragmentShader: `uniform sampler2D tScene, tB1, tB2; uniform vec2 uBloom, uRes; uniform float uExposure, uSat, uCon, uVig, uBot, uGrain, uTime, uTone, uFade; uniform vec3 uLift, uGain; varying vec2 vUv;
+    fragmentShader: `uniform sampler2D tScene, tB1, tB2; uniform vec2 uBloom, uRes; uniform float uExposure, uSat, uCon, uVig, uBot, uGrain, uTime, uTone; uniform vec3 uLift, uGain; varying vec2 vUv;
       vec3 RRTAndODTFit(vec3 v){ vec3 a = v * (v + 0.0245786) - 0.000090537; vec3 b = v * (0.983729 * v + 0.4329510) + 0.238081; return a / b; }
       vec3 aces(vec3 c){ const mat3 I = mat3(vec3(0.59719,0.07600,0.02840), vec3(0.35458,0.90834,0.13383), vec3(0.04823,0.01566,0.83777));
         const mat3 O = mat3(vec3(1.60475,-0.10208,-0.00327), vec3(-0.53108,1.10813,-0.07276), vec3(-0.07367,-0.00605,1.07602));
@@ -58,7 +55,7 @@ FF.Post = function (renderer) {
         c *= 1.0 - uBot * smoothstep(0.16, 0.0, vUv.y);
         float n = hash(gl_FragCoord.xy + fract(uTime * 7.31) * 517.0) + hash(gl_FragCoord.xy * 1.37 + fract(uTime * 3.7) * 211.0) - 1.0;
         c += n * uGrain * (0.55 + 0.45 * (1.0 - l)) + (hash(gl_FragCoord.xy * 0.93) - 0.5) / 255.0;
-        gl_FragColor = vec4(clamp(c, 0.0, 1.0) * (1.0 - clamp(uFade, 0.0, 1.0)), 1.0);
+        gl_FragColor = vec4(clamp(c, 0.0, 1.0), 1.0);
       }` });
 
   function pass(mat, target) { quad.material = mat; renderer.setRenderTarget(target); renderer.render(quadScene, cam); }
@@ -75,9 +72,7 @@ FF.Post = function (renderer) {
       for (const r of [b1a, b1b, b2a, b2b]) r.depthBuffer = false;
       final.uniforms.uRes.value.set(w, h);
     },
-    render(scene, camera, L, tier, time, fade) {
-      fade = fade || 0;
-      if (fade >= 1) { renderer.setRenderTarget(null); renderer.setClearColor(0x000000, 1); renderer.clear(true, true, false); return; }
+    render(scene, camera, L, tier, time) {
       renderer.setRenderTarget(rtScene); renderer.render(scene, camera);
       const G = L.grade, lv = tier.bloom;
       if (lv > 0) {
@@ -90,7 +85,7 @@ FF.Post = function (renderer) {
       u.tScene.value = rtScene.texture; u.tB1.value = lv >= 2 ? b1a.texture : b2a.texture; u.tB2.value = b2a.texture;
       u.uBloom.value.set(G.bloom, lv); u.uExposure.value = L.exposure; u.uSat.value = G.saturation; u.uCon.value = G.contrast;
       u.uLift.value.set(G.lift[0], G.lift[1], G.lift[2]); u.uGain.value.set(G.gain[0], G.gain[1], G.gain[2]); u.uVig.value = G.vignette; u.uBot.value = G.bottomWeight || 0;
-      u.uGrain.value = tier.grain ? G.grain : 0; u.uTime.value = time; u.uTone.value = 1; u.uFade.value = fade;
+      u.uGrain.value = tier.grain ? G.grain : 0; u.uTime.value = time; u.uTone.value = 1;
       pass(final, null);
     },
     dispose() { for (const r of [rtScene, b1a, b1b, b2a, b2b]) if (r) r.dispose(); bright.dispose(); blur.dispose(); final.dispose(); tri.dispose(); },

@@ -1,6 +1,8 @@
-# Far Field: 3D models and animations to commission (7 Oct 2026)
+# Far Field: 3D models and animations to commission (7 Oct 2026; updated for Sequence 1 the same day)
 
-What to supply to replace the temporary rabbit, and later the humans and the environment. Written so it can be handed to a 3D artist as it is. The look test (`public/farfield/look.html`) already has the slot and the loader. Until a file arrives, the game uses the temporary rabbit.
+What to supply to replace the temporary rabbit, the stand-in human and the stand-in van, and later the environment. Written so it can be handed to a 3D artist as it is. The game (`public/farfield/index.html`) and the look test (`look.html`) already have the rabbit slot and the loader. Until a file arrives, the game uses its temporary stand-ins.
+
+Sequence 1 (`SEQUENCE-1.md`) needs: the rabbit (first), ONE human model for all three people, and the van.
 
 ## The rabbit (needed first)
 
@@ -68,9 +70,25 @@ Notes on the skeleton:
 | `push_head` | 12–16 | loop | Head and shoulder against a box, hind legs driving, at **0.62 m/s** |
 | `dig` | 16–20 | loop | Front paws scraping soft ground |
 | `alert_freeze` | 20 | one-shot into a held last pose | Stops dead, ears up |
-| `flee` | 8 | loop | Fastest bound, at **3.6 m/s** |
-| `caught` | 20 | one-shot | Brief and non-graphic: a startle and stillness; the game cuts to black |
-| `hit` | 6–8 | one-shot | A flinch only; the game cuts to black |
+| `flee` | 8 | loop | Fastest bound, at **3.6 m/s**, tail up |
+| `startle` | 4–6 | one-shot, additive | A 0.15 s flinch of surprise (the searcher has seen it); control is kept |
+
+**Not needed:** `caught` and `hit`. The game cuts to black on the exact frame of a grab or a shot, so the rabbit is never shown caught or hit (SEQUENCE-1.md §10).
+
+**Also for Sequence 1** (the rabbit as an individual: SEQUENCE-1.md §4.2, §11):
+
+| Clip | Frames | Type | Notes |
+|---|---|---|---|
+| `sniff_ground` | 60 | one-shot | Nose down to the ground and the weeds |
+| `nibble` | 30 | loop | Eats a few blades of grass and clover |
+| `shake_off` | 24 | one-shot | Whole-body shake (after rain, a squeeze, the drain) |
+| `look_back` | 36 | one-shot, additive | Head turns back over the shoulder |
+| `peek` | 30 | loop | At the edge of cover, head forward, body back |
+| `reach_fail` | 15 | one-shot | Paws scrabble below a sill that is too high, slides back |
+| `climb_in` | 24 | one-shot | From the box top up into a raised opening |
+| `pop_out_hop_down` | 36 | one-shot | Out of an opening, a sniff of the air, a hop down 0.8 m |
+| `drop_splash` | 12 | one-shot | Lands in shallow water |
+| `settle_loaf_in` + `loaf_breathe` | 30 + 60 | one-shot into loop | Lies down into a loaf, then slow breathing (the ending) |
 
 **Can wait** (life and the safe moments later on):
 
@@ -85,42 +103,62 @@ If a clip is missing, the game falls back to a near neighbour (`crouch_walk` →
 
 ## How to drop files in
 
-1. Put the file in **`public/farfield/models/`**. Name the rabbit **`ff_rabbit.glb`** and the game uses it instead of the temporary rabbit, with no code change.
-2. To try another file without replacing the default, open `look.html?rabbit=<file>` (a path under `models/`). `look.html?rabbit=procedural` forces the temporary rabbit.
+1. Put the file in **`public/farfield/models/`** and write its name in **`public/farfield/models/models.json`** (`"rabbit": "ff_rabbit.glb"`; also `"human"` and `"van"`). That data file is the only change: no code. (The game reads the list first, so an absent model never shows as an error.) The frozen look test still looks for `models/ff_rabbit.glb` directly.
+2. To try another file without changing the list, open `index.html?rabbit=<file>` (a path under `models/`; `look.html` takes the same). `?rabbit=procedural` forces the temporary rabbit.
 3. The loader (three.js r128 `GLTFLoader`, downloaded only when a file exists):
    - keeps the model's colour, texture or vertex colours, and applies the game's matte shading;
    - if the model's length is outside 0.15–1.0 units, rescales it to 0.40 m and says so in the console (for exports in centimetres).
 4. **Proof it works:** `tools/bake-rabbit.html` exports the temporary rabbit as a real rigged file, `models/test/ff_rabbit_test.glb` (the bone names above, 11 clips, 346 KB). `look.html?rabbit=test/ff_rabbit_test.glb` plays it through the clip system: idle, run, jump, push and crouch shown in `shots/model-slot-test.jpg`. A commissioned rabbit can be checked the same way.
 
-## Humans (later: beats 2, 3, 5, 8)
+## The human (Sequence 1: one model for all three people)
 
-**File and size**
-- One rigged humanoid `.glb` per character type, sharing **one standard humanoid skeleton with Mixamo-compatible names** (`mixamorig:Hips`, `mixamorig:Spine`, …), so library animations can be retargeted.
-- About 1.75–1.80 m tall, Y up, facing +Z, origin between the feet.
+Replaces the earlier human outline (SEQUENCE-1.md §14 and Amendment A4/A21). **One model serves all three roles**; props are shown or hidden by role:
 
-**Mesh and material**
-- At most 15,000 triangles, plus a **low-detail version (≤ 4,000)** for distant figures. Beat 5 has several humans at once.
-- One matte material in dark charcoal. They read as silhouettes (cap, coat, backpack shapes), not detail.
-- At most 4 influences per vertex.
+| Role | Gun | Torch | Other | Behaviour |
+|---|---|---|---|---|
+| The Verge person | slung on the back | yes | | seen as boots under a gate, then whole from below; rattles the chain, kneels at the culvert, reaches in |
+| The walkway worker | **no** | **no** | a coil of cable over one shoulder | walks, pauses at a rail looking away, leaves; never notices the rabbit |
+| The searcher | slung; raised to aim | yes | | his own routine (walk-search, crouch-look, climb, look, turn-sweep) |
 
-**Clips (30 fps, in place):**
-- `idle`
-- `patrol_walk` (loop, 1.3 m/s)
-- `stop_listen`
-- `turn_L90`, `turn_R90`, `turn_180`
-- `raise_torch`
-- `search` (looking around, torch sweeping)
-- `alert`
-- `run` (loop, 4 m/s)
-- `reach_catch` (one-shot)
-- `aim`
-- `fire` (one-shot, small and non-graphic)
-- Beat 5 routines (`carry`, `work_station`, `stand_wait`) when that section is designed.
+**File:** `ff_human.glb` (one skinned mesh, one skeleton, the clips inside).
+- **Size and orientation:** 1.72–1.85 m tall, metres, Y up, facing +Z, origin on the ground between the feet.
+- **Skeleton:** a standard humanoid with **Mixamo-compatible bone names** (`mixamorig:Hips`, `mixamorig:Spine`, …), so library animations can be retargeted. At most 4 influences per vertex.
+- **Mesh:** ≤ 15,000 triangles, plus a **≤ 4,000** low-detail version for distant figures (beat 5 later has several at once).
+- **Material:** one matte material in dark charcoal (about `#1a1d21`). They read as silhouettes (cap with a forward brim, coat, backpack with a rolled mat on top: the hump that makes the shape), not detail. No face detail needed.
+- **Props as separate rigid nodes** (shown or hidden by role): `prop_torch` (with a `torch_emitter` empty at the lens, +Z along the beam), `prop_longgun` (a plain, generic long gun shape, no real-world model, with a `gun_muzzle` empty), `prop_coil`.
+- **Sockets (named empties):** `hand_L_socket`, `hand_R_socket`, `back_socket` (the sling).
 
-**Attachment points as named empty nodes**, +Z along the direction they point:
-- `torch_emitter` at the torch lens (the game hangs its torch light and beam here);
-- `gun_muzzle`;
-- `hand_R_socket`.
+**Clips (30 fps, in place, no root motion; the game moves the figure):**
+
+| Clip | Type | Notes |
+|---|---|---|
+| `idle` | loop | breathing, a weight shift every few seconds |
+| `walk` | loop | authored at **1.3 m/s** |
+| `walk_search` | loop | **1.0 m/s**, torso and head slightly down, torch arm forward, sweeping |
+| `run` | loop | **2.6 m/s**, torso forward, torch jolting |
+| `turn_180` | one-shot | 1.0 s, three steps, the head leading |
+| `door_step_in` | one-shot | 1.0 s, from a doorway |
+| `notice` | one-shot | stops mid-step (0.3 s), head snaps round, torch steadies |
+| `crouch_look_in` / `_loop` / `_out` | sequence | kneel 0.8 s with the torch up, look under something low, stand 0.6 s |
+| `kneel_in` / `_loop` / `_out`, `kneel_reach` | sequence | the reach under cover: an arm in, groping, out (restrained) |
+| `aim_raise` / `aim_hold` / `aim_lower` | sequence | 0.5 s up from the sling, held still, 0.5 s down |
+| `grab` | one-shot | the lunge: a 0.45 s lean and bend, then the reach |
+| `climb_steps` / `descend_steps` | one-shot | 1.4 s, three steel risers of 0.283 m |
+| `step_down` | one-shot | off a 0.85 m platform edge, 0.8 s |
+| `unlock_loop` | loop | at a gate, chain and padlock (legs read most) |
+| `torch_down_loop` | loop | kneeling, torch pointed straight down |
+| `rail_look_out` | loop | leaning on a rail, looking away into the distance |
+| `shake_sheet` | one-shot | shakes a corrugated sheet once |
+| `stumble` | one-shot | |
+
+**Not needed:** `fire`. The cut to black happens on the shot's first frame.
+
+## The van (Sequence 1)
+
+**File:** `ff_vehicle.glb`. A boxy, unbranded utility van: 5.0–5.6 × 1.9–2.1 × 2.2–2.5 m, ≤ 8,000 triangles, metres, Y up, facing +Z, origin on the ground at the centre.
+- **Nodes:** `body`, `wheel_FL`, `wheel_FR`, `wheel_RL`, `wheel_RR` (pivots at the hubs), `door_driver`.
+- **Empties:** `light_head_L`, `light_head_R`, `light_work` (roof work light), `light_marker_1` … `n` (amber side markers).
+- **Materials:** one matte body material (about `#24282d`) and one emissive "lamp" material. No badges, no brand, blank plates.
 
 ## Environment (later; simple, matte, modular)
 
@@ -141,7 +179,6 @@ If a clip is missing, the game falls back to a near neighbour (`crouch_walk` →
 
 **Later**
 - `ff_env_walkway` (beat 2)
-- `ff_prop_vehicle` with named `headlight_L/R` empties (beat 1)
 - Machine pieces with named moving parts (beat 4)
 - Shifting platforms (beat 6)
 - Grass and weed clumps, and `ff_env_slope_wall` (beats 7 and 9)
