@@ -57,7 +57,8 @@ const clips = [
   bake('crouch_walk', 0.16 / 0.75, G(0.75, { crouch: true }), { loop: true, alignPhase: phase0 }),
   bake('push_head', 0.14 / 0.62, G(0.62, { push: true, effort: 0.5 }), { loop: true, alignPhase: phase0 }),
 ];
-/* rest pose back before export, so the bind pose in the file is the rest pose */
+/* rest pose back before export, so the joints' transforms in the file are the rest pose (the connected mesh itself is bound with
+   the legs a little extended, ff-rabbit.js EXT; its inverse bind matrices carry that) */
 bones.forEach(b => { b.quaternion.identity(); }); rig.bones.hips.position.copy(rig.rest.hips); rig.mesh.updateMatrixWorld(true);
 const root = new T.Group(); root.name = 'ff_rabbit'; root.add(rig.mesh);
 const t0 = performance.now();

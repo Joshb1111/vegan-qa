@@ -21,35 +21,39 @@ FF.S1.searcher = {
     N5: [93.0,  0.85, -1.15],  // above the rabbit's hide: the look at the duct mouth
   },
   floorMinX: 90.0,
-  /* entry, first time only: starts 1.5 s after the rabbit lands. 7.65 s. It is THE DOOR REVEAL (Josh's playtest, 7 Oct §9.5:
-     the one camera takeover, run by FF.Events): the camera goes to the door 0.3 s into the cue and starts back 1.2 s into the
-     aim demonstration; control returns 5.95 s after the cue. Same beats, same order, same nodes as the first build (10.55 s
-     from the light to the gun lowering, too long for a takeover of 4-6 s), only quicker. The second turn is a turn-sweep (it
-     does not clatter the fence again) and covers the reveal's 1.2 s grace; then the loop. */
+  /* entry, first time only: starts 1.5 s after the rabbit lands. 8.0 s. It is THE DOOR REVEAL (Josh's playtest, 7 Oct §9.5:
+     the one camera takeover, run by FF.Events). v2 review fixes: the camera leaves the rabbit only 0.85 s after it has
+     stopped (its reaction is seen) and eases 1.5 s to the door, so the door light and footsteps last 1.95 s and the door
+     opens as the camera arrives; the camera starts back 1.1 s into the aim demonstration and control returns as it settles,
+     6.4-6.5 s after the cue. Same beats, same order, same nodes as the first build. The second turn is a turn-sweep (it does
+     not clatter the fence again) and covers the reveal's 1.2 s grace; then the loop. */
   entry: [
-    ['cue', 1.35, 'N0', 'line of light under the door, a torch beam moving behind its small window, footsteps'],
+    ['cue', 1.95, 'N0', 'line of light under the door, a torch beam moving behind its small window, footsteps'],
     ['doorway', 0.6, 'N0', 'silhouette in the door: cap, coat, backpack, long gun slung, torch'],
-    ['step-in', 1.1, 'N1'],
-    ['sweep-left', 0.25, 'N1', 'a glance down the yard'],
+    ['step-in', 0.9, 'N1'],
+    ['sweep-left', 0.2, 'N1', 'a glance down the yard'],
     ['turn', 0.45, 'N1', 'the fence corner clatters (wind); they turn to it'],
     ['aim-demo', 2.0, 'N1', 'raise 0.5, beam 13 -> 5 deg on the gap, click, hold 1.0, lower 0.5: NO SHOT. Lights the exit. Ends = entry-aim-lowered'],
     ['turn-sweep', 1.9, 'left', 'turns away from the fence (the torch down while turning), sweeps; covers the reveal\'s grace; then the loop'],
   ],
-  /* the loop, 44.85 s (A10: the deck look is 6.0 s), repeats exactly: [action, to node | seconds, speed m/s | facing] */
+  /* the loop, 47.85 s, repeats exactly: [action, to node | seconds, speed m/s | facing]. v2 review fixes: the deck look (A10:
+     6.0 s) is 9.0 s, because the default movement is now the cautious walk (0.95 m/s): a careful walk out of the deck core
+     1-2 s into his look reaches the pallet core before he turns (the Search checker's WALK checks), as the 6 s look allowed
+     at the old running pace. Everything after it is 3.0 s later. */
   loop: [
     ['walk-search', 'N2', 1.0],            //  0.00- 1.80
     ['crouch-look', 3.3, 'left'],          //  1.80- 5.10 stop 0.3, kneel 0.8 (torch up), look 1.6 under the skip, stand 0.6
     ['walk-search', 'N3', 1.0],            //  5.10-13.90
     ['climb', 'N4', 1.4],                  // 13.90-15.30
     ['walk-search', 'N5', 1.0],            // 15.30-20.30 over the deck, above the hide
-    ['look', 6.0, 'left'],                 // 20.30-26.30 THE MAIN WINDOW: looking down-left at the duct mouth
-    ['turn', 1.0],                         // 26.30-27.30
-    ['walk-search', 'N4', 1.0],            // 27.30-32.30
-    ['descend', 'N3', 1.4],                // 32.30-33.70
-    ['walk-patrol', 'N1', 1.3],            // 33.70-41.85 walking away to the right
-    ['turn-sweep', 3.0, 'left'],           // 41.85-44.85 turn 1.0, sweep 2.0 (pitch -35 -> -8 -> -35)
+    ['look', 9.0, 'left'],                 // 20.30-29.30 THE MAIN WINDOW: looking down-left at the duct mouth
+    ['turn', 1.0],                         // 29.30-30.30
+    ['walk-search', 'N4', 1.0],            // 30.30-35.30
+    ['descend', 'N3', 1.4],                // 35.30-36.70
+    ['walk-patrol', 'N1', 1.3],            // 36.70-44.85 walking away to the right
+    ['turn-sweep', 3.0, 'left'],           // 44.85-47.85 turn 1.0, sweep 2.0 (pitch -35 -> -8 -> -35)
   ],
-  loopT: 44.85,
+  loopT: 47.85,
 };
 
 /* THE VERGE: the vehicle and the person (no fail; A8: nothing pushes the player, the staging loops while they linger).

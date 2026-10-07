@@ -16,7 +16,7 @@ for (const name of names) {
   const R = OUTR[name] = {};
   try {
     await b.nav('/farfield/index.html?' + q, 'window.__ff && __ff.ready === true', 120000); await sleep(200);
-    await b.ev('__ff.pause(); true'); b.held = new Set();
+    await b.ev('__ff.pause(); true'); b.held = new Set(); b.shift = false;
     for (const f of ['bot.js', 'scen.js']) await b.ev(fs.readFileSync(path.join(DIR, f), 'utf8'));
     await b.ev(ALL[name].setup + '; __ff.step(2); true');
     R.start = await b.ev('({ t: __ff.G.t, x: __ff.G.rabbit.x, cp: __ff.G.checkpoint, ai: FF.AI.debug() })');

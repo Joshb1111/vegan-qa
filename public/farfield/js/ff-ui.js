@@ -1,6 +1,6 @@
 /* FAR FIELD — ff-ui.js: FF.UI, every DOM screen, quiet and small, in the game's palette (charcoal, blue-grey, one pale ink):
    the content notice (the game's FIRST screen, every launch, SEQUENCE-1 §17), the title over the live scene (A5), pause
-   (Resume / Restart from checkpoint / Sound / Music / Back to the arcade), the first-time control hints (small key caps
+   (Resume / Restart from checkpoint / Sound / Music / Back to the arcade, and the controls line), the first-time control hints (small key caps
    that sit just above the rabbit and fade when used or after 4 s; never in the Search; none with ?clean=1), the end card
    ("to be continued", with the held chord), and messages (the picture was lost). No text in play beyond the hints; no
    counters, nothing that rewards harm.
@@ -19,6 +19,7 @@ const K = s => '<kbd>' + s + '</kbd>';
 const HINTS = {
   move: K('←') + K('→') + ' move',
   run: K('Shift') + ' + ' + K('→') + ' run',
+  'run-again': K('Shift') + ' + ' + K('→') + ' run',      // the reminder on entering the Courtyard (ff-player.js: no run for 60 s)
   jump: K('Space') + ' jump',
   push: K('→') + ' push',
   'go-in': K('↑') + ' go in',
@@ -59,6 +60,7 @@ const CSS = `
 #ui .pause .menu button{margin:0;text-align:left;padding:8px 16px}
 #ui .pause .menu .set{display:flex;gap:8px}#ui .pause .menu .set button{flex:1;font-size:13px;color:#9aa6b2;white-space:nowrap}#ui .pause .menu button:disabled{opacity:.45;cursor:default}
 #ui .pause .menu .set button.sel,#ui .pause .menu .set button:hover{color:#eef1f3}
+#ui .pause .keys{margin-top:24px;font-size:13px;color:#aeb8c1}
 /* the end card */
 #ui .end{background:#000;transition:opacity .3s}
 #ui .end span{font-size:14px;letter-spacing:.14em;color:#8e959c;opacity:0;transition:opacity 1s ease}
@@ -127,6 +129,8 @@ const UI = FF.UI = {
     btn('Resume', 'resume', menu); btn('Restart from checkpoint', 'restart', menu);
     const set = div('set', null, menu); el.snd = btn('Sound', 'sound', set); el.mus = btn('Music', 'music', set);
     btn(inFrame ? 'Back to the arcade' : 'Back to the title', inFrame ? 'exit' : 'title', menu);
+    /* the controls, as on the title (v2 review: nothing reminded a player of Shift once the hint had gone) */
+    div('keys', `${K('←')}${K('→')} move <i>·</i> ${K('Shift')} run <i>·</i> ${K('Space')} jump <i>·</i> ${K('↓')} crouch`, el.pause);
     pauseBtns().forEach((b, i) => b.addEventListener('mouseenter', () => markPause(i)));
     div('foot', 'Esc or P to resume <i>·</i> ↑ ↓ and Enter', el.pause);
     /* the end card, messages, the hint */
@@ -215,6 +219,7 @@ const UI = FF.UI = {
     if (r) {
       if (h.id === 'move') used = Math.abs(r.x - h.x0) > 1.6;
       else if (h.id === 'jump') used = !r.grounded && (r.vy || 0) > 0.2;
+      else if (h.id === 'run' || h.id === 'run-again') used = !!r.run && Math.abs(r.vx || 0) > 1.6;
       else if (h.id === 'push') used = !!(G.box && Math.abs(G.box.x - h.bx) > 0.25);
       else if (h.id === 'go-in') used = r.mode === 'climb' || r.mode === 'transit';
     }

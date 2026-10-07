@@ -5,7 +5,7 @@ const J = n => { try { return JSON.parse(fs.readFileSync(path.join(OUT, n), 'utf
 const rows = []; const row = (name, ok, info) => rows.push([ok ? 'PASS' : 'FAIL', name, info || '']);
 const clean = R => R && !R.err && (!R.errs || !R.errs.length) && (!R.state || !R.state.errors || !R.state.errors.length);
 let txt = ''; try { txt = fs.readFileSync(path.join(OUT, 'check-search.txt'), 'utf8'); } catch (e) {}
-{ const m = txt.match(/(PASS|FAIL) \((\d+)\/(\d+)\)/); row('Search checker (tools/check-search.mjs, RUN and WALK modes)', !!m && m[1] === 'PASS' && m[2] === m[3] && +m[3] >= 21, m ? m[0] : ''); }
+{ const m = txt.match(/(PASS|FAIL) \((\d+)\/(\d+)\)/); row('Search checker (tools/check-search.mjs, RUN and WALK modes)', !!m && m[1] === 'PASS' && m[2] === m[3] && +m[3] >= 23, m ? m[0] : ''); }
 const beat = (marks, a, b) => { const A = marks.find(m => m.name === a), B = marks.find(m => m.name === b); return A && B ? +(B.t - A.t).toFixed(1) : null; };
 for (const [f, label, mute] of [['sneak-fast-mute.json', 'sneak route, notice -> title -> ... -> end card -> title (?mute=1)', true], ['firsttimer.json', 'first-timer route with one failure (sound on)', false]]) {
   const R = J(f); if (!R) { row(label, false, 'no result'); continue; }
@@ -38,23 +38,35 @@ if (RV) {
   const bad = [];
   for (const k of take) { const v = RV[k]; if (!v) { bad.push(k + ': no result'); continue; } const tm = v.timing || {};
     if (v.err || (v.errors || []).length || (v.errs || []).length) bad.push(k + ': errors');
-    if (!(tm.controlFromCue >= 4.0 && tm.controlFromCue <= 6.2)) bad.push(k + ': cue -> control ' + tm.controlFromCue);
+    if (!(tm.controlFromCue >= 6.0 && tm.controlFromCue <= 6.7)) bad.push(k + ': cue -> control ' + tm.controlFromCue);
     if (!(tm.maxX < 92.0)) bad.push(k + ': went to x ' + tm.maxX);
-    if (v.heldMoved != null && v.heldMoved !== 0) bad.push(k + ': a held key moved it ' + v.heldMoved);
+    if (v.heldMoved != null && v.heldMoved !== 0) bad.push(k + ': a held key moved it within 0.7 s ' + v.heldMoved);
+    if (v.resume && v.resume.held.length && !(v.resume.moved > 0.3 && Math.abs(v.resume.vx) <= 0.96)) bad.push(k + ': a held direction did not resume as the walk ' + JSON.stringify(v.resume));
     if (v.W && v.W.maxSTake > 0) bad.push(k + ': suspicion ' + v.W.maxSTake);
+    if (!(tm.reactBeforePan >= 0.75)) bad.push(k + ': the camera left ' + tm.reactBeforePan + ' s after it stopped');
+    if (!(tm.scrAtControl >= 0.15)) bad.push(k + ': the rabbit at ' + tm.scrAtControl + ' of the frame at control');
     if (v.repress && !(v.repress.moved > 0.3)) bad.push(k + ': a fresh press did not move it'); }
   const x = RV;
+  if (x.shelf && !(x.shelf.maxX < 91.0 && x.shelf.tries.every(t => t.s === 0))) bad.push('shelf: furthest stop ' + (x.shelf && x.shelf.maxX));
   if (x.retry && (x.retry.revealStartsAfterFail || x.retry.entryReplayed)) bad.push('retry replays it');
   if (x.still && x.still.cpAfterLanding !== 'search-arrive') bad.push('checkpoint after landing ' + x.still.cpAfterLanding);
-  if (x.restartMid && !(x.restartMid.second && x.restartMid.second.ok)) bad.push('restart mid-takeover');
+  if (x.restartMid && !(x.restartMid.second && x.restartMid.second.ok && x.restartMid.second.cause === 'replay' && x.restartMid.second.controlOffSeconds <= 3.2)) bad.push('restart after it was seen: ' + JSON.stringify(x.restartMid.second));
+  if (x.restartEarly && !(x.restartEarly.second && x.restartEarly.second.ok && x.restartEarly.second.controlFromCue >= 6.0)) bad.push('restart before it was seen: ' + JSON.stringify(x.restartEarly.second));
+  if (x.quitContinue && !(x.quitContinue.second && x.quitContinue.second.ok && x.quitContinue.second.cause === 'replay' && x.quitContinue.second.controlOffSeconds <= 3.6)) bad.push('quit -> continue: ' + JSON.stringify(x.quitContinue.second));
   if (x.restartGrace && x.restartGrace.replay && x.restartGrace.replay.controlOffSeconds > 0) bad.push('restart in the grace takes control');
   if (x.unseen && !(x.unseen.protected3s && x.unseen.protected3s.s === 0 && x.unseen.unprotected && x.unseen.unprotected.ai === 'notice')) bad.push('unseen guarantee');
   if (x.autorepeat && !(x.autorepeat.autoRepeat && x.autorepeat.autoRepeat.moved === 0)) bad.push('auto-repeat ends the latch');
   if (x.quickrepress && !(x.quickrepress.quick && x.quickrepress.quick.moved > 0.2 && !x.quickrepress.quick.latchedAfter.length)) bad.push('quick re-press');
+  if (x.pressDuringReturn && !x.pressDuringReturn.tries.every(t => !t.latched.length && t.moved > 0.2)) bad.push('a press during the takeover latched: ' + JSON.stringify(x.pressDuringReturn.tries));
+  if (x.mash && !(x.mash.mashed && !x.mash.mashed.latched.length && x.mash.mashed.moved > 0.2)) bad.push('mash latched');
+  if (x.aspect && !Object.values(x.aspect.frames || {}).every(f => f.gap <= 0.9 && f.door >= 0.05)) bad.push('aspect: ' + JSON.stringify(x.aspect.frames));
   if (x.smooth && x.smooth.smooth && x.smooth.smooth.velocityJumpsOver3) bad.push('camera jumps');
-  const tms = take.filter(k => RV[k] && RV[k].timing).map(k => k + ' ' + RV[k].timing.cause + ' stop x ' + RV[k].timing.stopX + ' ctl ' + RV[k].timing.controlFromCue + ' s').join('; ');
-  row('door reveal: completes for still / cautious / forward held / run / running jump / hops / full path; no harm; retries', !bad.length, bad.length ? bad.join('; ') : tms);
+  const tms = take.filter(k => RV[k] && RV[k].timing).map(k => k + ' ' + RV[k].timing.cause + ' stop x ' + RV[k].timing.stopX + ' react ' + RV[k].timing.reactBeforePan + ' s ctl ' + RV[k].timing.controlFromCue + ' s').join('; ');
+  row('door reveal: completes for still / cautious / forward held / run / running jump / hops / full path / shelf; reaction seen; no harm; latch; retries; aspects', !bad.length, bad.length ? bad.join('; ') : tms);
 } else row('door reveal (t-reveal.mjs)', false, 'no result');
+const SL = J('t-slide.json');
+if (SL) row('feet: no sliding (steady gaits, starting, stopping, the hoarding cycle change; the searcher walking)', SL.pass, (SL.checks || []).map(c => (c.ok ? '' : 'FAIL ') + c.name.split(':')[0]).join('; ') + (SL.err ? ' ERR ' + String(SL.err).slice(0, 120) : ''));
+else row('feet (t-slide.mjs)', false, 'no result');
 const D = J('t-detect.json');
 if (D) { row('detection model: cover blocks, darkness shortens but never hides up close (static)', D.static && D.static.pass, (D.static.tests || []).filter(t => !t.ok).map(t => t.name).join('; ') || D.static.tests.length + ' cases');
   const L = D.live || {}; const cores = ['A0', 'deck', 'pallet', 'skip'].every(c => L[c] && L[c].maxS === 0);

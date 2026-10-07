@@ -36,6 +36,8 @@ FF.RULES = {
     push: 0.62, accel: 5.0, decel: 10.0, turn: 14.0, airAccel: 4.0,
     gravity: 21.0, fallGravity: 1.35, jumpHeight: 0.52, jumpCut: 0.5, coyote: 0.10, buffer: 0.13, stepUp: 0.10,
     jumpCutAfter: 0.15,                                                     // the early-release cut applies only after this long in the air: a quick tap still hops ~0.46 m (the post 0.30, the box 0.44); no precise jumps (§1)
+    hopMin: 1.65, hopDrag: 0.6,                                             // v2 review: a hop with a direction held leaves at >= 1.65 m/s forward, easing off at 0.6 m/s^2 in the air, and is never cut short
+                                                                            // by a quick release: a walking hop carries ~0.6 m, like a rabbit leaping, not straight up (it clears the post from 0.5 m away)
     hw: 0.16, h: 0.24, hCrouch: 0.15,
     samples: { stand: [[0.14, 0.16], [0, 0.20], [-0.12, 0.10]], crouch: [[0.13, 0.10], [0, 0.12], [-0.12, 0.07]] },  // sight points (x fwd, y)
     climbIn: { maxDx: 0.35, time: 0.8 },

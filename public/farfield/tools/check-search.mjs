@@ -4,7 +4,7 @@
 // data and code in node (ff-core, ff-rules, ff-level-s1, ff-script-s1, ff-level, ff-ai) and uses
 //   - FF.AI.see()          the ONE detection model (A6) the game runs, for every exposure test,
 //   - FF.AI.track()        the game's test for seeing the rabbit once alert (aim, chase), in the pursuit model,
-//   - FF.AI.build/sample() the searcher's entry and 44.85 s loop exactly as the game plays them,
+//   - FF.AI.build/sample() the searcher's entry and 47.85 s loop exactly as the game plays them,
 //   - FF.Level             the occluders, covers, cores and squeezes from FF.S1,
 //   - FF.RULES             every number (perception, reaction, aim, grab, touch, run speeds, the rabbit's moves).
 // So the game and the checker cannot drift. It reproduces the amended run's verdicts (search-sim-amended.txt): the hide audit,
@@ -160,10 +160,13 @@ function routes(mode) {
   { const tw = phaseStart('walk', 1, 1); S.push(R('E   arrival -> deck core while he walks N2 -> N3 (facing it)', (t, st) => ({ dir: st.x < 94.5 ? 1 : 0 }), tw + 2.0, 88.9, { until: x => x >= 94.5 })); }
   { const tw = phaseStart('walk', 3, 1); S.push(R('F   tailgates 2-3 m behind him walking N3 -> N1', (t, st) => { const h = searcherAt(t); return { dir: st.x < h.x - 2.4 ? 1 : 0 }; }, tw + 1.0, 97.0, { until: () => false })); }
   S.push(R('G   deck core -> gap in one go during the deck look', () => ({ dir: 1 }), tLook + 0.5, 95.0));
+  /* v2 review fixes: the short stepping stone at the cautious pace, deck core -> pallet core (5.55 m), leaving k s into his look */
+  const dp = []; for (let k = 0; k <= 4; k += 0.5) { const r = R('(scan) deck -> pallet leave ' + k, (t, st) => ({ dir: t > tLook + k && st.x < 102.2 ? 1 : 0 }), tLook - 2, 95.0, { until: x => x >= 102.2, fleeTo: 'pallet-B' }); dp.push([k, outcome(r) + (r.notice ? ' (NOTICE)' : ''), r.alert ? r.alert.d : null]); }
+  log('\nDECK -> PALLET scan (leave the deck core k s after the deck look starts, stop in the pallet core):', JSON.stringify(dp));
   const gs = []; for (let k = -4; k <= 4; k += 0.5) { const r = R('(scan) G leave ' + k, t => ({ dir: t > tLook + k ? 1 : 0 }), tLook - 5, 95.0); gs.push([k, r.alert ? outcome(r) : 'clean, max s ' + r.maxSuspicion + ', ' + (r.took - (5 + k)).toFixed(1) + ' s', r.alert ? r.alert.d : null]); }
   log('\nG scan (leave the deck core k s after the deck look starts, go to the gap):', JSON.stringify(gs));
   log('\nSCENARIOS (' + mode + ')'); for (const r of S) log(' ', r.name.padEnd(78), '|', outcome(r), r.notice ? '(NOTICE at ' + r.notice.t + ' s)' : '', '| took', r.took, 's');
-  return { a1, a2, gs, S };
+  return { a1, a2, gs, dp, S };
 }
 const RUNR = routes('RUN'), WALKR = routes('WALK');
 const { a1, a2, gs, S } = RUNR;
@@ -203,6 +206,11 @@ const WALL = [...WALKR.a1, ...WALKR.a2, ...WALKR.gs].map(([k, o, d]) => ({ k, o,
 const RALL = [...RUNR.a1, ...RUNR.a2, ...RUNR.gs].map(([k, o, d]) => ({ k, o, d })).concat(RUNR.S.map(r => ({ k: r.name, o: outcome(r), d: r.alert ? r.alert.d : null })));
 const bad = L => L.filter(e => /->(CAUGHT|SHOT)/.test(e.o));
 ck('WALK: A2 clean from 0.5 s after the crouch-look (the long window works at the cautious pace)', WALKR.a2.filter(([k]) => k >= 0.5).every(([, o]) => o.startsWith('clean')), WALKR.a2.filter(([k]) => k >= 0.5 && !WALKR.a2.find(a => a[0] === k)[1].startsWith('clean')));
+/* v2 review fixes (the deck look is 9.0 s): at the cautious walk, the main window works as staged. Leaving the deck core 0.5-2 s
+   into his look reaches the pallet core without even a NOTICE, and the deck -> skip crossing (A1, leaving 0.5 s in) is never
+   SPOTTED (a NOTICE at most) */
+ck('WALK: deck -> pallet core leaving 0.5-2 s into the look: no NOTICE', WALKR.dp.filter(([k]) => k >= 0.5 && k <= 2).every(([, o]) => o.startsWith('clean') && !/NOTICE/.test(o)), WALKR.dp);
+ck('WALK: A1 deck -> skip leaving 0.5 s into the look is never SPOTTED', outcome(WALKR.S.find(r => r.name.startsWith('A1 '))).startsWith('clean'), outcome(WALKR.S.find(r => r.name.startsWith('A1 '))));
 ck('WALK: E arrival -> deck core clean', outcome(WALKR.S.find(r => r.name.startsWith('E '))).startsWith('clean'), outcome(WALKR.S.find(r => r.name.startsWith('E '))));
 ck('WALK: every alert beyond the close-range rule (> ' + SI.dark.front + ' m) is survivable by running (Shift) at once', bad(WALL).every(e => e.d != null && e.d <= SI.dark.front), bad(WALL).filter(e => !(e.d != null && e.d <= SI.dark.front)));
 log('\nFAILURES (both modes; each is a deliberate mistake the design punishes: walking or running into his legs within the close-range rule, or leaving as he turns):');

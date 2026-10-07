@@ -1,10 +1,10 @@
-# Far Field: the characters (7 Oct 2026)
+# Far Field: the characters (7 Oct 2026; v2 review fixes the same evening)
 
 Your questions 3 and 4 after playing the preview: which parts of the rabbit and the people are temporary, what has to change to get the rabbit you described and grounded, unsettling people, and what you need to supply. Plain English first; the file names are there so anyone can check.
 
 ## In short
 
-- **Yes, both are temporary.** The rabbit you played is a stand-in built in code from about two dozen smooth egg shapes, each fixed rigidly to one bone. That is why it reads as separate rounded shapes. The people are one blocky stand-in figure (capsules and boxes), also posed in code.
+- **Yes, both are temporary.** The rabbit you played was a stand-in built in code from about two dozen smooth egg shapes, each fixed rigidly to one bone. That is why it read as separate rounded shapes, with a ring at the neck like a collar. **Since the v2 review fixes the stand-in is one connected body**: the same shapes melted into each other into a single smooth surface (no neck ring, the haunch flowing into the back, a hock and a long hind foot joined to the leg), skinned so the joins bend softly. It is still a stand-in: your model will have real anatomy. The people are one blocky stand-in figure (capsules and boxes), also posed in code.
 - **What was wrong with the movement, measured.** The old walk swung the legs on a simple wave while the body glided along at a steady speed. Nothing tied the feet to the ground: in the walk the "planted" hind feet slid along the ground at **0.8 m/s** while the body moved at 1.15 m/s. With the test model's run clip they slid at **2.7 m/s**. Walk and run were the same cycle, only bigger. That is the floating, the sliding feet and the stiff back legs you saw.
 - **What is better now** (today's fixes, in the game, with the placeholder models):
   - **The rabbit's feet stay where they land** (measured slide: about 0.00 m/s in the walk, run, crouch-walk and push). The hind legs gather under the body, push off, roll up onto the toes and extend behind, then recover. The forepaws land one after the other. The back curls as the hind feet come under and straightens as they push away. The cautious walk is a low, careful hop with the head carried forward; the run is a bound with two flights. Crouching lowers the head and shoulders first, then the hips. Standing, crouching and breathing fold the legs instead of sinking or lifting the feet.
@@ -16,7 +16,7 @@ Your questions 3 and 4 after playing the preview: which parts of the rabbit and 
 
 | part | now | status |
 |---|---|---|
-| Rabbit shape | built in code from about 24 smooth ellipsoids, each rigidly attached to one bone (`js/ff-rabbit.js`, `buildProcedural`) | **temporary**: replaced by your model |
+| Rabbit shape | built in code: about 24 ellipsoids blended into one connected surface at load (a smooth union, polygonised on a 4 mm grid, about 35,000 triangles), skinned softly across the joins; the ears and eyes separate (`js/ff-rabbit.js`, `buildProcedural`) | **temporary**: replaced by your model |
 | Rabbit skeleton | 25 bones with the names in `ASSETS-3D.md` | **stays**: your model uses the same names, so everything that drives it carries over |
 | Rabbit animation | all in code: the gaits (drawn from the movement code's timing), 20 poses (groom, sniff, nibble, sit up, look back, shake, settle, hide, freeze, peek, the reach at the wall, the climb, …), live ears, breathing, tail | **stays as the driver** until real clips arrive; each clip you add replaces the code for that moment |
 | Rabbit movement (`js/ff-player.js`) | speed, the new controls (arrows walk carefully, Shift runs, Down crouches), the gait timing | **stays**: it is gameplay |
@@ -74,15 +74,17 @@ Your questions 3 and 4 after playing the preview: which parts of the rabbit and 
 
 **In Tripo:**
 - **Best input: an image.** A clean side view of a wild European rabbit (not a pet breed) standing calmly on all four feet, on a plain background. A photo or a simple painting both work. Text-to-3D works too.
-- **Prompt (text, or alongside the image):** "a wild grey-brown European rabbit, natural anatomy, standing calmly on all four feet, side view, hind legs folded under the body with the long hind feet flat on the ground, short front legs straight down, ears upright and slightly apart, small round tail, mouth closed, realistic proportions, smooth simple surface, plain matte single colour, no clothes, no accessories".
+- **Prompt (text, or alongside the image):** "a wild European rabbit, natural anatomy (not a pet breed), standing calmly on all four feet, side view, hind legs folded under the body with the long hind feet flat on the ground, a small gap between the legs and the belly, short front legs straight down, ears upright and slightly apart, small round tail, mouth closed, realistic proportions, smooth simple surface, plain matte pale warm grey (#c4beb4) single colour, slightly darker eyes, no clothes, no accessories". (The colour matters: the game keeps the model's own colour, and the pale rabbit is what separates it from the charcoal scenes. If it comes out white or brown anyway, `rig.py` repaints it to `#c4beb4`.)
 - **Avoid:** sitting up on the haunches, a cartoon head or big eyes, an open mouth, ears touching each other or the back, legs merged together or into the belly, a tail fused to the thighs, fur cards or spikes, anything held or worn.
 - **The pose matters most:** a calm standing pose, symmetrical left to right, head straight ahead, all four feet flat on one ground level, a small gap between the legs and between the legs and the belly. The game treats this pose as "standing still" and measures every movement from it.
-- **Settings:** if Tripo offers a face limit or a low-poly option, about 10,000 to 20,000 faces (we bring it to 12,000 or fewer). A plain or base-colour texture only; the game replaces the shading and keeps the colour. No rig and no animation from Tripo.
+- **Settings:** if Tripo offers a face limit or a low-poly option, about 10,000 to 20,000 faces (we bring it to 12,000 or fewer). A plain or base-colour texture only; the game replaces the shading and keeps the colour (`rig.py` repaints it to the pale warm grey unless told not to). No rig and no animation from Tripo.
 - **Export:** `.glb`. Any size is fine: we scale it to 0.40 m.
 - **Quick check before sending:** turn it round once. One piece, no holes, four separate legs, two separate ears, nothing floating.
 - Send the file (or drop it in `farfield-look/`) with its name.
 
-**Here (Blender in the background, the lead's `rig.py`):** weld the mesh into one piece, scale it to 0.40 m nose to tail standing on the ground, build the `ASSETS-3D.md` skeleton inside it, compute automatic smooth weights (through a simplified copy if the generated mesh is messy), add an `idle_breathe` clip, export `public/farfield/models/ff_rabbit.glb`, name it in `models.json`. Then we look at it in the game, fix bad weights (usually the haunch and the ears), and tune the code animation to its proportions.
+**The rabbit you already made from your reference.** There is a Tripo model generated from your own reference image (`original_white_rabbit.glb`, rendered for you as "Your reference" / "Tripo model"). It is a good start: one connected, clean surface with the right anatomy (a big folded haunch, long hind feet lying flat and separate from the belly, slim separate forelegs, upright cupped ears, a round tail). What it is not: it is crouched rather than standing (fine, the game's rest pose is the same loaf), and its texture is white, not the pale warm grey (repainted in the rig step). It is being rigged here now as a test (`rabbit_v2_test.glb`); the hocks, where the leg folds hardest, are the part being checked (in the first test walk the skin there stretched up to about six times its length). **So you may not need to make another one**: we will tell you once the test is judged. Only if it fails: regenerate from the same image with the prompt above, asking for a standing pose and a little more room between the hind feet and the thighs.
+
+**Here (Blender in the background, `docs/farfield/tools/rig.py`; usage at the top of the file):** weld the mesh into one piece, scale it to 0.40 m nose to tail standing on the ground, build the `ASSETS-3D.md` skeleton inside it, compute automatic smooth weights (through a simplified copy if the generated mesh is messy), add an `idle_breathe` clip, export `public/farfield/models/ff_rabbit.glb`, name it in `models.json`. Then we look at it in the game, fix bad weights (usually the haunch and the ears), and tune the code animation to its proportions.
 
 **What it gets you:** the real silhouette straight away: one connected body, your proportions, in the game's matte look. All the behaviours, driven by the same code as now, with planted feet. Any hand-made clip can be dropped in later and wins over the code for that moment.
 **Its limits:** a generated mesh can need a second try (merged legs, lumpy ears, odd eyes). Automatic weights can crease at the haunch. Code animation has good timing but not a hand animator's weight and overlap.
@@ -103,7 +105,7 @@ A middle way: the Tripo mesh rigged here now, and an animator later animating th
 **1. In Tripo:** one figure (it serves all three roles).
 - Prompt: "a heavy-set adult worker in a long dark work coat reaching the knees, broad shoulders, a cap with a forward brim, heavy work boots, a backpack with a rolled sleeping mat on top, gloves, standing straight in an A-pose with the arms held out from the body, no face detail, no logos or text, matte dark charcoal, realistic proportions".
 - The A-pose (arms out and down at about 45°, legs slightly apart) is what Mixamo's automatic rigging needs. No torch or gun in the hands: we attach those here.
-- About 15,000 faces; export `.glb` or `.fbx` (Mixamo accepts `.fbx` and `.obj`; `.obj` with its texture zipped is safest).
+- About 15,000 faces; export **`.fbx`** from Tripo for Mixamo (Mixamo takes only `.fbx` or `.obj`; an `.obj` zipped with its texture works too). A `.glb` can't be uploaded to Mixamo.
 
 **2. In Mixamo** (mixamo.com, your Adobe login):
 - Upload the figure. In the automatic rigger place the markers (chin, wrists, elbows, knees, groin), keep symmetry on, and choose **Skeleton LOD: "No Fingers (25)"** (gloved hands, silhouettes).
@@ -154,7 +156,9 @@ Every number below comes from the real game (`index.html`, Sequence 1) in headle
 | the searcher's feet walking (1.0 m/s) | 2.8 m/s at their lowest, and floating 1.8 cm above the ground | 0.005 to 0.012 m/s, on the ground |
 | console | clean | clean, with both rabbits and the people |
 
-Not touched: the movement, the controls, what the people see and when they act, the camera, the light, the sound.
+The character changes did not alter gameplay: what the people see and when they act, the light and the sound are unchanged; the controls and the door reveal changed separately (`STATUS.md` §0).
+
+**v2 review fixes (the same evening):** the stand-in rabbit became one connected body (see §1). The feet now also stay planted across the changes between gaits, measured by height (a foot within 3 mm of the ground), not by the gait's own flags (`docs/farfield/tests/t-slide.mjs`, part of `run-all.sh`): steady walk 0.003 m/s, run 0.003 to 0.019, crouch-walk 0.009 (before: 0.006 to 0.36); stopping from a walk under 0.006 (before: the forepaws glided at 0.15 to 0.25 m/s; now a foot off its footprint steps onto it with a small lift); starting off 0.017 to 0.027 (before 0.12 to 0.16); stopping from a run 0.011 to 0.021 (before up to 0.23); walking into the hoarding no foot on the ground jumps more than 1.5 cm in a frame (before: 10.6 cm). Poses that only move the body (crouched, frozen, sniffing, hiding, the hesitation) keep the feet on the ground. Turning round still carries the feet a little (the legs bend in the body's own plane; a fraction of a second, mostly under a pixel). `rig.py` and `proxy.py` are now in `docs/farfield/tools/`.
 
 **Progress shots** (`farfield-look/progress/`; the close-ups move the game's own camera nearer after it frames, nothing else differs):
 - `chars-01-cautious-walk-closeup.jpg`, `chars-02-run-closeup.jpg`, `chars-04-crouch-head-first.jpg`, `chars-05-crouch-walk.jpg`: the stand-in rabbit.

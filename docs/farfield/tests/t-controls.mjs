@@ -72,6 +72,8 @@ try {
   R.run = { vmax: rmax, t95: r95 ? +(r95.t - run[0].t).toFixed(3) : null, backTo: back.at(-1).vx, backT: (() => { const q = back.find(s => s.vx <= 0.96); return q ? +(q.t - back[0].t).toFixed(3) : null; })(), gait: run.at(-1).g };
   ck('Shift + direction runs at 2.75 m/s (reached within 0.6 s)', Math.abs(rmax - 2.75) < 0.01 && R.run.t95 != null && R.run.t95 <= 0.6, R.run);
   ck('releasing Shift returns to the walk within 0.25 s', R.run.backTo <= 0.951 && R.run.backT != null && R.run.backT <= 0.25, R.run);
+  R.hintAfterRun = await b.ev('FF.UI.debug().hint');
+  ck('the "Shift run" hint goes once Shift has been used (v2 review)', R.hintAfterRun == null, R.hintAfterRun);
   let rworst = 0; for (let i = 1; i < run.length; i++) { const a = run[i - 1], c = run[i]; if (!a.g || !c.g || a.g.name !== 'run' || c.g.name !== 'run') continue; let dp = c.g.phase - a.g.phase; if (dp < 0) dp += 1; rworst = Math.max(rworst, Math.abs(dp * (a.g.stride + c.g.stride) / 2 - (c.x - a.x))); }
   R.runGait = { stride: R.run.gait.stride, cadence: R.run.gait.cadence, phaseVsDistWorst: +rworst.toFixed(5), liftMax: [Math.max(...run.map(s => s.g.lift[0])), Math.max(...run.map(s => s.g.lift[1]))], names: [...new Set(run.map(s => s.g.name))] };
   ck('run gait is a distinct cycle (longer stride, more lift) and follows distance', rworst < 0.002 && R.runGait.stride > 1.8 * R.walkGait.stride && R.runGait.liftMax[0] > 2 * R.walkGait.liftMax[0], R.runGait);
@@ -135,6 +137,51 @@ try {
   ck('spotted: a direction alone stays the cautious walk (no automatic flee)', R.search.state && R.search.noShift <= 0.951, R.search);
   ck('spotted: Shift + direction flees at 3.6 m/s', R.search.withShift >= 3.0, R.search);
   await T(120 * 3);
+
+  /* ---- v2 review fixes: a hop with a direction held leaps forward (it used to land short of the post from 0.35 m+) */
+  R.hops = [];
+  for (const d of [0.2, 0.35, 0.5, 0.7]) {
+    await b.ev(`__ff.warp({ x: 9.4, y: 0, face: 1 }); true`); await T(10);
+    await down('ArrowRight'); await U(`s.x + 0.16 >= ${10.8 - d}`, 120 * 4);
+    await down('Space'); await T(12); await up('Space');
+    const h = await U('s.x >= 11.4 && s.gr', 120 * 3); const blocked = await b.ev('FF.Player.debug().inv'); await up('ArrowRight'); await T(20);
+    R.hops.push({ noseFromPost: d, cleared: h.at(-1).x >= 11.4, x: h.at(-1).x, t: +(h.at(-1).t - h[0].t).toFixed(2) });
+  }
+  ck('a walking hop (a tap of Space) clears the fallen post from 0.2, 0.35 and 0.5 m away (from 0.7 m it lands against it: hop again)', R.hops.filter(q => q.noseFromPost <= 0.5).every(q => q.cleared && q.t < 1.5), R.hops);
+  await b.ev(`__ff.warp({ x: 60.0, y: 0, face: 1 }); true`); await T(10); await down('ArrowRight'); await T(120);
+  const x0 = (await T(1)).at(-1).x; await down('Space'); await T(12); await up('Space'); const land = await U('s.gr', 120 * 2); await up('ArrowRight'); await T(60);
+  R.walkHop = { distance: +(land.at(-1).x - x0).toFixed(3), peakVx: Math.max(...land.map(q => q.vx)) };
+  ck('a walking hop carries about 0.6-0.7 m (not straight up)', R.walkHop.distance >= 0.58 && R.walkHop.distance <= 0.75, R.walkHop);
+
+  /* ---- v2 review fixes: Shift held through a failure and the restart (a held modifier sends no new keydown): the next arrow
+     press, carrying the Shift modifier as a real keyboard's does, runs at once; the same after pause and resume */
+  await b.ev(`__ff.warp('search-platform'); true`); await T(30);
+  await down('ShiftLeft'); await T(10); await b.ev("FF.Events.fail('caught'); true");
+  const back2 = await U('s.control && s.mode === "play" && __ff.G.fade < 0.01', 120 * 4);
+  R.shiftRestart = { controlBack: back2.at(-1).control, rawRun: await b.ev("FF.Input.raw('run')") };
+  await down('ArrowLeft'); const sr = await T(96, 6); await up('ArrowLeft');
+  R.shiftRestart.vmax = Math.max(...sr.map(q => Math.abs(q.vx)));
+  ck('Shift held through a failure and restart: the next arrow runs (2.75 m/s)', R.shiftRestart.vmax >= 2.7, R.shiftRestart);
+  await T(30);
+  await down('ArrowLeft'); await T(30);
+  await down('Escape'); await up('Escape'); await b.ev('__ff.step(1); true'); R.pauseKeys = await b.ev(`(() => { const e = document.querySelector('#ui .pause .keys'); return { mode: __ff.G.mode, text: e ? e.textContent.replace(/\\s+/g, ' ').trim() : null } })()`);
+  await shot('controls-pause-keys', 'controls-v2-01-pause-shows-controls.jpg');
+  await down('Escape'); await up('Escape'); await T(4);
+  for (let i = 0; i < 18; i++) { await b.key('ArrowLeft', 'down', { autoRepeat: true }); await T(4); }
+  const pr = await T(20, 4); await up('ArrowLeft'); await up('ShiftLeft');
+  R.pauseResume = { vmax: Math.max(...pr.map(q => Math.abs(q.vx))), run: pr.at(-1).run };
+  ck('the pause screen shows the controls line', R.pauseKeys.mode === 'pause' && /Shift run/.test(R.pauseKeys.text || ''), R.pauseKeys);
+  ck('Shift + arrow held through pause and resume (the arrow auto-repeating) still runs', R.pauseResume.vmax >= 2.7, R.pauseResume);
+  await T(60);
+
+  /* ---- v2 review fixes: the Shift reminder on entering the Courtyard for a player who has not run for 60 s */
+  await b.ev(`__ff.warp('courtyard'); __ff.G.t += 120; true`); await T(10);
+  await down('ArrowRight'); const cr = await U("s.hint === 'run-again' || s.x >= 66", 120 * 12); await T(60); await up('ArrowRight');
+  R.courtHint = { shownAt: cr.at(-1).hint === 'run-again' ? cr.at(-1).x : null, events: (await b.ev('__T.hints')).slice(-3) };
+  await shot('controls-court-reminder', null);
+  ck('a player who has not run for 60 s gets the Shift reminder once in the Courtyard', R.courtHint.shownAt != null && R.courtHint.shownAt <= 66, R.courtHint);
+  await b.ev(`__ff.warp('courtyard'); __ff.G.t += 120; true`); await T(10); await down('ArrowRight'); const cr2 = await U("s.hint === 'run-again' || s.x >= 66", 120 * 12); await up('ArrowRight');
+  ck('the reminder shows only once', cr2.at(-1).hint !== 'run-again', cr2.at(-1).hint);
 
   /* ---- the cautious walk sustained for 30 s (Josh: "slow movement should remain available indefinitely"): a direction
      held from past the post along the Verge, over the hoarding, past the van and the gate, into the culvert and the pipe */

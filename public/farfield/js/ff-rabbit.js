@@ -27,7 +27,7 @@
      crouchHeld, run, squeeze, driven (the player drives the idles), pose, poseT, poseOut, poseData,
      ears {pL, pR, yL, yR, w}, head {yaw, pitch}, breath {hz, amp}, tailUp, flee, low, near ('L'|'R': the ear nearer the
      camera), add {startle, flinch, shake, shakeT, splash, sniff, twitchL, twitchR, lookBack, lookDir} }.
-   Poses (ProcAnim.POSES): groom, sniff, nibble, sit, lookup, look, lookback, shake, loaf, hide, watch, freeze, peek, rear,
+   Poses (ProcAnim.POSES): groom, sniff, nibble, sit, lookup, look, lookback, shake, loaf, hide, watch, prick, freeze, peek, rear,
      lookdown, hesitate, reach, climb, popout, flinch. The rabbit is never shown caught or hit: the game cuts to black on the
      frame of the grab or the shot ('caught' / 'hit' clips play under the black if a file has them; nothing needs them). */
 'use strict';
@@ -73,6 +73,19 @@ function boneTable() {
 FF.RABBIT_BONES = boneTable().map(b => b[0]);
 
 /* ------------------------------------------------------------------ the procedural mesh */
+/* v2 review fixes (Josh's playtest point 3: "his body still looks like separate rounded shapes"): the body, head and legs are
+   ONE connected surface. The same ellipsoids as before are blended into each other (a smooth union of their distance fields,
+   wide over the torso, neck and head, narrow at the legs, so no ring reads at the neck and the haunch and feet join the body)
+   and polygonised once at load (naive surface nets on a 4 mm grid, normals from the field). Each vertex is skinned to the
+   bones of the parts it lies on, softly where parts blend, so the joins bend smoothly. To keep the folded hind foot from
+   fusing with the thigh it rests under, the surface is built (and bound) with the legs a little extended; at rest the legs
+   fold back into the loaf. The ears and eyes stay separate ellipsoids (the ears on their three bones each). One draw call. */
+const EXT = { hind_upper: 0, hind_lower: -0.6, hind_foot: 0.6, front_upper: 0, front_lower: 0, front_paw: 0 };   // the bind pose's leg rotations (x): the hock opened, the foot ~3 cm clear of the haunch
+function sdEll(px, py, pz, rx, ry, rz) {   // an ellipsoid's (bound) distance (IQ): good near the surface
+  const k0 = Math.hypot(px / rx, py / ry, pz / rz), k1 = Math.hypot(px / (rx * rx), py / (ry * ry), pz / (rz * rz));
+  return k1 > 1e-9 ? k0 * (k0 - 1) / k1 : -Math.min(rx, ry, rz);
+}
+const smin = (a, b, k) => { const h = Math.max(k - Math.abs(a - b), 0) / k; return Math.min(a, b) - h * h * k * 0.25; };
 function buildProcedural(L, opt) {
   const detail = (opt && opt.detail) || 1, sg = n => Math.max(6, Math.round(n * detail));
   const table = boneTable(), bones = [], byName = {}, world = {};
@@ -85,7 +98,13 @@ function buildProcedural(L, opt) {
   const C = k => FF.lin(L.materials[k].color);
   const body = C('rabbit'), eye = C('eye'), inner = C('innerEar'), tailC = body.clone().lerp(new T.Color(1, 1, 1), 0.25);
   const P = [], N = [], COL = [], SI = [], SW = [], IDX = [];
-  /* an ellipsoid on one bone (or an ear spread over three) */
+  /* the bind pose: the legs a little extended (EXT); every other bone at rest */
+  const root = new T.Object3D(); root.add(bones[0]);
+  const ext = (opt && opt.ext) || EXT;
+  const setExt = on => { for (const [nm] of table) { const m = /^(hind_upper|hind_lower|hind_foot|front_upper|front_lower|front_paw)_/.exec(nm); if (m) byName[nm].rotation.x = on ? ext[m[1]] : 0; } root.updateMatrixWorld(true); };
+  setExt(false); const restW = {}; for (const [nm] of table) restW[nm] = byName[nm].matrixWorld.clone();
+  setExt(true);
+  /* an ellipsoid on one bone (or an ear spread over three), as triangles (the ears and the eyes) */
   function part(c, r, opt) {
     opt = opt || {};
     const g = new T.SphereGeometry(1, sg(opt.seg || 16), sg(opt.segH || 12));
@@ -109,25 +128,103 @@ function buildProcedural(L, opt) {
     }
     const gi = g.index.array; for (let i = 0; i < gi.length; i++) IDX.push(base + gi[i]);
   }
+  /* the connected body: [centre, radii, rotation x, bone, blend radius k (how softly it joins what it touches), colour] */
+  const B = [
+    [[0, 0.1, -0.086], [0.068, 0.072, 0.086], 0, 'hips', 0.024],                 // haunch
+    [[0, 0.1, -0.012], [0.057, 0.061, 0.085], 0, 'spine', 0.024],                // belly / back
+    [[0, 0.106, 0.058], [0.05, 0.057, 0.056], 0, 'chest', 0.024],                // chest
+    [[0, 0.142, 0.096], [0.038, 0.045, 0.04], 0, 'neck', 0.026],                 // neck (fuller than the old ring, and blended)
+    [[0, 0.186, 0.142], [0.039, 0.041, 0.053], 0.28, 'head', 0.022],             // head
+    [[0, 0.172, 0.184], [0.025, 0.025, 0.027], 0, 'head', 0.014],                // muzzle
+    [[0, 0.104, -0.168], [0.026, 0.026, 0.024], 0, 'tail', 0.012, 'tail'],       // tail
+  ];
+  for (const [s, n] of [[1, 'L'], [-1, 'R']]) B.push(
+    [[s * 0.021, 0.17, 0.158], [0.022, 0.02, 0.025], 0, 'head', 0.012],          // cheek
+    [[s * 0.043, 0.086, -0.076], [0.031, 0.058, 0.071], -0.25, 'hind_upper_' + n, 0.016],   // thigh
+    [[s * 0.05, 0.038, -0.094], [0.017, 0.034, 0.024], 0, 'hind_lower_' + n, 0.018],      // shin / hock (fuller: it joins the haunch to the heel)
+    [[s * 0.049, 0.022, -0.108], [0.016, 0.022, 0.022], 0, 'hind_foot_' + n, 0.012],      // heel
+    [[s * 0.049, 0.014, -0.068], [0.016, 0.014, 0.058], 0, 'hind_foot_' + n, 0.012],      // long hind foot
+    [[s * 0.03, 0.072, 0.086], [0.016, 0.034, 0.018], 0, 'front_upper_' + n, 0.012],      // foreleg
+    [[s * 0.03, 0.034, 0.091], [0.012, 0.028, 0.013], 0, 'front_lower_' + n, 0.007],
+    [[s * 0.03, 0.011, 0.1], [0.014, 0.011, 0.022], 0, 'front_paw_' + n, 0.006]);        // paw
+  /* each part in the bind pose: its world matrix there = bone(bind) * bone(rest)^-1 * part(rest); keep the inverse */
+  const PT = B.map(([c, r, rx, bone, k, tag]) => {
+    const mRest = new T.Matrix4().compose(new T.Vector3(c[0], c[1], c[2]), new T.Quaternion().setFromEuler(new T.Euler(rx, 0, 0)), new T.Vector3(1, 1, 1));
+    const m = byName[bone].matrixWorld.clone().multiply(restW[bone].clone().invert()).multiply(mRest), inv = m.clone().invert(), e = inv.elements, ctr = new T.Vector3().setFromMatrixPosition(m);
+    const ext = Math.max(r[0], r[1], r[2]) + k;
+    return { r, bone: idx(bone), k, tail: tag === 'tail', e, lo: [ctr.x - ext, ctr.y - ext, ctr.z - ext], hi: [ctr.x + ext, ctr.y + ext, ctr.z + ext] };
+  });
+  const dPart = (q, x, y, z) => { const e = q.e; return sdEll(e[0] * x + e[4] * y + e[8] * z + e[12], e[1] * x + e[5] * y + e[9] * z + e[13], e[2] * x + e[6] * y + e[10] * z + e[14], q.r[0], q.r[1], q.r[2]); };
+  const field = (x, y, z) => { let f = 1; for (const q of PT) f = smin(f, dPart(q, x, y, z), q.k); return f; };
+  /* the field on a grid, part by part inside its own box (most of the grid is far from everything) */
+  const h = 0.004 / detail, lo = [Infinity, Infinity, Infinity], hi = [-Infinity, -Infinity, -Infinity];
+  for (const q of PT) for (let a = 0; a < 3; a++) { lo[a] = Math.min(lo[a], q.lo[a]); hi[a] = Math.max(hi[a], q.hi[a]); }
+  for (let a = 0; a < 3; a++) { lo[a] -= 2 * h; hi[a] += 2 * h; }
+  const nx = Math.ceil((hi[0] - lo[0]) / h) + 1, ny = Math.ceil((hi[1] - lo[1]) / h) + 1, nz = Math.ceil((hi[2] - lo[2]) / h) + 1;
+  const F = new Float32Array(nx * ny * nz).fill(1), gi3 = (i, j, k) => i + nx * (j + ny * k);
+  for (const q of PT) {
+    const i0 = Math.max(0, Math.floor((q.lo[0] - lo[0]) / h)), i1 = Math.min(nx - 1, Math.ceil((q.hi[0] - lo[0]) / h));
+    const j0 = Math.max(0, Math.floor((q.lo[1] - lo[1]) / h)), j1 = Math.min(ny - 1, Math.ceil((q.hi[1] - lo[1]) / h));
+    const k0 = Math.max(0, Math.floor((q.lo[2] - lo[2]) / h)), k1 = Math.min(nz - 1, Math.ceil((q.hi[2] - lo[2]) / h));
+    for (let k = k0; k <= k1; k++) for (let j = j0; j <= j1; j++) for (let i = i0; i <= i1; i++) { const n = gi3(i, j, k); F[n] = smin(F[n], dPart(q, lo[0] + i * h, lo[1] + j * h, lo[2] + k * h), q.k); }
+  }
+  /* naive surface nets: one vertex per cell the surface crosses (the mean of its edge crossings), one quad per crossed edge */
+  const cw = nx - 1, ch = ny - 1, cell = new Int32Array(cw * ch * (nz - 1)).fill(-1), V = [];
+  const EDGES = [[0, 1], [2, 3], [4, 5], [6, 7], [0, 2], [1, 3], [4, 6], [5, 7], [0, 4], [1, 5], [2, 6], [3, 7]];
+  const cv = new Float32Array(8);
+  for (let k = 0; k < nz - 1; k++) for (let j = 0; j < ny - 1; j++) for (let i = 0; i < nx - 1; i++) {
+    let neg = 0;
+    for (let c = 0; c < 8; c++) { cv[c] = F[gi3(i + (c & 1), j + ((c >> 1) & 1), k + ((c >> 2) & 1))]; if (cv[c] < 0) neg++; }
+    if (neg === 0 || neg === 8) continue;
+    let sx = 0, sy = 0, sz = 0, n = 0;
+    for (const [a, b] of EDGES) {
+      const va = cv[a], vb = cv[b]; if ((va < 0) === (vb < 0)) continue;
+      const t = va / (va - vb);
+      sx += (a & 1) + (((b & 1) - (a & 1)) * t); sy += ((a >> 1) & 1) + ((((b >> 1) & 1) - ((a >> 1) & 1)) * t); sz += ((a >> 2) & 1) + ((((b >> 2) & 1) - ((a >> 2) & 1)) * t); n++;
+    }
+    cell[i + cw * (j + ch * k)] = V.length / 3;
+    V.push(lo[0] + (i + sx / n) * h, lo[1] + (j + sy / n) * h, lo[2] + (k + sz / n) * h);
+  }
+  const Q = [], cid = (i, j, k) => cell[i + cw * (j + ch * k)];
+  for (let k = 1; k < nz - 1; k++) for (let j = 1; j < ny - 1; j++) for (let i = 1; i < nx - 1; i++) {
+    const v0 = F[gi3(i, j, k)] < 0;
+    if (i < nx - 1 && v0 !== (F[gi3(i + 1, j, k)] < 0)) Q.push([cid(i, j - 1, k - 1), cid(i, j, k - 1), cid(i, j, k), cid(i, j - 1, k)]);
+    if (j < ny - 1 && v0 !== (F[gi3(i, j + 1, k)] < 0)) Q.push([cid(i - 1, j, k - 1), cid(i, j, k - 1), cid(i, j, k), cid(i - 1, j, k)]);
+    if (k < nz - 1 && v0 !== (F[gi3(i, j, k + 1)] < 0)) Q.push([cid(i - 1, j - 1, k), cid(i, j - 1, k), cid(i, j, k), cid(i - 1, j, k)]);
+  }
+  /* normals from the field's gradient; skin weights from how close each vertex is to each part's surface; colour */
+  const base = P.length / 3, nv = V.length / 3, eps = h * 0.5, NV = new Float32Array(nv * 3);
+  for (let v = 0; v < nv; v++) {
+    const x = V[3 * v], y = V[3 * v + 1], z = V[3 * v + 2];
+    let gx = field(x + eps, y, z) - field(x - eps, y, z), gy = field(x, y + eps, z) - field(x, y - eps, z), gz = field(x, y, z + eps) - field(x, y, z - eps);
+    const gl = Math.hypot(gx, gy, gz) || 1; gx /= gl; gy /= gl; gz /= gl; NV[3 * v] = gx; NV[3 * v + 1] = gy; NV[3 * v + 2] = gz;
+    P.push(x, y, z); N.push(gx, gy, gz);
+    const wb = new Map(); let tailW = 0, wsum = 0;
+    for (const q of PT) {
+      const d = Math.max(0, dPart(q, x, y, z)), sgm = Math.max(0.003, q.k * 0.55), w = Math.exp(-(d / sgm) * (d / sgm));
+      if (w < 1e-4) continue; wb.set(q.bone, (wb.get(q.bone) || 0) + w); wsum += w; if (q.tail) tailW += w;
+    }
+    const top = [...wb.entries()].sort((a, b) => b[1] - a[1]).slice(0, 4), ts = top.reduce((a, e) => a + e[1], 0) || 1;
+    const col = tailW > 0 ? body.clone().lerp(tailC, clamp(tailW / (wsum || 1), 0, 1)) : body;
+    COL.push(col.r, col.g, col.b);
+    SI.push(...[0, 1, 2, 3].map(i => top[i] ? top[i][0] : 0)); SW.push(...[0, 1, 2, 3].map(i => top[i] ? top[i][1] / ts : 0));
+  }
+  /* two triangles per quad, wound to face out along the field's gradient */
+  for (const q of Q) {
+    if (q.some(c => c < 0)) continue;
+    for (const [a, b, c] of [[q[0], q[1], q[2]], [q[0], q[2], q[3]]]) {
+      const ax = V[3 * a], ay = V[3 * a + 1], az = V[3 * a + 2], ux = V[3 * b] - ax, uy = V[3 * b + 1] - ay, uz = V[3 * b + 2] - az, wx = V[3 * c] - ax, wy = V[3 * c + 1] - ay, wz = V[3 * c + 2] - az;
+      const fx = uy * wz - uz * wy, fy = uz * wx - ux * wz, fz = ux * wy - uy * wx;
+      const gx = NV[3 * a] + NV[3 * b] + NV[3 * c], gy = NV[3 * a + 1] + NV[3 * b + 1] + NV[3 * c + 1], gz = NV[3 * a + 2] + NV[3 * b + 2] + NV[3 * c + 2];
+      if (fx * gx + fy * gy + fz * gz >= 0) IDX.push(base + a, base + b, base + c); else IDX.push(base + a, base + c, base + b);
+    }
+  }
+  /* the ears and the eyes stay separate (built in the bind pose: their bones are at rest in it) */
   const b = idx;
-  part([0, 0.1, -0.086], [0.068, 0.072, 0.086], { bone: b('hips'), seg: 20, segH: 14 });             // haunch
-  part([0, 0.1, -0.012], [0.057, 0.061, 0.085], { bone: b('spine'), seg: 18 });                        // belly / back
-  part([0, 0.106, 0.058], [0.05, 0.057, 0.056], { bone: b('chest') });                                  // chest
-  part([0, 0.146, 0.098], [0.034, 0.04, 0.036], { bone: b('neck'), seg: 12, segH: 10 });               // neck
-  part([0, 0.186, 0.142], [0.039, 0.041, 0.053], { bone: b('head'), rx: 0.28 });                      // head
-  part([0, 0.172, 0.184], [0.025, 0.025, 0.027], { bone: b('head'), seg: 12, segH: 10 });              // muzzle
-  part([0, 0.104, -0.168], [0.026, 0.026, 0.024], { bone: b('tail'), seg: 12, segH: 10, col: tailC }); // tail
   for (const [s, n] of [[1, 'L'], [-1, 'R']]) {
-    part([s * 0.021, 0.17, 0.158], [0.022, 0.02, 0.025], { bone: b('head'), seg: 12, segH: 10 });      // cheek
     part([s * 0.031, 0.196, 0.163], [0.0085, 0.0095, 0.0085], { bone: b('head'), seg: 10, segH: 8, col: eye }); // eye
     const eb = earBase(s), ea = earAxis(s), ec = eb.clone().addScaledVector(ea, EAR_LEN / 2);
     part(ec.toArray(), [0.0072, EAR_LEN / 2, 0.019], { ear: { side: s, bones: [b('ear_' + n + '_01'), b('ear_' + n + '_02'), b('ear_' + n + '_03')] }, rx: -EAR_TILT, rz: -s * EAR_SPREAD, seg: 12, segH: 14 });
-    part([s * 0.043, 0.086, -0.076], [0.031, 0.058, 0.071], { bone: b('hind_upper_' + n), rx: -0.25 }); // thigh
-    part([s * 0.05, 0.036, -0.092], [0.013, 0.03, 0.02], { bone: b('hind_lower_' + n), seg: 10, segH: 8 }); // shin
-    part([s * 0.049, 0.013, -0.068], [0.016, 0.013, 0.058], { bone: b('hind_foot_' + n), seg: 12, segH: 8 }); // long hind foot
-    part([s * 0.03, 0.072, 0.086], [0.016, 0.034, 0.018], { bone: b('front_upper_' + n), seg: 10, segH: 8 }); // foreleg
-    part([s * 0.03, 0.034, 0.091], [0.012, 0.028, 0.013], { bone: b('front_lower_' + n), seg: 10, segH: 8 });
-    part([s * 0.03, 0.011, 0.1], [0.014, 0.011, 0.022], { bone: b('front_paw_' + n), seg: 10, segH: 8 });  // paw
   }
   const g = new T.BufferGeometry();
   g.setAttribute('position', new T.Float32BufferAttribute(P, 3)); g.setAttribute('normal', new T.Float32BufferAttribute(N, 3));
@@ -136,9 +233,11 @@ function buildProcedural(L, opt) {
   g.setIndex(IDX); g.computeBoundingSphere();
   const mat = rabbitMaterial(L, { vertexColors: true });
   const mesh = new T.SkinnedMesh(g, mat); mesh.name = 'rabbit_body';
-  mesh.add(bones[0]); mesh.updateMatrixWorld(true); mesh.bind(new T.Skeleton(bones));
+  /* bind in the extended pose, then let the legs fold back to rest */
+  root.remove(bones[0]); mesh.add(bones[0]); setExt(true); mesh.updateMatrixWorld(true); mesh.bind(new T.Skeleton(bones));
+  for (const [nm] of table) byName[nm].rotation.set(0, 0, 0); mesh.updateMatrixWorld(true);
   mesh.castShadow = true; mesh.receiveShadow = true; mesh.frustumCulled = false;
-  return { mesh, bones: byName, rest: Object.fromEntries(Object.entries(byName).map(([k, v]) => [k, v.position.clone()])) };
+  return { mesh, bones: byName, rest: Object.fromEntries(Object.entries(byName).map(([k, v]) => [k, v.position.clone()])), info: { verts: P.length / 3, tris: IDX.length / 3, grid: [nx, ny, nz] } };
 }
 
 /* the rabbit's material: the shared matte look (FF.mat) plus two live uniforms of its own, shared by every rabbit material
@@ -218,21 +317,21 @@ const POSES = {
     stand(o); const e = sstep(0, 0.3, t);
     o.neck = lerp(0.02, -0.34, e); o.head = lerp(-0.05, -0.62, e) + nose(t, 0.035); o.pitch = -0.06 * e; o.rootZ = 0.008 * e; o.fL = 0.12 * e; o.fR = 0.04 * e;
     o.earL = o.earR = 0.12; o.headYaw = (d && d.yaw) || 0;
-    return { earLock: 0.3, headLock: 0.85 };
+    return { earLock: 0.3, headLock: 0.85, feetLock: 1 };
   },
   /* eats a few blades of grass and clover: head down, chewing */
   nibble(t, o) {
     stand(o); const e = sstep(0, 0.35, t);
     o.neck = lerp(0.02, -0.4, e); o.head = lerp(-0.05, -0.74, e) + 0.045 * Math.sin(TAU * 4.6 * t) * e; o.headRoll = 0.035 * Math.sin(TAU * 2.3 * t) * e;
     o.pitch = -0.07 * e; o.rootZ = 0.01 * e; o.earL = o.earR = -0.12; o.earSL = o.earSR = 0.08;
-    return { earLock: 0.6, headLock: 0.9 };
+    return { earLock: 0.6, headLock: 0.9, feetLock: 1 };
   },
   /* sits up on the haunches to listen; the ears stay live (they turn to the sound) */
   sit(t, o) { stand(o); o.sit = 1; o.head = 0.08; o.neck = 0.05; o.fL = o.fR = 0.25; o.fkL = o.fkR = 0.45; o.earL = o.earR = 0.16; o.head += nose(t, 0.012, 6); return { earLock: 0, headLock: 0.3 }; },
   /* a long look up at the hall */
   lookup(t, o) { stand(o); o.sit = 0.72; o.head = 0.62; o.neck = 0.26; o.fL = o.fR = 0.2; o.fkL = o.fkR = 0.4; o.earL = o.earR = 0.12; return { earLock: 0.2, headLock: 1 }; },
   /* look at something (d.yaw, d.pitch: head turn and tilt) */
-  look(t, o, d) { stand(o); o.headYaw = (d && d.yaw) || 0; o.head = -0.05 + ((d && d.pitch) || 0); o.neck = 0.05; o.headRoll = 0.12 * ((d && d.yaw) || 0); o.earL = o.earR = 0.14; return { earLock: 0, headLock: 1 }; },
+  look(t, o, d) { stand(o); o.headYaw = (d && d.yaw) || 0; o.head = -0.05 + ((d && d.pitch) || 0); o.neck = 0.05; o.headRoll = 0.12 * ((d && d.yaw) || 0); o.earL = o.earR = 0.14; return { earLock: 0, headLock: 1, feetLock: 1 }; },
   /* look back over the shoulder (d.dir: +1 towards the rabbit's left, -1 its right) */
   lookback(t, o, d) {
     stand(o); const dir = (d && d.dir) || -1, e = sstep(0, 0.3, t) * (d && d.dur ? 1 - sstep(d.dur - 0.3, d.dur, t) : 1);
@@ -258,19 +357,28 @@ const POSES = {
     return { earLock: 1, headLock: 0.7 };
   },
   /* pressed flat under cover, ears down, still apart from breathing */
-  hide(t, o) { low(o, 0.046); o.spine = 0.22; o.neck = -0.15; o.head = 0.05; o.earL = o.earR = -1.25; o.earBL = o.earBR = 0.22; return { earLock: 0.8, headLock: 0.6 }; },
+  hide(t, o) { low(o, 0.046); o.spine = 0.22; o.neck = -0.15; o.head = 0.05; o.earL = o.earR = -1.25; o.earBL = o.earBR = 0.22; return { earLock: 0.8, headLock: 0.6, feetLock: 1 }; },
   /* stops dead, tense; the ears stay live on the threat */
-  freeze(t, o) { stand(o); o.rootY = -0.008; o.spine = -0.04; o.neck = 0.06; o.head = 0.02; o.tail = 0.0; return { earLock: 0, headLock: 0.4 }; },
+  freeze(t, o) { stand(o); o.rootY = -0.008; o.spine = -0.04; o.neck = 0.06; o.head = 0.02; o.tail = 0.0; return { earLock: 0, headLock: 0.4, feetLock: 1 }; },
   /* watching from cover that is not low (under the deck): crouched, still, head up; the ears stay live on the threat */
-  watch(t, o) { low(o, 0.026); o.neck = 0.08; o.head = 0.1; o.spine = 0.14; o.earL = o.earR = -0.35; o.earBL = o.earBR = 0.04; return { earLock: 0, headLock: 0.3 }; },
+  watch(t, o) { low(o, 0.026); o.neck = 0.08; o.head = 0.1; o.spine = 0.14; o.earL = o.earR = -0.35; o.earBL = o.earBR = 0.04; return { earLock: 0, headLock: 0.3, feetLock: 1 }; },
+  /* the door reveal under a low shelf (headroom ~0.30 m, no room to sit up): it hears the footsteps, lifts its head and
+     neck as far as the shelf allows, pricks its ears up from flat towards the sound and stiffens, leaning a little forward
+     (0.18 s to get there); the live ears and head keep turning to the sound */
+  prick(t, o) {
+    const e = sstep(0, 0.18, t); low(o, lerp(0.03, 0.014, e));
+    o.rootZ = 0.012 * e; o.spine = lerp(0.2, 0.06, e); o.neck = lerp(-0.12, 0.24, e); o.head = lerp(0.02, 0.22, e) + nose(t, 0.008, 6);
+    o.earL = o.earR = lerp(-1.18, -0.4, e); o.earSL = o.earSR = 0.03; o.earBL = o.earBR = 0.05; o.tail = 0.06 * e;
+    return { earLock: 0.8, headLock: 0.7, feetLock: 1 };
+  },
   /* at the edge of cover: head forward, body back */
-  peek(t, o) { low(o, 0.03); o.rootZ = 0.022; o.neck = 0.1; o.head = 0.12 + nose(t, 0.012); o.earL = o.earR = -0.55; o.earBL = o.earBR = 0.05; return { earLock: 0.5, headLock: 0.5 }; },
+  peek(t, o) { low(o, 0.03); o.rootZ = 0.022; o.neck = 0.1; o.head = 0.12 + nose(t, 0.012); o.earL = o.earR = -0.55; o.earBL = o.earBR = 0.05; return { earLock: 0.5, headLock: 0.5, feetLock: 1 }; },
   /* at the post: rears a little and sniffs the top */
   rear(t, o) { stand(o); const e = sstep(0, 0.3, t); o.sit = 0.48 * e; o.pitch = 0.08 * e; o.head = 0.22 * e + nose(t, 0.03); o.neck = 0.1 * e; o.fL = 0.75 * e; o.fR = 0.6 * e; o.fkL = o.fkR = 0.65 * e; o.earL = o.earR = 0.2; return { earLock: 0.4, headLock: 0.9 }; },
   /* at an edge: leans out, looks down, sniffs */
-  lookdown(t, o) { stand(o); const e = sstep(0, 0.35, t); o.pitch = -0.1 * e; o.rootZ = 0.028 * e; o.neck = -0.3 * e; o.head = -0.42 * e + nose(t, 0.025); o.fL = 0.35 * e; o.fR = 0.25 * e; o.earL = o.earR = 0.24; return { earLock: 0.5, headLock: 1 }; },
+  lookdown(t, o) { stand(o); const e = sstep(0, 0.35, t); o.pitch = -0.1 * e; o.rootZ = 0.028 * e; o.neck = -0.3 * e; o.head = -0.42 * e + nose(t, 0.025); o.fL = 0.35 * e; o.fR = 0.25 * e; o.earL = o.earR = 0.24; return { earLock: 0.5, headLock: 1, feetLock: 1 }; },
   /* the first squeeze: a short hesitation, head forward into the gap */
-  hesitate(t, o) { low(o, 0.016); o.rootZ = 0.02; o.neck = -0.1; o.head = -0.04 + nose(t, 0.03, 8); o.earL = o.earR = -0.5; o.spine = 0.1; return { earLock: 0.6, headLock: 0.8 }; },
+  hesitate(t, o) { low(o, 0.016); o.rootZ = 0.02; o.neck = -0.1; o.head = -0.04 + nose(t, 0.03, 8); o.earL = o.earR = -0.5; o.spine = 0.1; return { earLock: 0.6, headLock: 0.8, feetLock: 1 }; },
   /* the reach-fail: stretched up the wall, front paws scrabbling below the sill, then sliding back (0.5 s) */
   reach(t, o) {
     stand(o); const e = sstep(0, 0.08, t) * (1 - sstep(0.38, 0.5, t)), sc = Math.sin(TAU * 11 * t);
@@ -293,7 +401,7 @@ const POSES = {
     return { earLock: 0.8, headLock: 1 };
   },
   /* the only "caught/hit" beat there is: a flinch (the game cuts to black on the same frame) */
-  flinch(t, o) { low(o, 0.03); o.spine = 0.18; o.neck = -0.14; o.head = -0.12; o.earL = o.earR = -1.25; o.fL = o.fR = 0.3; return { earLock: 1, headLock: 1 }; },
+  flinch(t, o) { low(o, 0.03); o.spine = 0.18; o.neck = -0.14; o.head = -0.12; o.earL = o.earR = -1.25; o.fL = o.fR = 0.3; return { earLock: 1, headLock: 1, feetLock: 1 }; },
 };
 const POSE_IN = { shake: 0.08, reach: 0.06, climb: 0.08, popout: 0.08, flinch: 0.05, hesitate: 0.1, startle: 0.05 };
 
@@ -349,6 +457,9 @@ function heelFor(toe, th, hip) {
 }
 const STAND_O = (() => { const o = {}; for (const c of ['rootY', 'rootZ', 'pitch', 'spine', 'sit', 'fL', 'fR', 'fkL', 'fkR', 'hL', 'hR', 'hkL', 'hkR', 'hfL', 'hfR']) o[c] = 0; o.hL = o.hR = 0.25; return o; })();
 const STAND = legFK(STAND_O);   // the standing pose's footprints: idle and crouched feet stay on these
+/* the four feet, keyed as the gait's windows, with their IK channels and their standing footprint [y, z] */
+const FOOTK = [['hindL', 'h', 'L'], ['hindR', 'h', 'R'], ['foreL', 'f', 'L'], ['foreR', 'f', 'R']];
+const STANDF = {}; for (const [k, e, n] of FOOTK) STANDF[k] = e === 'h' ? STAND['h' + n].toe.slice() : STAND['f' + n].wrist.slice();
 
 /* the gait's timing when the player gives none (tools/bake-rabbit.html, a bare test): the windows of ff-player.js's GAITS.
    Phase 0 = the hind feet touch down; each foot is planted inside its window [on, off] (off may run past 1). */
@@ -381,9 +492,9 @@ function endLift(ws, p, cad, k, cap, dip) {
    u = swing progress (-1 while planted). */
 function footPath(w, p, stride, c) {
   const dur = Math.max(0.02, w[1] - w[0]), zTd = c + stride * dur / 2, zLo = c - stride * dur / 2;
-  for (const j of [0, 1, -1]) { const q = p + j; if (q >= w[0] && q < w[1]) return { z: zTd - stride * (q - w[0]), s: (q - w[0]) / dur, u: -1 }; }
-  for (const j of [0, 1, -1]) { const q = p + j; if (q >= w[1] && q < w[0] + 1) { const u = (q - w[1]) / Math.max(0.02, w[0] + 1 - w[1]); return { z: zLo + (zTd - zLo) * smoother(u), s: 1, u }; } }
-  return { z: c, s: 0, u: -1 };
+  for (const j of [0, 1, -1]) { const q = p + j; if (q >= w[0] && q < w[1]) return { z: zTd - stride * (q - w[0]), s: (q - w[0]) / dur, u: -1, zTd }; }
+  for (const j of [0, 1, -1]) { const q = p + j; if (q >= w[1] && q < w[0] + 1) { const u = (q - w[1]) / Math.max(0.02, w[0] + 1 - w[1]); return { z: zLo + (zTd - zLo) * smoother(u), s: 1, u, zTd }; } }
+  return { z: c, s: 0, u: -1, zTd };
 }
 /* targets, premultiplied by the IK weight (layers are summed by weight; apply() divides by the summed weight) */
 function standTargets(o, ik) {
@@ -410,10 +521,41 @@ function ProcAnim(rig, opt) {
     /* driven layers */
     pw: {}, pt: {}, cur: null, br: 0, hz: 1, amp: 1, ear: { pL: 0.06, pR: 0.06, yL: -0.45, yR: 0.45 }, hy: 0, hp: 0, tail: 0, flee: 0, low: 0,
     footfall: 0, G: null,
+    /* v2 review fixes: where each foot is when the rabbit is not walking (body space [y, z]); planted feet move back exactly as
+       far as the body moves on; coming to a stop, a foot off its footprint steps onto it with a small lift (never a glide) */
+    feet: null, gaitFeet: null, gf: null, gaitOn: false, travel: 0, dt: 0,
   };
+  const freshFeet = () => { const F = {}; for (const [k] of FOOTK) F[k] = { y: STANDF[k][0], z: STANDF[k][1], step: null }; return F; };
+  st.feet = freshFeet();
+  /* keep the still feet planted while the body moves; take the gait's feet while it walks; step onto the footprints when still */
+  function feetTrack(dt, travel, still) {
+    const F = st.feet;
+    if (st.gaitFeet && st.w.gait > 0.6) for (const [k] of FOOTK) { F[k].y = st.gaitFeet[k][0]; F[k].z = st.gaitFeet[k][1]; F[k].step = null; }
+    for (const [k] of FOOTK) if (!F[k].step) F[k].z -= travel;
+    /* a foot still in the air when the rabbit stops comes down onto its footprint at once; feet on the ground step one per end */
+    if (still) for (const [k] of FOOTK) { const f = F[k]; if (!f.step && f.y - STANDF[k][0] > 0.004) f.step = { y0: f.y, z0: f.z, t: 0, dur: 0.14, lift: 0.004 }; }
+    if (still) for (const end of ['hind', 'fore']) {
+      const ks = [end + 'L', end + 'R']; if (ks.some(k => F[k].step)) continue;
+      let best = null, bd = 0; for (const k of ks) { const d = Math.hypot(F[k].z - STANDF[k][1], F[k].y - STANDF[k][0]); if (d > bd) { bd = d; best = k; } }
+      if (best && bd > 0.005) F[best].step = { y0: F[best].y, z0: F[best].z, t: 0, dur: end === 'hind' ? 0.17 : 0.14, lift: Math.min(end === 'hind' ? 0.016 : 0.013, 0.005 + 0.3 * bd) };
+    }
+    for (const [k] of FOOTK) {
+      const f = F[k], q = f.step; if (!q) continue;
+      q.t += dt; const u = Math.min(1, q.t / q.dur), e = smoother(u);
+      f.z = lerp(q.z0, STANDF[k][1], e); f.y = lerp(q.y0, STANDF[k][0], e) + q.lift * Math.sin(Math.PI * u);
+      if (u >= 1) { f.step = null; f.y = STANDF[k][0]; f.z = STANDF[k][1]; }
+    }
+  }
+  function feetTargets(o, ik) {
+    for (const [k, e, n] of FOOTK) {
+      const f = st.feet[k];
+      if (e === 'h') { o['hz' + n] = f.z * ik; o['hy' + n] = f.y * ik; o['ht' + n] = 0; } else { o['fz' + n] = f.z * ik; o['fy' + n] = f.y * ik; o['fp' + n] = 0; }
+    }
+    o.ik = ik; return o;
+  }
   const rnd = opt.rnd || prng(opt.seed || 7);
   const r01 = () => st.deterministic ? 0.5 : rnd();
-  function layerIdle(s, o) {
+  function layerIdle(s, o, atStand) {
     stand(o); o.rootY = 0;
     if (!s.driven) {
       const br = Math.sin(TAU * 1.0 * st.t); o.rootY = 0.0018 * br; o.spine = 0.025 * br; o.head = -0.05 + 0.01 * br;
@@ -423,7 +565,8 @@ function ProcAnim(rig, opt) {
       const lk = st.t - st.look.t; if (lk < 2.2) { const e = sstep(0, 0.35, lk) * (1 - sstep(1.7, 2.2, lk)); o.headYaw = 0.55 * st.look.dir * e; o.headRoll = 0.08 * st.look.dir * e; }
       o.sit = st.sit;
     }
-    return standTargets(o, 1 - clamp(o.sit * 2, 0, 1));    // the feet stay planted on the standing footprints
+    const ik = 1 - clamp(o.sit * 2, 0, 1);
+    return atStand ? standTargets(o, ik) : feetTargets(o, ik);    // the feet stay planted (on the footprints, or stepping onto them)
   }
   /* walking, running, creeping, pushing: the feet from the gait's windows, the body from its lift */
   function layerGait(s, o, G) {
@@ -433,16 +576,44 @@ function ProcAnim(rig, opt) {
     const cF = STAND.fL.wrist[1] + (push ? -0.015 : crouch ? 0.0 : lerp(-0.005, 0.02, k));
     const liftH = push ? 0.014 : crouch ? 0.016 : lerp(0.03, 0.06, k), liftF = push ? 0.012 : crouch ? 0.014 : lerp(0.024, 0.045, k);
     const thMax = push ? 0.75 : crouch ? 0.3 : lerp(0.4, 1.0, k);
+    /* each foot: the windows say when it is planted and when it swings; WHERE it is comes from what it has done (v2 review
+       fixes). A planted foot stays exactly where it touched down (it moves back in body space only as far as the body moves
+       on), whatever the stride or speed does meanwhile (slowing from the run, starting off, a change of cycle under the
+       hoarding); a swing starts from where the foot lifted and lands on the cycle's next touchdown. Starting from stillness,
+       the feet start from where they stand. */
+    if (!st.gaitOn) { st.gf = {}; for (const [kk] of FOOTK) st.gf[kk] = { planted: true, z: st.feet[kk].z, lz: st.feet[kk].z, cz: st.feet[kk].z, cy: st.feet[kk].y, lu: 1, land: 1 }; st.gaitOn = true; }
     let zh = 0;
-    for (const n of ['L', 'R']) {
-      const h = footPath(W['hind' + n], p, G.stride, cH);
-      o['hz' + n] = h.z; o['hy' + n] = STAND.hL.toe[0] + (h.u >= 0 ? liftH * Math.sin(Math.PI * h.u) : 0);
-      o['ht' + n] = h.u < 0 ? thMax * sstep(0.45, 1, h.s) : thMax * (1 - sstep(0, 0.55, h.u)) - 0.25 * k * Math.sin(Math.PI * h.u);
-      zh += h.z / 2;
-      const f = footPath(W['fore' + n], p, G.stride, cF);
-      o['fz' + n] = f.z; o['fy' + n] = STAND.fL.wrist[0] + (f.u >= 0 ? liftF * Math.sin(Math.PI * f.u) : 0);
-      o['fp' + n] = f.u < 0 ? 0.4 * sstep(0.6, 1, f.s) : (0.4 + 0.6 * Math.sin(Math.PI * f.u)) * (1 - sstep(0.8, 1, f.u));
+    for (const [kk, e, n] of FOOTK) {
+      const hind = e === 'h', gf = st.gf[kk], g0 = hind ? STAND.hL.toe[0] : STAND.fL.wrist[0], lift = hind ? liftH : liftF;
+      const h = footPath(W[kk], p, G.stride, hind ? cH : cF);
+      let z, y;
+      if (G.name === 'idle') { z = st.feet[kk].z; y = st.feet[kk].y; gf.planted = true; gf.z = z; }          // stopping: where the still feet are
+      else if (h.u < 0) {
+        if (!gf.planted) {
+          /* touchdown: a completed swing lands where the cycle puts it (already the distance travelled since the touchdown
+             behind it); one cut short (a cycle change mid-swing) plants where it is and eases down */
+          const full = gf.lu != null && gf.lu > 0.85;
+          gf.planted = true; gf.z = full ? h.z : (gf.cz != null ? gf.cz : h.z) - (st.travel || 0); gf.land = full ? 1 : 0; gf.ly0 = gf.cy != null ? gf.cy - g0 : 0;
+        } else gf.z -= st.travel || 0;
+        gf.land = Math.min(1, gf.land + (st.dt || 0) / 0.06);
+        z = gf.z; y = g0 + (gf.land < 1 ? gf.ly0 * (1 - smoother(gf.land)) : 0);   // an early touchdown (a cycle change mid-swing) eases down
+      } else if (gf.planted && h.u > 0.5) {
+        z = gf.z -= st.travel || 0; y = g0;      // a change of cycle put a planted foot late in a swing: it waits for its next stance
+      } else {
+        /* the swing leaves and meets the ground at the ground's speed (in body space it moves back exactly as fast as the body
+           moves on at both ends: a Hermite curve), so neither lift-off nor touchdown skids. z0: where it lifted off (the last
+           planted place, moved on to the instant of lift-off inside this frame) */
+        const u = h.u, D = -(W[kk][0] + 1 - W[kk][1]) * G.stride;
+        if (gf.planted) { gf.planted = false; gf.lz = (gf.cz != null ? gf.cz : h.z) - (st.travel || 0) - D * u; }
+        const z1 = h.zTd, z0 = gf.lz;
+        z = z0 * (2 * u * u * u - 3 * u * u + 1) + D * (u * u * u - 2 * u * u + u) + z1 * (3 * u * u - 2 * u * u * u) + D * (u * u * u - u * u);
+        y = g0 + lift * Math.sin(Math.PI * u);
+      }
+      gf.cz = z; gf.cy = y; gf.lu = h.u;
+      if (hind) { o['hz' + n] = z; o['hy' + n] = y; o['ht' + n] = h.u < 0 ? thMax * sstep(0.45, 1, h.s) : thMax * (1 - sstep(0, 0.55, h.u)) - 0.25 * k * Math.sin(Math.PI * h.u); zh += z / 2; }
+      else { o['fz' + n] = z; o['fy' + n] = y; o['fp' + n] = h.u < 0 ? 0.4 * sstep(0.6, 1, h.s) : (0.4 + 0.6 * Math.sin(Math.PI * h.u)) * (1 - sstep(0.8, 1, h.u)); }
     }
+    st.gaitFeet = {}; for (const [kk, e, n] of FOOTK) st.gaitFeet[kk] = [o[e + 'y' + n], o[e + 'z' + n]];
     const lf = (G.lift && G.lift.front) || 0, lr = (G.lift && G.lift.rear) || 0;
     /* each end rises by its own lift: part of the difference lifts the whole body, the rest pitches it (less rocking-horse) */
     o.rootY = lr + 0.4 * (lf - lr) - 0.008 * fl - (crouch || push ? 0 : 0.008 * (1 - k)); o.pitch = Math.atan2(0.6 * (lf - lr), BODY);   // the cautious walk carries itself a little lower
@@ -565,7 +736,13 @@ function ProcAnim(rig, opt) {
     /* ears trail vertical motion: a damped spring driven by vertical acceleration */
     const ay = (s.vy - st.lastVy) / Math.max(dt, 1e-4); st.lastVy = s.vy;
     st.earV += (-90 * st.earX - 9 * st.earV - clamp(ay, -60, 60) * 0.05) * dt; st.earX = clamp(st.earX + st.earV * dt, -0.6, 0.6);
-    if (s.landed) st.land = 0; st.land = Math.min(1, st.land + dt / 0.2);
+    if (s.landed) { st.land = 0; st.feet = freshFeet(); st.gaitOn = false; } st.land = Math.min(1, st.land + dt / 0.2);
+    /* the feet across starting, stopping and cycle changes (planted feet stay planted; still, they step onto the footprints) */
+    /* how far the body moved along its own forward axis (signed: while it yaws round, the part of the motion along where it
+       now faces; the rabbit faces +Z in its own space, turned by yaw) */
+    const travel = s.grounded !== false ? (s.vx != null && s.yaw != null ? s.vx * Math.sin(s.yaw) : (s.speed || 0)) * dt : 0; st.travel = travel; st.dt = dt;
+    if (air || st.w.gait < 0.01) st.gaitOn = false;
+    feetTrack(dt, travel, tgt.idle === 1 && !air);
     let o = zero();
     if (st.w.idle > 0.001) addInto(o, layerIdle(s, zero()), st.w.idle);
     if (st.w.gait > 0.001) addInto(o, layerGait(s, zero(), G), st.w.gait);
@@ -578,7 +755,11 @@ function ProcAnim(rig, opt) {
     const cur = s.pose && POSES[s.pose] ? s.pose : null;
     if (cur !== st.cur) { if (cur) st.pt[cur] = s.poseT || 0; st.cur = cur; }
     if (cur && !(cur in st.pw)) st.pw[cur] = 0;
-    let pSum = 0, earLock = 0, headLock = 0; const po = zero(); let any = false;
+    let pSum = 0, earLock = 0, headLock = 0, feetLock = 0; const po = zero(); let any = false;
+    /* the feet the locomotion layers planted (v2 review fixes): poses that only move the body (crouched, frozen, sniffing,
+       hiding, the hesitation, the reveal's 'prick') keep them on the ground (feetLock), so lowering folds the legs instead
+       of lifting the feet off the ground or pushing them through it */
+    const pre = { ik: o.ik }; for (const c of ['hzL', 'hyL', 'htL', 'hzR', 'hyR', 'htR', 'fzL', 'fyL', 'fpL', 'fzR', 'fyR', 'fpR']) pre[c] = o[c];
     for (const n in st.pw) {
       const on = n === cur, k = on ? 1 / (POSE_IN[n] || 0.18) : 1 / Math.max(0.05, s.poseOut || 0.2);
       st.pw[n] += ((on ? 1 : 0) - st.pw[n]) * (1 - Math.exp(-k * 3 * dt));
@@ -586,9 +767,10 @@ function ProcAnim(rig, opt) {
       if (!on && st.pw[n] < 0.002) { delete st.pw[n]; delete st.pt[n]; continue; }
       const w = st.pw[n]; if (w < 0.001) continue;
       const p = zero(), lk = POSES[n](st.pt[n], p, on ? s.poseData : null, s) || {};
-      addInto(po, p, w); pSum += w; earLock += (lk.earLock || 0) * w; headLock += (lk.headLock || 0) * w; any = true;
+      addInto(po, p, w); pSum += w; earLock += (lk.earLock || 0) * w; headLock += (lk.headLock || 0) * w; feetLock += (lk.feetLock || 0) * w; any = true;
     }
-    if (any) { const k = Math.min(1, pSum); const keep = 1 - k; const f = k / pSum; for (const c of CH) o[c] = o[c] * keep + po[c] * f; earLock = Math.min(1, earLock / Math.max(pSum, 1)); headLock = Math.min(1, headLock / Math.max(pSum, 1)); }
+    if (any) { const k = Math.min(1, pSum); const keep = 1 - k; const f = k / pSum; for (const c of CH) o[c] = o[c] * keep + po[c] * f; earLock = Math.min(1, earLock / Math.max(pSum, 1)); headLock = Math.min(1, headLock / Math.max(pSum, 1));
+      const fl = Math.min(1, feetLock / Math.max(pSum, 1)) * k; if (fl > 0 && pre.ik > 0) for (const c in pre) o[c] = lerp(o[c], pre[c], fl); }
     /* live ears: targets from the player (each ear's pitch and swivel), snapped over ~0.12 s */
     if (s.ears) {
       const E = s.ears, k = 1 / 0.12;
@@ -624,7 +806,7 @@ function ProcAnim(rig, opt) {
     st.last = o;
   }
   /* the calm standing pose (the retarget's reference: a supplied model's rest pose stands for it) */
-  function standPose() { apply(layerIdle({ driven: true }, zero())); }
+  function standPose() { apply(layerIdle({ driven: true }, zero(), true)); }
   return { update, st, apply, standPose, CH, POSES };
 }
 FF.ProcAnim = ProcAnim;
@@ -643,7 +825,7 @@ const CLIP_FALLBACK = {
 };
 const POSE_CLIP = { groom: 'groom', sniff: 'sniff_ground', nibble: 'nibble', sit: 'listen', lookup: 'look_up', look: 'idle_breathe', lookback: 'look_back',
   shake: 'shake_off', loaf: 'loaf_breathe', hide: 'hide', freeze: 'alert_freeze', peek: 'peek', rear: 'sniff', lookdown: 'hesitate_look_down',
-  hesitate: 'hesitate_look_down', reach: 'reach_fail', climb: 'climb_in', popout: 'pop_out_hop_down', flinch: 'crouch_idle', watch: 'hide' };
+  hesitate: 'hesitate_look_down', reach: 'reach_fail', climb: 'climb_in', popout: 'pop_out_hop_down', flinch: 'crouch_idle', watch: 'hide', prick: 'alert_freeze' };
 const POSE_ONCE = { shake: 1, reach: 1, climb: 1, popout: 1, lookback: 1, sniff: 1, lookup: 1, lookdown: 1, hesitate: 1, freeze: 1 };
 /* the ground speeds ASSETS-3D.md asks the moving clips to be authored at (used only when a clip's stride can't be measured) */
 const LOCO = { walk: 1.0, hop_run: 2.75, flee: 3.6, crouch_walk: 0.75, push_head: 0.62 };

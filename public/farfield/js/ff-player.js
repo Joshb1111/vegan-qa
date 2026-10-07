@@ -67,7 +67,8 @@ const P = {
   crouchDown: [0.075, 0.13],                  // ease time constants going down: [front, rear] (s)
   crouchUp: [0.15, 0.2],                      // and rising: [front, rear]
   crouchFollow: 0.06,                         // a deliberate crouch (Down): the hips follow the shoulders this much later (s)
-  runHint: { x0: 13.0, x1: 20.5, court: [57.5, 66.0], ranBefore: 1.0 },   // where the one "Shift run" hint may show; skipped once the player has run this long
+  runHint: { x0: 13.0, x1: 20.5, court: [57.5, 66.0], ranBefore: 1.0, remindAfter: 60 },   // where the "Shift run" hint may show; skipped once the player has run this long;
+                                                                         // shown once more on entering the Courtyard if the player has not run for remindAfter s
 };
 
 /* ------------------------------------------------------------------ the gaits (timing only; ff-rabbit.js draws them)
@@ -423,13 +424,21 @@ function runHeld() { return !!FF.Input.down('run'); }
    post, before the van comes), while moving; skipped if the player has already found Shift; a second chance on entering
    the Courtyard (a Continue from a save). UI shows each hint once per session (and never in the Search). */
 function runHint(dt, ctl) {
-  if (S.run && Math.abs(S.vx) > 1.6) B.ranT += dt;
-  if (B.seen.runHint || !ctl || S.mode !== 'play' || !S.grounded || S.squeeze || Math.abs(S.vx) < 0.3 || B.ranT >= P.runHint.ranBefore) return;
+  if (S.run && Math.abs(S.vx) > 1.6) { B.ranT += dt; B.seen.ranAt = FF.G.t; }
+  if (!ctl || S.mode !== 'play' || !S.grounded || S.squeeze || Math.abs(S.vx) < 0.3) return;
   const H = P.runHint, place = FF.G.place;
   const verge = place === 'verge' && S.x >= H.x0 && S.x <= H.x1 && B.vehicleT < 0, court = place === 'courtyard' && S.x >= H.court[0] && S.x <= H.court[1];
-  if (!verge && !court) return;
-  B.seen.runHint = true;
-  FF.bus.emit('hint', { id: 'hint-run', arg: 'run', x: +S.x.toFixed(2) });
+  if (!B.seen.runHint && B.ranT < H.ranBefore && (verge || court)) {
+    B.seen.runHint = true; if (court) B.seen.runHint2 = true;
+    FF.bus.emit('hint', { id: 'hint-run', arg: 'run', x: +S.x.toFixed(2) });
+    return;
+  }
+  /* v2 review fixes: the reminder before the Search. A player who has not run (Shift) for remindAfter seconds is shown the
+     same quiet hint once more as they walk into the Courtyard (once per session; never in the Search) */
+  if (court && !B.seen.runHint2 && FF.G.t - (B.seen.ranAt != null ? B.seen.ranAt : -1e9) > H.remindAfter) {
+    B.seen.runHint2 = true;
+    FF.bus.emit('hint', { id: 'hint-run-again', arg: 'run-again', x: +S.x.toFixed(2) });
+  }
 }
 
 /* ------------------------------------------------------------------ crouch transitions (presentation of the crouch) */
@@ -485,6 +494,27 @@ function endLift(ws, p, cad, k, cap, dip, on) {
   const iv = supportAround(ws, p); if (!iv) return 0;
   return -dip * on * Math.sin(Math.PI * clamp((p - iv[0]) / (iv[1] - iv[0]), 0, 1));
 }
+/* v2 review fixes: when the cycle changes under a moving rabbit (walk <-> crouch-walk going under something, walk <-> push at
+   the box), the phase is remapped to the point of the new cycle where every foot is closest to where it is now (planted or
+   swinging, and how far along), so no foot jumps from planted to mid-swing in one frame (it popped ~10 cm at the hoarding).
+   footRel: one foot's body-space z (relative to its stance centre) and lift at phase p, as ff-rabbit.js draws it. */
+const smoother = u => u * u * u * (u * (u * 6 - 15) + 10);
+function footRel(w, p, stride) {
+  const dur = Math.max(0.02, w[1] - w[0]), zTd = stride * dur / 2;
+  for (const j of [0, 1, -1]) { const q = p + j; if (q >= w[0] && q < w[1]) return [zTd - stride * (q - w[0]), 0]; }
+  for (const j of [0, 1, -1]) { const q = p + j; if (q >= w[1] && q < w[0] + 1) { const u = (q - w[1]) / Math.max(0.02, w[0] + 1 - w[1]); return [-zTd + 2 * zTd * smoother(u), 0.025 * Math.sin(Math.PI * u)]; } }
+  return [0, 0];
+}
+function remapPhase(Wa, sa, Wb, sb, p) {
+  const A = FEET.map(f => footRel(Wa[f], p, sa));
+  let best = p, bc = Infinity;
+  for (let i = 0; i < 100; i++) {
+    const q = i / 100; let c = 0;
+    for (let k = 0; k < 4; k++) { const b = footRel(Wb[FEET[k]], q, sb); c += (b[0] - A[k][0]) ** 2 + 4 * (b[1] - A[k][1]) ** 2; }
+    if (c < bc - 1e-12) { bc = c; best = q; }
+  }
+  return best;
+}
 function gaitTakeoff() { const g = S.gait; if (!g) return; const w = windowsOf(g.name === 'crouch' || g.name === 'push' ? g.name : 'walk', g.runK); g.phase = Math.max(w.hindL[1], w.hindR[1]) % 1; }
 /* every fixed step: which cycle, the stride for this speed, the phase from the distance moved, the feet, the body's lift */
 function gaitStep(dt) {
@@ -500,6 +530,10 @@ function gaitStep(dt) {
   const cyc = name === 'crouch' || name === 'push' ? name : 'walk';
   const stride = cyc === 'walk' ? lerp(strideOf(GAITS.walk, v), strideOf(GAITS.run, v), runK) : strideOf(GAITS[cyc], v);
   const W = windowsOf(cyc, runK);
+  if (name !== 'air' && name !== 'idle') {
+    if (g.cyc && g.cyc !== cyc && g.cycW) { const from = g.phase; g.phase = remapPhase(g.cycW, g.cycStride, W, stride, g.phase); g.remap = { from: g.cyc, to: cyc, p0: +from.toFixed(3), p1: +g.phase.toFixed(3) }; }
+    g.cyc = cyc; g.cycW = W; g.cycStride = stride;
+  }
   /* the phase moves only with the rabbit's own travel over the ground (not while riding the box, not in the air) */
   if (name !== 'air' && name !== 'idle') {
     g.phase += v * dt / stride;
@@ -583,7 +617,7 @@ const Player = FF.Player = {
     rs = (hash(String(cp.id || 'warp') + ':' + (FF.Q.get('seed') || 1)) || 1) >>> 0;
     freshB(!newGame);
     Object.assign(S, { x: cp.x, y: cp.y || 0, z: 0, vx: 0, vy: 0, face: cp.face || 1, grounded: true, crouch: cp.pose === 'hide', squeeze: null, onBox: false, push: false, effort: 0,
-      run: false, crouchHeld: false, crouchHeldT: 0, crouchF: cp.pose === 'hide' ? 1 : 0, crouchR: cp.pose === 'hide' ? 1 : 0, gait: freshGait(), sq: null, airT: 0, landed: false, cut: false, coyote: 0, buf: 0, yaw: Math.PI / 2 * (cp.face || 1), mode: 'play', modeT: 0,
+      run: false, hop: false, crouchHeld: false, crouchHeldT: 0, crouchF: cp.pose === 'hide' ? 1 : 0, crouchR: cp.pose === 'hide' ? 1 : 0, gait: freshGait(), sq: null, airT: 0, landed: false, cut: false, coyote: 0, buf: 0, yaw: Math.PI / 2 * (cp.face || 1), mode: 'play', modeT: 0,
       mood: 'calm', pose: cp.pose || null, still: 0, visible: true, low: false, inCore: false, hidden: false, fleeing: false, settle: null, duckT: 0, peakY: cp.y || 0,
       blockedBy: null, ears: B.ears, breath: 1 });
     S.y = floorAt(S.x, S.y + 0.05);
@@ -662,7 +696,8 @@ const Player = FF.Player = {
     if (sq) { sqTop = sq.short ? (flee ? R.duckUnder.fleeSpeed : R.duckUnder.speed) : R.creep.speed; top = Math.min(top, sqTop); }
     if (S.duckT > 0) { S.duckT -= dt; top = 0; }
     const tgt = dir * top;
-    const a = !S.grounded ? R.airAccel : dir === 0 ? R.decel : (S.vx * dir < -0.05 ? R.turn : (Math.abs(S.vx) > top ? R.decel : R.accel * (flee && run ? 1.2 : 1)));
+    const hopCarry = !S.grounded && S.hop && dir && S.vx * dir > top;          // a forward hop keeps its leap, easing off (hopDrag)
+    const a = hopCarry ? (R.hopDrag || R.airAccel) : !S.grounded ? R.airAccel : dir === 0 ? R.decel : (S.vx * dir < -0.05 ? R.turn : (Math.abs(S.vx) > top ? R.decel : R.accel * (flee && run ? 1.2 : 1)));
     S.vx = approach(S.vx, tgt, a * dt);
     if (sq && sqTop && Math.abs(S.vx) > sqTop) S.vx = Math.sign(S.vx) * sqTop;        // the Search checker's squeeze clamp
     if (dir) S.face = dir;
@@ -715,11 +750,16 @@ const Player = FF.Player = {
     S.coyote = S.grounded ? R.coyote : Math.max(0, S.coyote - dt);
     if (S.buf > 0 && S.coyote > 0 && !S.crouch && FF.Level.ceilingAbove(S.x, R.hw, S.y) - S.y > P.jumpHeadroom) {
       S.vy = Math.sqrt(2 * R.gravity * R.jumpHeight); S.grounded = false; S.coyote = 0; S.buf = 0; S.airT = 0; S.cut = false; S.onBox = false;
+      /* a hop with a direction held leaps forward like a rabbit (v2 review: at the walk it went nearly straight up and landed
+         short of the post): at least hopMin at take-off, easing off in the air (hopDrag) */
+      if (dir && R.hopMin) { S.vx = dir * Math.max(dir * S.vx, R.hopMin); S.hop = true; }
       if (B.pose && B.pose.cancel !== 'none') cancelPose(0.1);
       gaitTakeoff();
       FF.bus.emit('rabbit:jump', { x: +S.x.toFixed(2), y: +S.y.toFixed(2) });
     }
-    if (!S.grounded && S.vy > 0 && !(ctl && (In.down('jump') || In.down('up'))) && !S.cut && S.airT >= P.jumpCutAfter) { S.vy *= R.jumpCut; S.cut = true; }
+    /* the early-release cut (a lower hop on a quick tap) is for hops on the spot; a forward hop is a whole leap however briefly
+       Space was pressed (v2 review: a tapped walking hop fell short of the post) */
+    if (!S.grounded && S.vy > 0 && !S.hop && !(ctl && (In.down('jump') || In.down('up'))) && !S.cut && S.airT >= P.jumpCutAfter) { S.vy *= R.jumpCut; S.cut = true; }
 
     /* move y: follow the ground down slopes, fall, land on floors and the box top, bump heads */
     const wasG = S.grounded;
@@ -733,7 +773,7 @@ const Player = FF.Player = {
     } else S.peakY = S.y;
     const bb = boxSpan(); S.onBox = S.grounded && Math.abs(S.y - bb.y1) < 0.01 && S.x > bb.x0 - R.hw * 0.5 && S.x < bb.x1 + R.hw * 0.5;
     if (S.grounded && !wasG) {
-      S.landed = true; const fall = Math.max(0, S.peakY - S.y);
+      S.landed = true; S.hop = false; const fall = Math.max(0, S.peakY - S.y);
       FF.bus.emit('rabbit:land', { x: +S.x.toFixed(2), y: +S.y.toFixed(2), h: +fall.toFixed(2), surface: S.y < -0.5 ? 'water' : surface(), place: G.place });
       if (S.y < -0.5 && fall > 0.5) B.add.splash = 0;    // into the culvert's chamber: a splash and recover
     }
@@ -866,7 +906,7 @@ function animInput() {
   const A = B.add;
   return {
     gait: S.gait, crouchFront: S.crouchF, crouchRear: S.crouchR, crouchK: (S.crouchF + S.crouchR) / 2, crouchHeld: !!S.crouchHeld, run: !!S.run, squeeze: S.sq,
-    speed: S.mode === 'climb' || S.mode === 'popout' ? 0 : Math.abs(S.vx), vx: S.vx, vy: S.vy, grounded: S.grounded || S.mode !== 'play', crouch: S.crouch || S.low,
+    speed: S.mode === 'climb' || S.mode === 'popout' ? 0 : Math.abs(S.vx), vx: S.mode === 'climb' || S.mode === 'popout' ? 0 : S.vx, yaw: S.yaw, vy: S.vy, grounded: S.grounded || S.mode !== 'play', crouch: S.crouch || S.low,
     push: S.push, effort: S.effort, landed: S.landed, airT: S.airT, driven: true,
     pose: B.pose ? B.pose.name : null, poseT: B.pose ? B.pose.t : null, poseOut: B.out, poseData: B.pose ? B.pose.data : null,
     ears: B.ears, head: B.head, breath: { hz: B.hz, amp: B.amp }, flee: (S.fleeing && Math.abs(S.vx) > 1.6) || (B.mood === 'afraid' && Math.abs(S.vx) > 2.0), low: S.low, near: S.face > 0 ? 'R' : 'L',

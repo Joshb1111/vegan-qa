@@ -2,8 +2,12 @@
 // frames stepped via __ff. node t-reveal.mjs [scenario ...] (PORT as lib.mjs). Writes out/t-reveal.json, out/reveal-*.jpg;
 // SHOTS=1 takes the shots, PROGRESS_DIR (+ PROGRESS_LABEL, default 'reveal') copies them as progress shots.
 // Scenarios: still, cautious, hold (forward held from inside the duct: the son's case), run (Shift), jump (a running jump into
-// the trigger), hops, fullpath (box, climb, forward held), smooth (the lens path), unseen (the no-detection guarantee),
-// autorepeat, midskirt, quickrepress, retry (caught after it: no replay), restartMid, restartGrace (pause -> Restart).
+// the trigger), hops, fullpath (box, climb, forward held), shelf (a Shift run onto the shelf top and a jump off its end: the
+// furthest stop), smooth (the lens path), unseen (the no-detection guarantee), autorepeat, midskirt, quickrepress,
+// pressDuringReturn and mash (a key let go and pressed again during the takeover is not latched: v2 review), retry (caught
+// after it: no replay), restartEarly (pause -> Restart before it was seen: full), restartMid (after it was seen: the short
+// replay), quitContinue (Back to the title -> Continue from the Search: the short replay), restartGrace (in its grace: no
+// takeover), aspect (the door frame at 2:1, 16:10 and 4:3: the gap kept off the edge).
 import { boot, sleep, OUT as OUT0 } from './lib.mjs'; import fs from 'node:fs'; import path from 'node:path';
 const DIR = path.dirname(new URL(import.meta.url).pathname), OUT = OUT0;
 const PROG = process.env.PROGRESS_DIR || null, PLABEL = process.env.PROGRESS_LABEL || 'reveal';
@@ -21,7 +25,7 @@ async function SH(scen, name, progress) {
 }
 async function fresh() {
   await b.nav('/farfield/index.html?' + q, 'window.__ff && __ff.ready === true', 120000); await sleep(200);
-  await ev('__ff.pause(); true'); b.held = new Set();
+  await ev('__ff.pause(); true'); b.held = new Set(); b.shift = false;
   await ev(fs.readFileSync(path.join(DIR, 'reveal-page.js'), 'utf8'));
   return ev('RT.toBox()');
 }
@@ -31,11 +35,15 @@ async function arrive(during) {
   if (during && during.length) { await U("r.mode === 'transit'", 3); await K(during); }
   return U("W.landT != null && r.mode === 'play'", 12);
 }
-/* after control is back: does a key held through the takeover move the rabbit? then let go and press again */
+/* after control is back: a key held through the takeover does not move the rabbit for 0.7 s (latched); still held, it resumes
+   as the cautious walk (Shift ignored) once the camera has settled (v2 review); then let go and press again */
 async function afterControl(R, onHeld) {
   const a = await U("R.phase === 'grace' || (R.phase === '' && R.done)", 15); R.controlState = a;
-  const b1 = await U('false', 1.0); if (onHeld) await onHeld(); R.heldOneSecondLater = { x: b1.x, vx: b1.vx, latched: b1.latched, rv: b1.rv, s: b1.s };
-  R.heldMoved = +(b1.x - a.x).toFixed(3);
+  /* measured from the moment control returned (a scenario may notice the grace a little late) */
+  const LC = await ev('RT.log()'), cT = LC.t0 + LC.control.t;
+  const b0 = await U(`G.t >= ${cT + 0.7}`, 3); R.heldMoved = a.t <= cT + 0.7 ? +(b0.x - LC.control.x).toFixed(3) : null; R.heldLatched = b0.latched;
+  const b1 = await U('false', 1.3); if (onHeld) await onHeld(); R.heldOneSecondLater = { x: b1.x, vx: b1.vx, latched: b1.latched, resumed: b1.resumed, run: b1.run, rv: b1.rv, s: b1.s };
+  R.resume = { held: a.latched.filter(k => k === 'left' || k === 'right'), moved: +(b1.x - b0.x).toFixed(3), vx: b1.vx };
   await K([]); await U('false', 0.25);
   await K(['ArrowRight']); const c = await U('false', 0.6); R.repress = { x: c.x, vx: c.vx, moved: +(c.x - b1.x).toFixed(3) };
   await K([]); await U('Math.abs(r.vx) < 0.02', 2);
@@ -47,7 +55,9 @@ async function summary(R) {
   const rel = k => L[k] ? L[k].t : null;
   R.timing = { cause: L.cause, startAfterLanding: t0 != null && land != null ? +(t0 - land).toFixed(3) : null, startX: L.start && L.start.x, startVx: L.start && L.start.vx, startGrounded: L.start && L.start.grounded,
     cue: rel('cue'), stopped: rel('stopped'), stopX: L.stopped && L.stopped.x, maxX: R.reveal.maxX, pan: rel('pan'), ret: rel('return'), control: rel('control'), end: rel('end'),
-    controlFromCue: L.control && L.cue ? +(L.control.t - L.cue.t).toFixed(3) : null, pose: Object.keys(L).filter(k => k.startsWith('pose:')).join(','), latched: L.control && L.control.latched };
+    controlFromCue: L.control && L.cue ? +(L.control.t - L.cue.t).toFixed(3) : null, pose: Object.keys(L).filter(k => k.startsWith('pose:')).join(','), latched: L.control && L.control.latched,
+    /* v2 review: the reaction shows before the camera moves; the rabbit in its normal place when control returns */
+    reactBeforePan: L.pan && L.stopped ? +(L.pan.t - Math.max(L.stopped.t, L.cue ? L.cue.t : 0)).toFixed(3) : null, seen: L.seen && L.seen.t, scrAtControl: R.controlState && R.controlState.scr };
 }
 const SC = {
   /* no input at all: the cue starts it */
@@ -64,15 +74,15 @@ const SC = {
     await fresh(); const ar = await arrive(['ArrowRight']); R.landing = ar;
     if (shots) {
       await U("R.phase !== ''", 5); await U("Math.abs(r.vx) < 0.05 && r.grounded", 2);
-      await U("s.entryT != null && s.entryT >= 0.12", 3); await SH('hold', 'a-stopped-listens', 'stopped-listens');
-      await U("s.entryT >= 0.55", 3); await SH('hold', 'a2-pan-starts', null);
-      await U("s.entryT >= 1.28", 3); await SH('hold', 'b-door-light', 'door-light');
-      await U("s.entryT >= 1.8", 3); await SH('hold', 'c-doorway', 'man-in-doorway');
-      await U("s.entryT >= 2.75", 3); await SH('hold', 'd-steps-out', 'man-steps-out');
-      await U("s.entryT >= 4.6", 3); await SH('hold', 'e-aim-gap', 'aim-lights-gap');
+      await U("s.entryT != null && s.entryT >= 0.5", 3); await SH('hold', 'a-stopped-reacts', 'stopped-reacts-under-shelf');
+      await U("s.entryT >= 1.3", 3); await SH('hold', 'b-pan', 'camera-on-its-way');
+      await U("s.entryT >= 2.3", 3); await SH('hold', 'c-doorway', 'man-in-doorway');
+      await U("s.entryT >= 3.05", 3); await SH('hold', 'd-steps-out', 'man-steps-out');
+      await U("s.entryT >= 4.75", 3); await SH('hold', 'e-aim-gap', 'aim-lights-gap');
       await U("R.phase === 'return' && FF.Camera.debug().x < 100", 3); await SH('hold', 'f-return', 'camera-returns');
+      await U("R.phase === 'grace'", 3); await SH('hold', 'g-control', 'control-back-rabbit-in-frame');
     }
-    await afterControl(R, shots ? () => SH('hold', 'g-control-back', 'control-back-1s-forward-still-held-latched') : null);
+    await afterControl(R, shots ? () => SH('hold', 'h-held-walks-on', 'forward-still-held-walks-on-after-0.8s') : null);
   },
   /* Shift + forward from inside the duct: a run into the trigger */
   async run(R, shots) {
@@ -120,20 +130,27 @@ const SC = {
     await ev('delete __ff.G.flags.revealSafe; true'); const b2 = await U("s.state !== 'patrol'", 3.0); R.unprotected = { s: b2.s, ai: b2.ai, t: b2.t - a.t };
   },
   /* a run-up from the left and a jump onto the shelf top, then a run along it and off the end (the highest, fastest approach) */
+  /* the fastest, highest approach (v2 review: the old version walked and never reached the shelf top before the cue): Shift +
+     forward from the duct, a hop onto the shelf top, a run along it and a jump off its end into the trigger */
   async shelf(R) {
-    await fresh(); await arrive();
-    await K(['ArrowLeft']); await U('r.x <= 86.35', 4); await K([]); await U('Math.abs(r.vx) < 0.02', 1);
-    await K(['ShiftLeft', 'ArrowRight']); const a = await U("r.x >= 87.45 || R.phase !== ''", 3); R.jumpAt = a;
-    await K(['ShiftLeft', 'ArrowRight', 'Space']); await U('false', 0.2); await K(['ShiftLeft', 'ArrowRight']);
-    const top = await U("r.x >= 89.75 || R.phase !== ''", 3); R.shelfEnd = top;
-    await K(['ShiftLeft', 'ArrowRight', 'Space']);
-    await afterControl(R);
+    R.tries = [];
+    for (const [j1, j2] of [[87.62, 89.6], [87.7, 89.7], [87.8, 89.75]]) {
+      await fresh(); await arrive(['ShiftLeft', 'ArrowRight']);
+      const a = await U(`r.x >= ${j1} || R.phase !== ''`, 3); R.jumpAt = a;
+      await K(['ShiftLeft', 'ArrowRight', 'Space']); await U('false', 0.1); await K(['ShiftLeft', 'ArrowRight']);
+      const top = await U(`(r.x >= ${j2} && r.grounded) || R.phase !== ''`, 3); R.shelfEnd = top;
+      await K(['ShiftLeft', 'ArrowRight', 'Space']);
+      const c = await U("R.phase === 'grace'", 15); const L = await ev('RT.log()'); const rv = await ev('FF.Events.reveal()');
+      R.tries.push({ j1, j2, top: [top.x, top.y, top.rv], start: L.start && [L.start.x, L.start.y, L.start.vx], stopX: L.stopped && L.stopped.x, maxX: rv.maxX, s: c.s });
+      await K([]);
+    }
+    R.maxX = Math.max(...R.tries.map(t => t.maxX || 0));
   },
   /* a real keyboard's auto-repeat while forward is held: repeated keydown events must not undo the latch */
   async autorepeat(R) {
     await fresh(); await arrive(['ArrowRight']);
     await U("R.phase === 'grace'", 15); const a = await ev('RT.state()');
-    for (let i = 0; i < 30; i++) { await b.cdp('Input.dispatchKeyEvent', { type: 'rawKeyDown', code: 'ArrowRight', key: 'ArrowRight', windowsVirtualKeyCode: 39, nativeVirtualKeyCode: 39, autoRepeat: true }); await U('false', 1 / 30); }
+    for (let i = 0; i < 20; i++) { await b.cdp('Input.dispatchKeyEvent', { type: 'rawKeyDown', code: 'ArrowRight', key: 'ArrowRight', windowsVirtualKeyCode: 39, nativeVirtualKeyCode: 39, autoRepeat: true }); await U('false', 1 / 30); }   // 0.67 s: before a held key resumes (0.8 s)
     const c = await ev('RT.state()'); R.autoRepeat = { moved: +(c.x - a.x).toFixed(3), latched: c.latched, vx: c.vx };
     await K([]);
   },
@@ -154,7 +171,7 @@ const SC = {
     await fresh(); await arrive(['ArrowRight']); await U("R.phase === 'grace'", 15); const a = await U('false', 0.5);
     await b.key('ArrowRight', 'up'); await b.key('ArrowRight', 'down');      // no step in between
     const c = await U('false', 0.5); R.quick = { latchedBefore: a.latched, moved: +(c.x - a.x).toFixed(3), latchedAfter: c.latched };
-    await b.key('ArrowRight', 'up'); b.held = new Set();
+    await b.key('ArrowRight', 'up'); b.held = new Set(); b.shift = false;
   },
   /* after the reveal: walk out from the deck into his torch, get caught or shot, restart: the reveal must not replay */
   async retry(R) {
@@ -167,13 +184,62 @@ const SC = {
     R.revealStartsAfterFail = await ev(`RT.W.ev.filter(e => e[1] === 'reveal' && e[0] > ${fT}).length`);
     R.entryReplayed = await ev(`RT.W.ev.filter(e => e[1] === 'entry' && e[2] === 'cue' && e[0] > ${fT}).length`);
   },
-  /* the pause menu's Restart in the middle of the takeover: control comes back, the reveal plays once more in full (never seen) */
+  /* the pause menu's Restart in the middle of the takeover, AFTER it was seen (the man in the doorway): the short replay only
+     (v2 review: never the whole takeover again): the camera already on the door, the aim, back, control (~2.6 s) */
   async restartMid(R) {
     await fresh(); await arrive(); await K(['ArrowRight']); await U('r.x >= 88.45', 3); await K([]); R.cpBefore = (await U("G.checkpoint === 'search-arrive'", 1)).cp;
-    await U("s.entryT != null && s.entryT >= 2.0", 6);
+    await U("s.entryT != null && s.entryT >= 3.0", 6); R.seenBefore = (await ev('FF.Events.reveal()')).seen;
     await b.key('Escape'); await ev('__ff.step(1); true'); R.paused = await ev('__ff.G.mode');
-    await ev("__ff.command('restart'); true"); const a = await U('false', 0.2); R.afterRestart = a;
-    const c = await U("R.phase === 'grace'", 15); R.second = { ok: c.ok, cause: c.cause, cp: c.cp, controlFromCue: (await ev('RT.log()')).control && +((await ev('RT.log()')).control.t - (await ev('RT.log()')).cue.t).toFixed(2) };
+    await ev("__ff.command('restart'); true"); const t0 = (await ev('RT.state()')).t; const a = await U('false', 0.1); R.afterRestart = a;
+    const c = await U("R.phase === 'grace'", 8); const L = await ev('RT.log()');
+    R.second = { ok: c.ok, cause: c.cause, cp: c.cp, controlOffSeconds: +(c.t - t0).toFixed(2), camAtRestart: a.cam, scrAtControl: c.scr, entryDone: await ev('__ff.G.flags.entryDone') };
+  },
+  /* Restart BEFORE it was seen (the camera not yet at the door): the reveal plays once more in full */
+  async restartEarly(R) {
+    await fresh(); await arrive(); await K(['ArrowRight']); await U('r.x >= 88.45', 3); await K([]);
+    await U("s.entryT != null && s.entryT >= 0.6", 6); R.seenBefore = (await ev('FF.Events.reveal()')).seen;
+    await b.key('Escape'); await ev('__ff.step(1); true'); await ev("__ff.command('restart'); true");
+    const c = await U("R.phase === 'grace'", 15); const L = await ev('RT.log()');
+    R.second = { ok: c.ok, cause: c.cause, controlFromCue: L.control && L.cue ? +(L.control.t - L.cue.t).toFixed(2) : null };
+  },
+  /* Back to the title in the middle of it (after it was seen), then Continue from the Search: the short replay */
+  async quitContinue(R) {
+    await fresh(); await arrive(); await K(['ArrowRight']); await U('r.x >= 88.45', 3); await K([]);
+    await U("s.entryT != null && s.entryT >= 3.0", 6);
+    await b.key('Escape'); await ev('__ff.step(1); true'); await ev("__ff.command('title'); true"); await U('false', 0.5);
+    await ev("__ff.command('start', 'search-arrive'); true"); const t0 = (await ev('RT.state()')).t;
+    const c = await U("R.phase === 'grace'", 10);
+    R.second = { ok: c.ok, cause: c.cause, cp: c.cp, controlOffSeconds: +(c.t - t0).toFixed(2), mode: await ev('__ff.G.mode') };
+  },
+  /* a key let go when the takeover starts and pressed again 0.6 / 0.3 / 0.1 s before control returns, then held: it is the
+     player's new intention, never latched; the rabbit walks on at once (v2 review) */
+  async pressDuringReturn(R) {
+    R.tries = [];
+    for (const lead of [0.6, 0.3, 0.1]) {
+      await fresh(); await arrive(); await K(['ArrowRight']);
+      await U("R.phase !== ''", 5); await K([]);
+      await U("R.phase === 'return'", 10); await U('false', 1.3 - lead); await K(['ArrowRight']);
+      const c = await U("R.phase === 'grace'", 3); const d = await U('false', 0.5);
+      R.tries.push({ lead, latched: c.latched, moved: +(d.x - c.x).toFixed(3) });
+      await K([]); await U('false', 0.2);
+    }
+  },
+  /* tapping the arrow through the takeover, held at the end: not latched */
+  async mash(R) {
+    await fresh(); await arrive(); await K(['ArrowRight']); await U("R.phase !== ''", 5);
+    for (let i = 0; i < 30; i++) { await K([]); await U('false', 0.12); await K(['ArrowRight']); const s2 = await U('false', 0.15); if (s2.rv === 'grace') break; }
+    const a = await U("R.phase === 'grace'", 8); const d = await U('false', 0.5); R.mashed = { latched: a.latched, moved: +(d.x - a.x).toFixed(3) }; await K([]);
+  },
+  /* the door frame at other window shapes: the gap kept at most ~88% across, the door in frame */
+  async aspect(R) {
+    R.frames = {};
+    for (const [w, h] of [[1280, 640], [1280, 800], [1024, 768]]) {
+      await b.resize(w, h); await fresh(); await arrive(); await U("s.entryT != null && s.entryT >= 4.4", 8);
+      R.frames[w + 'x' + h] = await ev('RT.gapShare()');
+      await ev('__ff.draw(); true'); await b.shot(path.join(OUT, `reveal-aspect-${w}x${h}.jpg`), 80);
+      await U("R.phase === 'grace'", 8);
+    }
+    await b.resize(1280, 640);
   },
   /* the pause menu's Restart during the grace (entry not yet finished): the entry replays with NO takeover, a 1 s lean only */
   async restartGrace(R) {
@@ -186,13 +252,13 @@ const SC = {
     R.replay = { controlOffSeconds: +ctlOffT.toFixed(2), maxCameraLeadFromRabbit: +maxCamDx.toFixed(2), reveals: await ev(`RT.W.ev.filter(e => e[1] === 'reveal' && e[0] > ${t0}).map(e => e[2])`), cues: await ev(`RT.W.ev.filter(e => e[1] === 'entry' && e[0] > ${t0}).map(e => e[2])`) };
   },
 };
-const names = process.argv.slice(2).filter(n => SC[n]); if (!names.length) names.push(...Object.keys(SC).filter(n => n !== 'shelf'));
+const names = process.argv.slice(2).filter(n => SC[n]); if (!names.length) names.push(...Object.keys(SC));
 const ALL = {};
 for (const n of names) {
   const R = ALL[n] = {};
   try { await SC[n](R, !!process.env.SHOTS && (n === 'hold' || n === 'run')); } catch (e) { R.err = e.message; }
   try { await K([]); await summary(R); } catch (e) { R.err = (R.err || '') + ' | ' + e.message; }
-  console.log('\n==', n, JSON.stringify({ timing: R.timing, heldMoved: R.heldMoved, held1s: R.heldOneSecondLater, repress: R.repress, maxSTake: R.W && R.W.maxSTake, cam: R.W && R.W.cam, minDist: R.W && R.W.minDist, err: R.err, errors: R.errors, errs: R.errs, extra: { cpBefore: R.cpBefore, afterRestart: R.afterRestart && [R.afterRestart.cp, R.afterRestart.control, R.afterRestart.ai], jumpAt: R.jumpAt && R.jumpAt.x, shelfEnd: R.shelfEnd && [R.shelfEnd.x, R.shelfEnd.y], autoRepeat: R.autoRepeat, controlAfterFail: R.controlAfterFail, revealStartsAfterFail: R.revealStartsAfterFail, entryReplayed: R.entryReplayed, after: R.after && [R.after.cp, R.after.ai, R.after.loopT], second: R.second, tries: R.tries, quick: R.quick, replay: R.replay, protected3s: R.protected3s, pushed: R.pushed, onBox: R.onBox, climb: R.climb, walkway: R.walkway, smooth: R.smooth, unprotected: R.unprotected } }));
+  console.log('\n==', n, JSON.stringify({ timing: R.timing, heldMoved: R.heldMoved, held1s: R.heldOneSecondLater, repress: R.repress, maxSTake: R.W && R.W.maxSTake, cam: R.W && R.W.cam, minDist: R.W && R.W.minDist, err: R.err, errors: R.errors, errs: R.errs, extra: { resume: R.resume, heldLatched: R.heldLatched, maxX: R.maxX, mashed: R.mashed, frames: R.frames, seenBefore: R.seenBefore, cpBefore: R.cpBefore, afterRestart: R.afterRestart && [R.afterRestart.cp, R.afterRestart.control, R.afterRestart.ai], jumpAt: R.jumpAt && R.jumpAt.x, shelfEnd: R.shelfEnd && [R.shelfEnd.x, R.shelfEnd.y], autoRepeat: R.autoRepeat, controlAfterFail: R.controlAfterFail, revealStartsAfterFail: R.revealStartsAfterFail, entryReplayed: R.entryReplayed, after: R.after && [R.after.cp, R.after.ai, R.after.loopT], second: R.second, tries: R.tries, quick: R.quick, replay: R.replay, protected3s: R.protected3s, pushed: R.pushed, onBox: R.onBox, climb: R.climb, walkway: R.walkway, smooth: R.smooth, unprotected: R.unprotected } }));
 }
 fs.writeFileSync(path.join(OUT, 't-reveal.json'), JSON.stringify(ALL, null, 1));
 b.close(); process.exit(0);

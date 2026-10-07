@@ -4,7 +4,7 @@ import { launch, sleep } from './cdp.mjs'; import fs from 'node:fs'; import path
 export { sleep };
 export const OUT = path.resolve(path.dirname(new URL(import.meta.url).pathname), 'out'); fs.mkdirSync(OUT, { recursive: true });
 export const PROGRESS = process.env.PROGRESS_DIR || null;   // copy chosen shots there (progress shots for Josh)
-export const KEYS = { Enter: 13, Escape: 27, Space: 32, ArrowLeft: 37, ArrowUp: 38, ArrowRight: 39, ArrowDown: 40, KeyM: 77, KeyN: 78, KeyP: 80, KeyQ: 81, ShiftLeft: 16 };
+export const KEYS = { Enter: 13, Escape: 27, Space: 32, ArrowLeft: 37, ArrowUp: 38, ArrowRight: 39, ArrowDown: 40, KeyM: 77, KeyN: 78, KeyP: 80, KeyQ: 81, ShiftLeft: 16, ShiftRight: 16 };
 export async function waitLoad() { for (let i = 0; i < 10; i++) { const l = os.loadavg()[0]; if (l <= 25) return; console.log('load', l.toFixed(1), 'waiting 60 s'); await sleep(60000); } }
 export async function boot(opts = {}) {
   await waitLoad();
@@ -23,12 +23,16 @@ export async function boot(opts = {}) {
   await sleep(300);
   if (opts.pause !== false) await b.ev('__ff.pause(); true');
   b.held = new Set();
-  b.key = async (k, type) => {   /* type: 'down' | 'up' | undefined (tap) */
-    const code = k, key = k === 'Space' ? ' ' : k.startsWith('Key') ? k.slice(3).toLowerCase() : k;
-    const p = { code, key, windowsVirtualKeyCode: KEYS[k] || 0, nativeVirtualKeyCode: KEYS[k] || 0 };
+  /* as a real keyboard does: every key event carries the Shift modifier while a Shift key is down (modifiers 8), and Shift's
+     own keydown has it, its keyup not (the game reads Shift from every event's modifier, v2 review fixes) */
+  b.shift = false;
+  b.key = async (k, type, extra) => {   /* type: 'down' | 'up' | undefined (tap) */
+    const code = k, key = k === 'Space' ? ' ' : k === 'ShiftLeft' || k === 'ShiftRight' ? 'Shift' : k.startsWith('Key') ? k.slice(3).toLowerCase() : k;
+    const isShift = k === 'ShiftLeft' || k === 'ShiftRight';
+    const p = { code, key, windowsVirtualKeyCode: KEYS[k] || 0, nativeVirtualKeyCode: KEYS[k] || 0, ...(extra || {}) };
     const text = k === 'Enter' ? '\r' : key.length === 1 ? key : '';
-    if (type !== 'up') await b.cdp('Input.dispatchKeyEvent', text ? { type: 'keyDown', text, unmodifiedText: text, ...p } : { type: 'rawKeyDown', ...p });
-    if (type !== 'down') await b.cdp('Input.dispatchKeyEvent', { type: 'keyUp', ...p });
+    if (type !== 'up') { if (isShift) b.shift = true; const m = { modifiers: b.shift ? 8 : 0 }; await b.cdp('Input.dispatchKeyEvent', text ? { type: 'keyDown', text, unmodifiedText: text, ...p, ...m } : { type: 'rawKeyDown', ...p, ...m }); }
+    if (type !== 'down') { if (isShift) b.shift = false; await b.cdp('Input.dispatchKeyEvent', { type: 'keyUp', ...p, modifiers: b.shift ? 8 : 0 }); }
   };
   /* make the held key set equal `want` (array of codes) via real key events */
   b.setKeys = async want => { const w = new Set(want); for (const k of [...b.held]) if (!w.has(k)) { await b.key(k, 'up'); b.held.delete(k); } for (const k of w) if (!b.held.has(k)) { await b.key(k, 'down'); b.held.add(k); } };

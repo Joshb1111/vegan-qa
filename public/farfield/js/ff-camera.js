@@ -13,8 +13,10 @@
    TAKEOVERS (Josh's playtest, 7 Oct §9.5: "use this deliberate camera takeover for essential reveals only; ordinary background
    storytelling should remain discoverable during play"). Audited:
      - search-entry-hold is the ONE takeover: the door reveal (the man, his gun, the aim at the fence that shows the way out).
-       FF.Events runs it (control off, the rabbit stopped, the shot, the return, control back); this file only frames it, eased
-       in over opts.ease and back over opts.release. It no longer starts by itself or lets go when the rabbit moves.
+       FF.Events runs it (control off, the rabbit stopped and reacting, the shot, the return, control back as it settles); this
+       file only frames it (fitted to the aspect, the gap kept off the frame's edge), eased in over opts.ease and back over
+       opts.release (ease 0: straight there, used only under a restart's black for the short replay). It never starts by
+       itself or lets go when the rabbit moves.
      - courtyard-reveal is a held establishing frame, never control: the rabbit stays in it and moving 1.5 m releases it.
      - the van behind the wall and the walkway worker are attention leans inside the play framing (the edge rule keeps the
        rabbit >= 15% from the frame edge); the worker's lean plays only while the rabbit is still. Discoverable, never forced.
@@ -133,7 +135,7 @@ function ideal(dt) {
 const SHOTS = {
   title:              { ease: 0, release: 2.5 },
   'courtyard-reveal': { ease: 1.2, release: 1.5 },
-  'search-entry-hold':{ ease: 1.1, release: 1.0 },      // the door reveal (FF.Events passes its own ease / release)
+  'search-entry-hold':{ ease: 1.5, release: 1.3 },      // the door reveal (FF.Events passes its own ease / release)
   'duct-transit':     { ease: 0, release: 1.0, scripted: true },
   'pull-out':         { ease: 0, release: 2.0, scripted: true },
 };
@@ -141,8 +143,14 @@ function shotParams(sh, dt) {
   const z = zoneById(sh.id), r = rabbit();
   if (sh.id === 'title') return { x: z.x != null ? z.x : 4.6, y: z.y != null ? z.y : 1.6, dist: z.dist || 11, horizon: z.horizon || 0.62 };
   if (sh.id === 'courtyard-reveal') return { x: z.x != null ? z.x : 58.5, y: (z.height || base().height) + Math.max(0, FF.Level.groundY(r.x)), dist: z.dist || 10.5, horizon: z.horizon || 0.64 };
-  /* the door reveal: the skip, the door and the fence corner with its gap, fitted to the aspect (the gap never at the very edge) */
-  if (sh.id === 'search-entry-hold') { const sp = z.span || [104.3, 114.5]; return { x: (sp[0] + sp[1]) / 2, y: 1.3, dist: clamp(fitDist(sp[1] - sp[0]), 10.5, z.dist || 12.5), horizon: z.horizon || 0.60 }; }
+  /* the door reveal: the skip, the door and the fence corner with its gap, fitted to the aspect. Narrower than 1.6:1 (4:3,
+     16:10 windows) the lens may pull back further (distNarrow) and the frame moves right so the gap, the thing the reveal
+     teaches, sits at most gapShare (88%) across the frame, never at the very edge (v2 review: at 4:3 it was at 98.7%) */
+  if (sh.id === 'search-entry-hold') {
+    const sp = z.span || [104.3, 114.5], dist = clamp(fitDist(sp[1] - sp[0]), 10.5, aspect < 1.6 ? (z.distNarrow || 14.0) : (z.dist || 12.5)), W = widthAt(dist);
+    const x = Math.max((sp[0] + sp[1]) / 2, (z.gapX || 113.3) - ((z.gapShare || 0.88) - 0.5) * W);
+    return { x, y: 1.3, dist, horizon: z.horizon || 0.60 };
+  }
   if (sh.id === 'duct-transit') { const to = z.to || { x: 90.4, dist: 10.6, height: 1.3, horizon: 0.6 }, k = easeIO(sh.t / (z.time || 3.6)), f = sh.from;
     return { x: lerp(f.x, to.x, k), y: lerp(f.y, to.height, k), dist: lerp(f.dist, to.dist, k), horizon: lerp(f.horizon, to.horizon, k) }; }
   if (sh.id === 'pull-out') { const to = z.to || { dist: 22, height: 3.5, horizon: 0.52, driftX: 2.5 }, k = easeIO(sh.t / (z.time || 8.0)), f = sh.from, floor = Math.max(0, FF.Level.groundY(f.x));

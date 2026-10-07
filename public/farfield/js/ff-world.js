@@ -972,7 +972,7 @@ function buildCourtyard() {
    buffed out with one hasty coat of fresh grey masonry paint that doesn't quite match the concrete: vertical roller strokes of
    uneven length, thick where the roller was freshly loaded and dry elsewhere, so some letters ghost through and others are nearly
    gone; the apex of the first A and the end of the last E escape the roller; a touch-up coat in a third grey over the start;
-   runs below the patch, one spray drip longer than the paint, two flakes where the new paint has let go.
+   runs below the patch, one spray drip longer than the paint, a flake where the new paint has let go.
    A decal 3 mm in front of the panel with the wall's own shading (wall fill, haze, fog, shadows): no light, camera, sound or UI of
    its own; it sits between the reveal's hold and the puzzle's span (FF.S1.decor 'painted-over'), so it is only ever passed.
    Painted once at init with its own seeded random: rnd(), and so every other placement in the world, is unchanged. The texture
@@ -1053,27 +1053,44 @@ function paintedOver(P) {
   const under = xc => { let k = 0; for (let j = 0; j < at.length; j++) if (xc >= at[j].x - 0.1 * cap) k = j; return k; };
   const ragged = (x0, x1, y, amp) => { const p = []; for (let xx = x0; xx <= x1 + 0.1; xx += 5) p.push([Math.min(xx, x1), y + J(amp)]); return p; };
   let sx = X(0.06), i = 0;
+  /* v2 review: the strokes were crisp cards with hard vertical joins. Each is now a little wider or narrower and leans a little
+     more, its long edges are ragged and feathered over a few pixels (the roller's ends run out softly), and they overlap more,
+     so the patch reads as one hasty coat, not grey cards laid in a row */
+  const sideRag = (x, y0, y1) => { const p = []; for (let yy = y0; yy <= y1 + 0.1; yy += 7) p.push([x + J(1.8), Math.min(yy, y1)]); return p; };
   while (sx < stopX) {
-    const w = Math.min(rw * (1 + J(0.04)), Math.max(0.4 * rw, stopX - sx)), c = Math.min(thin[under(sx + Math.min(rw, stopX - sx) / 2)], sx + rw > stopX ? 0.26 : 1) + J(0.03);
+    const w = Math.min(rw * (1 + J(0.12)), Math.max(0.4 * rw, stopX - sx)), c = Math.min(thin[under(sx + Math.min(rw, stopX - sx) / 2)], sx + rw > stopX ? 0.26 : 1) + J(0.03);
     let top = Y(1.5 + J(0.07)); const bot = Y(0.98 + J(0.06));
     if (apex.x + apex.w * 0.5 > sx + w * 0.15 && apex.x + apex.w * 0.5 < sx + w * 0.85) top = apex.base - apex.h + 0.035 * ppm;   // the A's apex escapes
-    fx.save(); fx.translate(sx + w / 2, 0); fx.rotate(J(0.025)); fx.translate(-w / 2, 0);
-    fx.fillStyle = fx.strokeStyle = (i >> 2) % 2 ? '#545654' : '#585a57';
-    fx.globalAlpha = c; fx.beginPath(); const tp = ragged(0, w, top, 2.5 + (1 - c) * 14), bp = ragged(0, w, bot, 2 + (1 - c) * 10).reverse();
-    [...tp, ...bp].forEach((p, k) => k ? fx.lineTo(p[0], p[1]) : fx.moveTo(p[0], p[1])); fx.closePath(); fx.fill();
+    fx.save(); fx.translate(sx + w / 2, 0); fx.rotate(J(0.06)); fx.translate(-w / 2, 0);
+    const col = (i >> 2) % 2 ? [84, 86, 84] : [88, 90, 87], fe = 5 + R() * 4, rgba = a => 'rgba(' + col.join(',') + ',' + a + ')';
+    const grd = fx.createLinearGradient(-2, 0, w + 2, 0), e0 = Math.min(0.45, fe / (w + 4));
+    grd.addColorStop(0, rgba(0)); grd.addColorStop(e0, rgba(1)); grd.addColorStop(1 - e0, rgba(1)); grd.addColorStop(1, rgba(0));
+    fx.fillStyle = grd; fx.strokeStyle = rgba(1);
+    const tp = ragged(0, w, top, 2.5 + (1 - c) * 14), bp = ragged(0, w, bot, 2 + (1 - c) * 10).reverse(), sr = sideRag(w + 2, top, bot), sl = sideRag(-2, top, bot).reverse();
+    /* soft all round: four nested passes, each a little smaller, add up to the stroke's coverage c in the middle and fade out
+       over ~14 px at its edges (the roller's ends run out; no hard card edge) */
+    const passes = 4, a1 = 1 - Math.pow(1 - Math.min(0.98, Math.max(0.02, c)), 1 / passes), cxm = w / 2, cym = (top + bot) / 2;
+    for (let q = 0; q < passes; q++) {
+      const ins = q * 4.5, sx_ = (w / 2 - ins) / (w / 2 + 2), sy_ = ((bot - top) / 2 - ins) / ((bot - top) / 2);
+      fx.globalAlpha = a1; fx.beginPath();
+      [...tp, ...sr, ...bp, ...sl].forEach((p, k) => { const X = cxm + (p[0] - cxm) * sx_, Y = cym + (p[1] - cym) * sy_; if (k) fx.lineTo(X, Y); else fx.moveTo(X, Y); });
+      fx.closePath(); fx.fill();
+    }
+    fx.globalAlpha = c;
     /* the nap of the roller: faint vertical streaks; on a dry stroke, gaps */
     for (let k = 0; k < 26; k++) { const xx = R() * w; fx.globalAlpha = 0.05 + 0.06 * R(); fx.fillStyle = R() < 0.5 ? '#5d5f5c' : '#3f4241'; fx.fillRect(xx, top + 4, 1 + R() * 1.5, bot - top - 8); }
     if (c < 0.7) { fx.globalCompositeOperation = 'destination-out'; for (let k = 0; k < 10; k++) { fx.globalAlpha = 0.15 + 0.2 * R(); fx.fillRect(R() * w, top + R() * 20, 1 + R() * 2, (bot - top) * (0.3 + 0.6 * R())); } fx.globalCompositeOperation = 'source-over'; }
     /* runs off the roller's lower edge */
     if (c > 0.72 && R() < 0.7) { fx.fillStyle = fx.strokeStyle = '#585a57'; fx.globalAlpha = 0.8; fx.lineWidth = 2.6 + R(); const rx = w * (0.2 + 0.6 * R()), len = (0.03 + R() * 0.13) * ppm; line(fx, [[rx, bot - 3], [rx + J(1), bot + len]]); fx.beginPath(); fx.arc(rx, bot + len, 2.0, 0, 6.283); fx.fill(); }
-    fx.restore(); sx += rw * 0.86 * (1 + J(0.05)); i++;
+    fx.restore(); sx += rw * 0.8 * (1 + J(0.08)); i++;
   }
   /* a second, later coat over the start, in yet another grey (the paint layers) */
   { const x0 = at[0].x - 0.03 * ppm, x1 = at[1].x + at[1].w * 0.8, t = Y(1.44), b = Y(1.03);
     fx.save(); fx.fillStyle = '#5b5c59'; fx.globalAlpha = 0.5; fx.beginPath(); const tp = ragged(x0, x1, t, 4), bp = ragged(x0, x1, b, 3).reverse();
     [...tp, ...bp].forEach((p, k) => k ? fx.lineTo(p[0], p[1]) : fx.moveTo(p[0], p[1])); fx.closePath(); fx.fill(); fx.restore(); }
-  /* 3. two flakes where the new paint has already let go (the black shows again), and rain water down the fresh grey */
-  for (const [k, u, v, r] of [[0, 0.25, 0.52, 10], [8, 0.08, 0.5, 8]]) {
+  /* 3. a flake where the new paint has already let go (the black of the L's upright shows again; v2 review: a second, round
+     one on the E read as a typographic bullet and is gone), and rain water down the fresh grey */
+  for (const [k, u, v, r] of [[8, 0.08, 0.5, 8]]) {
     const a = at[k], cx = a.x + a.w * u, cy = a.base - a.h * (1 - v);
     fx.save(); fx.beginPath(); for (let j = 0; j < 9; j++) { const th = j / 9 * 6.283, rr = r * (0.6 + 0.6 * R()); fx.lineTo(cx + Math.cos(th) * rr * 1.3, cy + Math.sin(th) * rr); } fx.closePath(); fx.clip();
     fx.clearRect(cx - 3 * r, cy - 3 * r, 6 * r, 6 * r); fx.globalAlpha = 1; fx.drawImage(Lc, 0, 0); fx.restore();
@@ -1394,13 +1411,13 @@ function derivedLights(dt) {
     if (!asked.walkwayDoorL && S.walkwayT >= 0) { const t = G.frameT - S.walkwayT; open = t < 2.5 ? 0 : t < 3.0 ? (t - 2.5) / 0.5 : t < 11.5 ? 1 : Math.max(0, 1 - (t - 11.5) / 0.6); World.open('walkwayDoorL', open); S.mine.walkwayDoorL = dw.rotation.y; }
     H.walkwayDoor.st.derived = SPOT_DEF.walkwayDoor.intensity * clamp(open, 0, 1); if (walkwayGlowL) walkwayGlowL.visible = open > 0.02; }
   /* door N0: the room lights at the entry's cue (light under the door, a torch behind its glass), the leaf opens over 0.5 s
-     from the start of the entry's doorway segment (1.35 s since the door reveal shortened the entry; FF.AI.entrySegs) */
+     from the start of the entry's doorway segment (FF.AI.entrySegs); already open for the door reveal's short replay (s.replay) */
   { const s = G.searcher || {}, entryT = s.entryT != null && s.state !== 'off' ? s.entryT : -1, done = !!(G.flags && G.flags.entryDone);
     const dwSeg = FF.AI && FF.AI.entrySegs && FF.AI.entrySegs.find(q => q.kind === 'doorway'), doorAt = dwSeg ? dwSeg.t0 : 2.5;
-    const roomOn = done || entryT >= 0 || (s.active && s.state !== 'wait' && s.state !== 'off');
+    const roomOn = done || entryT >= 0 || !!s.replay || (s.active && s.state !== 'wait' && s.state !== 'off');
     const dn = props.doorN0; if (dn && S.mine.doorN0 != null && Math.abs(dn.rotation.y - S.mine.doorN0) > 1e-4) asked.doorN0 = true;
     let open = Math.abs(dn ? dn.rotation.y : 0) / 1.55;
-    if (!asked.doorN0) { const want = done || (s.active && s.state !== 'wait' && s.state !== 'off' && entryT < 0) ? 1 : entryT >= doorAt ? clamp((entryT - doorAt) / 0.5, 0, 1) : 0; open = want; World.open('doorN0', open); S.mine.doorN0 = dn.rotation.y; }
+    if (!asked.doorN0) { const want = done || s.replay || (s.active && s.state !== 'wait' && s.state !== 'off' && entryT < 0) ? 1 : entryT >= doorAt ? clamp((entryT - doorAt) / 0.5, 0, 1) : 0; open = want; World.open('doorN0', open); S.mine.doorN0 = dn.rotation.y; }
     H.doorSpill.st.derived = SPOT_DEF.doorSpill.intensity * clamp(open, 0, 1);
     const flick = roomOn ? 1 : 0, torchBehind = entryT >= 0 && entryT < doorAt ? 0.5 + 0.5 * Math.sin(G.frameT * 2.3) : 0;
     if (doorRoom) doorRoom.material.color.copy(FF.lin('#d9e2ea')).multiplyScalar(1.2 * flick);

@@ -1,4 +1,4 @@
-/* FAR FIELD — ff-ai.js: FF.AI, the searcher (beat 3): the entry (first time only) and his fixed 44.85 s routine
+/* FAR FIELD — ff-ai.js: FF.AI, the searcher (beat 3): the entry (first time only) and his fixed 47.85 s routine
    (FF.S1.searcher), perception by the ONE detection model (A6), suspicion, and every reaction, each telegraphed with a
    reaction window (docs/farfield/SEQUENCE-1.md §9 as amended):
      patrol / entry --(s >= 0.35)--> NOTICE: he stops dead, the footsteps stop, the head turns, the torch drifts onto the
@@ -177,7 +177,7 @@ function pathCost(x, lv, tx, tlv, v) {
 }
 
 /* ================================================================== state */
-let fig = null, entry = [], loop = [], LOOP_T = 44.85, ENTRY_T = 7.65, clock = 0;
+let fig = null, entry = [], loop = [], LOOP_T = 47.85, ENTRY_T = 8.0, clock = 0;
 const ST = { active: false, state: 'off', x: 110, y: 0, z: -1.15, face: -1, pitch: -20, half: 13, kneel: false, torchOn: false, kind: '', loopT: null, entryT: null,
   s: 0, lit: 0, litBy: '', aim: 0, wary: 0, startIn: -1 };
 const I = {
@@ -379,7 +379,8 @@ function stepEntry(dt) {
     /* the visible beam narrows over the raise and widens over the lowering (the 2D model holds 5 deg, as checked) */
     I.p.halfVis = tt < 0.5 ? U.lerp(RT().torch.half, RT().torch.aimHalf, tt / 0.5) : tt < 1.5 ? RT().torch.aimHalf : U.lerp(RT().torch.aimHalf, RT().torch.half, (tt - 1.5) / 0.5);
   } else I.p.halfVis = null;
-  if (!I.entryLowered && t >= entry[5].t0 + entry[5].dur) { I.entryLowered = true; FF.bus.emit('entry', { phase: 'aim-lowered' }); }
+  const aimSeg = entry.find(q => q.kind === 'aim-demo');
+  if (!I.entryLowered && aimSeg && t >= aimSeg.t0 + aimSeg.dur) { I.entryLowered = true; FF.bus.emit('entry', { phase: 'aim-lowered' }); }
   if (t >= ENTRY_T) finishEntry(false);
 }
 function finishEntry(interrupted) {
@@ -562,15 +563,20 @@ const AI = FF.AI = {
        World from G.searcher.entryT / G.flags.entryDone; the 2D area light follows the same timing (I.doorOpen). */
   },
   get entryTotal() { return ENTRY_T; }, get loopTotal() { return LOOP_T; }, get entrySegs() { return entry; }, get loopSegs() { return loop; },
-  reset(cp) {
+  reset(cp, opts) {
     const sc = cp && cp.searcher; const was = ST.active;
-    Object.assign(ST, { s: 0, lit: 0, litBy: '', startIn: -1, wary: 0, aim: 0, entryT: null, loopT: null });
+    Object.assign(ST, { s: 0, lit: 0, litBy: '', startIn: -1, wary: 0, aim: 0, entryT: null, loopT: null, replay: false });
     Object.assign(I, { frozen: false, grace: 0, lastLit: null, lastSeen: null, seenT: 99, visT: 0, losT: 0, pursueT: 0, v: 0, hide: null, hc: null, insert: null, ret: null, move: null, qturn: null,
       entryPhase: '', entryRaise: false, entryLowered: false, aimClicked: false, lastX: null, stepAcc: 0 });
     Object.assign(I.p, { lean: 0, reach: 0, aim: 0, head: null, kneel: false, face0: null, yaw: null, halfVis: null, torchPitchVis: null });
     if (!sc) { ST.active = false; I.mode = 'off'; ST.state = 'off'; I.p.visible = false; I.doorOpen = !!FF.G.flags.entryDone; return; }
     activate();
-    if (sc.beforeEntryDone && !FF.G.flags.entryDone) { I.mode = ''; setMode('wait'); ST.startIn = 1.5; I.doorOpen = false; FF.G.flags.doorN0 = false; I.p.visible = false; }
+    if (sc.beforeEntryDone && !FF.G.flags.entryDone) {
+      I.mode = ''; setMode('wait'); ST.startIn = 1.5; I.doorOpen = false; FF.G.flags.doorN0 = false; I.p.visible = false;
+      /* a retry after the door reveal was seen but not finished (FF.Events decides): he is already outside, the entry resumes
+         at the aim demonstration a moment after the restart (the camera is already on the door) */
+      if (FF.Events && FF.Events.entryReplay && FF.Events.entryReplay(opts && opts.reason)) { ST.replay = true; ST.startIn = 0.02; I.doorOpen = true; FF.G.flags.doorN0 = true; }
+    }
     else { I.doorOpen = true; FF.G.flags.doorN0 = true; I.loopT = (sc.after ? sc.after.loopT : sc.loopT) || 0; I.mode = ''; setMode('patrol'); applySample(sample(loop, I.loopT, clock), false); if (fig) fig.set({ snap: true }); }
   },
   /* test hook: the searcher at loop time t (patrolling, calm) */
@@ -579,7 +585,14 @@ const AI = FF.AI = {
   step(dt) {
     if (!ST.active || I.frozen) return;
     clock += dt; I.modeT += dt; if (ST.wary > 0 && I.mode === 'patrol') { ST.wary = Math.max(0, ST.wary - dt); if (ST.wary === 0) ST.state = 'patrol'; }
-    if (I.mode === 'wait') { ST.startIn -= dt; I.p.visible = false; if (ST.startIn <= 0) { I.entryT = 0; I.entryPhase = ''; I.doorOpen = false; FF.G.flags.doorN0 = false; setMode('entry'); FF.bus.emit('entry', { phase: 'cue' }); } return; }
+    if (I.mode === 'wait') {
+      ST.startIn -= dt; I.p.visible = false;
+      if (ST.startIn <= 0) {
+        if (ST.replay) { const a = entry.find(q => q.kind === 'aim-demo'); I.entryT = a ? a.t0 : 0; I.entryPhase = 'aim-demo'; I.doorOpen = true; FF.G.flags.doorN0 = true; setMode('entry'); FF.bus.emit('entry', { phase: 'replay' }); }
+        else { I.entryT = 0; I.entryPhase = ''; I.doorOpen = false; FF.G.flags.doorN0 = false; setMode('entry'); FF.bus.emit('entry', { phase: 'cue' }); }
+      }
+      return;
+    }
     const calm = I.mode === 'patrol' || I.mode === 'entry' || I.mode === 'return' || I.mode === 'investigate' || I.mode === 'notice' || I.mode === 'lost';
     switch (I.mode) {
       case 'entry': stepEntry(dt); break;

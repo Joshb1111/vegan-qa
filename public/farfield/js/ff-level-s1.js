@@ -131,15 +131,16 @@ FF.S1 = {
   ],
 
   /* checkpoints. Only the Search ever restores one after a failure; the rest hold progress if the game is left.
-     Search loop times follow the amended 44.85 s loop (A10: the deck look is 6.0 s). */
+     Search loop times follow the 47.85 s loop (the deck look 9.0 s since the v2 review fixes; A10 had 6.0 s): search-arrive
+     after the entry and search-skip restart him walking away to the right, search-platform as he walks to the steps. */
   checkpoints: [
     { id: 'verge-start',     x: 2.0,   y: 0,    face: 1, pose: 'groom' },
     { id: 'verge-mid',       x: 19.4,  y: 0,    face: 1 },
     { id: 'drain',           x: 44.0,  y: -1.0, face: 1 },
     { id: 'courtyard',       x: 56.6,  y: 0,    face: 1, save: true },
-    { id: 'search-arrive',   x: 88.4,  y: 0,    face: 1, pose: 'hide', searcher: { beforeEntryDone: 'entry', after: { loopT: 33.7 } }, save: true },
+    { id: 'search-arrive',   x: 88.4,  y: 0,    face: 1, pose: 'hide', searcher: { beforeEntryDone: 'entry', after: { loopT: 36.7 } }, save: true },
     { id: 'search-platform', x: 94.8,  y: 0,    face: 1, pose: 'hide', when: 'whole body in the deck core, undetected', searcher: { loopT: 9.0 } },
-    { id: 'search-skip',     x: 106.1, y: 0,    face: 1, pose: 'hide', when: 'whole body in the skip core, undetected', searcher: { loopT: 39.5 } },
+    { id: 'search-skip',     x: 106.1, y: 0,    face: 1, pose: 'hide', when: 'whole body in the skip core, undetected', searcher: { loopT: 42.5 } },
     { id: 'rest',            x: 116.0, y: 0,    face: 1, save: true },
   ],
 
@@ -162,9 +163,13 @@ FF.S1 = {
       { id: 'search',       x0: 86.0, x1: 113.0, dist: 10.0, height: 1.30, horizon: 0.60, lookAhead: 1.6, follow: 2.2,
         attend: { who: 'searcher', w: 0.35, within: 12.0 } },
       { id: 'search-watch', when: 'rabbit still or hidden, searcher active within 16 m', bias: 0.4, keepRabbitIn: 0.7, maxDist: 11.0, maxDistHidden: 12.5 },
-      /* A12: the establishing frame holds through the whole entry (door, skip, fence gap in frame) until the gun lowers */
-      { id: 'search-entry-hold', once: true, when: 'entry starts (door light) while the rabbit is left of x 91', x: 109.0, dist: 12.5, horizon: 0.60,
-        holdUntil: 'entry-aim-lowered', releaseIfRabbitX: 91.0, ease: 0.6, test: 'held frame at entry t 9.5: gun line, narrowed beam and the gap all on screen' },
+      /* A12 as revised (Josh's playtest §9.5; v2 review fixes): THE DOOR REVEAL's establishing frame, the one camera takeover.
+         FF.Events runs it (ff-events.js REVEAL): eased in over 1.5 s once the rabbit has stopped and reacted, held while he
+         steps out and aims at the fence, eased back over 1.3 s from 1.1 s into the aim; nothing here starts or releases it.
+         Framed by FF.Camera: the span (the skip, the door, the fence corner with its gap) fitted to the aspect, dist 10.5-12.5
+         (up to 14 below 1.6:1), the centre moved right when needed so the gap sits at most 88% across the frame. */
+      { id: 'search-entry-hold', shot: true, span: [104.3, 114.5], dist: 12.5, distNarrow: 14.0, gapX: 113.3, gapShare: 0.88, horizon: 0.60,
+        test: 't-reveal.mjs: the door, the man stepping out, the narrowed beam and the gap all on screen at 2:1, 16:10 and 4:3' },
       { id: 'search-held-breath', when: 'searcher on the deck above the rabbit, or kneeling within 3 m of its hide', dist: 9.2, height: 1.1, ease: 2.0 },
       /* A13: danger framing replaces the old 6 m chase zone */
       { id: 'danger',       when: 'searcher NOTICE / SPOTTED / AIM / PURSUE within 10 m', fit: ['rabbit', 'searcher'], maxDist: 12.5, edge: 0.15, horizon: 0.58, lookAhead: 1.8, follow: 3.5 },

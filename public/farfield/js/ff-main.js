@@ -78,36 +78,53 @@ addEventListener('resize', () => resize());
 /* ---------------------------------------------------------------- input (§6) */
 const KEYMAP = { ArrowLeft: ['left'], KeyA: ['left'], ArrowRight: ['right'], KeyD: ['right'], Space: ['jump'], ArrowUp: ['up', 'jump'], KeyW: ['up', 'jump'],
   ArrowDown: ['down'], KeyS: ['down'], ShiftLeft: ['run'], ShiftRight: ['run'] };
-const keys = {}, pressed = {}, bot = {}, pad = {}, latched = {};
-let lastInputT = 0;
+const keys = {}, pressed = {}, bot = {}, pad = {}, latched = {}, broke = {}, resumed = {};
+let lastInputT = 0, offAt = -1, latchAt = -1;
 const rawDown = a => !!(keys[a] || bot[a] || pad[a]);
-/* THE LATCH (the door reveal, Josh 7 Oct §9.5: "holding forward must not carry him beyond it"): when a takeover gives control
-   back, every listed action still held counts as NOT held until it is let go and pressed again. A held key on a real
-   keyboard auto-repeats keydown without ever releasing (that sets no new press), so clearing the input would not do. A
-   fresh press (keydown after keyup, a pad button's rising edge, a bot press) ends it at once, even when the release and
-   the press fall inside one fixed step; a release seen at the end of a step ends it too. */
+/* THE LATCH (the door reveal, Josh 7 Oct §9.5: "holding forward must not carry him beyond it"; v2 review fixes): when a
+   takeover gives control back, every listed action HELD WITHOUT A BREAK since control went off counts as not held until it
+   is let go and pressed again. A key let go or pressed afresh while control was off (broke[a]: a keyup, a keydown that is
+   not an auto-repeat, a pad edge, a bot hold change) is the player's new intention: it is not latched, it acts at once. A
+   held key on a real keyboard auto-repeats keydown without ever releasing (that is no new press), so clearing the input
+   would not do. A fresh press after control is back ends the latch at once, even when the release and the press fall inside
+   one fixed step; a release seen at the end of a step ends it too.
+   And so a held key never looks broken (a child holding → through the reveal): a DIRECTION still held LATCH_RESUME s after
+   control came back resumes as the cautious walk (resumed[a]: Shift is ignored until that key is let go), well after the
+   camera has settled and still inside the reveal's grace. A latched jump never fires by itself. */
+const LATCH_RESUME = 0.8, DIRS = { left: 1, right: 1 };
 const fresh = a => { if (latched[a] && pressed[a]) latched[a] = false; };
+const edge = a => { if (!G.control) broke[a] = true; };            // a release or a fresh press while control is off
+const resumeCheck = a => { if (latched[a] && DIRS[a] && latchAt >= 0 && G.t - latchAt >= LATCH_RESUME && rawDown(a)) { latched[a] = false; resumed[a] = true; } };
 FF.Input = {
-  /* held now (keyboard, gamepad or a bot hold), unless latched */
-  down: a => { fresh(a); return !latched[a] && rawDown(a); },
+  /* held now (keyboard, gamepad or a bot hold), unless latched; 'run' is not held while a resumed direction is */
+  down: a => { fresh(a); resumeCheck(a); if (a === 'run' && (resumed.left || resumed.right)) return false; return !latched[a] && rawDown(a); },
   /* held now, ignoring the latch (tests, and the latch itself) */
   raw: rawDown,
   /* consume an edge press made since the last fixed step (presses are dropped after every step: modules buffer if they want) */
   took: a => { fresh(a); const p = !!pressed[a]; pressed[a] = false; return p && !latched[a]; },
   peek: a => { fresh(a); return !latched[a] && !!pressed[a]; },
   axis: () => (FF.Input.down('right') ? 1 : 0) - (FF.Input.down('left') ? 1 : 0),
-  /* latch every action in `list` that is held now; returns the ones latched */
-  latch(list) { const out = []; for (const a of list) if (rawDown(a)) { latched[a] = true; out.push(a); } return out; },
-  unlatch() { for (const k in latched) latched[k] = false; },
+  /* control is going off (a takeover): from now on a release or a fresh press of an action marks it as broken */
+  off() { offAt = G.t; for (const k in broke) broke[k] = false; },
+  /* latch every action in `list` held now without a break since off(); returns the ones latched */
+  latch(list) { const out = []; latchAt = G.t; for (const a of list) if (rawDown(a) && !broke[a]) { latched[a] = true; out.push(a); } for (const k in broke) broke[k] = false; return out; },
+  unlatch() { for (const k in latched) latched[k] = false; for (const k in resumed) resumed[k] = false; latchAt = -1; },
   get latched() { return Object.keys(latched).filter(k => latched[k]); },
-  clear() { for (const k in keys) keys[k] = false; for (const k in pressed) pressed[k] = false; for (const k in pad) pad[k] = false; for (const k in latched) latched[k] = false; },
-  endStep() { for (const k in pressed) pressed[k] = false; for (const k in latched) if (latched[k] && !rawDown(k)) latched[k] = false; },
+  get resumed() { return Object.keys(resumed).filter(k => resumed[k]); },
+  /* a restart, pause or resume drops every held key (a real keyboard sends no new keydown for a key already down), EXCEPT
+     Shift ('run'): a held modifier never repeats on macOS, so dropping it made a player still holding Shift only walk, just as
+     they tried to escape. Shift's state is also re-read from every key event's modifier (keydown / keyup below). */
+  clear() { for (const k in keys) if (k !== 'run') keys[k] = false; for (const k in pressed) pressed[k] = false; for (const k in pad) pad[k] = false; for (const k in latched) latched[k] = false; for (const k in resumed) resumed[k] = false; },
+  endStep() { for (const k in pressed) pressed[k] = false; for (const k in latched) if (latched[k] && !rawDown(k)) latched[k] = false; for (const k in resumed) if (resumed[k] && !rawDown(k)) resumed[k] = false; },
   get lastInputT() { return lastInputT; },
-  /* bot hooks (also on __ff) */
-  hold(a, on) { bot[a] = on !== false; if (on !== false) lastInputT = G.t; },
-  press(a) { pressed[a] = true; lastInputT = G.t; },
-  release() { for (const k in bot) bot[k] = false; },
+  /* bot hooks (also on __ff). Game.control(false) releases bot holds (sysRel): a plan that holds the same key again right
+     after is the same unbroken hold, not a new press */
+  hold(a, on) { const v = on !== false; if (!!bot[a] !== v && !(v && sysRel[a])) edge(a); if (v) sysRel[a] = false; bot[a] = v; if (v) lastInputT = G.t; },
+  press(a) { pressed[a] = true; if (!sysRel[a]) edge(a); lastInputT = G.t; },
+  release() { for (const k in bot) { if (bot[k]) sysRel[k] = true; bot[k] = false; } },
+  edge,
 };
+const sysRel = {};
 function pollPad() {
   for (const k in pad) pad[k] = false;
   if (!navigator.getGamepads || !document.hasFocus()) return;
@@ -117,6 +134,7 @@ function pollPad() {
   const was = Object.assign({}, padPrev);
   pad.left = ax < -0.35 || b(14); pad.right = ax > 0.35 || b(15); pad.jump = b(0) || b(3) || b(12); pad.up = b(3) || b(12); pad.down = b(1) || b(13);
   pad.run = b(2) || b(5) || b(7);           // X, RB or RT + a direction runs (a tilted stick alone is the cautious walk, like an arrow)
+  for (const k of ['jump', 'up', 'down', 'left', 'right', 'run']) if (!!pad[k] !== !!was[k]) edge(k);    // a release or a press while control is off
   for (const k of ['jump', 'up', 'down', 'left', 'right', 'run']) if (pad[k] && !was[k]) { pressed[k] = true; lastInputT = G.t; if (G.mode !== 'play' && k !== 'run') onCommandKey(k === 'jump' ? 'Enter' : k === 'left' ? 'ArrowLeft' : k === 'right' ? 'ArrowRight' : k === 'up' ? 'ArrowUp' : 'ArrowDown'); }
   if (b(9) && !padPrev.start) onCommandKey('Escape');
   Object.assign(padPrev, pad); padPrev.start = b(9);
@@ -201,6 +219,7 @@ function onCommandKey(code) {
   return false;
 }
 addEventListener('keydown', e => {
+  keys.run = !!e.shiftKey || e.code === 'ShiftLeft' || e.code === 'ShiftRight';   // Shift is read from every key event's modifier (a held modifier never repeats)
   if (e.code === 'KeyQ') { tierChosen = true; setTier(FF.TIER_ORDER[(FF.TIER_ORDER.indexOf(tierName) + 1) % 3]); return; }
   if (e.code === 'KeyF') { fpsEl.hidden = !fpsEl.hidden; return; }
   if (e.code === 'KeyM') { Game.setMute(!G.muted); return; }
@@ -216,10 +235,10 @@ addEventListener('keydown', e => {
     if (e.shiftKey) keys.run = true;          // Shift held down on the title (its keydown was a title key): Shift + → runs at once
   }
   if (!acts) return; e.preventDefault();
-  for (const a of acts) { if (!keys[a]) pressed[a] = true; keys[a] = true; }
+  for (const a of acts) { if (!keys[a]) { pressed[a] = true; if (!e.repeat) edge(a); } keys[a] = true; }
   lastInputT = G.t;
 });
-addEventListener('keyup', e => { const acts = KEYMAP[e.code]; if (acts) for (const a of acts) keys[a] = false; });
+addEventListener('keyup', e => { const acts = KEYMAP[e.code]; if (acts) for (const a of acts) { if (keys[a]) edge(a); keys[a] = false; } keys.run = !!e.shiftKey; });
 addEventListener('blur', () => { for (const k in keys) keys[k] = false; });
 document.addEventListener('visibilitychange', () => { if (document.hidden) { if (G.mode === 'play') Game.pause(); call('Audio', 'hidden', true); } else if (G.mode !== 'pause') call('Audio', 'hidden', false); });
 

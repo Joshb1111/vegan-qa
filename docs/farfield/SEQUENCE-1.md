@@ -113,7 +113,8 @@ Josh played the preview and kept the atmosphere, tension, music and core mechani
 - Squeeze speeds (A9) are now **caps**: a walking rabbit is never sped up under a skirt (a run is held to 1.6, a flee to 2.4; the creep to 0.75).
 - Gamepad: stick or d-pad move (the walk), X, RB or RT + a direction run, A jump, Y or d-pad up climb in, B or d-pad down crouch.
 - Title line: "← → move · Shift run · Space jump · ↓ crouch" (↑ still jumps and climbs in). Hints: "← → move" at the start; "Space jump" at the post; **"Shift + → run" once**, while walking in the Verge's safe stretch (x 13.0–20.5, before the van), skipped if the player has already run for 1 s, with a second chance on entering the Courtyard (a Continue from a save).
-- The Search checker models the same inputs and runs every route twice: RUN (Shift; every amended verdict holds) and WALK (the cautious pace; fair: every alert beyond the close-range rule is survivable by running at once). PASS 21/21.
+- The Search checker models the same inputs and runs every route twice: RUN (Shift; every amended verdict holds) and WALK (the cautious pace; fair: every alert beyond the close-range rule is survivable by running at once). PASS 23/23 since V8 (the deck look 9.0 s: the main window works at the walk).
+- **V8 additions:** a hop with a direction held leaps forward (≥ 1.65 m/s at take-off, never cut short by a quick release; a walking hop carries about 0.6 m); a held Shift is read from every key event's modifier and survives a restart, pause and resume; the "Shift + → run" hint goes once Shift is used, and a player who has not run for 60 s sees it once more entering the Courtyard; the pause screen shows the controls line.
 
 **V2 · Crouching** (§9.2). The rabbit lowers by itself only under something low: a squeeze, or any ceiling below 0.35 m (`lowPoseUnder`, kept: it reads as natural). The danger reflex in the open (torchlight, the gate's glare, a far human who stops) is now a **freeze** (ears back, a slight lowering), never a flattening; ↓ flattens it there deliberately. Going under something, the head and shoulders lower first (just before the edge), the hips follow, and each rises once it has cleared, eased rather than snapped.
 
@@ -123,18 +124,24 @@ Josh played the preview and kept the atmosphere, tension, music and core mechani
 
 **V5 · The door reveal** (§9.5; replaces A12 and the timing in §9.3). The searcher's entrance is the **one deliberate camera takeover** in Sequence 1, and it always completes:
 - **Start:** the earlier of the door cue (1.5 s after the rabbit lands from the duct) and the rabbit's centre reaching **x 90.0** (just out from under the A0 shelf's skirt), first time only.
-- **Stop:** control goes off at once; the rabbit's own physics stop it (a run slides about 0.4 m; in the air it lands first). It is never moved by script. Furthest stop measured: x 90.32 (the deck starts at 92.0); he is 19.7 m or more away throughout.
-- **Reaction:** the ears snap to the footsteps; once still it sits up to listen, then freezes (under the shelf it watches low; mid-squeeze it stays crouched).
-- **The shot:** 0.3 s after the cue the camera eases over 1.25 s to the door frame (fitted to [104.3, 114.5]: the door, the skip, the fence corner and its gap): the door light, the silhouette in the doorway, the step out, the clatter, the aim that lights the gap. It starts back 1.2 s into the aim (1.3 s ease); **control returns 1.0 s into the way back: 5.95 s after the cue** (6.08 s when the trigger started it).
-- **The entry is shorter** (`ff-script-s1.js`, 7.65 s; same beats, order and nodes): cue 1.35, doorway 0.6, step out 1.1, a glance 0.25, turn to the clatter 0.45, the aim demonstration 2.0 (unchanged), a turn-sweep 1.9 (no second clatter); then the loop.
-- **Held keys:** a direction or jump held through the takeover does nothing until it is let go and pressed again (`FF.Input.latch`; keyboard auto-repeat does not release it). Shift and ↓ stay live.
+- **Stop:** control goes off at once; the rabbit's own physics stop it (a run slides about 0.4 m; in the air it lands first). It is never moved by script. Furthest stop measured: **x 90.8** (a Shift run onto the shelf top and a jump off its end; the deck starts at 92.0); he is 19 m or more away throughout.
+- **Reaction (V8):** the ears snap to the footsteps; once still it sits up to listen, then freezes; under the shelf (no room to sit up) it lifts its head and pricks its ears up from flat ('prick'); mid-squeeze it stays crouched. **The camera leaves only 0.85 s after the rabbit has stopped** (never sooner than 0.85 s after the cue), so the reaction is seen.
+- **The shot (V8):** the camera then eases over **1.5 s** to the door frame (fitted to [104.3, 114.5]: the door, the skip, the fence corner and its gap; below 1.6:1 it may pull back to 14 m and moves right so the gap sits at most 88% across): the door light, the silhouette in the doorway as the camera arrives, the step out, the clatter, the aim that lights the gap. It starts back 1.1 s into the aim (1.3 s ease); **control returns as the ease ends, 6.5 s after the cue**, the rabbit back in its normal place in the frame (a third in, never inside the 15% margin).
+- **The entry** (`ff-script-s1.js`, 8.0 s since V8; same beats, order and nodes): cue 1.95 (the door light and footsteps while the rabbit reacts and the camera travels), doorway 0.6, step out 0.9, a glance 0.2, turn to the clatter 0.45, the aim demonstration 2.0 (unchanged), a turn-sweep 1.9 (no second clatter); then the loop.
+- **Held keys (V8):** a direction or jump held **without a break** through the takeover does nothing when control returns (`FF.Input.latch`; keyboard auto-repeat is not a break); a key let go and pressed again during it acts at once. A direction still held 0.8 s after control returns resumes as the cautious walk (Shift ignored until it is let go): the camera has settled, he is 19 m away and the grace still runs. Shift and ↓ stay live.
 - **No harm while it runs:** from the start until 1.2 s after control returns (`G.flags.revealSafe`) the searcher is given no sight of the rabbit at all (`FF.AI`). Rain, sound and the world keep running.
-- **Retries:** once control has returned it never replays (a restart after a failure goes straight back to his routine). A pause → Restart in the middle of it gives control back and it plays once more in full (it was never seen).
+- **Retries (V8):** once control has returned it never replays (a restart after a failure goes straight back to his routine). Once it has been **seen** (the camera on the open door with the man in it) a pause → Restart or a Quit → Continue from the Search replays only its end: under the restart's black the camera is already on the door, he is already outside, the aim lights the gap, the camera eases back: control after about 2.4 s. Before it was seen, it plays once more in full.
 - Every other camera hold stays discoverable during play: the Courtyard's establishing frame releases on 1.5 m of movement; the van and walkway-worker leans never take control (the walkway lean is now limited to the Courtyard).
 
 **V6 · One sign of resistance** (§9.7: "for the current section, one restrained detail is enough"; an exception to §1's "no slogans", physical only). On one back-wall panel of the Courtyard (x 65.8–68.6, chest height), hand-sprayed **END ANIMAL USE** has been buffed out with a hasty coat of grey that doesn't match the concrete; some letters ghost through the dry strokes, the tip of the first A and half of the last E stick out. Lit like the wall, no light, sound, camera move, hint or UI of its own; it is never in a camera hold (passed, not shown). Data: `decor` id `painted-over` in `ff-level-s1.js`.
 
 **V7 · The Search's darkness shows shapes** (the lead's note §8): the Search grade lifts the deepest values a little (contrast 1.08 → 1.06, lift +0.006, vignette 0.70 → 0.64), so the duct housing and the shelf around the hiding rabbit read on arrival. The same night.
+
+**V8 · The v2 review fixes** (7 Oct evening; the reviewers' controls/fairness, reveal and look/engineering lenses; nothing Josh liked was changed):
+- **The Search at the walk:** the deck look (A10: 6.0 s) is **9.0 s** (§9.4: the loop is 47.85 s, everything after the look 3.0 s later; the checkpoints' loop times moved with it). A cautious walk out of the deck core 0.5–2 s into his look reaches the pallet core with no NOTICE, and the deck → skip crossing leaving 0.5 s in is never SPOTTED (the checker's two new WALK checks; 23/23). With Shift every amended verdict is unchanged.
+- **Controls:** V1's additions above; the door reveal: V5 as revised above.
+- **The rabbit's look:** the stand-in is one connected surface (the same shapes blended, no ring at the neck, a hock and a long hind foot joined to the leg), skinned softly across the joins (`ff-rabbit.js`). Its feet stay planted across starting, stopping, slowing from the run and the change of cycle under the hoarding (measured by height: `tests/t-slide.mjs`); poses that only move the body keep the feet on the ground.
+- **The painted-over wall (V6):** the round flake that read as a bullet is gone; the roller strokes vary more in width and lean, their long edges ragged and feathered, overlapping: one hasty coat rather than grey cards.
 
 ## Integration notes (7 Oct, after the build; these also win over the text below)
 
@@ -651,9 +658,9 @@ There is one rule set: crouching only lowers the sight points, and **noise never
 - Lit at 10 m: SPOTTED in 1.6 s.
 - The nearest hide is ≤ 1.1 s away at a run. A rabbit that moves at the first sign usually makes cover before SPOTTED, and one caught close in the open can still escape.
 
-### 9.3 Entry (first time only; starts 1.5 s after the rabbit lands; ~~11.6 s~~ **7.65 s, V5**)
+### 9.3 Entry (first time only; starts 1.5 s after the rabbit lands; ~~11.6 s~~ ~~7.65 s, V5~~ **8.0 s, V8**)
 
-> **Amended** (A16): he steps in to the path at z −1.15. **V5 replaces the timing and the camera below:** the entry is the door reveal, a takeover that always completes (cue 1.35, doorway 0.6, step out 1.1, glance 0.25, turn 0.45, aim demonstration 2.0, turn-sweep 1.9; control back 5.95 s after the cue). The table keeps the original beats in order.
+> **Amended** (A16): he steps in to the path at z −1.15. **V5 and V8 replace the timing and the camera below:** the entry is the door reveal, a takeover that always completes (cue 1.95, doorway 0.6, step out 0.9, glance 0.2, turn 0.45, aim demonstration 2.0, turn-sweep 1.9; control back 6.5 s after the cue). The table keeps the original beats in order.
 
 | t | event | fairness role |
 |---|---|---|
@@ -668,9 +675,9 @@ There is one rule set: crouching only lowers the sight points, and **noise never
 - **Establishing frame (amended, A12):** when the door light appears with the rabbit left of x 91, the camera frames the door, the skip and the fence gap (centre 109.0, dist 12.5) and holds until the gun lowers (t 10.55), then eases back over 0.6 s. Movement inside the arrival nook doesn't release it; leaving the nook (x > 91) does. The rabbit is safe there throughout.
 - **Safe during the entry:** anywhere left of x 99 is out of the torch's reach while he is at the door, so moving from A0 to the deck core during the entry is safe.
 
-### 9.4 The patrol loop (amended: **44.85 s**, repeats exactly; path **z −1.15**, deck y 0.85)
+### 9.4 The patrol loop (amended: ~~44.85 s~~ **47.85 s (V8)**, repeats exactly; path **z −1.15**, deck y 0.85)
 
-> **Amended** (A10, A16): the deck look is 6.0 s; every later step moves by +1.5 s (the table is corrected).
+> **Amended** (A10, A16): the deck look is 6.0 s; every later step moves by +1.5 s. **V8:** the deck look is **9.0 s** (the main window at the cautious walk); every later step moves by a further +3.0 s (the table is corrected).
 
 | loop t | step | from → to | facing | time | torch | for the rabbit |
 |---|---|---|---|---|---|---|
@@ -679,12 +686,12 @@ There is one rule set: crouching only lowers the sight points, and **noise never
 | 5.10 | walk-search | → N3 99.4 | left | 1.0 m/s, 8.8 s | walking sweep; the skip shadows what is behind it | coming towards the deck |
 | 13.90 | climb the steps | N3 → N4 98.0 (deck) | left | 1.4 s | – | |
 | 15.30 | walk on the deck | → N5 93.0 | left | 1.0 m/s, 5.0 s | from 2.1 m up: cannot reach under the deck | **footsteps right over you**, dust (no light through the deck seams, A23) |
-| 20.30 | **look at the duct mouth** | at N5, above the rabbit | left | **6.0 s** (A10) | pitch -32 at the arrival area 87–91 | **THE MAIN WINDOW: he looks away** |
-| 26.30 | turn | | → right | 1.0 s | swings through the camera side (lights no lane) | |
-| 27.30 | walk on the deck | → N4 98.0 | right | 1.0 m/s, 5.0 s | lights the floor right of the deck | |
-| 32.30 | descend | → N3 | right | 1.4 s | | |
-| 33.70 | walk-patrol | → N1 110.0 | right | 1.3 m/s, 8.15 s | ahead | walking away |
-| 41.85 | **turn-sweep** | at N1 | → left | turn 1.0 + sweep 2.0 (pitch -35 → -8 → -35) | lights 107–109 and the skip's right margin | |
+| 20.30 | **look at the duct mouth** | at N5, above the rabbit | left | ~~6.0 s~~ **9.0 s** (V8) | pitch -32 at the arrival area 87–91 | **THE MAIN WINDOW: he looks away** |
+| 29.30 | turn | | → right | 1.0 s | swings through the camera side (lights no lane) | |
+| 30.30 | walk on the deck | → N4 98.0 | right | 1.0 m/s, 5.0 s | lights the floor right of the deck | |
+| 35.30 | descend | → N3 | right | 1.4 s | | |
+| 36.70 | walk-patrol | → N1 110.0 | right | 1.3 m/s, 8.15 s | ahead | walking away |
+| 44.85 | **turn-sweep** | at N1 | → left | turn 1.0 + sweep 2.0 (pitch -35 → -8 → -35) | lights 107–109 and the skip's right margin | |
 
 **Every change of attention is telegraphed.**
 - Stops are silent (the footsteps end).
@@ -692,7 +699,7 @@ There is one rule set: crouching only lowers the sight points, and **noise never
 - The kneel takes 0.8 s before the light goes under.
 - The deck look is preceded by 5 s of footsteps walking over the deck.
 
-**Timing.** The first deck look comes about 33 s after landing and now lasts 6 s. By then the player has seen the door, the silhouette, the aim, the walk, the crouch-look, the climb and the walk overhead.
+**Timing.** The first deck look comes about 34 s after landing and now lasts 9 s (V8; 6 s before). By then the player has seen the door, the silhouette, the aim, the walk, the crouch-look, the climb and the walk overhead.
 
 ### 9.5 After NOTICE and SPOTTED
 
@@ -731,9 +738,9 @@ About 70 s from landing.
 
 | checkpoint | activates | rabbit | searcher restarts at | why |
 |---|---|---|---|---|
-| search-arrive | on landing | A0, 88.4 | if the entry hasn't finished: the entry replays from the door light. After it: **loop t 33.7** (just down the steps, walking right, away, 11 m off) | time to reach the deck core (5 m) while he walks away |
+| search-arrive | on landing | A0, 88.4 | if the entry hasn't finished: the entry replays from the door light (V8: only its end, from the aim, if the reveal was already seen). After it: **loop t 36.7** (V8; was 33.7: just down the steps, walking right, away, 11 m off) | time to reach the deck core (5 m) while he walks away |
 | search-platform | whole body in the deck core, undetected | 94.8 | **loop t 9.0** (walking left at about 104.4, in view, approaching) | about 5 s to settle and watch him climb above you; the window opens 11.3 s in |
-| search-skip | whole body in the skip core, undetected | 106.1 | **loop t 39.5** (walking right just past the skip) | replays the climax (turn-sweep, then the crouch-look) in about 12 s, rather than a free run |
+| search-skip | whole body in the skip core, undetected | 106.1 | **loop t 42.5** (V8; was 39.5: walking right just past the skip) | replays the climax (turn-sweep, then the crouch-look) in about 12 s, rather than a free run |
 
 Restarting does not change the rabbit: no limp and no carried-over fear state beyond AFRAID breathing.
 

@@ -63,6 +63,22 @@ The parallel build is over and every module is live (`stub: false`). The integra
 
 
 
+## Sequence 1 v2 review fixes, 7 Oct late evening (SEQUENCE-1.md V8; updates the v2 section above where they differ)
+
+- **`FF.Input` (main, §6):**
+  - **Shift** (`run`) is read from every key event's modifier (`e.shiftKey`, keydown and keyup, any key) and is **not** dropped by `clear()` (restart, pause, resume): a held modifier never repeats on macOS.
+  - **The latch keeps only unbroken holds:** `off()` (called by Events when a takeover starts) begins watching; a keyup, a non-repeat keydown, a pad edge or a bot hold change while `G.control` is false marks that action broken (`edge(a)`); `latch(list)` latches only listed actions held **without a break** since `off()`. `Game.control(false)`'s own `release()` of bot holds is not a break.
+  - **Resume:** a latched direction still held `LATCH_RESUME` (0.8 s) after the latch resumes as the cautious walk: it is unlatched and marked `resumed` (getter `resumed`), and `down('run')` is false while a resumed direction is held (Shift ignored until that key is let go). A latched jump never fires by itself.
+  - Tests send key events with `modifiers: 8` while a Shift key is down, as a real keyboard does (`lib.mjs` `b.key`).
+- **The door reveal (`ff-events.js` REVEAL):** the pan waits for the rabbit: `Camera.shot('search-entry-hold', {ease: 1.5})` at `max(cue + 0.85, stopped + 0.85)` (at the latest cue + 1.6); under a low shelf the pose is `'prick'` (head up, ears pricked; `Player.setPose('prick')`); the return starts 1.1 s into `aim-demo` (`release: 1.3`) and **control returns at the end of the ease** (6.5 s after the cue). `seen` (the camera on the open door, `doorway` + 0.3 s) is kept for the page session (a warp clears it); a `restart` or `continue` at `search-arrive` after it was seen but before control returned replays only the end: `Events.entryReplay(reason)` (asked by `FF.AI.reset(cp, opts)`) → the AI's `ST.replay` (the door open, the World draws it open), its entry starts at `aim-demo` 0.02 s after the restart, emitting `entry {phase: 'replay'}` (not `cue`: no footsteps behind the door); Events, on the bus `restart`, starts the takeover with `cause: 'replay'` and `Camera.shot('search-entry-hold', {ease: 0})` under the restart's black; `play:start` (the title's Continue) keeps control off while it runs. `reveal()` adds `seen` and `resumed`.
+- **`FF.Camera`:** `search-entry-hold` below 1.6:1 may pull back to `distNarrow` 14 and moves its centre right so the gap (`gapX` 113.3) sits at most `gapShare` 0.88 across the frame (zone data in `ff-level-s1.js`, which no longer carries the old hold's fields).
+- **`FF.S1.searcher`:** entry 8.0 s (cue 1.95, doorway 0.6, step-in 0.9, sweep-left 0.2, turn 0.45, aim-demo 2.0, turn-sweep 1.9); loop **47.85 s** (the deck `look` 9.0 s); checkpoints `search-arrive` after `loopT` 36.7, `search-skip` 42.5. Checker: 23/23 (two WALK checks added: deck → pallet with no NOTICE leaving 0.5–2 s into the look; deck → skip leaving 0.5 s in never SPOTTED).
+- **`FF.RULES.rabbit.hopMin` 1.65, `hopDrag` 0.6:** a hop with a direction held leaves at ≥ hopMin forward, eases off at hopDrag in the air and is never cut by an early release (`S.hop`).
+- **`FF.Player`:** hint `{id: 'hint-run-again', arg: 'run-again'}` once per session, entering the Courtyard (x 57.5–66) if the player has not run for 60 s (`B.seen.ranAt`); UI `HINTS['run-again']` is the same "Shift + → run", and both run hints go once Shift is used. The pause screen shows the controls line. Gait: when the cycle changes under a moving rabbit (walk ↔ crouch ↔ push) the phase is remapped to where the feet best match (`gait.remap`); the anim input gains `yaw` (the rig's turned yaw), and `vx` is 0 in the climb and pop-out.
+- **`FF.Rabbit` (§8.3):** `buildProcedural` returns one connected skinned surface (a smooth union of the part ellipsoids, surface nets at 4 mm / `detail`, normals from the field, soft skin weights; ears and eyes separate), bound with the legs a little extended (`EXT`), plus `info {verts, tris, grid}`. `ProcAnim`: each foot planted in world (moved back by the body's signed travel along its yaw), swings by a Hermite curve that leaves and lands at ground speed, a planted foot put late into a swing by a cycle change waits for its next stance, the still feet step onto their footprints (one per end, a small lift; a foot still in the air comes straight down); poses may return `feetLock` (the locomotion layers' planted feet are kept under them: freeze, sniff, nibble, look, hide, watch, prick, peek, lookdown, hesitate, flinch).
+- **Tools:** `docs/farfield/tools/rig.py` (rig an unrigged rabbit GLB; repaints the base colour to `#c4beb4` unless `--keep-colour`) and `proxy.py` (a connected test rabbit).
+- **Tests:** `t-slide.mjs` + `slide-page.js` (foot slide by height: steady gaits, starting, stopping, the hoarding's cycle change, the searcher's feet; turns reported) in `run-all.sh`; `t-reveal.mjs` adds `shelf` (by default), `pressDuringReturn`, `mash`, `restartEarly`, `quitContinue`, `aspect`, and measures the reaction before the pan and the rabbit's place in the frame at control; `t-controls.mjs` adds the walking hop at the post, Shift through a failure and a pause, the pause controls line, the run hint going once used, the Courtyard reminder (30 checks).
+
 ## 0. Rules for builders
 
 - **Own only your files** (§1). Need something from another module? Code against this API, guard against it being a stub (`if (FF.X && FF.X.fn)`), and write the need in your report: the integrator wires it.
@@ -224,7 +240,7 @@ Actions: `left`, `right`, `jump`, `up`, `down`, `run` (V1; was `walk`). Keys: �
 |---|---|
 | `FF.Input.down(a)` | held now (keyboard, gamepad or a bot hold), unless latched |
 | `FF.Input.raw(a)` | held now, ignoring the latch |
-| `FF.Input.latch(list)` / `unlatch()` / `latched` | the takeover latch (V5): listed actions held now count as not held until let go and pressed again |
+| `FF.Input.latch(list)` / `unlatch()` / `latched` / `resumed` / `off()` / `edge(a)` | the takeover latch (V5, V8): listed actions held without a break since `off()` count as not held until let go and pressed again; a direction still held 0.8 s later resumes as the walk |
 | `FF.Input.took(a)` | consume a press made since the last fixed step; presses are dropped after every step (buffer in your module if you want, e.g. the jump buffer) |
 | `FF.Input.peek(a)` | look without consuming |
 | `FF.Input.axis()` | −1 … 1 |
@@ -254,7 +270,7 @@ Only the Player reads movement input, and only while `G.control`. Global keys ha
 | `camera` | `{base, zones[]}` (§8.2) |
 | `decor[]` | story set pieces without collision (the culvert mouth, the strange silhouettes, the Works) |
 
-**`FF.S1.searcher`** (`ff-script-s1.js`): `pathZ`, `nodes {N0…N5: [x, y, z]}`, `floorMinX`, `entry[]` (`[kind, seconds, node, note]`), `loop[]` (`[kind, node, speed]` for walks, `[kind, node, seconds]` for climb/descend, `[kind, seconds, 'left'|'right']` in place), `loopT` 44.85. **`FF.S1.verge`**, **`FF.S1.walkway`**: the beats' timings (SEQUENCE-1.md §6.2, §7.2, A8, A14).
+**`FF.S1.searcher`** (`ff-script-s1.js`): `pathZ`, `nodes {N0…N5: [x, y, z]}`, `floorMinX`, `entry[]` (`[kind, seconds, node, note]`), `loop[]` (`[kind, node, speed]` for walks, `[kind, node, seconds]` for climb/descend, `[kind, seconds, 'left'|'right']` in place), `loopT` 47.85 (V8). **`FF.S1.verge`**, **`FF.S1.walkway`**: the beats' timings (SEQUENCE-1.md §6.2, §7.2, A8, A14).
 
 **`FF.Level`** (pure logic, node-safe):
 
@@ -336,7 +352,7 @@ Model slots: `FF.MODELS.human`, `FF.MODELS.van` (ASSETS-3D.md); no file = the st
 
 ### 8.6 `FF.AI` (humans + events builder)
 
-The searcher: the entry (starts `arg` s after `search-entry`), the 44.85 s loop, perception by the **one detection model** (A6), suspicion (SEQUENCE-1.md §9.2), NOTICE → INVESTIGATE / SPOTTED → reaction → grab / aim / pursue → hide check (A11) → LOST → WARY, the gap, every telegraph (§9.5), and `fail {kind}` on the exact step of the grab or the shot. Also emits `entry {phase}` and `ai:state`, and `sound` for his footsteps (silent when stopped), the click, the breath.
+The searcher: the entry (starts `arg` s after `search-entry`), the 47.85 s loop (V8), perception by the **one detection model** (A6), suspicion (SEQUENCE-1.md §9.2), NOTICE → INVESTIGATE / SPOTTED → reaction → grab / aim / pursue → hide check (A11) → LOST → WARY, the gap, every telegraph (§9.5), and `fail {kind}` on the exact step of the grab or the shot. Also emits `entry {phase}` and `ai:state`, and `sound` for his footsteps (silent when stopped), the click, the breath.
 
 | member | contract |
 |---|---|
@@ -357,7 +373,8 @@ The Verge (the van, headlights along the joints, the stop at the gate, the glare
 | `scripted()` | true while a staged beat or the failure flow runs (main holds the tier step-down) |
 | `reset(cp, opts)` | progress flags implied by `cp`; stops any beat; (re)starts the beats that belong after `cp` |
 | `step(dt)` | checkpoint activation: progress checkpoints by x; Search checkpoints when the rabbit's centre is in that cover's core and `!FF.AI.danger()`; the door reveal (V5) |
-| `reveal()` | the door reveal's state: `{phase, cause, done, held, pose, t, maxX, latched, log}` |
+| `reveal()` | the door reveal's state: `{phase, cause, done, seen, held, pose, t, maxX, latched, resumed, log}` |
+| `entryReplay(reason)` | (V8) true when a restart / continue should replay only the end of his entry (the reveal was seen, not finished) |
 
 ### 8.8 `FF.Audio` (audio + UI + room builder)
 
@@ -442,7 +459,7 @@ For headless tests (rAF is throttled headless: drive frames yourself).
 | `step(n, render = true)` | n fixed steps (1/120 s; presentation every 2) and one draw → `state` lite |
 | `draw()` | one draw |
 | `hold(a, on)`, `press(a)`, `release()` | input as a bot |
-| `run(n, plan, every)` | n steps; `plan(state, i)` returns holds `{left, right, jump, up, down, run}` before each step (v2: `run` = Shift; a hold kept through the door reveal stays latched, like a held key); returns a log every `every` steps |
+| `run(n, plan, every)` | n steps; `plan(state, i)` returns holds `{left, right, jump, up, down, run}` before each step (v2: `run` = Shift; a hold kept through the door reveal stays latched, like a held key, and resumes as the walk 0.8 s after control returns); returns a log every `every` steps |
 | `until(pred, max, plan)` | step until `pred(state)` |
 | `warp(cpId or {x, y, face})` | straight into play at a checkpoint (or anywhere) |
 | `start()` | notice → title → play |
