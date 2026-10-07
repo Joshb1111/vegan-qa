@@ -275,10 +275,10 @@ function ClipAnim(root, clips) {
     let want, scale = 1, once = false;
     if (!s.grounded) { want = s.vy > 0 && (s.airT || 0) < 0.1 && by.jump_start ? 'jump_start' : 'jump_air'; once = want === 'jump_start'; }
     else if (landT < 0.18 && by.jump_land) { want = 'jump_land'; once = true; }
-    else if (s.push) { want = 'push_head'; scale = 0.4 + Math.max(s.speed / 0.6, s.effort * 0.5); }
+    else if (s.push) { want = 'push_head'; scale = Math.max(0.4, s.speed / 0.62, s.effort * 0.5); }
     else if (s.crouch) { want = s.speed > 0.05 ? 'crouch_walk' : 'crouch_idle'; scale = s.speed > 0.05 ? s.speed / 0.75 : 1; }
     else if (s.speed > 1.6) { want = 'hop_run'; scale = s.speed / 2.75; }
-    else if (s.speed > 0.05) { want = 'walk'; scale = Math.max(0.35, s.speed / 1.15); }
+    else if (s.speed > 0.05) { want = 'walk'; scale = Math.max(0.35, s.speed / 1.0); }  /* clips are authored at the speeds in ASSETS-3D.md */
     else { idleT += dt; want = 'idle_breathe'; if (idleT > nextTwitch && by.idle_ear_twitch) { oneShot = 0.8; idleT = 0; nextTwitch = 2 + Math.random() * 4; } if (oneShot > 0) { oneShot -= dt; want = 'idle_ear_twitch'; } }
     if (want !== 'idle_breathe' && want !== 'idle_ear_twitch') idleT = 0;
     const a = play(want, want.startsWith('jump') ? 0.06 : 0.16, once); if (a) a.timeScale = scale;

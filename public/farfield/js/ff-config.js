@@ -24,51 +24,51 @@ FF.LOOK = {
   /* ---- the key light: daylight through a high slatted skylight, landing as a broad pool on the floor ---- */
   key: {
     color: '#ffe8c8',            // faintly warm cream daylight; the fill and haze stay cold, so the pool reads warm against them
-    intensity: 14.0,
+    intensity: 21.0,
     dir: [-1.28, -1.0, 0.62],    // direction the light travels: down (~35 deg), to the left and towards the lens (from high behind the wall)
     poolCenter: [-1.55, 0, 0.55], // the pool lies on and in front of the lane: its far edge is at the rabbit's feet
     halfDepth: 1.0,              // the beam is a long high window: half its size across the hall (depth) ...
     halfWidth: 0.85,             // ... and half its width across the frame. On the floor: a window-shaped trapezoid
-    softDepth: 0.7, softWidth: 0.35, // soft edges (fraction of each half size)
+    softDepth: 0.65, softWidth: 0.2,  // soft edges (fraction of each half size)
     streaks: 0.30,               // how strongly the shafts' bands show in the pool on the floor
     streakBase: 0.80,            // pool brightness between the bands
-    shadowSoftness: 40,          // soft-shadow radius in shadow-map texels at 2048 (scaled for smaller maps)
+    shadowSoftness: 22,          // soft-shadow radius in shadow-map texels at 2048 (scaled for smaller maps)
   },
 
   /* ---- cool fill on the walls: reveals their surface and separates them from the foreground (Josh, round 1) ---- */
-  wallFill: { color: '#7f91a5', intensity: 0.42, floor: 0.55, height: 4.5, lean: 0.55, topFade: 0.4 },
+  wallFill: { color: '#86919d', intensity: 0.56, floor: 0.55, height: 4.5, lean: 0.55, topFade: 0.4 },
 
   /* ---- fill: cold, dim, from everywhere ---- */
-  ambient: { sky: '#6d7e90', ground: '#111418', intensity: 0.55 },
+  ambient: { sky: '#737e8a', ground: '#121416', intensity: 0.5 },
   fill: { color: '#8ea0b4', intensity: 0.12, dir: [-0.5, -0.6, -0.6] }, // a soft cold side light so big forms have a lit side
   bounce: { color: '#c8c6c0', intensity: 0.35, distance: 6.0 },          // light thrown back up from the bright pool
 
   /* ---- the low opening glows faintly from beyond ---- */
-  opening: { x: 1.75, w: 0.46, h: 0.40, depth: 0.9, glow: '#cfdcea', glowIntensity: 0.85, spill: 1.6, spillDistance: 2.6 },
+  opening: { x: 1.75, w: 0.46, h: 0.40, depth: 0.9, glow: '#dcd9cf', glowIntensity: 0.68, spill: 1.6, spillDistance: 2.6 },
 
   /* ---- one small warm accent, far back ---- */
   amber: { color: '#ffae4a', intensity: 5.0, light: 0.8 },
 
   /* ---- haze and depth fog ---- */
   fog: {
-    color: '#29323c',     // fog far from the light
+    color: '#2b3137',     // fog far from the light
     density: 0.030,       // per metre
     densityFar: 0.0012,   // extra density growing with distance (near stays clear, far thickens) beyond `start`
-    start: 6.0,           // the lane and near wall stay clear; depth begins behind them
+    start: 7.5,           // the lane and midground stay clear; depth begins behind them
     heightFalloff: 0.02,  // thicker near the floor
-    glow: '#93a5b6',      // fog seen towards the light picks up this colour (forward scattering)
+    glow: '#97a3ae',      // fog seen towards the light picks up this colour (forward scattering)
     glowPower: 2.2,
     glowStrength: 1.0,
-    hall: [8, 6, -26, 14], hallColor: '#a3b3c3', hallStrength: 0.42, // backlit haze far right: centre, radius
+    hall: [7, 1.5, -24, 12], hallColor: '#a7b1ba', hallStrength: 0.36, // backlit haze far right: centre, radius
   },
 
   /* ---- light shafts: the beam as a volume (analytic, a few samples per pixel), plus drifting dust on high ---- */
   shafts: {
     color: '#d6d4cd', wallZ: -5.0, motes: 320,
-    density: 0.024,     // in-scattering of the beam volume
+    density: 0.036,     // in-scattering of the beam volume
     base: 0.10,         // haze between the shafts (fraction of a shaft)
     /* the few shafts: [offset across the beam in metres (+ = upper-left side), width, strength] */
-    bands: [[-0.58, 0.13, 0.9], [-0.18, 0.22, 0.55], [0.26, 0.10, 1.0], [0.6, 0.17, 0.5]],
+    bands: [[-0.52, 0.26, 0.75], [-0.05, 0.36, 0.5], [0.42, 0.24, 0.8], [0.72, 0.2, 0.35]],
     haze: 0.16, hazeFalloff: 0.32, hazeDensity: 0.07, hazeBands: 1.2,  // soft glow of the haze around the beam
   },
 
@@ -77,7 +77,7 @@ FF.LOOK = {
     floor:   { color: '#575c62', roughness: 0.62, mottle: 0.10 },
     wall:    { color: '#3e434a', roughness: 0.95, mottle: 0.08, wallFill: 1.0 },
     wallDark:{ color: '#2c3036', roughness: 0.95, mottle: 0.06, wallFill: 0.8 },
-    metal:   { color: '#2a2e33', roughness: 0.70, mottle: 0.04, wallFill: 0.6 },
+    metal:   { color: '#2a2e33', roughness: 0.70, mottle: 0.04, wallFill: 0.25 },
     crate:   { color: '#5d554c', roughness: 0.90, mottle: 0.10 },
     hall:    { color: '#3a4149', roughness: 0.95, mottle: 0.05, wallFill: 0.7 },
     rabbit:  { color: '#c6c0b6', roughness: 0.85 },
@@ -100,9 +100,10 @@ FF.LOOK = {
   grade: {
     saturation: 0.80,
     contrast: 1.06,
-    lift: [0.022, 0.028, 0.036],   // shadows lean cold blue-grey
+    lift: [0.024, 0.027, 0.031],   // shadows lean cold blue-grey
     gain: [0.99, 1.0, 1.02],
-    vignette: 0.58,
+    vignette: 0.66,
+    bottomWeight: 0.35,   // the nearest strip of floor falls darker, for weight
     grain: 0.030,
     bloom: 0.30,
     bloomThreshold: 5.0,  // only the glowing opening and the lamp should bloom, never the rabbit
@@ -111,11 +112,14 @@ FF.LOOK = {
 
 /* Quality tiers: Q cycles them. Each line is what that tier pays for. */
 FF.TIERS = {
-  high:   { name: 'high',   dpr: 2,   msaa: 4, shadowMap: 2048, shadowTaps: 16, bloom: 2, grain: true,  motes: true,  bounce: true,  amberLight: true,  beamSamples: 10 },
-  medium: { name: 'medium', dpr: 1.5, msaa: 2, shadowMap: 1024, shadowTaps: 8,  bloom: 1, grain: true,  motes: false, bounce: true,  amberLight: false, beamSamples: 6 },
+  high:   { name: 'high',   dpr: 1.5, msaa: 4, shadowMap: 2048, shadowTaps: 16, bloom: 2, grain: true,  motes: true,  bounce: true,  amberLight: true,  beamSamples: 10 },
+  medium: { name: 'medium', dpr: 1.25, msaa: 2, shadowMap: 1024, shadowTaps: 8,  bloom: 1, grain: true,  motes: false, bounce: true,  amberLight: false, beamSamples: 6 },
   low:    { name: 'low',    dpr: 1,   msaa: 0, shadowMap: 512,  shadowTaps: 4,  bloom: 0, grain: false, motes: false, bounce: false, amberLight: false, beamSamples: 3 },
 };
 FF.TIER_ORDER = ['high', 'medium', 'low'];
+/* pixel ratio is capped (a Retina laptop at 2x would draw 4x the pixels for little visible gain: measured 57 fps at 2880x1800
+   on an M2 against 136 fps at 1.5x). If frames run slow (> 21 ms average over 2 s) the game steps down a tier by itself,
+   unless the player pressed Q or the URL chose ?q=. */
 
 /* The playable space. Collision is data, independent of the meshes: axis-aligned boxes in the lane's x/y plane. */
 FF.LEVEL = {

@@ -90,6 +90,8 @@ FF.buildScene = function (scene, L) {
   add(M.hall, boxG(WX, WX + 0.4, 0, 12, -8.3, WALLZ)); // the wall's return into the hall
 
   for (const [tx, tz] of [[3.95, -6.0], [5.15, -6.4]]) { add(M.metal, cylG(0.48, 1.55, tx, 0, tz, 28)); add(M.metal, cylG(0.5, 0.07, tx, 1.53, tz, 28)); add(M.metal, cylG(0.22, 0.12, tx, 1.6, tz, 16)); }
+  add(M.metal, boxG(1.6, 16, 3.3, 3.62, -1.35, -1.05)); add(M.metal, boxG(1.6, 16, 3.24, 3.3, -1.42, -0.98)); add(M.metal, boxG(1.6, 16, 3.62, 3.68, -1.42, -0.98));
+  for (const hx of [3.2, 7.8, 12.4]) add(M.metal, boxG(hx - 0.04, hx + 0.04, 3.68, 12, -1.24, -1.16));
   /* ---------- right end: the tall bulkhead that closes the walkway ---------- */
   add(M.wall, boxG(9.2, 11.0, 0, 12, -4.2, 1.2)); add(M.wallDark, boxG(9.1, 11.1, 0, 0.18, -4.2, 1.25));
 
@@ -186,7 +188,7 @@ FF.buildScene = function (scene, L) {
           float t = mix(t0, t1, (float(i) + jit) / float(SAMPLES));
           vec3 p = o + v * t;
           float prof = ffKeyMask(p);
-          float hz = smoothstep(uTopY, uTopY - 4.0, p.y) * smoothstep(0.15, 1.3, p.y);
+          float hz = smoothstep(uTopY, uTopY - 4.0, p.y) * smoothstep(0.0, 0.7, p.y);
           acc += prof * hz * (uBase + ffBands(p)) * exp(-uFogD * max(t - 6.0, 0.0));
         }
         float L = uDens * acc / float(SAMPLES) * (t1 - t0);

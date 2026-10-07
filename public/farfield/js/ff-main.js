@@ -26,6 +26,7 @@ world.apply(L);
 /* ---------------------------------------------------------------- tiers */
 const coarse = matchMedia && matchMedia('(pointer: coarse)').matches && Math.min(screen.width, screen.height) < 820;
 let tierName = FF.TIERS[Q.get('q')] ? Q.get('q') : (coarse ? 'low' : 'high');
+let tierChosen = !!FF.TIERS[Q.get('q')], slowT = 0, slowN = 0, slowS = 0;
 FF.tier = FF.TIERS[tierName];
 function setTier(name) {
   tierName = name; FF.tier = FF.TIERS[name];
@@ -65,7 +66,7 @@ const camS = { x: LV.spawn.x + L.camera.lookAhead * LV.spawn.face, y: 0, lead: L
 const keys = {}, pressed = {}, hold = {};
 const MAP = { ArrowLeft: 'left', KeyA: 'left', ArrowRight: 'right', KeyD: 'right', Space: 'jump', ArrowUp: 'up', KeyW: 'up', ArrowDown: 'down', KeyS: 'down', ShiftLeft: 'walk', ShiftRight: 'walk' };
 addEventListener('keydown', e => {
-  if (e.code === 'KeyQ') { setTier(FF.TIER_ORDER[(FF.TIER_ORDER.indexOf(tierName) + 1) % 3]); return; }
+  if (e.code === 'KeyQ') { tierChosen = true; setTier(FF.TIER_ORDER[(FF.TIER_ORDER.indexOf(tierName) + 1) % 3]); return; }
   if (e.code === 'KeyF') { fpsEl.hidden = !fpsEl.hidden; return; }
   if (e.code === 'KeyH') { showHelp(); return; }
   if (e.code === 'Escape') { if (parent !== window) try { parent.postMessage({ ty: 'exit' }, location.origin); } catch (_) {} return; }
@@ -209,6 +210,8 @@ function frame(now) {
   if (document.hidden) { last = now; return; }
   const dt = Math.min(0.1, (now - last) / 1000); last = now;
   ft[fti++ % ft.length] = dt;
+  /* automatic step down when frames run slow (never up; never after the player chose) */
+  if (!tierChosen && !paused && now > 4000) { slowS += dt; slowN++; slowT += dt; if (slowT > 2) { if (slowS / slowN > 0.021 && tierName !== 'low') setTier(FF.TIER_ORDER[FF.TIER_ORDER.indexOf(tierName) + 1]); slowT = slowS = 0; slowN = 0; } }
   if (!paused) { acc += dt; let n = 0; while (acc >= FIX && n++ < 24) { step(FIX); acc -= FIX; } present(dt); if (!frozen) time += dt; }
   draw();
   if (!fpsEl.hidden && now - fpsShown > 250) { fpsShown = now; const s = stats(); fpsEl.textContent = `${s.fps.toFixed(0)} fps · ${s.ms.toFixed(1)} ms · ${tierName} · ${s.calls} draws · ${(s.tris / 1000).toFixed(0)}k tris · ${s.w}x${s.h}`; }

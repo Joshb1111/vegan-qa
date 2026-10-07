@@ -29,10 +29,10 @@ FF.Post = function (renderer) {
         gl_FragColor = vec4(c, 1.0); }` });
   const final = new T.ShaderMaterial({
     uniforms: { tScene: { value: null }, tB1: { value: null }, tB2: { value: null }, uBloom: { value: new T.Vector2(0, 0) }, uExposure: { value: 1 },
-      uSat: { value: 0.8 }, uCon: { value: 1.05 }, uLift: { value: new T.Vector3() }, uGain: { value: new T.Vector3(1, 1, 1) }, uVig: { value: 0.4 }, uGrain: { value: 0.03 },
+      uSat: { value: 0.8 }, uCon: { value: 1.05 }, uLift: { value: new T.Vector3() }, uGain: { value: new T.Vector3(1, 1, 1) }, uVig: { value: 0.4 }, uBot: { value: 0 }, uGrain: { value: 0.03 },
       uTime: { value: 0 }, uRes: { value: new T.Vector2(1, 1) }, uTone: { value: 1 } },
     vertexShader: FS_VERT, depthTest: false, depthWrite: false,
-    fragmentShader: `uniform sampler2D tScene, tB1, tB2; uniform vec2 uBloom, uRes; uniform float uExposure, uSat, uCon, uVig, uGrain, uTime, uTone; uniform vec3 uLift, uGain; varying vec2 vUv;
+    fragmentShader: `uniform sampler2D tScene, tB1, tB2; uniform vec2 uBloom, uRes; uniform float uExposure, uSat, uCon, uVig, uBot, uGrain, uTime, uTone; uniform vec3 uLift, uGain; varying vec2 vUv;
       vec3 RRTAndODTFit(vec3 v){ vec3 a = v * (v + 0.0245786) - 0.000090537; vec3 b = v * (0.983729 * v + 0.4329510) + 0.238081; return a / b; }
       vec3 aces(vec3 c){ const mat3 I = mat3(vec3(0.59719,0.07600,0.02840), vec3(0.35458,0.90834,0.13383), vec3(0.04823,0.01566,0.83777));
         const mat3 O = mat3(vec3(1.60475,-0.10208,-0.00327), vec3(-0.53108,1.10813,-0.07276), vec3(-0.07367,-0.00605,1.07602));
@@ -52,6 +52,7 @@ FF.Post = function (renderer) {
         c = c * uGain + uLift * (1.0 - c);
         vec2 q = vUv - 0.5; q.x *= uRes.x / uRes.y * 0.62;
         c *= 1.0 - uVig * smoothstep(0.18, 0.78, dot(q, q) * 2.2);
+        c *= 1.0 - uBot * smoothstep(0.16, 0.0, vUv.y);
         float n = hash(gl_FragCoord.xy + fract(uTime * 7.31) * 517.0) + hash(gl_FragCoord.xy * 1.37 + fract(uTime * 3.7) * 211.0) - 1.0;
         c += n * uGrain * (0.55 + 0.45 * (1.0 - l)) + (hash(gl_FragCoord.xy * 0.93) - 0.5) / 255.0;
         gl_FragColor = vec4(clamp(c, 0.0, 1.0), 1.0);
@@ -83,7 +84,7 @@ FF.Post = function (renderer) {
       const u = final.uniforms;
       u.tScene.value = rtScene.texture; u.tB1.value = lv >= 2 ? b1a.texture : b2a.texture; u.tB2.value = b2a.texture;
       u.uBloom.value.set(G.bloom, lv); u.uExposure.value = L.exposure; u.uSat.value = G.saturation; u.uCon.value = G.contrast;
-      u.uLift.value.set(G.lift[0], G.lift[1], G.lift[2]); u.uGain.value.set(G.gain[0], G.gain[1], G.gain[2]); u.uVig.value = G.vignette;
+      u.uLift.value.set(G.lift[0], G.lift[1], G.lift[2]); u.uGain.value.set(G.gain[0], G.gain[1], G.gain[2]); u.uVig.value = G.vignette; u.uBot.value = G.bottomWeight || 0;
       u.uGrain.value = tier.grain ? G.grain : 0; u.uTime.value = time; u.uTone.value = 1;
       pass(final, null);
     },
