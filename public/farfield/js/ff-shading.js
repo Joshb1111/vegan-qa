@@ -35,6 +35,7 @@ FF.U = {
   uFFKeyR:     { value: new T.Vector4(2, 1, 0.3, 0.25) },  // beam cross-section: half depth (along e1), half width (along e2), soft edge fractions
   uFFHall:     { value: new T.Vector4(0, 0, 0, 10) },      // a backlit haze volume far right: centre xyz, radius
   uFFHallCol:  { value: new T.Color(0, 0, 0) },
+  uFFFog2:     { value: new T.Vector4(0, 0, 0, 0) },        // fog: quadratic density term
   uFFWallFill: { value: new T.Color(0, 0, 0) },              // cool fill on the walls (Josh: reveal the wall's surface)
   uFFWallGrad: { value: new T.Vector4(0.5, 4.0, 0.3, 0) },  // value at the floor, height where it reaches full, horizontal lean
 };
@@ -78,7 +79,7 @@ float ffNoise( vec3 x ) {
 }
 /* the beam's cross-section is a soft-edged rectangle (a long high window): e1 = depth across the hall, e2 = across in frame */
 vec2 ffBeamUV( vec3 p ) { vec3 q = p - uFFKeyA; vec3 r = q - dot( q, uFFKeyDir ) * uFFKeyDir; return vec2( dot( r, uFFKeyE1 ), dot( r, uFFKeyE2 ) ); }
-float ffKeyMask( vec3 p ) { vec2 u = abs( ffBeamUV( p ) ) / uFFKeyR.xy; return ( 1.0 - smoothstep( 1.0 - uFFKeyR.z, 1.0, u.x ) ) * ( 1.0 - smoothstep( 1.0 - uFFKeyR.w, 1.0, u.y ) ); }
+float ffKeyMask( vec3 p ) { vec2 u = abs( ffBeamUV( p ) ) / uFFKeyR.xy; return ( 1.0 - smoothstep( 1.0 - uFFKeyR.z, 1.0, u.x ) ) * ( 1.0 - smoothstep( 1.0 - uFFKeyR.w, 1.0, u.y ) ) * ( 1.0 - 0.32 * min( dot( u, u ) * 0.6, 1.0 ) ); }
 float ffBeamOut( vec3 p ) { vec2 u = abs( ffBeamUV( p ) ) - uFFKeyR.xy; return length( max( u, 0.0 ) ); }
 float ffBands( vec3 p ) {
   vec3 q = p - uFFKeyA; float along = dot( q, uFFKeyDir ); float s = dot( q - along * uFFKeyDir, uFFKeyE2 );
@@ -92,7 +93,7 @@ FF.GLSL_KEY = KEY_GLSL;
 
 const PARS = `
 varying vec3 vFFW;
-uniform vec3 uFFFogCol; uniform vec3 uFFFogGlow; uniform vec4 uFFFog;
+uniform vec3 uFFFogCol; uniform vec3 uFFFogGlow; uniform vec4 uFFFog; uniform vec4 uFFFog2;
 uniform vec4 uFFAOc[${MAX_AO}]; uniform vec4 uFFAOh[${MAX_AO}]; uniform vec4 uFFAO; uniform vec4 uFFRab; uniform vec2 uFFRabAx;
 uniform vec4 uFFRim; uniform vec4 uFFHall; uniform vec3 uFFHallCol; uniform vec3 uFFWallFill; uniform vec4 uFFWallGrad;
 ${KEY_GLSL}
@@ -125,7 +126,7 @@ const FOG = `
     float ffD = length( ffV );
     vec3 ffDir = ffV / max( ffD, 1e-4 );
     float ffH = exp( - max( vFFW.y, 0.0 ) * uFFFog.z );
-    float ffAmt = 1.0 - exp( - uFFFog.x * max( ffD - uFFFog.y, 0.0 ) * ( 0.45 + 0.9 * ffH ) );
+    float ffX = max( ffD - uFFFog.y, 0.0 ); float ffAmt = 1.0 - exp( - ( uFFFog.x * ffX + uFFFog2.x * ffX * ffX ) * ( 0.45 + 0.9 * ffH ) );
     float ffMu = max( dot( ffDir, - uFFKeyDir ), 0.0 );
     vec3 ffCol = uFFFogCol + uFFFogGlow * pow( ffMu, uFFFog.w ) + uFFHallCol * exp( - length( vFFW - uFFHall.xyz ) / uFFHall.w );
     gl_FragColor.rgb = mix( gl_FragColor.rgb, ffCol, clamp( ffAmt, 0.0, 1.0 ) );
@@ -156,7 +157,7 @@ function patch(m, opts) {
       {
         vec3 ffN = inverseTransformDirection( normal, viewMatrix );
         float ffO = ffOcclusion( vFFW, ffN );
-        ${opts.wallFill ? `reflectedLight.indirectDiffuse += diffuseColor.rgb * uFFWallFill * ${(+opts.wallFill).toFixed(3)} * mix( uFFWallGrad.x, 1.0, smoothstep( 0.0, uFFWallGrad.y, vFFW.y ) ) * ( 1.0 + uFFWallGrad.z * clamp( vFFW.x * 0.08, -1.0, 1.0 ) ) * ( 1.0 - abs( ffN.y ) * 0.6 );` : ''}
+        ${opts.wallFill ? `reflectedLight.indirectDiffuse += diffuseColor.rgb * uFFWallFill * ${(+opts.wallFill).toFixed(3)} * mix( uFFWallGrad.x, 1.0, smoothstep( 0.0, uFFWallGrad.y, vFFW.y ) ) * ( 1.0 + uFFWallGrad.z * clamp( vFFW.x * 0.12, -1.0, 1.0 ) ) * ( 1.0 - uFFWallGrad.w * smoothstep( 4.0, 9.0, vFFW.y ) ) * ( 1.0 - abs( ffN.y ) * 0.6 );` : ''}
         reflectedLight.indirectDiffuse *= ffO;
         reflectedLight.directDiffuse *= mix( 1.0, ffO, 0.35 );
         ${opts.rim ? `float ffF = 1.0 - clamp( dot( normal, normalize( vViewPosition ) ), 0.0, 1.0 );
@@ -194,12 +195,12 @@ FF.applyShading = function (L) {
   FF.U.uFFCookie.value.set(L.key.streaks, L.key.streakBase, 0, 0);
   L.shafts.bands.forEach((b, i) => FF.U.uFFBands.value[i].set(b[0], b[1], b[2], 0));
   FF.U.uFFHaze.value.set(L.shafts.haze, L.shafts.hazeFalloff, L.shafts.hazeDensity, L.shafts.hazeBands);
-  FF.U.uFFWallFill.value.copy(lin(L.wallFill.color)).multiplyScalar(L.wallFill.intensity); FF.U.uFFWallGrad.value.set(L.wallFill.floor, L.wallFill.height, L.wallFill.lean, 0);
+  FF.U.uFFWallFill.value.copy(lin(L.wallFill.color)).multiplyScalar(L.wallFill.intensity); FF.U.uFFWallGrad.value.set(L.wallFill.floor, L.wallFill.height, L.wallFill.lean, L.wallFill.topFade || 0);
   FF.U.uFFKeyR.value.set(L.key.halfDepth, L.key.halfWidth, L.key.softDepth, L.key.softWidth);
   FF.U.uFFHall.value.set(L.fog.hall[0], L.fog.hall[1], L.fog.hall[2], L.fog.hall[3]); FF.U.uFFHallCol.value.copy(lin(L.fog.hallColor)).multiplyScalar(L.fog.hallStrength);
   FF.U.uFFFogCol.value.copy(lin(L.fog.color));
   FF.U.uFFFogGlow.value.copy(lin(L.fog.glow)).multiplyScalar(L.fog.glowStrength);
-  FF.U.uFFFog.value.set(L.fog.density, L.fog.start, L.fog.heightFalloff, L.fog.glowPower);
+  FF.U.uFFFog.value.set(L.fog.density, L.fog.start, L.fog.heightFalloff, L.fog.glowPower); FF.U.uFFFog2.value.set(L.fog.densityFar || 0, 0, 0, 0);
   FF.U.uFFAO.value.set(L.ao.floorCrease, L.ao.creaseHeight, 0, 0);
   const r = lin(L.rabbit.rim); FF.U.uFFRim.value.set(r.r * L.rabbit.rimStrength, r.g * L.rabbit.rimStrength, r.b * L.rabbit.rimStrength, L.rabbit.rimPower);
 };

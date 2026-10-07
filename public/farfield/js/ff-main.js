@@ -17,6 +17,7 @@ renderer.toneMapping = T.NoToneMapping; renderer.outputEncoding = T.LinearEncodi
 const scene = new T.Scene(); scene.background = new T.Color(0x0b0d10);
 const camera = new T.PerspectiveCamera(L.camera.fov, 16 / 9, 0.1, 220);
 const post = FF.Post(renderer);
+renderer.info.autoReset = false; /* count the whole frame (scene + post passes), reset in draw() */
 
 FF.applyShading(L);
 const world = FF.buildScene(scene, L);
@@ -213,7 +214,7 @@ function frame(now) {
   if (!fpsEl.hidden && now - fpsShown > 250) { fpsShown = now; const s = stats(); fpsEl.textContent = `${s.fps.toFixed(0)} fps · ${s.ms.toFixed(1)} ms · ${tierName} · ${s.calls} draws · ${(s.tris / 1000).toFixed(0)}k tris · ${s.w}x${s.h}`; }
 }
 function draw() {
-  resize(); FF.U.uFFTime.value = time; world.update(0, time, renderer.getPixelRatio());
+  resize(); renderer.info.reset(); FF.U.uFFTime.value = time; world.update(0, time, renderer.getPixelRatio());
   post.render(scene, camera, L, FF.tier, time);
 }
 function stats() {

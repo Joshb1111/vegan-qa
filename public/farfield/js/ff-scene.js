@@ -78,18 +78,18 @@ FF.buildScene = function (scene, L) {
 
   CAST = false;
   /* ---------- the deep hall to the right: a raised platform with tanks and a railing, pillars, a far wall ---------- */
-  const HP = { x0: 4.4, x1: 10.8, z0: -12.5, z1: -8.5, h: 2.3 };
+  const HP = { x0: 2.7, x1: 9.1, z0: -12.5, z1: -8.5, h: 2.3 };
   add(M.hall, boxG(HP.x0, HP.x1, 0, HP.h, HP.z0, HP.z1));
-  for (const tx of [5.6, 7.2]) { add(M.hall, cylG(0.55, 1.35, tx, HP.h, -10.7, 24)); add(M.hall, cylG(0.57, 0.08, tx, HP.h + 1.32, -10.7, 24)); }
-  add(M.hall, boxG(6.15, 6.65, HP.h, HP.h + 0.7, -9.7, -9.2));
+  for (const tx of [3.9, 5.5]) { add(M.hall, cylG(0.55, 1.35, tx, HP.h, -10.7, 24)); add(M.hall, cylG(0.57, 0.08, tx, HP.h + 1.32, -10.7, 24)); }
+  add(M.hall, boxG(4.45, 4.95, HP.h, HP.h + 0.7, -9.7, -9.2));
   for (let x = HP.x0 + 0.1; x <= HP.x1 - 0.05; x += 0.98) add(M.metal, boxG(x - 0.025, x + 0.025, HP.h, HP.h + 1.0, HP.z1 - 0.12, HP.z1 - 0.07));
   add(M.metal, boxG(HP.x0 + 0.05, HP.x1, HP.h + 0.97, HP.h + 1.02, HP.z1 - 0.13, HP.z1 - 0.06)); add(M.metal, boxG(HP.x0 + 0.05, HP.x1, HP.h + 0.5, HP.h + 0.53, HP.z1 - 0.12, HP.z1 - 0.07));
-  add(M.metal, cylG(0.04, 9, 8.6, HP.h, -11.4, 8)); add(M.metal, cylG(0.04, 9, 9.0, HP.h, -11.4, 8));
+  add(M.metal, cylG(0.04, 9, 6.9, HP.h, -11.4, 8)); add(M.metal, cylG(0.04, 9, 7.3, HP.h, -11.4, 8));
   add(M.hall, boxG(12.0, 13.4, 0, 30, -18, -16.6)); add(M.hall, boxG(19.0, 20.4, 0, 30, -22, -20.6));
   add(M.hall, boxG(-10, 60, 0, 40, -36, -34)); add(M.hall, boxG(9.0, 40, 0, 6, -25, -23));
-  add(M.hall, boxG(WX, WX + 0.9, 0, 12, -9, WALLZ)); // the wall's return into the hall
+  add(M.hall, boxG(WX, WX + 0.4, 0, 12, -8.3, WALLZ)); // the wall's return into the hall
 
-  for (const [tx, tz] of [[3.55, -6.2], [4.75, -6.6]]) { add(M.metal, cylG(0.48, 1.55, tx, 0, tz, 28)); add(M.metal, cylG(0.5, 0.07, tx, 1.53, tz, 28)); add(M.metal, cylG(0.22, 0.12, tx, 1.6, tz, 16)); }
+  for (const [tx, tz] of [[3.95, -6.0], [5.15, -6.4]]) { add(M.metal, cylG(0.48, 1.55, tx, 0, tz, 28)); add(M.metal, cylG(0.5, 0.07, tx, 1.53, tz, 28)); add(M.metal, cylG(0.22, 0.12, tx, 1.6, tz, 16)); }
   /* ---------- right end: the tall bulkhead that closes the walkway ---------- */
   add(M.wall, boxG(9.2, 11.0, 0, 12, -4.2, 1.2)); add(M.wallDark, boxG(9.1, 11.1, 0, 0.18, -4.2, 1.25));
 
@@ -132,13 +132,12 @@ FF.buildScene = function (scene, L) {
       const xr = sx > 0 ? [w / 2 - post, w / 2 + e] : [-w / 2 - e, -w / 2 + post], zr = sz > 0 ? [dd / 2 - post, dd / 2 + e] : [-dd / 2 - e, -dd / 2 + post];
       pl.push(boxG(xr[0], xr[1], 0, h + e, zr[0], zr[1]));
     }
-    const brace = boxG(-0.035, 0.035, -h * 0.62, h * 0.62, -0.006, 0.006); brace.rotateZ(Math.atan2(w, h) * 0.98); brace.translate(0, h / 2, dd / 2 + 0.005); pl.push(brace);
     const mesh = new T.Mesh(merge(pl), M.crate); mesh.castShadow = mesh.receiveShadow = true; crate.add(mesh);
     const coreM = new T.Mesh(merge(core), FF.mat({ color: '#1e1c1a', roughness: 1 })); coreM.castShadow = true; crate.add(coreM); }
   scene.add(crate);
 
   /* ---------- the amber lamp: the one warm accent ---------- */
-  const lampPos = new T.Vector3(6.4, HP.h + 0.82, -9.18);
+  const lampPos = new T.Vector3(4.7, HP.h + 0.82, -9.18);
   const ac = FF.lin(L.amber.color).multiplyScalar(L.amber.intensity);
   const lamp = new T.Mesh(new T.SphereGeometry(0.05, 12, 8), FF.glow([ac.r, ac.g, ac.b], false)); lamp.position.copy(lampPos); scene.add(lamp);
   const halo = (() => { const cv = document.createElement('canvas'); cv.width = cv.height = 64; const x = cv.getContext('2d'); const g = x.createRadialGradient(32, 32, 0, 32, 32, 32);
@@ -187,7 +186,7 @@ FF.buildScene = function (scene, L) {
           float t = mix(t0, t1, (float(i) + jit) / float(SAMPLES));
           vec3 p = o + v * t;
           float prof = ffKeyMask(p);
-          float hz = smoothstep(uTopY, uTopY - 4.0, p.y);
+          float hz = smoothstep(uTopY, uTopY - 4.0, p.y) * smoothstep(0.15, 1.3, p.y);
           acc += prof * hz * (uBase + ffBands(p)) * exp(-uFogD * max(t - 6.0, 0.0));
         }
         float L = uDens * acc / float(SAMPLES) * (t1 - t0);

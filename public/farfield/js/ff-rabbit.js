@@ -45,7 +45,8 @@ function boneTable() {
 FF.RABBIT_BONES = boneTable().map(b => b[0]);
 
 /* ------------------------------------------------------------------ the procedural mesh */
-function buildProcedural(L) {
+function buildProcedural(L, opt) {
+  const detail = (opt && opt.detail) || 1, sg = n => Math.max(6, Math.round(n * detail));
   const table = boneTable(), bones = [], byName = {}, world = {};
   for (const [name, parent, p] of table) {
     const b = new T.Bone(); b.name = name; world[name] = new T.Vector3(p[0], p[1], p[2]);
@@ -59,7 +60,7 @@ function buildProcedural(L) {
   /* an ellipsoid on one bone (or an ear spread over three) */
   function part(c, r, opt) {
     opt = opt || {};
-    const g = new T.SphereGeometry(1, opt.seg || 16, opt.segH || 12);
+    const g = new T.SphereGeometry(1, sg(opt.seg || 16), sg(opt.segH || 12));
     const m = new T.Matrix4().compose(new T.Vector3(c[0], c[1], c[2]), new T.Quaternion().setFromEuler(new T.Euler(opt.rx || 0, opt.ry || 0, opt.rz || 0)), new T.Vector3(r[0], r[1], r[2]));
     const loc = g.attributes.position.array.slice();
     g.applyMatrix4(m);
