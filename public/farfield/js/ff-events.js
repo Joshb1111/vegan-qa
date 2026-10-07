@@ -26,7 +26,8 @@
      clatter, the aim at the fence that lights the gap) -> the camera eases back (1.3 s) while the gun lowers -> control
      returns as the ease ends, with every direction or jump key held WITHOUT A BREAK through the takeover latched (FF.Input
      .latch: a held key never carries the rabbit on; a key let go and pressed again during it acts at once; a direction still
-     held 0.8 s later resumes as the cautious walk) -> a grace (G.flags.revealSafe stays set; FF.AI gives him no sight of
+     held 0.8 s later resumes as the cautious walk; a Shift held through it too runs again when pressed afresh or when the
+     grace ends) -> a grace (G.flags.revealSafe stays set; FF.AI gives him no sight of
      the rabbit while it is) during which he turns away from the fence; his routine starts after it. Rain, sound and the
      world keep running throughout. About 6.4-6.5 s from the cue to control (the entry's timings: ff-script-s1.js).
      Retries: once control is back it never replays (a replayed entry, rare, gets only a 1 s lean of the camera). A retry
@@ -347,7 +348,8 @@ function revealControl() {
   rlog('control', { latched: held.join(',') || '-' });
   emit('reveal', { phase: 'control', cause: RV.cause, x: +g.rabbit.x.toFixed(2) });
 }
-function revealEnd() { const g = G(); RV.phase = ''; g.flags.revealSafe = false; rlog('end'); emit('reveal', { phase: 'end', cause: RV.cause, x: +g.rabbit.x.toFixed(2) }); }
+/* the grace is over: he can see the rabbit again, so a Shift held through the takeover runs again (FF.Input.graceEnd) */
+function revealEnd() { const g = G(); RV.phase = ''; g.flags.revealSafe = false; if (FF.Input && FF.Input.graceEnd) FF.Input.graceEnd(); rlog('end'); emit('reveal', { phase: 'end', cause: RV.cause, x: +g.rabbit.x.toFixed(2) }); }
 function revealStep(dt) {
   const g = G(), r = g.rabbit, s = g.searcher; if (!r) return;
   if (!RV.phase) {

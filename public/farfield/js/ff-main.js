@@ -79,7 +79,7 @@ addEventListener('resize', () => resize());
 const KEYMAP = { ArrowLeft: ['left'], KeyA: ['left'], ArrowRight: ['right'], KeyD: ['right'], Space: ['jump'], ArrowUp: ['up', 'jump'], KeyW: ['up', 'jump'],
   ArrowDown: ['down'], KeyS: ['down'], ShiftLeft: ['run'], ShiftRight: ['run'] };
 const keys = {}, pressed = {}, bot = {}, pad = {}, latched = {}, broke = {}, resumed = {};
-let lastInputT = 0, offAt = -1, latchAt = -1;
+let lastInputT = 0, offAt = -1, latchAt = -1, heldRun = false;
 const rawDown = a => !!(keys[a] || bot[a] || pad[a]);
 /* THE LATCH (the door reveal, Josh 7 Oct §9.5: "holding forward must not carry him beyond it"; v2 review fixes): when a
    takeover gives control back, every listed action HELD WITHOUT A BREAK since control went off counts as not held until it
@@ -89,15 +89,25 @@ const rawDown = a => !!(keys[a] || bot[a] || pad[a]);
    would not do. A fresh press after control is back ends the latch at once, even when the release and the press fall inside
    one fixed step; a release seen at the end of a step ends it too.
    And so a held key never looks broken (a child holding → through the reveal): a DIRECTION still held LATCH_RESUME s after
-   control came back resumes as the cautious walk (resumed[a]: Shift is ignored until that key is let go), well after the
-   camera has settled and still inside the reveal's grace. A latched jump never fires by itself. */
+   control came back resumes as the cautious walk (resumed[a]), well after the camera has settled and still inside the
+   reveal's grace. A latched jump never fires by itself.
+   THE RUN AFTER IT (review, 7 Oct night: a child holding → through the reveal then pressing Shift + → only walked, and was
+   caught): only a run (Shift, the pad's run button, a bot's run) that was ALREADY held when control came back, and is still
+   that same unbroken hold, is held back while a resumed direction walks on (heldRun), so Shift + → held through the takeover
+   never bolts the rabbit off. It ends at once with any Shift press or release after control is back (a keydown that is not
+   an auto-repeat, a keyup, a pad edge, a bot hold change), and in any case when the takeover's grace ends (graceEnd(), from
+   FF.Events): Shift always runs once the searcher can see the rabbit again. A Shift pressed after control is back runs as
+   soon as the direction it goes with acts. */
 const LATCH_RESUME = 0.8, DIRS = { left: 1, right: 1 };
 const fresh = a => { if (latched[a] && pressed[a]) latched[a] = false; };
-const edge = a => { if (!G.control) broke[a] = true; };            // a release or a fresh press while control is off
+/* a release or a fresh press: while control is off it marks the action broken (not latched); once control is back, a run
+   edge ends the hold-back of a run held through the takeover */
+const edge = a => { if (!G.control) broke[a] = true; else if (a === 'run') heldRun = false; };
 const resumeCheck = a => { if (latched[a] && DIRS[a] && latchAt >= 0 && G.t - latchAt >= LATCH_RESUME && rawDown(a)) { latched[a] = false; resumed[a] = true; } };
 FF.Input = {
-  /* held now (keyboard, gamepad or a bot hold), unless latched; 'run' is not held while a resumed direction is */
-  down: a => { fresh(a); resumeCheck(a); if (a === 'run' && (resumed.left || resumed.right)) return false; return !latched[a] && rawDown(a); },
+  /* held now (keyboard, gamepad or a bot hold), unless latched; 'run' is not held while it is the run held through a
+     takeover (heldRun) and a resumed direction walks on */
+  down: a => { fresh(a); resumeCheck(a); if (a === 'run' && heldRun && (resumed.left || resumed.right)) return false; return !latched[a] && rawDown(a); },
   /* held now, ignoring the latch (tests, and the latch itself) */
   raw: rawDown,
   /* consume an edge press made since the last fixed step (presses are dropped after every step: modules buffer if they want) */
@@ -106,16 +116,20 @@ FF.Input = {
   axis: () => (FF.Input.down('right') ? 1 : 0) - (FF.Input.down('left') ? 1 : 0),
   /* control is going off (a takeover): from now on a release or a fresh press of an action marks it as broken */
   off() { offAt = G.t; for (const k in broke) broke[k] = false; },
-  /* latch every action in `list` held now without a break since off(); returns the ones latched */
-  latch(list) { const out = []; latchAt = G.t; for (const a of list) if (rawDown(a) && !broke[a]) { latched[a] = true; out.push(a); } for (const k in broke) broke[k] = false; return out; },
-  unlatch() { for (const k in latched) latched[k] = false; for (const k in resumed) resumed[k] = false; latchAt = -1; },
+  /* latch every action in `list` held now without a break since off(); returns the ones latched. A run held now is the
+     run held through the takeover (heldRun) until it is pressed or let go again, or the grace ends */
+  latch(list) { const out = []; latchAt = G.t; heldRun = rawDown('run'); for (const a of list) if (rawDown(a) && !broke[a]) { latched[a] = true; out.push(a); } for (const k in broke) broke[k] = false; return out; },
+  unlatch() { for (const k in latched) latched[k] = false; for (const k in resumed) resumed[k] = false; latchAt = -1; heldRun = false; },
+  /* the takeover's grace is over (FF.Events): a run held through it is no longer held back */
+  graceEnd() { heldRun = false; },
   get latched() { return Object.keys(latched).filter(k => latched[k]); },
   get resumed() { return Object.keys(resumed).filter(k => resumed[k]); },
+  get heldRun() { return heldRun; },
   /* a restart, pause or resume drops every held key (a real keyboard sends no new keydown for a key already down), EXCEPT
      Shift ('run'): a held modifier never repeats on macOS, so dropping it made a player still holding Shift only walk, just as
      they tried to escape. Shift's state is also re-read from every key event's modifier (keydown / keyup below). */
-  clear() { for (const k in keys) if (k !== 'run') keys[k] = false; for (const k in pressed) pressed[k] = false; for (const k in pad) pad[k] = false; for (const k in latched) latched[k] = false; for (const k in resumed) resumed[k] = false; },
-  endStep() { for (const k in pressed) pressed[k] = false; for (const k in latched) if (latched[k] && !rawDown(k)) latched[k] = false; for (const k in resumed) if (resumed[k] && !rawDown(k)) resumed[k] = false; },
+  clear() { for (const k in keys) if (k !== 'run') keys[k] = false; for (const k in pressed) pressed[k] = false; for (const k in pad) pad[k] = false; for (const k in latched) latched[k] = false; for (const k in resumed) resumed[k] = false; heldRun = false; },
+  endStep() { for (const k in pressed) pressed[k] = false; for (const k in latched) if (latched[k] && !rawDown(k)) latched[k] = false; for (const k in resumed) if (resumed[k] && !rawDown(k)) resumed[k] = false; if (heldRun && !rawDown('run')) heldRun = false; },
   get lastInputT() { return lastInputT; },
   /* bot hooks (also on __ff). Game.control(false) releases bot holds (sysRel): a plan that holds the same key again right
      after is the same unbroken hold, not a new press */
@@ -219,7 +233,9 @@ function onCommandKey(code) {
   return false;
 }
 addEventListener('keydown', e => {
-  keys.run = !!e.shiftKey || e.code === 'ShiftLeft' || e.code === 'ShiftRight';   // Shift is read from every key event's modifier (a held modifier never repeats)
+  const shift = e.code === 'ShiftLeft' || e.code === 'ShiftRight', runWas = keys.run;
+  keys.run = !!e.shiftKey || shift;   // Shift is read from every key event's modifier (a held modifier never repeats)
+  if (keys.run !== runWas || (shift && !e.repeat)) edge('run');      // Shift pressed afresh (or found let go): a new intention
   if (e.code === 'KeyQ') { tierChosen = true; setTier(FF.TIER_ORDER[(FF.TIER_ORDER.indexOf(tierName) + 1) % 3]); return; }
   if (e.code === 'KeyF') { fpsEl.hidden = !fpsEl.hidden; return; }
   if (e.code === 'KeyM') { Game.setMute(!G.muted); return; }
