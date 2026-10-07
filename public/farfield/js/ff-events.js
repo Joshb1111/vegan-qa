@@ -51,6 +51,9 @@ const lit = {};                                          // light handles this m
 function spot(id) { return FF.World && FF.World.spot ? FF.World.spot(id) : null; }
 function point(id) { return FF.World && FF.World.point ? FF.World.point(id) : null; }
 function prop(id) { return FF.World && FF.World.prop ? FF.World.prop(id) : null; }
+/* where the Verge person stands to rattle the chain: far enough behind the gate leaves (z -4.02, back face -4.11) that his
+   hands and the slung gun stay behind the steel in the unlock pose (at -4.45 they poked through the gate; Josh, 7 Oct) */
+const GATE_STAND_Z = -4.68;
 /* move a set piece through the World's convention (gate leaves slide in metres; doors swing 0 shut .. 1 open) */
 function openProp(id, v) { if (FF.World && FF.World.open) { prop(id); FF.World.open(id, v); return; } const p = prop(id); if (!p) return; const ud = p.userData; if (ud.bx == null) { ud.bx = p.position.x; ud.by = p.rotation.y; } if (/gateLeaf/.test(id)) p.position.x = ud.bx + (id === 'gateLeafL' ? -v : v); else p.rotation.y = ud.by + (id === 'walkwayDoorR' ? 1.55 : -1.55) * v; }
 function lightOn(id, o) { const h = spot(id); if (!h) return; if (!lit[id]) { h.on(true); if (h.beam) h.beam(true); lit[id] = h; } h.set(o); }
@@ -118,16 +121,16 @@ function vergeStep(dt) {
     const ts = V.t - V.stopT;
     if (ts >= B.doorSlam - 0.4 && V.doorTo === 0 && !V.slammed) { V.doorTo = 1; }
     if (ts >= B.doorSlam && !V.slammed) { V.slammed = true; V.doorTo = 0; emit('vehicle', { phase: 'door' }); V.p.vis = true; Object.assign(V.p, { x: 31.55, z: -5.55, yaw: 0.6 }); }
-    if (ts >= B.boots[0] && ts < B.boots[1]) {             // boots on gravel up to the gate: (31.55, -5.55) -> (33.7, -4.45)
-      const k = U.clamp((ts - B.boots[0]) / (B.boots[1] - B.boots[0]), 0, 1); V.p.x = U.lerp(31.55, 33.7, k); V.p.z = U.lerp(-5.55, -4.45, k); V.p.anim = 'walk'; V.p.speed = 1.2; V.p.yaw = Math.atan2(2.15, 1.1);
-    } else if (ts >= B.boots[1]) { V.p.x = 33.7; V.p.z = -4.45; V.p.speed = 0; V.p.anim = V.rattle.on && V.rattle.burst > 0 ? 'unlock' : 'unlock'; V.p.yaw = U.approach(V.p.yaw, V.glance, dt * 2.5); }
+    if (ts >= B.boots[0] && ts < B.boots[1]) {             // boots on gravel up to the gate: (31.55, -5.55) -> (33.7, GATE_STAND_Z)
+      const k = U.clamp((ts - B.boots[0]) / (B.boots[1] - B.boots[0]), 0, 1); V.p.x = U.lerp(31.55, 33.7, k); V.p.z = U.lerp(-5.55, GATE_STAND_Z, k); V.p.anim = 'walk'; V.p.speed = 1.2; V.p.yaw = Math.atan2(2.15, 1.1);
+    } else if (ts >= B.boots[1]) { V.p.x = 33.7; V.p.z = GATE_STAND_Z; V.p.speed = 0; V.p.anim = V.rattle.on && V.rattle.burst > 0 ? 'unlock' : 'unlock'; V.p.yaw = U.approach(V.p.yaw, V.glance, dt * 2.5); }
     if (ts >= B.rattleFrom && !V.rattle.on) { V.rattle.on = true; V.rattle.burst = 0; V.rattle.pause = 0.05; }
     if (V.rattle.on) rattleStep(dt);
     /* step into the glare (31-35, at the lane): the rattle stops dead, the boots turn, 1.0 s of silence, then harder */
     const R = V.rattle; R.cool = Math.max(0, R.cool - dt);
     if (r && R.on && r.x >= D.gate.x0 && r.x <= D.gate.x1 && r.y > -0.3 && R.cool <= 0 && R.silence <= 0) {
       R.silence = B.glareReaction.silence; R.cool = B.glareReaction.cooldown; R.burst = 0; R.hard = 1;
-      V.glance = U.clamp(Math.atan2(r.x - V.p.x, 4.45), -0.7, 0.7);
+      V.glance = U.clamp(Math.atan2(r.x - V.p.x, -GATE_STAND_Z), -0.7, 0.7);
       emit('gate', { phase: 'lit-pause', x: r.x });
     }
   }
@@ -173,7 +176,7 @@ function afterStep(dt) {
   switch (kind) {
     case 'lock-gives': P.anim = 'unlock'; if (t >= 0.05) nextStep(); break;
     case 'gate-crack': P.anim = 'idle'; if (t >= a[1]) nextStep(); break;
-    case 'step-out': P.anim = 'walk'; P.speed = 1.4; P.x = U.lerp(33.7, 33.4, U.clamp(t / a[1], 0, 1)); P.z = U.lerp(-4.45, -3.3, U.clamp(t / a[1], 0, 1)); P.yaw = 0; if (t >= a[1]) nextStep(); break;
+    case 'step-out': P.anim = 'walk'; P.speed = 1.4; P.x = U.lerp(33.7, 33.4, U.clamp(t / a[1], 0, 1)); P.z = U.lerp(GATE_STAND_Z, -3.3, U.clamp(t / a[1], 0, 1)); P.yaw = 0; if (t >= a[1]) nextStep(); break;
     case 'walk': case 'walk-sweep': {
       /* timed by the x distance, as the design's numbers are (33 -> 38 at 1.8 m/s = 2.8 s); the path also crosses in z */
       const w = V.walk, Lx = Math.max(0.3, Math.abs(w.x1 - w.x0)), L = Math.hypot(w.x1 - w.x0, w.z1 - w.z0), k = U.clamp(t * w.v / Lx, 0, 1);
