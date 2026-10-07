@@ -8,8 +8,9 @@
    Modelled line for line on kart-room.js v2 (the newest wrapper): only names, texts, the online switch and the upright-phone place differ.
    The Sound and Music buttons and the online tag never sit on the game: from 520 px wide they go in the house's header bar beside
    its title (labels while they fit, else icons); on a phone held upright and narrower than that, they go in the letterbox band
-   under the game's view (beat/main.js layout(): an 800 x 720 view, full width, centred): two 28 px icons at its left, the tag at
-   its right. While the game runs, it says who left or went quiet (net.js / main.js); the room speaks only without it.
+   under the game's view (beat/main.js layout(): an 800 x 720 view, full width, centred; read from the game's canvas itself, so a
+   split screen moves them too): two 44 px icons (a thumb's size) at its left, the tag at its right. While the game runs, it says who left or
+   went quiet (net.js / main.js); the room speaks only without it.
    ===================================================================== */
 'use strict';
 function beatRoom(body, ctx) {
@@ -17,7 +18,7 @@ function beatRoom(body, ctx) {
   const ONLINE = true;    /* 'Play with someone online' is shown when true */
   const el = document.createElement('div'); el.id = 'arcade'; body.appendChild(el);
   const ICE = { iceServers: [{ urls: 'stun:stun.l.google.com:19302' }, { urls: 'stun:stun1.l.google.com:19302' }] }, MAXMSG = 6000;
-  let frame = null, st = null, alive = true, ready = false, queue = [], muted = true, music = true, sndBtn = null, musBtn = null, icons = false, place = null, bar = null, box = null, toastEl = null, toastT = 0;
+  let frame = null, st = null, alive = true, ready = false, queue = [], exitAt = -1e9, muted = true, music = true, sndBtn = null, musBtn = null, icons = false, place = null, bar = null, box = null, toastEl = null, toastT = 0;
   const esc_ = t => String(t).replace(/[<>&"]/g, ''), nm = (s, d) => String(s || '').replace(/[^\w \-'.]/g, '').slice(0, 16) || d;
   const dSend = (n, d) => { try { if (ctx.duelSend) ctx.duelSend(n, d || {}); } catch (_) {} };
   const live = () => !!(ctx.LIVE && ctx.LIVE.on && ctx.LIVE.rt && ctx.duelFind);
@@ -30,7 +31,7 @@ function beatRoom(body, ctx) {
       '#house .hbar .bbar button.snd{position:static;display:inline-flex;align-items:center;gap:6px;height:32px;padding:0 10px;margin:0;font-family:var(--hand);font-size:16px;line-height:1;background:rgba(13,11,22,.8);color:#f3efe4;border:1px solid #4a4060;border-radius:6px;cursor:pointer;box-shadow:none;white-space:nowrap;flex:none}' +
       '#house .hbar .bbar button.snd.ic{width:32px;padding:0;justify-content:center}#house .hbar .bbar button.snd svg{width:18px;height:18px;flex:none}' +
       '#house .hbar .bbar .btag{font-size:15px;line-height:1.3;color:#9fe0a8;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0;padding:2px 8px;background:rgba(13,11,22,.8);border-radius:6px}' +
-      '#arcade .bbox{position:absolute;z-index:4;display:flex;gap:8px}#arcade .bbox button.snd{position:static;display:flex;align-items:center;justify-content:center;width:28px;height:28px;padding:0;border-radius:6px}#arcade .bbox button.snd svg{width:16px;height:16px}' +
+      '#arcade .bbox{position:absolute;z-index:4;display:flex;gap:10px}#arcade .bbox button.snd{position:static;display:flex;align-items:center;justify-content:center;width:44px;height:44px;padding:0;border-radius:8px}#arcade .bbox button.snd svg{width:20px;height:20px}' +
       '#arcade .bbar{display:inline-flex;gap:6px}#arcade .bbar button.snd{position:static}' +
       '#arcade .net.bband{font-size:12px;line-height:1.3;padding:2px 8px;background:rgba(13,11,22,.8);border-radius:6px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;transform:none}' +
       '.bdot{display:inline-block;width:.6em;height:.6em;border-radius:50%;margin-right:.35em;vertical-align:.05em}';
@@ -75,7 +76,7 @@ function beatRoom(body, ctx) {
   const play = q => {
     window.__duck = 1; /* the game has its own music */
     dropFrame(); el.innerHTML = '';
-    frame = document.createElement('iframe'); frame.className = 'tyframe'; frame.title = 'Beet Beat'; frame.src = 'beat/index.html?v=1858' + (q || ''); frame.allow = 'autoplay; fullscreen'; el.appendChild(frame);
+    frame = document.createElement('iframe'); frame.className = 'tyframe'; frame.title = 'Beet Beat'; frame.src = 'beat/index.html?v=1206' + (q || '');   /* v=3: the three levels, protocol 2 (a page cached before shows 'Refresh the page') */ frame.allow = 'autoplay; fullscreen'; el.appendChild(frame);
     /* online: '#arcade .net' stays in the room while a match is on (planet.html's Esc rule looks for it); it shows only in the band */
     if (st) { const tag = document.createElement('div'); tag.className = 'net bband'; tag.hidden = true; st.tag = tag; el.appendChild(tag); }
     bar = document.createElement('span'); bar.className = 'bbar';
@@ -97,13 +98,17 @@ function beatRoom(body, ctx) {
     const pl = place = () => {
       if (frame !== f || !musBtn || !bar || !box) return;
       const s = st, ht = s && s.htag, tag = s && s.tag, w = f.clientWidth || el.clientWidth, h = f.clientHeight || el.clientHeight;
-      if (coarse && h / w > 1.15 && w < 520) {
-        /* an upright phone (the game's narrow view: 800 x 720, full width, centred): icons at the left of the band under it, the tag at its right */
-        const S = Math.min(w / 800, h / 720), OX = (w - 800 * S) / 2, OY = (h - 720 * S) / 2, top = OY + 720 * S;
+      /* where the game's canvas is now (same origin; it moves when the game goes split screen), else its narrow view's place */
+      let gr = null; try { const c = f.contentDocument && f.contentDocument.getElementById('c'); if (c && c.offsetWidth) gr = { x: c.offsetLeft, y: c.offsetTop, w: c.offsetWidth, h: c.offsetHeight }; } catch (_) {}
+      if (!gr) { const S = Math.min(w / 800, h / 720); gr = { x: (w - 800 * S) / 2, y: (h - 720 * S) / 2, w: 800 * S, h: 720 * S }; }
+      if (coarse && h / w > 1.15 && w < 520 && h - (gr.y + gr.h) >= 60) {
+        /* an upright phone (the game's narrow view, 800 x 720, or its split screen; full width, centred): icons at the left of the
+           band under it, the tag at its right; a band too thin for them (under 60 px) and they go in the header bar instead */
+        const OX = gr.x, top = gr.y + gr.h;
         setIcons(true); if (btn.parentNode !== box) { box.appendChild(btn); box.appendChild(mb); }
         bar.hidden = true; box.hidden = false; Object.assign(box.style, { left: OX + 8 + 'px', top: top + 8 + 'px' });
         if (ht) ht.hidden = true;
-        if (tag) { tag.hidden = false; Object.assign(tag.style, { left: 'auto', right: OX + 8 + 'px', top: top + 12 + 'px', maxWidth: Math.max(60, w - 100) + 'px' }); }
+        if (tag) { tag.hidden = false; Object.assign(tag.style, { left: 'auto', right: OX + 8 + 'px', top: top + 20 + 'px', maxWidth: Math.max(60, w - 128) + 'px' }); }
         return;
       }
       /* the header bar: labels while they fit, else icons; the tag long, then short, then cut with an ellipsis */
@@ -118,11 +123,12 @@ function beatRoom(body, ctx) {
     };
     const cm = document.createElement('div'); cm.className = 'clickme'; cm.textContent = 'Click the game to play'; cm.hidden = coarse; el.appendChild(cm); /* a frame only gets the keyboard once it has been clicked (or focused) */
     const f = frame, foc = () => { try { f.focus(); f.contentWindow.focus(); } catch (_) {} };
-    f.addEventListener('load', () => setTimeout(foc, 200)); setTimeout(foc, 400);
+    let mo = null;
+    f.addEventListener('load', () => { setTimeout(foc, 200); try { const c = f.contentDocument.getElementById('c'); if (c && window.MutationObserver) { if (mo) mo.disconnect(); mo = new MutationObserver(() => pl()); mo.observe(c, { attributes: true, attributeFilter: ['style'] }); } } catch (_) {} pl(); }); setTimeout(foc, 400);   /* the game's layout changes (split screen) move the band */
     const onBlur = () => { if (document.activeElement === f) cm.hidden = true; }, onFocus = () => { if (f.isConnected && !coarse) cm.hidden = false; };
     addEventListener('blur', onBlur); addEventListener('focus', onFocus); addEventListener('resize', pl); showTag(); pl();
     if (document.fonts && document.fonts.ready) document.fonts.ready.then(() => { if (frame === f) pl(); }); /* the hand font changes the widths */
-    f.__unf = () => { removeEventListener('blur', onBlur); removeEventListener('focus', onFocus); removeEventListener('resize', pl); };
+    f.__unf = () => { removeEventListener('blur', onBlur); removeEventListener('focus', onFocus); removeEventListener('resize', pl); if (mo) { mo.disconnect(); mo = null; } };
     setTimeout(() => { if (document.activeElement === f) cm.hidden = true; }, 900);
   };
 
@@ -136,9 +142,17 @@ function beatRoom(body, ctx) {
     else if (m.ty === 'mute') { muted = !!m.on; try { localStorage.setItem('planet-beat-mute', muted ? '1' : '0'); } catch (_) {} if (sndBtn) sndBtn.__show(false); if (musBtn) musBtn.__show(false); }
     else if (m.ty === 'music') { music = !!m.on; try { localStorage.setItem('planet-beat-music', music ? '1' : '0'); } catch (_) {} if (musBtn) musBtn.__show(false); } /* N or the title chip in the game */
     else if (m.ty === 'leave') { if (st) { dSend('bye'); endLink(); } } /* the game ended the online match itself and plays on alone: keep the frame */
-    else if (m.ty === 'exit') { if (st) { dSend('bye'); endLink(); } menu('Thanks for playing.', true); }
+    else if (m.ty === 'exit') { if (st) { dSend('bye'); endLink(); } exitAt = performance.now(); menu('Thanks for playing.', true); }
   };
   addEventListener('message', onFrame);
+  /* the Esc that left the game, held (OS repeat) or pressed again at once, must not reach the planet and close the house too */
+  const onEsc = e => {
+    if (e.key === 'Escape' && (e.repeat || performance.now() - exitAt < 500)) { e.stopImmediatePropagation(); e.preventDefault(); }
+    /* the Enter (or Space) that opened the cabinet, still held: its OS repeats must not press the focused Play button (the menu
+       would be skipped); a fresh press does */
+    else if (e.repeat && (e.key === 'Enter' || e.key === ' ' || e.code === 'Space') && e.target && e.target.tagName === 'BUTTON' && el.contains(e.target)) e.preventDefault();
+  };
+  addEventListener('keydown', onEsc, true);
 
   /* ---------- the link ---------- */
   const send = d => {
@@ -202,13 +216,14 @@ function beatRoom(body, ctx) {
     s0.joinT = setTimeout(() => { if (st !== s0 || s0.heard) return; const who = s0.opp, up = gameSpeaks(); toGame({ ty: 'peer', left: true }); dSend('bye'); endLink(); if (!up) toast(s0.host ? who + ' couldn’t join. You can play on your own.' : who + ' couldn’t start. You can play on your own.'); }, linkMsg().startIn + (s0.host ? 10000 : 15000));
   };
   const duo = () => {
-    if (!live()) { menu('Online play needs the live connection, and it is not up right now. Try again in a moment.'); return; }
+    if (!live()) { menu('Online play needs the live connection, and it is not up right now. Try again in a moment.', true); return; }
     dropFrame(); el.innerHTML = '<h3>BEET BEAT</h3><p class="sub">Looking for someone to play with…</p><p class="msg">Anyone who picks “Play with someone online” at the Beet Beat cabinet will be paired with you. You race through the same level.</p><div class="row"><button type="button" class="alt" data-a="cancel">Stop looking</button></div>';
+    { const b = el.querySelector('[data-a=cancel]'); try { if (b) b.focus({ preventScroll: true }); } catch (_) {} }   /* Enter stops looking */
     let ok = false; try { ok = ctx.duelFind('beat', link, onNet); } catch (_) {}
-    if (!ok) menu('Online play is not available right now.');
+    if (!ok) menu('Online play is not available right now.', true);
   };
   el.addEventListener('click', e => { const b = e.target.closest('[data-a]'); if (!b) return; const a = b.dataset.a; if (a === 'solo') play(''); else if (a === 'duo' && ONLINE) duo(); else if (a === 'cancel') { try { ctx.duelLeave && ctx.duelLeave(); } catch (_) {} menu('', true); } });
-  menu('');
-  return () => { alive = false; window.__duck = 0; removeEventListener('message', onFrame); if (st) { try { if (st.dc && st.dc.readyState === 'open') st.dc.send('{"k":"bye"}'); } catch (_) {} dSend('bye'); } endLink(); dropFrame(); const cs = document.getElementById('beat-room-css'); if (cs) cs.remove(); try { ctx.duelCancel && ctx.duelCancel(); } catch (_) {} };
+  menu('', true);   /* Play has the focus: Enter plays at once */
+  return () => { alive = false; window.__duck = 0; removeEventListener('message', onFrame); removeEventListener('keydown', onEsc, true); if (st) { try { if (st.dc && st.dc.readyState === 'open') st.dc.send('{"k":"bye"}'); } catch (_) {} dSend('bye'); } endLink(); dropFrame(); const cs = document.getElementById('beat-room-css'); if (cs) cs.remove(); try { ctx.duelCancel && ctx.duelCancel(); } catch (_) {} };
 }
 window.beatRoom = beatRoom;
