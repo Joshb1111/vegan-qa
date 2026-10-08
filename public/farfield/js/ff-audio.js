@@ -70,7 +70,7 @@ let rseed = 0x2545f491;
 const rnd = () => { let t = (rseed += 0x6D2B79F5); t = Math.imul(t ^ (t >>> 15), t | 1); t ^= t + Math.imul(t ^ (t >>> 7), t | 61); return ((t ^ (t >>> 14)) >>> 0) / 4294967296; };
 const rr = (a, b) => a + (b - a) * rnd();
 
-const st = { unlocked: false, muted: false, music: true, hidden: false, heard: {}, explicit: {}, made: 0, failed: '' };
+const st = { unlocked: false, muted: false, music: true, hidden: false, smpLog: [], heard: {}, explicit: {}, made: 0, failed: '' };
 let E = null;              // the live engine (null until unlock() while unmuted; never with FF.SILENT)
 let liveE = null;          // kept while an offline render borrows E
 
@@ -166,6 +166,17 @@ function Engine(ac, sync) {
   if (sync) work.forEach(f => f());
   else { const next = () => { if (E.dead || !work.length) return; try { work.shift()(); } catch (e) { FF.report(e, 'Audio.prepare'); } setTimeout(next, 20); }; setTimeout(next, 20); }
   if (FF.AUDIO_SAMPLES && !E.offline) for (const k in FF.AUDIO_SAMPLES) loadSample(E, k, FF.AUDIO_SAMPLES[k]);
+  E.smp = {};                                                  /* Josh's recorded effects (decoded once; a cue plays a slice of one via opts.sample / opts.seg) */
+  if (!E.offline) for (const k in SMP) loadSmp(E, k, SMP[k]);
+}
+/* recorded effects: name -> [primary (AAC), fallback (small mono wav)]. The gate guard (Josh, 8 Oct): 4.56 s, shaking until about
+   1.4 s, a click at 2.0, the creak and the opening from 2.5 to 4.5. The Verge plays its first shake as seg [0, 1.45] and the lock +
+   the opening as seg [1.95, end] (the click lands on the lock, the creak on the gate's slide 0.6 s later). */
+const SMP = { 'gate-guard': ['audio/ff_gate_guard.m4a', 'audio/ff_gate_guard.wav'] };
+function loadSmp(E, k, urls) {
+  const dec = a => new Promise((res, rej) => { const p = E.ac.decodeAudioData(a, res, rej); if (p && p.catch) p.catch(rej); });
+  const get = i => fetch(urls[i]).then(r => { if (!r.ok) throw new Error(r.status); return r.arrayBuffer(); }).then(dec);
+  get(0).catch(() => get(1)).then(b => { if (b && !E.dead) E.smp[k] = b; }).catch(() => {});
 }
 function loadSample(E, cue, url) {
   try { fetch(url).then(r => r.ok ? r.arrayBuffer() : null).then(a => a && E.ac.decodeAudioData(a)).then(b => { if (b) E.samples[cue] = b; }).catch(() => {}); } catch (_) {}
@@ -247,11 +258,18 @@ P.play = function (name, pos, o) {
   const now = this.ac.currentTime; this.ends = this.ends.filter(e => e > now);
   if (this.ends.length > 56 && !co.prio) return 0;
   const opt = Object.assign({}, co, o || {}), t = now + 0.006 + (opt.delay || 0);
-  if (TRIM[name]) opt.gain = (opt.gain == null ? 1 : opt.gain) * Math.pow(10, TRIM[name] / 20);
+  const hasSmp = !!(opt.sample && this.smp && this.smp[opt.sample]);
+  if (TRIM[name] && !hasSmp) opt.gain = (opt.gain == null ? 1 : opt.gain) * Math.pow(10, TRIM[name] / 20);
   const v = this.voice(pos, opt);
   if (v.s.g < 0.004 && !co.prio) { for (const n of v.parts) if (n) n.disconnect(); return 0; }
   let dur = 0.5;
-  if (this.samples[name]) { const s = this.ac.createBufferSource(); s.buffer = this.samples[name]; s.connect(v.node); s.start(t); dur = s.buffer.duration; }
+  const sb = opt.sample && this.smp && this.smp[opt.sample];
+  if (sb) {                                                    // a recorded effect (its own level, not the synth's trim)
+    const from = (opt.seg && opt.seg[0]) || 0, to = Math.min(sb.duration, (opt.seg && opt.seg[1]) || sb.duration), len = Math.max(0.05, to - from);
+    const sg = this.g(0, v.node), s = this.ac.createBufferSource(); s.buffer = sb; s.connect(sg);
+    sg.gain.setValueAtTime(opt.sgain == null ? 0.6 : opt.sgain, t); if (opt.fade) { sg.gain.setValueAtTime(opt.sgain == null ? 0.6 : opt.sgain, t + Math.max(0, len - opt.fade)); sg.gain.linearRampToValueAtTime(0, t + len); }
+    s.start(t, from, len); dur = len; v.parts.push(sg); st.smpLog.push({ cue: name, sample: opt.sample, from, len: +len.toFixed(2), t: +(GG().t || 0).toFixed(3) });
+  } else if (this.samples[name]) { const s = this.ac.createBufferSource(); s.buffer = this.samples[name]; s.connect(v.node); s.start(t); dur = s.buffer.duration; }
   else dur = f(this, v.node, t, opt) || 0.5;
   this.ends.push(t + dur); this.trash.push({ at: t + dur + 1.0, parts: v.parts });
   return dur;
@@ -561,7 +579,7 @@ function resetScene(cp, reason) {
   D.srch = { state: 'off', kind: '', torch: false, offT: 0, alert: 0, heartNext: 0, prevKind: '' };
   const x = cp ? cp.x : 2, f = GG().flags || {};
   D.van = { on: false, t0: 0, x: -12, z: -8.5, fx: -12, ft: null, stopPlan: null, v: 0, vmax: 0, stopped: false, stopT: null, still: 0, leaving: false, gone: x > 38.4, lx: null, lz: null, fb: true };
-  D.verge = { chain: false, next: 0, hard: false, personOut: x > 38.4, lockAt: null, torchDown: false, inPipeT: null, scrapeNext: 0 };
+  D.verge = { shakeUsed: false, recOpen: false, chain: false, next: 0, hard: false, personOut: x > 38.4, lockAt: null, torchDown: false, inPipeT: null, scrapeNext: 0 };
   D.walk = { done: x > 86 || !!f.walkwayDone, t0: null, enterT: null, x71T: null, explicit: false };
   D.thud = { on: x >= 86 || !!f.walkwayDone, next: 0, n: 0 }; if (D.thud.on) D.thud.next = (GG().t || 0) + 1.0;
   D.mach = { on: x > 12.5 && x < 56, next: 0 };
@@ -853,10 +871,19 @@ function onPhase(kind, d) {
     else if (/gone|off|end/.test(ph)) V.gone = true;
   } else if (kind === 'gate') {
     D.vergePhase = true; const g = { x: 33.0, y: 0.95, z: -4.35 };
-    if (/rattle|chain|burst/.test(ph)) { if (!xp('chain')) cue('chain', g, { dur: (d && d.dur) || 1.6, hard: !!(d && d.hard) }); }
+    if (/rattle|chain|burst/.test(ph)) {
+      if (!xp('chain')) {
+        /* Josh's recorded guard: the FIRST shake of the scene is his shake (seg 0-1.45 s); later bursts stay synthesised (they loop for as long as the rabbit stays) */
+        const first = !D.verge.shakeUsed && E && E.smp && E.smp['gate-guard'], dur = (d && d.dur) || 1.6; if (first) D.verge.shakeUsed = true;
+        cue('chain', g, first ? { dur, hard: !!(d && d.hard), sample: 'gate-guard', seg: [0, Math.min(1.45, Math.max(0.6, dur + 0.1))], fade: 0.1, sgain: 0.55 } : { dur, hard: !!(d && d.hard) });
+      }
+    }
     else if (/jolt/.test(ph)) { if (!xp('gate-jolt')) cue('gate-jolt', g); }
-    else if (/lock|give/.test(ph)) { if (!xp('lock-gives')) cue('lock-gives', g); D.verge.chain = false; }
-    else if (/slide|crack|open/.test(ph)) { if (!xp('gate-slide')) cue('gate-slide', g, { dur: 0.6 }); }
+    else if (/lock|give/.test(ph)) {
+      if (!xp('lock-gives')) { const rec = E && E.smp && E.smp['gate-guard']; D.verge.recOpen = !!rec; cue('lock-gives', g, rec ? { sample: 'gate-guard', seg: [1.95, 99], sgain: 0.6 } : undefined); }   // the click lands now, the creak 0.55 s on = the slide
+      D.verge.chain = false;
+    }
+    else if (/slide|crack|open/.test(ph)) { if (!xp('gate-slide') && !D.verge.recOpen) cue('gate-slide', g, { dur: 0.6 }); }
     else if (/close|shut/.test(ph)) { if (!xp('gate-close')) cue('gate-close', g); }
   } else if (kind === 'walkway') {
     const W = D.walk; W.explicit = true; D.timeline = D.timeline.filter(e => e.tag !== 'walk');
@@ -1046,7 +1073,7 @@ const Audio = FF.Audio = {
     return { stub: false, silent: !!FF.SILENT, unlocked: st.unlocked, muted: st.muted, music: st.music, hidden: st.hidden, context: E ? E.ac.state : null, made: st.made, failed: st.failed || undefined,
       bed: E && E.mix ? { rain: +E.mix.rain.toFixed(2), wind: +E.mix.wind.toFixed(2), verb: E.mix.verb } : null, loops: E ? [...E.loops.keys()] : Object.keys(D.loops),
       black: D.black, thud: D.thud && D.thud.on, van: D.van && { on: D.van.on, fb: D.van.fb, stopped: D.van.stopped, leaving: D.van.leaving, gone: D.van.gone, x: +D.van.x.toFixed(1) },
-      chain: D.verge && D.verge.chain, walkway: D.walk && { t0: D.walk.t0, done: D.walk.done, explicit: D.walk.explicit }, explicit: Object.keys(st.explicit), heard: Object.assign({}, st.heard) };
+      chain: D.verge && D.verge.chain, walkway: D.walk && { t0: D.walk.t0, done: D.walk.done, explicit: D.walk.explicit }, explicit: Object.keys(st.explicit), heard: Object.assign({}, st.heard), recorded: st.smpLog.slice(-6), smp: E && E.smp ? Object.keys(E.smp) : [] };
   },
 };
 let suspT = 0;

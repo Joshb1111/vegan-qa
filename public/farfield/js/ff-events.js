@@ -175,7 +175,8 @@ function afterStep(dt) {
   V.qt += dt; const kind = a[0], t = V.qt;
   P.torch = null; P.shake = 0;
   switch (kind) {
-    case 'lock-gives': P.anim = 'unlock'; if (t >= 0.05) nextStep(); break;
+    /* Josh's recorded gate (8 Oct): its click is the lock and its creak, 0.5 s on, is the gate starting to move: the lock holds 0.5 s before the leaf slides (was 0.05) */
+    case 'lock-gives': P.anim = 'unlock'; if (t >= 0.5) nextStep(); break;
     case 'gate-crack': P.anim = 'idle'; if (t >= a[1]) nextStep(); break;
     case 'step-out': P.anim = 'walk'; P.speed = 1.4; P.x = U.lerp(33.7, 33.4, U.clamp(t / a[1], 0, 1)); P.z = U.lerp(GATE_STAND_Z, -3.3, U.clamp(t / a[1], 0, 1)); P.yaw = 0; if (t >= a[1]) nextStep(); break;
     case 'walk': case 'walk-sweep': {

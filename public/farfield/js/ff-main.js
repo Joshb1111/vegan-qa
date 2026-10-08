@@ -21,10 +21,10 @@
 const T = THREE, U = FF.util, Q = FF.Q, L0 = FF.LOOK;
 const FIX = 1 / 120;
 /* module call order (docs/farfield/INTERFACES.md §3). A missing module or method is skipped; every call is isolated. */
-const INIT = ['Level', 'Works', 'World', 'Player', 'Humans', 'AI', 'Painter', 'Opening', 'Events', 'WorksFlow', 'Camera', 'Audio', 'UI'];
-const RESET = ['Level', 'Works', 'World', 'Player', 'Humans', 'AI', 'Painter', 'Opening', 'Events', 'WorksFlow', 'Camera', 'Audio', 'UI'];
+const INIT = ['Level', 'Works', 'World', 'Player', 'Humans', 'AI', 'Painter', 'Opening', 'Truck', 'Events', 'WorksFlow', 'Camera', 'Audio', 'UI'];
+const RESET = ['Level', 'Works', 'World', 'Player', 'Humans', 'AI', 'Painter', 'Opening', 'Truck', 'Events', 'WorksFlow', 'Camera', 'Audio', 'UI'];
 const STEP = ['Works', 'Player', 'Level', 'AI', 'Painter', 'Events', 'WorksFlow'];
-const FRAME = ['Player', 'Humans', 'AI', 'Painter', 'Opening', 'Events', 'Works', 'World', 'Camera', 'Audio', 'UI'];
+const FRAME = ['Player', 'Humans', 'AI', 'Painter', 'Opening', 'Truck', 'Events', 'Works', 'World', 'Camera', 'Audio', 'UI'];
 function call(name, fn, a, b, c) {
   const m = FF[name]; if (!m || typeof m[fn] !== 'function') return undefined;
   try { return m[fn](a, b, c); } catch (e) { FF.report(e, name + '.' + fn); return undefined; }
@@ -55,8 +55,9 @@ FF.applyShading(L0);
 
 /* ---------------------------------------------------------------- tiers (look test) + the danger hold (A22) */
 const coarse = !!(window.matchMedia && matchMedia('(pointer: coarse)').matches) && Math.min(screen.width, screen.height) < 820;
-let tierName = FF.TIERS[Q.get('q')] ? Q.get('q') : (coarse ? 'low' : 'high');
-let tierChosen = !!FF.TIERS[Q.get('q')], slowT = 0, slowN = 0, slowS = 0;
+/* first frame (8 Oct): unknown hardware starts at MEDIUM and steps UP to high only when the frames allow (stepUp below); a phone-sized touch device starts low */
+let tierName = FF.TIERS[Q.get('q')] ? Q.get('q') : (coarse ? 'low' : 'medium');
+let tierChosen = !!FF.TIERS[Q.get('q')], slowT = 0, slowN = 0, slowS = 0, fastT = 0, fastN = 0, fastS = 0, upTried = coarse;
 FF.tier = FF.TIERS[tierName]; G.tier = tierName;
 function setTier(name) {
   if (!FF.TIERS[name]) return;
@@ -324,8 +325,15 @@ function frame(now) {
   if (document.hidden) { last = now; return; }
   const dt = Math.min(0.1, (now - last) / 1000); last = now;
   ft[fti++ % ft.length] = dt;
-  if (!tierChosen && !loopPaused && now > 4000 && calm()) { slowS += dt; slowN++; slowT += dt; if (slowT > 2) { if (slowS / slowN > 0.021 && tierName !== 'low') setTier(FF.TIER_ORDER[FF.TIER_ORDER.indexOf(tierName) + 1]); slowT = slowS = 0; slowN = 0; } }
+  if (!tierChosen && !loopPaused && now > 4000 && calm()) { slowS += dt; slowN++; slowT += dt; if (slowT > 2) { if (slowS / slowN > 0.021 && tierName !== 'low') { setTier(FF.TIER_ORDER[FF.TIER_ORDER.indexOf(tierName) + 1]); upTried = true; } slowT = slowS = 0; slowN = 0; } }
   else { slowT = slowS = 0; slowN = 0; }
+  /* step UP (once): on the notice or title screen (nothing is at stake and the recompile hitch is hidden there) or in calm play, when 3 s of
+     frames average under 14.5 ms (about 70 fps) at medium it goes to high. If high then runs slower than 21 ms the step-down above brings it
+     back and it never tries again. Never with ?q=, on a touch phone, or while the tab is hidden. */
+  if (!tierChosen && !upTried && !loopPaused && booted && tierName === 'medium' && (G.mode === 'notice' || G.mode === 'title' || calm())) {
+    fastS += dt; fastN++; fastT += dt;
+    if (fastT > 3) { const av = fastS / fastN; if (av < 0.0145) { upTried = true; setTier('high'); slowT = slowS = 0; slowN = 0; } else if (av > 0.02) upTried = true; fastT = fastS = 0; fastN = 0; }
+  } else { fastT = fastS = 0; fastN = 0; }
   pollPad();
   if (!loopPaused) {
     if (stepping()) { acc += dt; let n = 0; while (acc >= FIX && n++ < 24) { stepOnce(); acc -= FIX; } if (acc > FIX) acc = 0; }
@@ -341,29 +349,79 @@ function stats() {
 }
 
 /* ---------------------------------------------------------------- boot */
+/* THE LOADING SCREEN (8 Oct): index.html shows "Far Field" and a thin line at once; boot() moves the line as the modules and the models come
+   in, then WARMS every material and shader behind it (warmUp below) so the first seconds of play do not stutter; then the screen fades.
+   ?warm=0 skips the warm-up (tests, the before / after measure). */
+const bootEl = document.getElementById('boot'), bootBar = document.getElementById('bootbar');
+const T0 = performance.now();
+/* the line is a scaleX transform: it keeps moving on the compositor while the main thread is blocked compiling shaders (secs = how long to glide) */
+const prog = (p, secs) => { if (!bootBar) return; p = U.clamp(p, 0, 1); bootBar.dataset.p = Math.round(p * 100); bootBar.style.transitionDuration = (secs || 0.3) + 's'; bootBar.style.transform = 'scaleX(' + p + ')'; };
+const tick = () => new Promise(r => { let d = false; const f = () => { if (!d) { d = true; r(); } }; requestAnimationFrame(f); setTimeout(f, 50); });
 async function loadManifest() {
   try { const r = await fetch('models/models.json', { cache: 'no-cache' }); if (r.ok) { const j = await r.json(); for (const k in FF.MODELS) if (typeof j[k] === 'string' && j[k]) FF.MODELS[k] = j[k]; } } catch (_) {}
 }
+/* every material and shader compiled once, behind the loading screen: a tour of the checkpoints (each one puts its place, figures, torches and
+   props in view; one real frame each, with the post passes and the shadow maps), then one frame with EVERYTHING visible and unculled (every
+   model and prop variant: the guards, the torch lights, the presses, the rabbit, the truck). G.flags is put back; the title restart after it
+   resets every module as it always did. */
+async function warmUp(from, to) {
+  const rep = { ms: 0, steps: 0, at: [] };
+  if (Q.get('warm') === '0') return rep;
+  const t0 = performance.now();
+  const ids = ['verge-start', 'drain', 'courtyard', 'search-arrive', 'search-skip', 'rest', 'works-in', 'works-apron', 'works-passage', 'works-line', 'works-g2', 'works-out'].filter(id => Game.cp(id));
+  const flags0 = Object.assign({}, G.flags), fade0 = G.fade; G.fade = 0;
+  let i = 0;
+  for (const id of ids) {
+    try {
+      Game.restart(id, { reason: 'warp' }); call('Camera', 'snap');
+      for (let k = 0; k < 2; k++) { stepOnce(); present(FIX); }
+      draw(); rep.steps++;
+    } catch (e) { FF.report(e, 'warm:' + id); }
+    rep.at.push(Math.round(performance.now() - t0)); prog(from + (to - from) * (++i / (ids.length + 1))); await tick();
+  }
+  /* everything at once */
+  try {
+    call('Truck', 'warm', true);
+    const keep = []; scene.traverse(o => { keep.push([o, o.visible, o.frustumCulled]); o.visible = true; o.frustumCulled = false; });
+    try { draw(); renderer.compile(scene, camera); draw(); } finally { for (const [o, v, f] of keep) { o.visible = v; o.frustumCulled = f; } }
+    call('Truck', 'warm', false); rep.steps++;
+  } catch (e) { FF.report(e, 'warm:all'); }
+  for (const k in G.flags) delete G.flags[k]; Object.assign(G.flags, flags0); G.fade = fade0;
+  prog(to); rep.ms = Math.round(performance.now() - t0);
+  return rep;
+}
 async function boot() {
   G.muted = FF.SILENT || FF.store.get('ff-mute') === '1'; G.music = FF.store.get('ff-music') !== '0';
-  await loadManifest();
+  prog(0.04); await loadManifest();
   const ctx = { THREE: T, scene, renderer, camera, post, G, bus: FF.bus, rules: FF.RULES, level: FF.S1, look: L0, tier: FF.tier, Q, silent: FF.SILENT };
   FF.ctx = ctx;
-  for (const m of INIT) await callAsync(m, 'init', ctx);
-  call('Audio', 'mute', G.muted); call('Audio', 'music', G.music);
-  setTier(tierName);
+  const stg = []; const mark = k => stg.push([k, Math.round(performance.now() - T0)]);
+  mark('manifest'); const modMs = {}; let n = 0; for (const m of INIT) { const t1 = performance.now(); await callAsync(m, 'init', ctx); modMs[m] = Math.round(performance.now() - t1); prog(0.02 + 0.1 * (++n / INIT.length)); await tick(); }
+  mark('init'); call('Audio', 'mute', G.muted); call('Audio', 'music', G.music);
+  setTier(tierName); mark('setTier');
+  Game.restart(FF.S1.checkpoints[0], { reason: 'title', first: true }); mark('restart');
+  Game.control(false);
+  for (let i = 0; i < 2; i++) { stepOnce(); present(FIX); }
+  /* every program of the scene at once (about 7 s on a modest GPU; drawing place by place instead was far slower), the line gliding meanwhile */
+  prog(0.55, 7); await tick(); await tick();
+  try { renderer.compile(scene, camera); } catch (e) { FF.report(e, 'compile'); }
+  mark('compile'); prog(0.56, 0.2); await tick();
+  const warm = await warmUp(0.56, 0.97); mark('warm');
+  /* back to the very start: the same calls as before the warm-up existed */
   Game.restart(FF.S1.checkpoints[0], { reason: 'title', first: true });
   Game.control(false);
   for (let i = 0; i < 2; i++) { stepOnce(); present(FIX); }
-  try { renderer.compile(scene, camera); } catch (e) { FF.report(e, 'compile'); }   /* warm the start tier behind the notice */
   booted = true;
   const cpQ = Q.get('cp');
   if (cpQ && Game.cp(cpQ)) { G.mode = 'title'; Game.restart(cpQ, { reason: 'warp' }); call('Camera', 'snap'); setMode('play'); Game.control(true); G.fade = 0; }
   else { setMode('notice'); call('Camera', 'shot', 'title'); call('UI', 'showNotice'); G.fade = 0; }
   present(0); draw();
+  prog(1);
   requestAnimationFrame(t => { last = t; frame(t); });
+  window.__ff.boot = { ms: Math.round(performance.now() - T0), warm, tier: tierName, init: modMs, stages: stg };
   window.__ff.ready = true;
   postParent({ ty: 'ready' });
+  if (bootEl) { bootEl.classList.add('off'); setTimeout(() => { if (bootEl.parentNode) bootEl.parentNode.removeChild(bootEl); }, 900); }
 }
 
 /* ---------------------------------------------------------------- teardown: free the GPU the moment the page goes away */

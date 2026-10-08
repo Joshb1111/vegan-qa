@@ -16,11 +16,11 @@ export async function boot(opts = {}) {
     Object.defineProperty(Document.prototype, 'visibilityState', { get: () => 'visible', configurable: true });
     document.addEventListener('visibilitychange', e => e.stopImmediatePropagation(), true);
     /* tests step the game faster than real time: UI screen fades (CSS, real time) would linger over later frames */
-    if (!window.__keepFades) document.addEventListener('DOMContentLoaded', () => { const st = document.createElement('style'); st.textContent = '#ui .scr{transition:none!important}'; document.head.appendChild(st); });
+    if (!window.__keepFades) document.addEventListener('DOMContentLoaded', () => { const st = document.createElement('style'); st.textContent = '#ui .scr{transition:none!important}#boot{transition:none!important}'; document.head.appendChild(st); });
     const si = Storage.prototype.setItem; Storage.prototype.setItem = function (k, v) { window.__probe.set.push(k + '=' + v); return si.call(this, k, v); };
   ` });
   /* polish pass 8 Oct: every test starts with the opening tumble off (?intro=0) unless it asks for it (?intro=1 in its query) */
-  let qq = opts.q != null ? opts.q : 'q=high&mute=1&seed=1'; if (!/(^|&)intro=/.test(qq)) qq += '&intro=0';
+  let qq = opts.q != null ? opts.q : 'q=high&mute=1&seed=1'; if (!/(^|&)intro=/.test(qq)) qq += '&intro=0'; if (!/(^|&)warm=/.test(qq)) qq += '&warm=0';   // the loading warm-up has its own test (t-extras.mjs)
   await b.nav('/farfield/index.html?' + qq, 'window.__ff && __ff.ready === true', 120000);
   await sleep(300);
   if (opts.pause !== false) await b.ev('__ff.pause(); true');
