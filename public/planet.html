@@ -66,6 +66,7 @@ body.touch .tpad{margin-left:auto}
 #look .sw{width:30px;height:30px;border-radius:50%;border:2px solid #26333a;cursor:pointer;padding:0;font-size:16px;line-height:1;color:#26333a}#look .sw.on{outline:3px solid #f28c28;outline-offset:1px}#look .ldone{margin-top:8px;font-family:var(--hand);font-size:18px;padding:4px 16px;cursor:pointer;background:#f4c945}
 #musicbtn{position:absolute;top:calc(max(14px,env(safe-area-inset-top)) + 62px);right:14px;width:52px;height:52px;appearance:none;cursor:pointer;padding:0;font-size:24px;line-height:1}
 #musicbtn[aria-pressed=false]{background:var(--cream2);color:var(--muted);text-decoration:line-through}
+#snowbtn{position:absolute;right:76px;top:calc(max(14px,env(safe-area-inset-top)) + 62px);width:52px;height:52px;appearance:none;cursor:pointer;padding:0;display:grid;place-items:center;border-radius:50%}#snowbtn svg{width:30px;height:30px}
 #wingsbtn,#websbtn{position:absolute;right:76px;width:52px;height:52px;appearance:none;cursor:pointer;padding:0;display:grid;place-items:center;border-radius:50%}
 #wingsbtn{top:calc(max(14px,env(safe-area-inset-top)) + 124px)}#websbtn{top:calc(max(14px,env(safe-area-inset-top)) + 186px)}#wingsbtn[hidden],#websbtn[hidden]{display:none}#wingsbtn svg,#websbtn svg{width:30px;height:30px}
 #wingsbtn[aria-pressed=false],#websbtn[aria-pressed=false]{background:var(--cream2);opacity:.6}
@@ -105,7 +106,7 @@ body.touch .tpad{margin-left:auto}
 html,body{touch-action:manipulation}#fighthud,#racehud,#pad,#tricks,.dpad{touch-action:none}
 #fightctl button{appearance:none;font-family:var(--hand);font-size:22px;min-width:74px;height:60px;background:var(--cream);border:2.5px solid var(--ink);border-radius:6px;box-shadow:3px 3px 0 var(--ink);cursor:pointer;touch-action:none;user-select:none;-webkit-user-select:none}
 #fightctl button.sp2{font-size:15px;line-height:1.05;background:#f4c945}#fightctl button.sp2.cool{opacity:.45}#fightctl button.quit{min-width:0;font-size:16px;background:none;border:0;box-shadow:none;color:var(--red);text-decoration:underline}#fightctl .sp{width:20px}
-body.fighting #hint,body.fighting #menubtn,body.fighting #musicbtn,body.fighting #wingsbtn,body.fighting #websbtn,body.fighting #score,body.fighting #quest{visibility:hidden}
+body.fighting #hint,body.fighting #menubtn,body.fighting #musicbtn,body.fighting #snowbtn,body.fighting #wingsbtn,body.fighting #websbtn,body.fighting #score,body.fighting #quest{visibility:hidden}
 @media (max-width:560px){#fightctl{gap:5px;padding:0 6px}#fightctl button{min-width:0;flex:1;font-size:17px;height:54px;padding:0 4px}#fightctl button.sp2{font-size:12px}#fightctl .sp{width:4px}#fightctl button.quit{flex:0 0 auto;font-size:14px}}
 #pad.fightpad .dpad,#pad.fightpad #jumpbtn,#pad.fightpad #ba,#pad.fightpad #tricks,#pad.fightpad #stick{visibility:hidden}#pad.fightpad{z-index:6}
 #fightpick{position:fixed;left:50%;top:50%;transform:translate(-50%,-50%);z-index:24;width:min(360px,92vw);padding:14px 16px;font-family:var(--hand);background:var(--cream);display:flex;flex-direction:column;gap:10px}#fightpick[hidden]{display:none}#fightpick h2{margin:0;font-size:28px;font-weight:normal}#fightpick .ink{font-family:var(--hand);font-size:22px;padding:10px 12px;cursor:pointer;background:#f4c945;color:#26333a;text-align:left}#fightpick .ink small{display:block;font-size:16px;color:#5f6d72}#fp-note{margin:0;font-size:17px;color:#5f6d72;min-height:1.2em}#fp-x{appearance:none;border:0;background:none;font-family:var(--hand);font-size:18px;color:var(--red);text-decoration:underline;cursor:pointer}
@@ -150,7 +151,7 @@ body.fighting #hint,body.fighting #menubtn,body.fighting #musicbtn,body.fighting
 #film .note{margin:0;font-family:var(--hand);color:var(--muted);font-size:16px}
 #title .bub{position:absolute;bottom:-40px;border:2px solid rgba(38,51,58,.5);border-radius:50%;animation:bubrise linear infinite;pointer-events:none}
 @keyframes bubrise{to{transform:translateY(-120vh)}}
-body.intro #hint,body.intro #menubtn,body.intro #musicbtn,body.intro #wingsbtn,body.intro #websbtn,body.intro #pad,body.intro #score,body.intro #quest{visibility:hidden}
+body.intro #hint,body.intro #menubtn,body.intro #musicbtn,body.intro #snowbtn,body.intro #wingsbtn,body.intro #websbtn,body.intro #pad,body.intro #score,body.intro #quest{visibility:hidden}
 body.intro #game{background:#5abfb2}
 #c{transform-origin:50% 50%}
 @keyframes bob{0%,100%{transform:translateY(0)}50%{transform:translateY(-6px)}}
@@ -210,6 +211,7 @@ body.intro #game{background:#5abfb2}
   <div id="prompt" class="off ink"><b></b><span></span></div>
   <button id="menubtn" class="ink" type="button" aria-label="People" aria-expanded="false"><svg viewBox="0 0 30 30" fill="none" stroke="#26333a" stroke-width="2.6" stroke-linecap="round"><path d="M9 8h15M9 15h15M9 22h15"/><circle cx="4.5" cy="8" r="1.4" fill="#26333a"/><circle cx="4.5" cy="15" r="1.4" fill="#26333a"/><circle cx="4.5" cy="22" r="1.4" fill="#26333a"/></svg></button>
   <button id="musicbtn" class="ink" type="button" aria-label="Music" aria-pressed="true">♪</button>
+  <button id="snowbtn" class="ink" type="button" aria-label="Throw a snowball (F)" title="Throw a snowball (F)"><svg viewBox="0 0 30 30" fill="none" stroke="#26333a" stroke-width="2.2" stroke-linecap="round"><circle cx="15" cy="15" r="9" fill="#bfe6ff"/><path d="M11 12a5 5 0 0 1 4-3M5 5l2 2M25 5l-2 2M26 15h2M2 15h2"/></svg></button>
   <button id="wingsbtn" class="ink" type="button" aria-label="Metal wings" aria-pressed="true" hidden><svg viewBox="0 0 30 30" fill="none" stroke="#26333a" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 24C14 15 9 8 2 6c1 8 4 13 10 15M15 24c1-9 6-16 13-18-1 8-4 13-10 15M15 24V12"/></svg></button>
   <button id="websbtn" class="ink" type="button" aria-label="Spider webs" aria-pressed="true" hidden><svg viewBox="0 0 30 30" fill="none" stroke="#26333a" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 3v24M3 15h24M6.5 6.5l17 17M23.5 6.5l-17 17"/><path d="M15 9l5 2 2 4-2 5-5 2-5-2-2-5 2-4zM15 4.5l8 3 3.5 7.5-3.5 8-8 3-8-3-3.5-8 3.5-7.5z"/></svg></button>
   <button id="lookbtn" class="ink icn" type="button" aria-label="Change your outfit"><img src="assets/icons/shirt.png" alt=""></button>
@@ -1703,7 +1705,7 @@ function update(dt){
 }
 let last=performance.now();
 let fpsN=0,fpsT=0,skipN=0;function frame(now){if(houseOn&&!intro){last=now;try{liveSend();}catch(_){}setTimeout(()=>requestAnimationFrame(frame),250);return;} /* a house fills the screen: nothing of the planet shows, so it is not drawn. The arcade's Tyrian runs on this same thread and needs every millisecond */if(intro&&LITE&&((++skipN)&1)){requestAnimationFrame(frame);return;} /* the title globe draws every other frame on phones */const dt=Math.min(.25,(now-last)/1000)*(window.__dtScale??1);last=now;if(!paused){let acc=dt;while(acc>1e-4){const h=Math.min(.05,acc);update(h);fightUpdate(h);acc-=h;}} /* a slow phone gets several small steps, so the world and the run keep real time instead of slowing down */
-  raceUpdate(dt);dashUpdate(dt);webUpdate(dt);flyUpdate(dt);emoteTick(mySprite);try{liveSend();mpUpdate(dt);if(myLookWorn===null&&kidModel&&!plainLook(lookKey(myLook)))wearMine();}catch(e){if(!window.__mpErr){window.__mpErr=e;console.warn('multiplayer',e);}} /* the other players must never be able to stop the game */
+  raceUpdate(dt);try{snowUpdate(dt);}catch(_){}dashUpdate(dt);webUpdate(dt);flyUpdate(dt);emoteTick(mySprite);try{liveSend();mpUpdate(dt);if(myLookWorn===null&&kidModel&&!plainLook(lookKey(myLook)))wearMine();}catch(e){if(!window.__mpErr){window.__mpErr=e;console.warn('multiplayer',e);}} /* the other players must never be able to stop the game */
   if(fpsEl){fpsN++;if(now-fpsT>500){fpsEl.textContent=Math.round(fpsN*1000/(now-fpsT))+' fps';fpsN=0;fpsT=now;}}
   if(mixer)mixer.update(dt);applySit();applyRide();applyJump();applyWeb();applyFly();for(const m of mixers)m.update(dt);updateBirds(dt,now/1000);if(window.DRESS&&window.DRESS.frame)try{window.DRESS.frame(dt,now);}catch(e){if(!window.__dressErr){window.__dressErr=e;console.warn('dress',e);}}if(window.__water&&window.__water.userData.sh)window.__water.userData.sh.uniforms.uT.value=now/1000;if(window.__shore&&window.__shore.material.userData.sh)window.__shore.material.userData.sh.uniforms.uT.value=now/1000;renderInk();requestAnimationFrame(frame);}
 requestAnimationFrame(frame);
@@ -2246,7 +2248,7 @@ function mpChip(){MP.alone=MP.others.size===0;const chip=$('#online');chip.hidde
 function liveStart(){if(LIVE.rt||LIVE.loading||window.__noLive)return;LIVE.loading=true;const sc=document.createElement('script');sc.src='https://cdn.jsdelivr.net/npm/ably@2/build/ably.min.js';sc.onerror=()=>{LIVE.loading=false;sc.remove();};
   sc.onload=()=>{LIVE.loading=false;try{const rt=new Ably.Realtime({authUrl:'/api/ably-token',authParams:{clientId:MP.id},clientId:MP.id,echoMessages:false,transportParams:{heartbeatInterval:15000}});LIVE.rt=rt;const ch=rt.channels.get('planet:world');LIVE.ch=ch;
       const count=()=>ch.presence.get().then(m=>{LIVE.others=m.filter(x=>x.clientId!==MP.id).length;}).catch(()=>{});
-      ch.subscribe('s',msg=>{const d=msg.data||{};mpTakeState(String(msg.clientId||''),d.s,d.n,d.k,Date.now()+MP.offset);mpChip();});
+      ch.subscribe('sb',msg=>{try{snowGet(String(msg.clientId||''),msg.data);}catch(_){}});ch.subscribe('s',msg=>{const d=msg.data||{};mpTakeState(String(msg.clientId||''),d.s,d.n,d.k,Date.now()+MP.offset);mpChip();});
       ch.presence.subscribe(['enter','leave','present'],m=>{count();if(m.action==='leave'){const o=MP.others.get(m.clientId);if(o){mpDrop(o);MP.others.delete(m.clientId);mpChip();}}else LIVE.lastSend=0; /* someone arrived: say where we are straight away */});
       rt.connection.on('connected',()=>{LIVE.on=true;MP.DELAY=190;ch.presence.enter({}).then(count).catch(()=>{});});rt.connection.on(['disconnected','suspended','failed','closed'],()=>{LIVE.on=false;MP.DELAY=900;});}catch(_){LIVE.rt=null;}};document.head.appendChild(sc);}
 function liveSend(){if(!LIVE.on||!LIVE.ch||!titleGone||document.hidden)return;const now=performance.now();if(LIVE.others<1&&MP.others.size<1)return;const s=mpState(),key=s.map(x=>x.toFixed(3)).join(',')+lookKey(myLook)+myEmote.seq;const changed=key!==LIVE.lastKey;if(changed)LIVE.lastMoveAt=now;
@@ -2256,6 +2258,30 @@ setInterval(liveSweep,2000);addEventListener('pagehide',e=>{if(e.persisted)retur
 window.__live=LIVE;
 addEventListener('pagehide',()=>{try{navigator.sendBeacon('/api/world',new Blob([JSON.stringify({id:MP.id,s:[0,1,0,1,0,0,0,8],bye:1})],{type:'application/json'}));}catch(_){}});
 document.addEventListener('visibilitychange',()=>{if(!document.hidden)mpTick();});mpTick();
+/* ---- snowballs: a friendly throw-and-hit game with the other real players. No tag, no score. The thrower decides hit or miss and says so on the
+   same Ably channel ('sb' message, tiny, one per throw); everyone else only animates it. Without a live link your own throws are local. ---- */
+const SNOW={balls:[],puffs:[],cool:0,pal:[0xff6b6b,0xffb347,0xffe14d,0x6bd66b,0x4dc3ff,0x8c7bff,0xff7bd5],geo:null,rx:new Map()};
+function snowPoff(vol){if(!musicOn)return;const c=ensureCtx();if(!c||c.state!=='running')return;try{const n=Math.floor(c.sampleRate*.09),b=c.createBuffer(1,n,c.sampleRate),d=b.getChannelData(0);for(let i=0;i<n;i++)d[i]=(Math.random()*2-1)*Math.pow(1-i/n,2);const s=c.createBufferSource();s.buffer=b;const f=c.createBiquadFilter();f.type='lowpass';f.frequency.value=700;const g=c.createGain();g.gain.value=vol||.07;s.connect(f);f.connect(g);g.connect(c.destination);s.start();}catch(_){}}
+function snowPuff(p,col,n,big){if(!SNOW.geo)SNOW.geo=new THREE.SphereGeometry(1,8,6);const nrm=p.clone().normalize();for(let i=0;i<n;i++){const m=new THREE.Mesh(SNOW.geo,new THREE.MeshBasicMaterial({color:col,transparent:true}));const s=(big?.13:.08)+Math.random()*.06;m.scale.setScalar(s);m.position.copy(p);const v=new THREE.Vector3(Math.random()-.5,Math.random()-.5,Math.random()-.5).multiplyScalar(big?3.2:2).addScaledVector(nrm,1.2+Math.random()*1.2);scene.add(m);SNOW.puffs.push({m,v,age:0,s});}snowPoff(big?.08:.05);}
+function snowLaunch(a,b,col,hit,tid,who){const m=new THREE.Mesh(SNOW.geo||(SNOW.geo=new THREE.SphereGeometry(1,8,6)),new THREE.MeshBasicMaterial({color:col}));m.scale.setScalar(.2);m.position.copy(a);scene.add(m);const T=clamp(.35+a.distanceTo(b)/16,.4,1);SNOW.balls.push({m,a,b,col,hit,tid,who,t:0,T});snowPoff(.05);}
+function snowTarget(){let best=null,bd=1e9;const me=player.group.position;for(const o of MP.others.values()){if(!o.av||!o.av.holder.visible)continue;const p=o.av.holder.position;const d=_sc.copy(p).sub(me);d.addScaledVector(up,-d.dot(up));const L=d.length();if(L>12||L<.5)continue;if(d.dot(fwd)/L<.5)continue;if(L<bd){bd=L;best=o;}}return best;}
+function snowThrow(roll){if(intro||fight.on||houseOn||talking||SNOW.cool>0)return false;SNOW.cool=.8;const col=SNOW.pal[Math.floor(Math.random()*SNOW.pal.length)];
+  const a=up.clone().multiplyScalar(gAt(up)+1.15).addScaledVector(fwd,.45);const tg=snowTarget();let b,hit=false,tid='';
+  if(tg&&(roll===undefined?Math.random():roll)<.5){b=tg.av.holder.position.clone().addScaledVector(tg.av.holder.position.clone().normalize(),1.0);hit=true;tid=tg.id;}
+  else{const n=up.clone().addScaledVector(fwd,9/R).normalize();b=n.multiplyScalar(gAt(n)+.12);}
+  snowLaunch(a,b,col,hit,tid,tg&&hit?tg.wantName:'');SNOW.balls[SNOW.balls.length-1].local=true;
+  if(LIVE.on&&LIVE.ch){const r=x=>Math.round(x*100)/100;LIVE.ch.publish('sb',{a:[r(a.x),r(a.y),r(a.z)],b:[r(b.x),r(b.y),r(b.z)],c:col,t:tid}).catch(()=>{});}
+  SNOW.last={hit,tid,col};return true;}
+function snowGet(pid,d){const ok=v=>Array.isArray(v)&&v.length===3&&v.every(x=>typeof x==='number'&&isFinite(x));if(!d||!ok(d.a)||!ok(d.b)||typeof d.c!=='number')return;const now=performance.now();if(now-(SNOW.rx.get(pid)||0)<400)return;SNOW.rx.set(pid,now);
+  const a=new THREE.Vector3(...d.a),b=new THREE.Vector3(...d.b);if(Math.abs(a.length()-R)>8||Math.abs(b.length()-R)>8||a.distanceTo(b)>30)return;const o=MP.others.get(pid),nm=o?o.wantName:'Someone';const mine=d.t===MP.id;
+  snowLaunch(a,b,d.c&0xffffff,!!d.t,d.t,mine?nm:'');}
+function snowUpdate(dt){if(SNOW.cool>0)SNOW.cool-=dt;if(!SNOW.balls.length&&!SNOW.puffs.length)return;sceneDirty=true;
+  for(let i=SNOW.balls.length-1;i>=0;i--){const s=SNOW.balls[i];s.t+=dt;const k=Math.min(1,s.t/s.T);s.m.position.lerpVectors(s.a,s.b,k);s.m.position.addScaledVector(s.m.position.clone().normalize(),Math.sin(Math.PI*k)*1.6);
+    if(k>=1){scene.remove(s.m);s.m.material.dispose();SNOW.balls.splice(i,1);snowPuff(s.b,s.col,s.hit?12:6,s.hit);if(s.hit&&s.who){if(s.tid===MP.id)showTrick(s.who+' got you!');else if(s.local)showTrick('You got '+s.who+'!');}}}
+  for(let i=SNOW.puffs.length-1;i>=0;i--){const p=SNOW.puffs[i];p.age+=dt;p.m.position.addScaledVector(p.v,dt);p.v.multiplyScalar(Math.max(0,1-dt*3));const k=p.age/.6;p.m.material.opacity=Math.max(0,1-k);p.m.scale.setScalar(p.s*(1+k*.8));if(k>=1){scene.remove(p.m);p.m.material.dispose();SNOW.puffs.splice(i,1);}}}
+{const b=$('#snowbtn');if(b)b.addEventListener('click',e=>{e.stopPropagation();unlockAudio();snowThrow();game.focus();});
+ window.addEventListener('keydown',e=>{if((e.key==='f'||e.key==='F')&&!e.repeat&&!e.metaKey&&!e.ctrlKey&&!e.altKey&&!(e.target&&/^(INPUT|TEXTAREA)$/.test(e.target.tagName||''))&&!houseOn&&!filmOn)snowThrow();});}
+window.__snow=SNOW;window.__snowThrow=snowThrow;window.__snowDbg={me:()=>player.group.position,up:()=>up,fwd:()=>fwd,take:mpTakeState,get:snowGet,R};
 window.__mp=MP;window.__setLook=l=>{Object.assign(myLook,l);wearMine();};
 
 /* =====================================================================
