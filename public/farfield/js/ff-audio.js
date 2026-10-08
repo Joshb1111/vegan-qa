@@ -814,7 +814,7 @@ function deriveRabbit(now, r) {
     const dx = Math.abs(r.x - R.x); R.x = r.x; const v = Math.abs(r.vx || 0);
     if (r.grounded && v > 0.12 && !r.squeeze && !xp('paw')) {
       R.acc += dx; const L = v > 2.0 ? 0.62 : v > 1.3 ? 0.46 : 0.3;
-      if (R.acc >= L) { R.acc -= L; cue('paw', { x: r.x, y: r.y, z: 0 }, { surface: rabbitSurface(r), w: clamp(v / 2.75, 0.35, 1.1) }); }
+      if (R.acc >= L) { R.acc -= L; cue('paw', { x: r.x, y: r.y, z: 0 }, { surface: rabbitSurface(r), w: clamp(v / 2.06, 0.35, 1.1) }); }
     }
     if (r.squeeze && v > 0.04 && !xp('fur')) hold('fur', 'fur', { x: r.x, y: r.y, z: 0 }, r.y < -0.5 ? 0.5 : 0.35, { v: v / 1.6 });
   }

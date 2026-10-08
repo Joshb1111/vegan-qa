@@ -643,9 +643,11 @@ function ProcAnim(rig, opt) {
     return o;
   }
   function layerAir(s, o) {
-    const k = sstep(1.6, -1.6, s.vy); // 0 rising, 1 falling
-    o.rootY = 0; o.pitch = lerp(0.32, -0.14, k); o.spine = lerp(-0.2, -0.04, k); o.neck = 0; o.head = lerp(-0.22, 0.08, k);
-    o.hL = o.hR = lerp(-0.95, 0.1, k); o.hkL = o.hkR = lerp(0.15, 0.5, k); o.hfL = o.hfR = lerp(-0.55, -0.1, k);
+    const k = sstep(2.2, -2.2, s.vy); // 0 rising, 0.5 at the apex (level), 1 falling
+    /* Josh (8 Oct): the jump looked stiff. Nose up while rising (stretched, hind legs trailing back), level at the apex, nose down
+       falling with the hind legs still trailing so the front paws reach the ground first (the landing settle brings the haunches down) */
+    o.rootY = 0; o.pitch = 0; o.spine = lerp(-0.3, -0.04, k); o.neck = 0; o.head = lerp(-0.26, 0.1, k);
+    o.hL = o.hR = lerp(-1.15, -0.3, k); o.hkL = o.hkR = lerp(0.1, 0.3, k); o.hfL = o.hfR = lerp(-0.6, -0.25, k);
     o.fL = o.fR = lerp(0.7, 0.5, k); o.fkL = o.fkR = lerp(0.05, 0.15, k);
     o.earL = o.earR = lerp(-0.55, -0.15, k); o.earSL = o.earSR = 0.08; o.tail = 0.2;
     return o;
@@ -841,7 +843,7 @@ const POSE_CLIP = { groom: 'groom', sniff: 'sniff_ground', nibble: 'nibble', sit
   hesitate: 'hesitate_look_down', reach: 'reach_fail', climb: 'climb_in', popout: 'pop_out_hop_down', flinch: 'crouch_idle', watch: 'hide', prick: 'alert_freeze' };
 const POSE_ONCE = { shake: 1, reach: 1, climb: 1, popout: 1, lookback: 1, sniff: 1, lookup: 1, lookdown: 1, hesitate: 1, freeze: 1 };
 /* the ground speeds ASSETS-3D.md asks the moving clips to be authored at (used only when a clip's stride can't be measured) */
-const LOCO = { walk: 1.0, hop_run: 2.75, flee: 3.6, crouch_walk: 0.75, push_head: 0.62 };
+const LOCO = { walk: 1.0, hop_run: 2.06, flee: 3.6, crouch_walk: 0.75, push_head: 0.62 };
 const PBONES = boneTable().map(b => [b[0], b[1]]);
 const NEED = ['hips', 'spine', 'chest', 'head', 'front_upper_L', 'front_lower_L', 'front_paw_L', 'front_upper_R', 'front_lower_R', 'front_paw_R',
   'hind_upper_L', 'hind_lower_L', 'hind_foot_L', 'hind_upper_R', 'hind_lower_R', 'hind_foot_R'];
@@ -1007,6 +1009,7 @@ function ModelAnim(root, clips, holder, opts) {
      the stand, the feet on the ground are held where they landed (leg IK) for as long as he stands; the body takes the standing
      pose over them. When something else begins, they step to the clip's places (a small lift) or, if he moves off, are let go. */
   let lock = null, lockSaved = null, standY = null;
+  let jumpK = 0;
   if (by.idle_breathe && NEED.every(n => bone[n])) {   // the standing clip's ankle heights: a foot near them is on the ground
     standY = {}; const mx = new T.AnimationMixer(root), ac = mx.clipAction(by.idle_breathe); ac.play(); mx.setTime(0); root.updateMatrixWorld(true);
     for (const [, , c] of LEGS) standY[c] = yz(bone[c], holder)[0];
@@ -1081,6 +1084,13 @@ function ModelAnim(root, clips, holder, opts) {
       ear.pL = damp(ear.pL, E.pL, kk, dt); ear.pR = damp(ear.pR, E.pR, kk, dt); ear.yL = damp(ear.yL, E.yL, kk, dt); ear.yR = damp(ear.yR, E.yR, kk, dt);
       bone.ear_L_01.rotation.x += 0.5 * ear.pL * w; bone.ear_R_01.rotation.x += 0.5 * ear.pR * w;
       bone.ear_L_01.rotation.y += 0.6 * ear.yL * w; bone.ear_R_01.rotation.y += 0.6 * ear.yR * w;
+    }
+    /* the jump's stretch: the body lengthens along its spine while it rises (most at take-off), less at the apex, a little falling */
+    if (bone.spine && bone.chest) {
+      const air = !s.grounded && s.mode !== 'tumble';
+      jumpK = damp(jumpK, air ? 1 : 0, air ? 1 / 0.05 : 1 / 0.1, dt);
+      const st = jumpK * (0.3 + 0.7 * sstep(-0.5, 2.2, s.vy || 0)), L = 1 + 0.2 * st, T = 1 - 0.05 * st;
+      for (const n of ['spine', 'chest']) { const b = bone[n], r = snap[allBones.indexOf(b)][2]; b.scale.set(r.x * T, r.y * (n === 'spine' ? L : 1 + 0.1 * st), r.z * T); }
     }
     if (k > 0.001 && s.head && bone.head) { hy = damp(hy, s.head.yaw || 0, 1 / 0.3, dt); bone.head.rotation.y += hy * 0.6 * (s.pose ? 0.2 : 1) * k; }
   }

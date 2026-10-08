@@ -35,7 +35,7 @@ FF.S1 = {
     { from: 'search', to: 'rest', x0: 112.6, x1: 115.0 },
   ],
 
-  /* A5: the title plays over the live Verge: the rabbit grooming beneath partial shelter (title-shelter), rain beyond */
+  /* A5: the title plays over the live Verge: the empty scene (the concrete wall, the hole at its foot, the window's light), rain beyond */
   spawn: { x: 2.0, y: 0, face: 1, pose: 'groom' },
 
   /* ground: [x, y]; a repeated x is a vertical step */
@@ -49,8 +49,6 @@ FF.S1 = {
 
   solids: [
     { id: 'thicket',      x0: -6.0,   x1: 0.6,    y0: 0.00,  y1: 3.0,  kind: 'wall' },
-    { id: 'title-shelter',x0: 0.6,    x1: 2.6,    y0: 0.95,  y1: 1.05, kind: 'ceiling', z0: -0.9, z1: 0.6,
-      note: 'A5: a sheet of hoarding leaning out from the thicket edge; partial shelter over the grooming rabbit at the title; above jump reach (0.76), never touched' },
     { id: 'fallen-post',  x0: 10.8,   x1: 11.1,   y0: 0.00,  y1: 0.30, kind: 'kerb' },     // first jump
     { id: 'hoarding',     x0: 16.9,   x1: 17.1,   y0: 0.19,  y1: 2.20, kind: 'wall' },     // first squeeze (a duck-under): the same kind of gap as the Search's exit
     { id: 'cross-wall',   x0: 39.0,   x1: 41.6,   y0: -0.55, y1: 14.0, kind: 'wall' },     // its underside is the chamber's dark overhang 39.0-39.6. A14: the culvert's cracked slab sits behind the lane in z (decor 'culvert-mouth'); its broken corner 38.5-39.0 at the lane is the way down
@@ -147,7 +145,7 @@ FF.S1 = {
   camera: {
     base: { fov: 26, dist: 8.2, height: 1.15, horizon: 0.57, lookAhead: 1.3, follow: 2.6, jumpFollow: 0.25, edge: 0.15, maxDist: 12.5, blend: 1.5 },
     zones: [
-      { id: 'title',        shot: true, x: 3.9, y: 1.0, dist: 8.6, horizon: 0.6, toPlay: 2.5 },   // integration: closer (was x 4.6, y 1.15, dist 11): the grooming rabbit was small and low (lead's note 8)
+      { id: 'title',        shot: true, x: 2.7, y: 0.9, dist: 7.2, horizon: 0.6, toPlay: 2.5 },   // integration: closer (was x 4.6, y 1.15, dist 11): the grooming rabbit was small and low (lead's note 8)
       { id: 'verge',        x0: 0.6,  x1: 30.5, dist: 8.6, height: 1.05, lookAhead: 1.6, runAhead: 2.2, follow: 2.2, minX: 3.6,
         attend: { event: 'vehicle-arrive', x: 'vehicle', w: 0.35, t: 6.0 } },
       { id: 'verge-gate',   x0: 30.5, x1: 38.5, span: [31.0, 39.4], height: 1.10, horizon: 0.58, hold: true },
