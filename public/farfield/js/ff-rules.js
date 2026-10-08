@@ -20,7 +20,7 @@ FF.RULES = {
        raises the speed unasked: the flee speed is what a run becomes while a searcher within fleeWithin is SPOTTED / AIM /
        PURSUE / GRAB / LOWER (the Search only), so it too needs Shift; a direction alone stays the cautious walk even then.
        The one-time "Shift run" hint early in the Verge (ff-player.js) makes sure a first-timer knows it before the Search. */
-    walk: 0.95, run: 2.75, runNeedsShift: true,
+    walk: 0.95, run: 2.06, runNeedsShift: true,
     flee: 3.6, fleeRamp: 0.4, fleeWithin: 15, fleeRunsAtOnce: true,       // a run (Shift) while a searcher is SPOTTED / PURSUE / AIM / GRAB within 15 m (the Search only) opens at flee speed at once
     crouch: 0.75,                                                           // Down: a deliberate crouch-walk (and the speed while stuck under something lower than h)
     /* squeezes (A9): clearance 0.16-0.235 m. A squeeze no longer than shortMax (the hoarding, skirts, flaps, the skip's rear
@@ -83,7 +83,7 @@ FF.RULES = {
        floorSpeed (the cautious walk 0.95, the crouch-walk 0.75, the creep) .. 1 at fullSpeed (the run 2.75); heard weight =
        loudness x (1 - distance / range), no line of sight needed, works behind his back; it fills suspicion over `t` s at weight 1
        (about 1.8 s of running at 3 m for NOTICE-to-SPOTTED). Sound alone never beats a better light term (FF.Guard.merge). */
-    hear: { range: 6.0, t: 1.1, floorSpeed: 1.05, fullSpeed: 2.6 },
+    hear: { range: 6.0, t: 1.1, floorSpeed: 1.05, fullSpeed: 2.06 },
     coreMaskSoft: 0.1, coreMaskOnlyWhereProvenDark: true, tick: 60,
   },
 
