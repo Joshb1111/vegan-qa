@@ -55,10 +55,10 @@ const ODDS = SK.ODDS = [
 
 /* ---------- classes: vmul is the race's speed class; the rest is CPU skill (SPEC 2.1) ---------- */
 SK.DIFF = [
-  { id: 'easy', name: 'EASY', vmul: 0.95, speed: 0.84, wobble: 2.2, drift: 0, aim: 0.35, start: 0.05, rbA: 0.12, rbB: 0.08, itemWait: [80, 420], err: 0.9, cut: 0.10, twirl: 0.3, read: 0.2, dodge: 0.2, hop: 0.1, hb: 0.6 },
-  { id: 'medium', name: 'MEDIUM', vmul: 1.00, speed: 0.975, wobble: 1.4, drift: 1, aim: 0.7, start: 0.25, rbA: 0.09, rbB: 0.10, itemWait: [70, 330], err: 0.45, cut: 0.35, twirl: 0.65, read: 0.55, dodge: 0.5, hop: 0.3, hb: 0.75 },
-  { id: 'hard', name: 'HARD', vmul: 1.10, speed: 0.96, wobble: 0.8, drift: 3, aim: 0.95, start: 0.55, rbA: 0.03, rbB: 0.14, itemWait: [40, 200], err: 0.15, cut: 0.70, twirl: 0.95, read: 0.85, dodge: 0.75, hop: 0.6, hb: 1.0 },
-  { id: 'wild', name: 'WILD', vmul: 1.20, speed: 0.97, wobble: 0.6, drift: 3, aim: 1.0, start: 0.7, rbA: 0, rbB: 0.14, itemWait: [20, 110], err: 0.08, cut: 0.85, twirl: 1.0, read: 0.95, dodge: 0.9, hop: 0.8, hb: 1.4 }
+  { id: 'easy', name: 'EASY', vmul: 0.95, speed: 0.91, wobble: 2.2, drift: 0, aim: 0.35, start: 0.05, rbA: 0.10, rbB: 0.16, itemWait: [80, 420], err: 0.9, cut: 0.10, twirl: 0.3, read: 0.2, dodge: 0.2, hop: 0.1, hb: 0.6 },
+  { id: 'medium', name: 'MEDIUM', vmul: 1.00, speed: 0.92, wobble: 1.4, drift: 1, aim: 0.7, start: 0.25, rbA: 0.04, rbB: 0.10, itemWait: [70, 330], err: 0.45, cut: 0.35, twirl: 0.65, read: 0.55, dodge: 0.5, hop: 0.3, hb: 1.2 },
+  { id: 'hard', name: 'HARD', vmul: 1.10, speed: 0.94, wobble: 0.8, drift: 3, aim: 0.95, start: 0.55, rbA: 0.03, rbB: 0.10, itemWait: [40, 200], err: 0.15, cut: 0.45, twirl: 0.95, read: 0.85, dodge: 0.75, hop: 0.6, hb: 1.1 },
+  { id: 'wild', name: 'WILD', vmul: 1.20, speed: 0.945, wobble: 0.6, drift: 3, aim: 1.0, start: 0.7, rbA: 0, rbB: 0.12, itemWait: [20, 110], err: 0.08, cut: 0.55, twirl: 1.0, read: 0.95, dodge: 0.9, hop: 0.8, hb: 1.2 }
 ];
 /* driving profiles for players' bots and tests (sim.bot[i] = name); start/dodge are ours (not in the frozen list) */
 const PROFILES = {
@@ -73,10 +73,19 @@ const K = SK.KART = {
   HOPV: 3.6, GRAV: 22, MT: [0, 36, 72, 115], MTT: [0, 40, 70, 105], SPIN: 60, BOX_R: 1.8, BOX_BACK: 90, BOX_FINAL: 45
 };
 const clamp = (v, a, b) => v < a ? a : v > b ? b : v;
-const wrapA = a => { while (a > PI) a -= TAU; while (a < -PI) a += TAU; return a; };
+const wrapA = a => (a > PI || a < -PI) ? a - TAU * Math.floor((a + PI) / TAU) : a;   /* terminates on ±Infinity (NaN out), review E8 */
 const pop = m => { let n = 0; while (m) { n += m & 1; m >>>= 1; } return n; };
 const ITEM_BY = { splat: 1, lob: 1, blue: 1, petal: 1, puff: 1, thyme: 1, giant: 1 };
 const LEAD_GAP = 70;   /* leader pressure starts when 1st leads 2nd by this many metres (spec 50; tuned) */
+/* fix round 1 (kart-review/v2-fix-r1): a final-lap leader gets a breather between leader-targeted attacks (a wish puff, a
+   thyme ribbon, a blueberry from 2nd): none is thrown at it within LEAD_COOL ticks of the last one (or while one is on its
+   way); TINY THYME is dodged by a hop pressed within HOP_WIN ticks of the ribbon passing (the HOP! cue shows HOP_D m out, the
+   ribbon closes at WAVE_CLOSE m/s near its target); at most GIANT_CAP giants grow in a race */
+const FLING_SPREAD = 11 * PI / 180, PETAL_R2 = 1.6 * 1.6, FLUNG_R2 = 1.5 * 1.5;
+/* TAILWIND: a cone 3.5-12 m long, charged at 0.6 a tick (0.9 within 8 m) to 60: about 1.2-1.7 s tucked in (spec 16 m, 1 / 1.5;
+   fix round 1: it fired 2-3 times a lap and worked as a second rubber band for the pack) */
+const DRAFT_FAR = 12, DRAFT_RATE = 0.6, DRAFT_NEAR = 0.9;
+const LEAD_COOL = 480, HOP_WIN = 54, HOP_D = 16, WAVE_CLOSE = 22, WAVE_BACK = 25, GIANT_CAP = 3, LUCKY_T = 240, SUPER_GAP = 150;
 
 function newKart(i, r, slot) {
   return {
@@ -85,7 +94,7 @@ function newKart(i, r, slot) {
     place: i + 1, finished: false, finishT: 0, spin: 0, inv: 0, shield: 0, fall: 0, lift: 0, slow: 0, surf: S_ROAD, wrong: 0, wrongT: 0,
     rs: 0, held: 0, wallT: 0, bumpT: 0, pad: false, stuck: 0, mul: 1, beltF: 1, onBand: 1,
     cut: -1, u: 0, toS: 0, toD: 0, toC: 0, air: 0, airN: 0, aim: 0, tx: 0, ty: 0, tw: 0, twirl: 0, bonk: 0, wob: 0, wobI: 0, tiny: 0, giant: 0, gmul: 1, gro: 0, scale: 1,
-    swirl: 0, petals: 0, swA: 0, draft: 0, ringT: 0, boingT: 0, lastHit: -9999, pity: 0, superLap: -1, superG: 0, rolls: [0, 0], fxT: [-9999, -9999, -9999],
+    swirl: 0, petals: 0, swA: 0, draft: 0, ringT: 0, boingT: 0, lastHit: -9999, lastItemHit: -9999, hopAt: -9999, atkAt: -9999, immT: -9999, rollLong: 0, pity: 0, superLap: -1, superG: 0, rolls: [0, 0], fxT: [-9999, -9999, -9999],
     cutLap: [-1, -1, -1, -1, -1, -1, -1, -1], lastPl: i + 1,
     stats: { got: { spin: 0, bonk: 0, wobble: 0, tiny: 0 }, gotBy: { item: 0, hazard: 0, bump: 0 }, gave: 0, items: 0, used: 0, launches: 0, twirls: 0, cuts: 0, tailwinds: 0, falls: 0, dodges: 0, shieldSaves: 0, golds: 0, worst: 0, best: 9, placeAtLap2: 0 },
     ai: { lane: 0, wf: 0.01, ph: 0, itemT: 0, holdT: 0, holdId: 0, dHold: false, dT: 0, dDir: 1, skill: 0.5, startAt: -1, steer: 0, pick: [0, 0, 0, 0], pickLap: [-1, -1, -1, -1], cu: 0, hzLap: [], hzRead: [], twAt: -1, hopW: 0, hopOk: false, ease: 0, blueT: 0, tl: 0 }
@@ -98,12 +107,12 @@ function Sim(o) {
   this.cls = o.cls != null ? clamp(o.cls | 0, 0, 3) : clamp(((o.racers || []).find(r => !r.cpu) || { diff: 1 }).diff | 0, 0, 3);
   const vm = SK.DIFF[this.cls].vmul;
   this.VT = K.VMAX * vm; this.AC = K.ACC * vm; this.TR = K.TURN * (1 + 0.4 * (vm - 1));
-  this.thymeAt = -9999; this.puffAt = -9999; this.leadChanges = 0; this.placeChanges = 0; this.lastLead = -1;
+  this.thymeAt = -9999; this.puffAt = -9999; this.leadChanges = 0; this.placeChanges = 0; this.lastLead = -1; this.giantsUsed = 0;
   this.t = 0; this.phase = 'count'; this.cd = o.countdown != null ? o.countdown | 0 : 210; this.clock = 0;
   this.items = []; this.events = []; this.nextId = 1; this.done = false; this.doneAt = -1; this.useItems = o.items !== false;
   const T = this.track;
   this.karts = (o.racers || []).slice(0, 6).map((r, i) => newKart(i, r, T.slots[i]));
-  this.boxes = T.items.map(b => ({ x: b.x, y: b.y, z: b.z || 0, sky: b.sky || 0, t: 0 }));
+  this.boxes = T.items.map(b => ({ x: b.x, y: b.y, z: b.z || 0, sky: b.sky || 0, long: b.long || 0, t: 0 }));
   this.bot = this.karts.map(() => false); this.ext = this.karts.map(() => false);
   this.order = this.karts.map((k, i) => i);
   this.loc = { ok: false, surf: 0, i: 0, s: 0, f: 0, d: 0, dist: 0, cx: 0, cy: 0, cut: -1, u: 0, hw: 0, lim: 0, ang: 0 };
@@ -116,6 +125,8 @@ function Sim(o) {
   for (const f of T.feats || []) (this.fr[f.on] || (this.fr[f.on] = [])).push(f);
   this.rings = (T.feats || []).filter(f => f.k === 'ring');
   this.gaps = (T.feats || []).filter(f => f.k === 'gap' && f.on < 0);
+  this.cat = (T.feats || []).find(f => f.k === 'ramp' && f.aim && f.on < 0) || null;   /* the main road's catapult (the CPU driver reads it every tick) */
+  this.hum = this.karts.filter(k => !k.cpu);
   this._prof = {};
   /* where each cut leaves the main band (for the CPU's "missed it" rule) */
   for (const c of T.cuts || []) if (c.uOut == null) { c.uOut = c.len * 0.3; for (let j = 0; j < c.n; j++) { const q = Math.floor(c.Y[j] / T.CELL) * T.GN + Math.floor(c.X[j] / T.CELL); if (T.dist[q] > T.hw + T.off) { c.uOut = j * c.ds; break; } } }
@@ -131,7 +142,7 @@ Sim.PROFILES = PROFILES;
 const P = Sim.prototype;
 P.rand = function () { let t = (this.rs = (this.rs + 0x6D2B79F5) >>> 0); t = Math.imul(t ^ (t >>> 15), t | 1); t ^= t + Math.imul(t ^ (t >>> 7), t | 61); return ((t ^ (t >>> 14)) >>> 0) / 4294967296; };
 P.ev = function (n, i, a) { this.events.push([n, i, a === undefined ? 0 : a]); };
-P.humans = function () { return this.karts.filter(k => !k.cpu); };
+P.humans = function () { const h = this.hum; for (let j = 0; j < h.length; j++) if (h[j].cpu) return (this.hum = this.karts.filter(q => !q.cpu)); return h; };   /* cached (online, a player who leaves becomes a CPU) */
 /* the CPU row a kart is driven with: its class row, or a bot profile laid over it */
 P.rowOf = function (k) {
   const b = this.bot[k.i], D = SK.DIFF[clamp(k.diff, 0, 3)];
@@ -190,6 +201,8 @@ P.step = function (inputs) {
   this.clock++;
   for (let i = 0; i < n; i++) {
     const k = ks[i]; if (this.ext[i]) continue;
+    /* NaN guard (E8): a non-finite kart is lifted back by the balloon before anything reads it (the AI included) */
+    if (!(isFinite(k.x) && isFinite(k.y) && isFinite(k.v) && isFinite(k.z) && isFinite(k.dir) && isFinite(k.vz) && isFinite(k.st) && isFinite(k.vd) && isFinite(k.px) && isFinite(k.py))) { this.unNaN(k); continue; }
     const auto = this.auto(k);
     const held = auto ? Sim.ai(this, k) : ((inputs && inputs[i]) | 0);
     this.drive(k, held, auto);
@@ -201,12 +214,14 @@ P.step = function (inputs) {
   this.updatePlaces();
   this.bookkeep();
   if (!this.done) {
-    const hs = this.humans(), all = hs.length ? hs.every(k => k.finished) : ks.every(k => k.finished);
+    const hs = this.humans(), L = hs.length ? hs : ks; let all = true;
+    for (let j = 0; j < L.length; j++) if (!L[j].finished) { all = false; break; }
     if (all) { this.done = true; this.doneAt = this.clock; }
   }
 };
 
 /* ---------- driving one kart for one tick ---------- */
+P.unNaN = function (k) { if (!isFinite(k.lastS)) k.lastS = 0; k.z = 0; k.vz = 0; k.v = 0; k.dir = 0; k.st = 0; k.vd = 0; k.px = k.py = 0; k.x = isFinite(k.x) ? k.x : 0; k.y = isFinite(k.y) ? k.y : 0; this.respawn(k); };
 P.drive = function (k, held, auto) {
   const i = k.i, VT = this.VT;
   const pressed = held & ~k.held; k.held = held;
@@ -221,8 +236,6 @@ P.drive = function (k, held, auto) {
   const tScale = k.tiny > 0 ? 0.55 : 1 + 0.7 * k.gro / 20;
   k.scale += (tScale - k.scale) * (k.tiny > 0 || k.scale < 1 ? 0.25 : 1); if (Math.abs(k.scale - tScale) < 0.01) k.scale = tScale;
   if (k.roll) { k.roll--; if (!k.roll) this.giveItem(k); }
-  /* NaN guard (E8): a non-finite kart is lifted back by the balloon */
-  if (!(isFinite(k.x) && isFinite(k.y) && isFinite(k.v) && isFinite(k.z) && isFinite(k.dir) && isFinite(k.vz))) { if (!isFinite(k.lastS)) k.lastS = 0; k.z = 0; k.vz = 0; k.v = 0; k.dir = 0; k.px = k.py = 0; this.respawn(k); return; }
   /* off the edge: drop, then a balloon brings you back */
   if (k.fall) {
     k.fall++; k.vz -= K.GRAV * DT; k.z += k.vz * DT; k.v *= 0.97;
@@ -257,7 +270,7 @@ P.drive = function (k, held, auto) {
   /* DRIFT: a hop on the ground, a TWIRL in the air (never a hop in the air) */
   if (pressed & IN.DRIFT) {
     if (air) { if (k.air <= 0.75 * k.airN && !k.tw && !k.spin) { k.tw = 1; k.twirl = 24; k.hh = 1; this.ev('twirl', i, 0); } }
-    else if (k.z <= 0 && !k.spin && !k.bonk) { k.vz = K.HOPV; k.z = 0.001; k.hh = 1; this.ev('drift', i, 'hop'); }
+    else if (k.z <= 0 && !k.spin && !k.bonk) { k.vz = K.HOPV; k.z = 0.001; k.hh = 1; k.hopAt = this.clock; this.ev('drift', i, 'hop'); }
   }
   if (!(held & IN.DRIFT)) k.hh = 0;
   if (k.hh && !k.drift && !k.spin && !k.bonk && !air && k.z === 0 && Math.abs(k.st) > 0.3 && k.v > 9) { k.drift = k.st > 0 ? 1 : -1; k.dc = 0; k.mt = 0; this.ev('drift', i, 'start'); }
@@ -277,7 +290,7 @@ P.drive = function (k, held, auto) {
   let turn;
   if (k.drift) turn = k.drift * tr * (0.55 + 0.5 * stE * k.drift);
   else turn = stE * tr * (k.v < 0 ? -1 : 1) * (k.z > 0 && !air ? 0.75 : 1);
-  if (air) turn *= k.aim ? 0.15 : 0.6;
+  if (air) turn *= k.aim ? 0.3 : 0.6;   /* aimed flights: about ±3 m of correction, so steering hard the wrong way can miss a cloud */
   if (k.spin) { k.spin--; turn = 0; }
   if (k.bonk) k.bonk--;
   k.dir = wrapA(k.dir + turn * DT);
@@ -376,10 +389,10 @@ P.ground = function (k) {
   /* landing from a launch */
   if (air && k.z <= 0) {
     k.z = 0; k.vz = 0; k.air = 0; k.aim = 0;
-    const disc = this.discAt(k), wasAim = k.tx !== 0 || k.ty !== 0;
+    const disc = this.discAt(k);
     if (disc) { k.lastS = L.s; k.s = L.s; this.aimLaunch(k, disc.tx, disc.ty, 'bounce'); k.exitAim = disc.exit ? 1 : 0; return; }
     if (k.exitAim) { k.exitAim = 0; k.dir = L.ang; k.v = Math.max(k.v, VT); }   /* the last cloud sets you down facing along the road */
-    k.tx = k.ty = 0; void wasAim;
+    k.tx = k.ty = 0;
     if ((cell === S_VOID && !(k.giant && inBand)) || (!inBand && T.edge === 'void' && cell !== S_ROAD && cell !== S_OFF && cell !== S_BOOST && cell !== S_BELT)) {
       if (!this.netAt(k, L)) { this.startFall(k); return; }
       return;
@@ -488,7 +501,7 @@ P.respawn = function (k) {
 P.respawnAt = function (k, s) {
   const T = this.track; s = ((s % T.L) + T.L) % T.L;
   const p = T.pos(s, clamp(T.LINE[Math.floor(s / T.ds) % T.N] * 0.3, -2, 2), this.tp);
-  k.x = p.x; k.y = p.y; k.dir = p.dir; k.v = 0; k.vz = 0; k.px = k.py = 0; k.fall = 0; k.lift = 80; k.z = 2.6; k.spin = 0; k.bonk = 0; k.wob = 0; k.drift = 0; k.dc = 0; k.mt = 0; k.boost = 0; k.stuck = 0;
+  k.x = p.x; k.y = p.y; k.dir = p.dir; k.v = 0; k.vz = 0; k.st = 0; k.vd = 0; k.px = k.py = 0; k.fall = 0; k.lift = 80; k.z = 2.6; k.spin = 0; k.bonk = 0; k.wob = 0; k.drift = 0; k.dc = 0; k.mt = 0; k.boost = 0; k.stuck = 0;
   k.air = 0; k.aim = 0; k.tw = 0; k.cut = -1; k.ai.pick.fill(0); k.ai.pickLap.fill(k.lap); k.ai.dHold = false;
   SK.locate(T, k.x, k.y, this.loc); if (this.loc.ok) { k.s = k.lastS = this.loc.s; k.lat = this.loc.d; }
   this.ev('balloon', k.i, 0);
@@ -541,9 +554,9 @@ P.stepDraft = function () {
       const c = Math.cos(k.dir), s = Math.sin(k.dir);
       for (const o of ks) {
         if (o === k || o.giant || o.air || o.z > 0.2 || o.v <= 0.6 * VT || o.fall || o.lift) continue;
-        const dx = o.x - k.x, dy = o.y - k.y, al = dx * c + dy * s; if (al < 3.5 || al > 16) continue;
+        const dx = o.x - k.x, dy = o.y - k.y, al = dx * c + dy * s; if (al < 3.5 || al > DRAFT_FAR) continue;
         if (Math.abs(-dx * s + dy * c) >= 1.6 || Math.abs(wrapA(o.dir - k.dir)) >= 0.5) continue;
-        inCone = al < 8 ? 1.5 : 1; break;
+        inCone = al < 8 ? DRAFT_NEAR : DRAFT_RATE; break;
       }
     }
     if (inCone) k.draft = Math.min(60, k.draft + inCone * (k.tiny ? 1.5 : 1)); else k.draft = Math.max(0, k.draft - 2);
@@ -556,15 +569,17 @@ P.hit = function (k, kind, by, own, o) {
   if (!k || this.ext[k.i] || k.fall || k.lift) return 'none';
   kind = kind === 'hit' ? 'spin' : kind;
   if (kind === 'boing') { if (k.boingT || k.giant) return 'none'; this.boing(k, o && o.src ? o.src : { x: k.x - Math.cos(k.dir), y: k.y - Math.sin(k.dir), i: own }); return 'hit'; }
-  if (k.giant > 0) { this.ev('immune', k.i, by); return 'immune'; }
+  if (k.giant > 0) { if (ITEM_BY[by] || this.clock - k.immT >= 60) { k.immT = this.clock; this.ev('immune', k.i, by); } return 'immune'; }   /* a hazard's: once a second, not every tick */
   if (k.inv > 0) return 'none';
   if (kind === 'wobble' && k.wobI > 0) return 'none';
   if (this.clock - k.fxT[0] < 600) return 'none';   /* the frustration guard: never more than 3 effects in 10 s */
   if (k.shield && kind !== 'wobble') { k.shield = 0; k.inv = 30; k.stats.shieldSaves++; this.ev('shield', k.i, 'pop'); return 'shield'; }
   const VT = this.VT, push = (dx, dy, m) => { const l = Math.hypot(dx, dy) || 1; k.px += dx / l * m; k.py += dy / l * m; };
   if (kind === 'spin') {
-    k.spin = K.SPIN; k.drift = 0; k.dc = 0; k.mt = 0; k.boost = 0; k.inv = this.cls === 0 ? 144 : 96; k.v = Math.min(k.v, 0.7 * VT);
+    const short = o && o.short;   /* daisy petals: a short twirl-spin (fix round 1: a wobble cost almost nothing) */
+    k.spin = short ? 36 : K.SPIN; k.drift = 0; k.dc = 0; k.mt = 0; k.boost = 0; k.inv = this.cls === 0 ? 144 : 96; k.v = Math.min(k.v, (short ? 0.8 : 0.7) * VT);
     if ((by === 'blue' || by === 'lob') && o && o.dir != null) push(Math.cos(o.dir), Math.sin(o.dir), this.cls === 0 ? 2.5 : 4);
+    if (by === 'petal' && o && o.src) push(k.x - o.src.x, k.y - o.src.y, 4);
   } else if (kind === 'bonk') {
     k.bonk = 48; if (!k.air) { k.vz = Math.max(k.vz, 5); k.z = Math.max(k.z, 0.01); } k.v = Math.min(k.v * 0.6, 0.6 * VT); k.drift = 0; k.dc = 0; k.mt = 0; k.inv = this.cls === 0 ? 135 : 90;
   } else if (kind === 'wobble') {
@@ -576,7 +591,7 @@ P.hit = function (k, kind, by, own, o) {
   this.ev(kind, k.i, by);
   k.lastHit = this.clock; k.fxT[0] = k.fxT[1]; k.fxT[1] = k.fxT[2]; k.fxT[2] = this.clock;
   const st = k.stats; st.got[kind] = (st.got[kind] | 0) + 1;
-  if (ITEM_BY[by]) { st.gotBy.item++; if (own >= 0 && own !== k.i && this.karts[own]) this.karts[own].stats.gave++; } else st.gotBy.hazard++;
+  if (ITEM_BY[by]) { k.lastItemHit = this.clock; st.gotBy.item++; if (own >= 0 && own !== k.i && this.karts[own]) this.karts[own].stats.gave++; } else st.gotBy.hazard++;
   return 'hit';
 };
 
@@ -588,30 +603,60 @@ P.giveItem = function (k) {
   if (k._lucky) this.ev('lucky', k.i, k._lucky);
 };
 P.inFlight = function (kind) { let n = 0; for (const it of this.items) if (it.k === kind) n++; return n; };
+/* is this kart a final-lap leader having a breather from leader attacks (fix round 1)? A puff or ribbon on its way to it counts */
+P.leadCool = function (L) {
+  if (!L || L.finished || L.lap !== this.track.laps) return false;
+  if (this.clock - L.atkAt < LEAD_COOL) return true;
+  for (const it of this.items) if ((it.k === 'puff' && it.tgt === L.i) || (it.k === 'wave' && ((it.mask >> L.i) & 1) && !((it.done >> L.i) & 1)) || (it.k === 'blue' && it.tgt === L.i)) return true;
+  return false;
+};
+/* a leader-targeted attack thrown at L now (it starts the breather) */
+P.leadHit = function (L) { if (L && L.place === 1) L.atkAt = this.clock; };
 P.rollItem = function (k) {
   const ks = this.karts, n = ks.length, T = this.track, ord = this.order;
-  let row = Math.round((k.place - 1) * 5 / Math.max(1, n - 1)), lucky = 0;
-  const lead = ks[ord[0]], second = ks[ord[1]];
-  if (k.place >= 2 && k.place <= 5 && lead) { const gap = lead.rp - k.rp; if (gap > 200) row += 2; else if (gap > 100) row += 1; }
-  if (this.clock - k.lastHit < 480) { row++; lucky = 1; }
-  if (k.rollSky) { row += 2; lucky = 1; k.rollSky = 0; }
-  if (k.lap === T.laps && k.place >= 2) row++;
-  row = Math.min(5, row);
+  const base = Math.round((k.place - 1) * 5 / Math.max(1, n - 1));
+  const lead = ks[ord[0]], second = ks[ord[1]], gapL = lead && lead !== k ? Math.max(0, lead.rp - k.rp) : 0;
+  /* luck moves the row down the table: the biggest of far-behind (+1 / +2), LUCKY (an item hit you in the last 4 s: +1) and
+     FINAL LAP FRENZY (+1), not their sum; a long-way bubble (+1) and a sky bubble (+2) add; never more than +2 in all
+     (fix round 1: the shifts stacked into a giant-heavy catch-up that made mid-race mistakes cost nothing) */
+  let shift = 0, lucky = 0;
+  if (k.place >= 2 && k.place <= 5 && lead) shift = gapL > 200 ? 2 : gapL > 100 ? 1 : 0;
+  if (this.clock - k.lastItemHit < LUCKY_T) { if (shift < 1) shift = 1; lucky = 1; }
+  const frenzy = k.lap === T.laps && k.place >= 2;
+  const shiftNF = shift;
+  if (frenzy && shift < 1) shift = 1;
+  let add = 0;
+  if (k.rollLong) { add += 1; k.rollLong = 0; }
+  if (k.rollSky) { add += 2; lucky = 1; k.rollSky = 0; }
+  /* EASY: a player's own rolls start from the 3rd row, so the fun items reach a kid who is always in front */
+  const r0 = !k.cpu && this.cls === 0 ? Math.max(base, 2) : base;
+  const row = Math.min(5, r0 + Math.min(2, shift + add)), rowNF = Math.min(5, r0 + Math.min(2, shiftNF + add));
   const w = ODDS[row].slice();
-  if (lead && !lead.finished && second && lead.rp - second.rp > LEAD_GAP && k.place >= 2) { w[I_PUFF - 1] *= 2; w[I_BLUE - 1] *= 1.3; w[I_THYME - 1] *= 1.3; }
+  /* the frenzy lifts the boosts and the giant, not the leader attacks */
+  if (rowNF !== row) { w[I_PUFF - 1] = ODDS[rowNF][I_PUFF - 1]; w[I_THYME - 1] = ODDS[rowNF][I_THYME - 1]; }
+  /* leader pressure by the leader's lead, not by place: a big lead draws more attacks, a close race at the front fewer */
+  if (lead && !lead.finished && second && k.place >= 2) {
+    const lg = lead.rp - second.rp;
+    if (lg > LEAD_GAP) { w[I_PUFF - 1] *= 2; w[I_BLUE - 1] *= 1.3; w[I_THYME - 1] *= 1.3; }
+    else if (lg < 20) { w[I_PUFF - 1] *= 0.5; w[I_THYME - 1] *= 0.6; }
+  }
   if (k.cpu && lead && !lead.cpu) { const hb = this.rowOf(k).hb; w[I_BLUE - 1] *= hb; w[I_PUFF - 1] *= hb; w[I_THYME - 1] *= hb; }
-  let giants = 0; for (const o of ks) if (o.giant > 0 || o.item === I_GIANT) giants++;
+  let giants = 0, held = 0; for (const o of ks) { if (o.giant > 0 || o.item === I_GIANT) giants++; if (o.item === I_GIANT) held++; }
+  const giantRoom = giants < 2 && this.giantsUsed + held < GIANT_CAP, giantOk = giantRoom && !(k.lap <= 1 && this.clock < 1200);
+  /* the giant is the catch-up leaf: for karts well behind the leader (50 m: none, 100 m and more: the table's odds) */
+  w[I_GIANT - 1] *= giantOk ? clamp((gapL - 50) / 50, 0, 1) : 0;
   if (this.inFlight('puff') || this.clock < 900 || this.clock - this.puffAt < 720 || k.place === 1) w[I_PUFF - 1] = 0;
   if (this.inFlight('wave') || this.clock - this.thymeAt < 720 || k.place === 1) w[I_THYME - 1] = 0;
-  if (giants >= 2) w[I_GIANT - 1] = 0;
   if (k.place === 1 || this.inFlight('blue') >= 3) w[I_BLUE - 1] = 0;
-  if (k.cpu && k.diff === 0) { w[I_PUFF - 1] = 0; w[I_THYME - 1] = 0; }
+  /* a final-lap leader's breather: nothing more for it from behind for a while */
+  if (lead && lead !== k && this.leadCool(lead)) { w[I_PUFF - 1] = 0; w[I_THYME - 1] = 0; if (k.place === 2) w[I_BLUE - 1] = 0; }
+  if (k.cpu && k.diff === 0) { w[I_PUFF - 1] = 0; w[I_THYME - 1] *= 0.15; w[I_BLUE - 1] *= 0.25; }   /* EASY CPUs: a hoppable ribbon now and then, fewer berries (fix round 1: they race closer now) */
   if (this.inFlight('splat') >= 8) { w[I_SPLAT - 1] *= 0.3; w[I_SPLAT3 - 1] *= 0.3; }
   /* SUPER LUCKY: a GIANT SPROUT for a kart left far behind (once a lap) */
   if (k.place >= 5 && k.superLap !== k.lap) {
-    const ahead = ks[ord[k.place - 2]], far = ahead && ahead.rp - k.rp > 100;
+    const ahead = ks[ord[k.place - 2]], far = ahead && ahead.rp - k.rp > SUPER_GAP;
     const CU = [I_BOOST3, I_PUFF, I_THYME, I_GIANT], dry = CU.indexOf(k.rolls[0]) < 0 && CU.indexOf(k.rolls[1]) < 0;
-    if (far || (k.pity > 1200 && dry)) { k.superLap = k.lap; k._lucky = 2; k.superG = 1; return giants >= 2 ? I_BOOST3 : I_GIANT; }
+    if (far || (k.pity > 1200 && dry)) { k.superLap = k.lap; k._lucky = 2; k.superG = 1; return giantRoom ? I_GIANT : I_BOOST3; }
   }
   k._lucky = lucky;
   let tot = 0; for (const x of w) tot += x;
@@ -625,9 +670,20 @@ P.puddleCap = function () {
   let n = 0, old = null; for (const it of this.items) if (it.k === 'splat' && it.age < it.life) { n++; if (!old || it.age > old.age) old = it; }
   if (n > 8 && old) old.life = old.age;
 };
+/* why an item can't go now ('' = it can): a wish puff while another floats, a puff or a ribbon with nobody to go after. Such an
+   item is kept, never wasted, and the HUD says why (fix round 1) */
+P.whyNot = function (k) {
+  const it = k.item;
+  if (it === I_PUFF) { if (this.inFlight('puff')) return 'a wish puff is already floating'; const t = this.puffTgt(k); if (!t) return 'nobody to float to'; }
+  else if (it === I_THYME) { if (this.inFlight('wave')) return 'a thyme ribbon is already out'; if (!this.thymeMask(k)) return 'nobody ahead of you'; }
+  return '';
+};
+P.puffTgt = function (k) { const ks = this.karts; let t = ks[this.order[0]]; if (t === k) t = ks[this.order[1]]; return t && t !== k && !t.finished ? t : null; };
+P.thymeMask = function (k) { let m = 0; for (const o of this.karts) if (!o.finished && o.place < k.place) m |= 1 << o.i; return m; };
 P.useItem = function (k, fwd) {
   const i = k.i, it = k.item, c = Math.cos(k.dir), s = Math.sin(k.dir), VT = this.VT, T = this.track;
   if (!it) return;
+  if ((it === I_PUFF || it === I_THYME) && this.whyNot(k)) return;   /* kept for later */
   this.ev('use', i, it); k.stats.used++;
   if (it === I_BOOST || it === I_BOOST3) {
     k.boost = Math.max(k.boost, 72); k.v = Math.max(k.v, VT * 1.1); this.ev('boost', i, 'berry');
@@ -647,32 +703,35 @@ P.useItem = function (k, fwd) {
   if (it === I_BLUE) {
     let tgt = -1; for (const o of this.karts) if (o.place === k.place - 1 && !o.finished) tgt = o.i;
     if (this.inFlight('blue') >= 3) { let old = null; for (const q of this.items) if (q.k === 'blue' && (!old || q.age > old.age)) old = q; if (old) old.life = 0; }
-    this.addItem({ k: 'blue', x: k.x + c * 1.5, y: k.y + s * 1.5, z: 0.6, s: k.s + 1.5, rp: k.rp + 1.5, lat: k.cut < 0 ? clamp(k.lat, -T.hw, T.hw) : 0, dir: k.dir, tgt, ph: 0, own: i, life: tgt < 0 ? 240 : 600 });
+    this.addItem({ k: 'blue', x: k.x + c * 1.5, y: k.y + s * 1.5, z: 0.6, s: k.s + 1.5, rp: k.rp + 1.5, lat: k.cut < 0 ? clamp(k.lat, -T.hw, T.hw) : 0, dir: k.dir, tgt, ph: 0, own: i, life: tgt < 0 ? 240 : 600, wait: 0 });
+    if (tgt >= 0) this.leadHit(this.karts[tgt]);
     this.ev('blue', i, tgt); this.clearItem(k); return;
   }
   if (it === I_SWIRL) {
     if (!k.swirl) { k.swirl = 600; k.petals = 31; k.swA = 0; k.itemN = 1; this.ev('swirl', i, 0); return; }
     const pts = Sim.petals(k, this.pt); let nf = 0;
     for (let j = 0; j < 5; j++) {
-      if (!pts[j].alive) continue; const a = k.dir + (j - 2) * 7.5 * PI / 180, v = Math.max(0, k.v) + 18;
+      if (!pts[j].alive) continue; const a = k.dir + (j - 2) * FLING_SPREAD, v = Math.max(0, k.v) + 18;
       this.addItem({ k: 'petal', x: pts[j].x, y: pts[j].y, z: 0.6, vx: Math.cos(a) * v, vy: Math.sin(a) * v, own: i, life: 45 }); nf++;
     }
     this.ev('fling', i, nf); k.swirl = 0; k.petals = 0; this.clearItem(k); return;
   }
   if (it === I_SHIELD) { k.shield = 900; this.ev('shield', i, ''); this.clearItem(k); return; }
   if (it === I_PUFF) {
-    const ks = this.karts; let tgt = ks[this.order[0]]; if (tgt === k) tgt = ks[this.order[1]];
-    if (tgt && tgt !== k && !tgt.finished && !this.inFlight('puff')) this.addItem({ k: 'puff', rp: k.rp, s: k.s, tgt: tgt.i, ph: 0, pt: 0, x: k.x, y: k.y, z: 1, own: i, life: 1200 });
-    this.ev('puff', i, tgt ? tgt.i : -1); this.clearItem(k); return;
+    const tgt = this.puffTgt(k);
+    this.addItem({ k: 'puff', rp: k.rp, s: k.s, tgt: tgt.i, ph: 0, pt: 0, x: k.x, y: k.y, z: 1, own: i, life: 1200 }); this.leadHit(tgt);
+    this.ev('puff', i, tgt.i); this.clearItem(k); return;
   }
   if (it === I_THYME) {
-    let mask = 0; for (const o of this.karts) if (!o.finished && o.place < k.place) mask |= 1 << o.i;
-    if (mask && !this.inFlight('wave')) { const p = T.pos(k.s, 0, this.tp); this.addItem({ k: 'wave', rp: k.rp, s: k.s, mask, done: 0, x: p.x, y: p.y, z: 0, own: i, life: 480 }); }
+    /* the ribbon starts at least WAVE_BACK m behind the nearest kart it goes after, so even the racer just ahead sees HOP! coming */
+    const mask = this.thymeMask(k); let near = 1e9; for (const o of this.karts) if ((mask >> o.i) & 1) { near = Math.min(near, o.rp); if (o.place === 1) this.leadHit(o); }
+    const rp = Math.min(k.rp, near - WAVE_BACK), s0 = k.s - (k.rp - rp), p = T.pos(s0, 0, this.tp);
+    this.addItem({ k: 'wave', rp, s: ((s0 % T.L) + T.L) % T.L, mask, done: 0, x: p.x, y: p.y, z: 0, own: i, life: 480, V: 45 });
     this.thymeAt = this.clock; this.ev('thyme', i, pop(mask)); this.clearItem(k); return;
   }
   if (it === I_GIANT) {
     const pl = k.superG ? 6 : k.place, G = pl <= 3 ? [240, 1.25] : pl === 4 ? [300, 1.32] : pl === 5 ? [360, 1.38] : [420, 1.38];
-    k.giant = G[0]; k.gmul = G[1]; k.tiny = 0; k.superG = 0; k.drift = 0; k.dc = 0; k.mt = 0; this.ev('giant', i, 1); this.clearItem(k); return;
+    k.giant = G[0]; k.gmul = G[1]; k.tiny = 0; k.superG = 0; k.drift = 0; k.dc = 0; k.mt = 0; this.giantsUsed++; this.ev('giant', i, 1); this.clearItem(k); return;
   }
 };
 /* DAISY SWIRL: the petals that orbit their kart */
@@ -686,8 +745,8 @@ P.stepSwirl = function () {
       const p = pts[j]; if (!p.alive) continue;
       for (const o of ks) {
         if (o === k || o.fall || o.lift || this.ext[o.i]) continue;
-        const dx = o.x - p.x, dy = o.y - p.y; if (dx * dx + dy * dy >= 1.44 || Math.abs(o.z + 0.4 - p.z) >= 1.2) continue;
-        const r = this.hit(o, 'wobble', 'petal', k.i, { src: k });
+        const dx = o.x - p.x, dy = o.y - p.y; if (dx * dx + dy * dy >= PETAL_R2 || Math.abs(o.z + 0.4 - p.z) >= 1.2) continue;
+        const r = this.hit(o, 'spin', 'petal', k.i, { src: k, short: 1 });
         if (r !== 'none') { k.petals &= ~(1 << j); this.ev('petal', o.i, k.i * 8 + j); break; }
       }
       if (!((k.petals >> j) & 1)) continue;
@@ -719,7 +778,7 @@ P.stepItems = function () {
         if (!L.ok || cell === S_VOID || cell < 0) keep = false;   /* over the sky: it falls away */
         else {
           it.k = 'splat'; it.z = 0; it.age = 0; it.life = 1500; it.s = L.s; it.lat = L.d; it.cut = L.cut; it.dg = 0; it.dy = 0; this.ev('splat', it.own, 'land');
-          for (const k of ks) if (!this.ext[k.i] && k.z < 1.2 && (k.x - it.x) ** 2 + (k.y - it.y) ** 2 < 2.56) { const r = this.hit(k, k.giant ? 'spin' : 'spin', 'lob', it.own, { dir: Math.atan2(it.vy, it.vx) }); if (r === 'hit') { keep = false; this.ev('splat', k.i, 'hit'); break; } }
+          for (const k of ks) if (!this.ext[k.i] && k.z < 1.2 && (k.x - it.x) ** 2 + (k.y - it.y) ** 2 < 2.56) { const r = this.hit(k, 'spin', 'lob', it.own, { dir: Math.atan2(it.vy, it.vx) }); if (r === 'hit') { keep = false; this.ev('splat', k.i, 'hit'); break; } }
           if (keep) this.puddleCap();
         }
       }
@@ -727,17 +786,29 @@ P.stepItems = function () {
     else if (it.k === 'puff') keep = this.stepPuff(it);
     else if (it.k === 'wave') keep = this.stepWave(it);
     else if (it.k === 'petal') {
+      this.petalHome(it);
       it.x += it.vx * DT; it.y += it.vy * DT;
       SK.locate(T, it.x, it.y, L);
       if (!L.ok || ws(T, it.x, it.y) === S_WALL) keep = false;
       else for (const k of ks) {
         if (k.i === it.own || this.ext[k.i] || k.fall || k.lift || Math.abs(k.z + 0.4 - it.z) >= 1.2) continue;
-        if ((k.x - it.x) ** 2 + (k.y - it.y) ** 2 < 1.21) { const o = ks[it.own]; this.hit(k, 'wobble', 'petal', it.own, { src: o || it }); this.ev('petal', k.i, it.own * 8 + 7); keep = false; break; }
+        if ((k.x - it.x) ** 2 + (k.y - it.y) ** 2 < FLUNG_R2) { const o = ks[it.own]; this.hit(k, 'spin', 'petal', it.own, { src: o || it, short: 1 }); this.ev('petal', k.i, it.own * 8 + 7); keep = false; break; }
       }
     }
     if (keep) its[w++] = it;
   }
   its.length = w;
+};
+/* a flung petal leans a little towards the nearest kart in front of it (within 25 m and 25 degrees): up to 2.4 degrees a tick */
+P.petalHome = function (it) {
+  const a = Math.atan2(it.vy, it.vx), v = Math.hypot(it.vx, it.vy); let best = null, bd = 625;
+  for (const k of this.karts) {
+    if (k.i === it.own || k.fall || k.lift) continue;
+    const dx = k.x - it.x, dy = k.y - it.y, d2 = dx * dx + dy * dy; if (d2 >= bd || d2 < 0.01) continue;
+    if (Math.abs(wrapA(Math.atan2(dy, dx) - a)) > 0.44) continue; bd = d2; best = k;
+  }
+  if (!best) return;
+  const na = a + clamp(wrapA(Math.atan2(best.y - it.y, best.x - it.x) - a), -0.042, 0.042); it.vx = Math.cos(na) * v; it.vy = Math.sin(na) * v;
 };
 /* BLUEBERRY BOUNCE: bounces along the road after the racer just ahead, then homes in; it always gets there */
 P.stepBlue = function (it) {
@@ -748,7 +819,8 @@ P.stepBlue = function (it) {
     if (nt < 0) { this.ev('pop', -1, 'blue'); return false; }
     it.tgt = nt; tk = ks[nt]; it.ph = 0;
   }
-  const V = Math.max(40, (tk ? tk.v : 0) + 10);
+  const V = Math.max(40, (tk ? tk.v : 0) + 10 + Math.max(0, it.age - 240) * 0.1);   /* after 4 s it closes faster, so even a target on a long boost is reached */
+  if (tk && it.age >= it.life - 1 && it.age < 1200) it.life = it.age + 2;   /* it always gets there: no running out of life while its target is still racing */
   if (tk && (tk.fall || tk.lift)) { it.z = 1.2 + 0.3 * Math.sin(it.age * 0.2); return true; }   /* waits for its target */
   if (it.ph === 0) {
     it.s = (it.s + V * DT) % T.L; it.rp += V * DT;
@@ -763,6 +835,15 @@ P.stepBlue = function (it) {
       }
     }
   } else {
+    /* still dizzy from a hit a moment ago: it bobs just behind its target for up to a second, then lands (fix round 1: it used
+       to splash on a kart that could not be hit, and nothing on screen said why) */
+    const d2 = (tk.x - it.x) ** 2 + (tk.y - it.y) ** 2;
+    if (tk.inv > 0 && !tk.giant && it.wait < 60 && d2 < 36) {
+      it.wait = (it.wait | 0) + 1; it.dir = tk.dir;
+      it.x += (tk.x - Math.cos(tk.dir) * 2.2 - it.x) * 0.35; it.y += (tk.y - Math.sin(tk.dir) * 2.2 - it.y) * 0.35; it.rp = tk.rp - 2.2;
+      it.z = tk.z + 1.1 + 0.4 * Math.abs(Math.sin(it.age * PI / 15));
+      return true;
+    }
     const want = Math.atan2(tk.y - it.y, tk.x - it.x); it.dir = wrapA(it.dir + clamp(wrapA(want - it.dir), -0.15, 0.15));
     it.x += Math.cos(it.dir) * V * DT; it.y += Math.sin(it.dir) * V * DT; it.rp += V * DT;
     it.z += (tk.z + 0.7 + 0.5 * Math.abs(Math.sin(it.age * PI / 15)) - it.z) * 0.25;
@@ -774,7 +855,8 @@ P.stepBlue = function (it) {
   return true;
 };
 P.blueHit = function (it, tk) {
-  this.hit(tk, 'spin', 'blue', it.own, { dir: it.dir });
+  const r = this.hit(tk, 'spin', 'blue', it.own, { dir: it.dir });
+  if (r === 'none') this.ev('immune', tk.i, 'blue');   /* SAFE!: still dizzy from the last hit (or the 3-in-10-s guard) */
   for (const o of this.karts) if (o !== tk && o.i !== it.own && !this.ext[o.i] && (o.x - tk.x) ** 2 + (o.y - tk.y) ** 2 < 9) this.hit(o, 'wobble', 'blue', it.own);
   this.ev('splash', tk.i, 'blue');
 };
@@ -794,24 +876,30 @@ P.stepPuff = function (it) {
   it.z = 7 - (7 - 0.8) * Math.min(1, it.pt / 12);
   if (it.pt >= 12) {
     if (this.ext[tk.i]) { this.ev('puffpop', tk.i, 0); return false; }
-    this.hit(tk, 'bonk', 'puff', it.own);
+    if (this.hit(tk, 'bonk', 'puff', it.own) === 'none') this.ev('immune', tk.i, 'puff');
     for (const o of this.karts) if (o !== tk && !this.ext[o.i] && (o.x - tk.x) ** 2 + (o.y - tk.y) ** 2 < 25) this.hit(o, 'wobble', 'puff', it.own);
     this.puffAt = this.clock; this.ev('puffpop', tk.i, 0); return false;
   }
   return true;
 };
-/* TINY THYME: a sparkle ribbon races up the road; everyone ahead goes tiny unless they hop it */
+/* TINY THYME: a sparkle ribbon races up the road; everyone ahead goes tiny unless they hop it. Near its next target it closes at
+   WAVE_CLOSE m/s (about 0.7 s from the HOP! cue to the ribbon), far away it races at up to 100 m/s; a hop pressed in the last
+   HOP_WIN ticks before it passes (or being in the air) dodges it (fix round 1: the old window was shorter than a kid's
+   reaction time). An online guest's kart (ext) is ranked where it is now (sim.extRp, net.js) and stays the target until the
+   guest says hit or dodge */
 P.stepWave = function (it) {
-  const T = this.track, ks = this.karts;
-  let dNext = 1e9, vNext = 0;
+  const T = this.track, ks = this.karts, ex = this.extRp;
+  let dNext = 1e9, vNext = 0, vNear = -1;
   for (const k of ks) {
     const b = 1 << k.i; if (!(it.mask & b) || (it.done & b)) continue;
     if (k.finished) { it.done |= b; continue; }
-    const d = k.rp - it.rp; if (d >= 0 && d < dNext) { dNext = d; vNext = k.v; }   /* the nearest target sets the closing speed */
+    const rp = this.ext[k.i] && ex ? ex(k) : k.rp, d = rp - it.rp, v = Math.max(0, k.v);
+    if (this.ext[k.i] && d < 0) { dNext = 0; vNear = Math.max(vNear, v); continue; }   /* passed here, not yet told there: keep closing on it */
+    if (d >= 0 && d < dNext) { dNext = d; vNext = v; }
+    if (d >= 0 && d < 40) vNear = Math.max(vNear, v);   /* closes at WAVE_CLOSE on the fastest target near it, so HOP! always leads by 0.4-0.75 s */
   }
   if ((it.done & it.mask) === it.mask) return false;
-  /* 45-100 m/s far away; near a target it closes at about 40 m/s so a hop just after "HOP!" times well (see PROGRESS, v2 note) */
-  const V = dNext > 40 ? 45 + Math.min(55, (dNext - 40) * 2) : Math.max(45, vNext * 1.25 + 40);   /* ~40 m/s closing even on an inside line */
+  const V = it.V = Math.min(100, (vNear >= 0 ? vNear : vNext) + WAVE_CLOSE + Math.max(0, Math.min(1e3, dNext) - 40) * 2);
   it.rp += V * DT; it.s = (it.s + V * DT) % T.L;
   const p = T.pos(it.s, 0, it.tp || (it.tp = {})); it.x = p.x; it.y = p.y;
   for (const k of ks) {
@@ -819,19 +907,24 @@ P.stepWave = function (it) {
     if (this.ext[k.i]) continue;   /* online: the victim decides */
     it.done |= b;
     if (k.fall || k.lift) continue;
-    if (k.z > 0.15) { k.stats.dodges++; this.ev('dodge', k.i, 'thyme'); }
+    if (k.z > 0.15 || this.clock - k.hopAt <= HOP_WIN) { k.stats.dodges++; this.ev('dodge', k.i, 'thyme'); }
     else this.hit(k, 'tiny', 'thyme', it.own);
   }
   return (it.done & it.mask) !== it.mask;
 };
+/* the thyme ribbon's HOP! cue for kart k (render, main, net): the ribbon is coming and within HOP_D m */
+Sim.hopCue = (it, k) => { const d = k.rp - it.rp; return d > 0 && d < HOP_D; };
+Sim.HOP_WIN = HOP_WIN; Sim.HOP_D = HOP_D; Sim.LEAD_COOL = LEAD_COOL;
 P.stepBoxes = function () {
-  const back = k => k.lap === this.track.laps ? K.BOX_FINAL : K.BOX_BACK;
-  for (const b of this.boxes) {
+  const bx = this.boxes, ks = this.karts, laps = this.track.laps, R2 = K.BOX_R * K.BOX_R;
+  for (let j = 0; j < bx.length; j++) {
+    const b = bx[j];
     if (b.t > 0) { b.t--; continue; }
-    for (const k of this.karts) {
-      if (k.fall || k.lift || Math.abs(k.z - b.z) >= 1.0) continue;
+    for (let q = 0; q < ks.length; q++) {
+      const k = ks[q], dx = k.x - b.x, dy = k.y - b.y;
+      if (dx * dx + dy * dy >= R2 || k.fall || k.lift || Math.abs(k.z - b.z) >= 1.0) continue;
       if (k.item || k.roll || k.swirl) continue;   /* a kart that already has an item passes through (v2: bubbles are not wasted in a pack) */
-      if ((k.x - b.x) ** 2 + (k.y - b.y) ** 2 < K.BOX_R * K.BOX_R) { b.t = back(k); this.ev('box', k.i, 0); k.roll = 54; k.rollSky = b.sky; break; }
+      b.t = k.lap === laps ? K.BOX_FINAL : K.BOX_BACK; this.ev('box', k.i, 0); k.roll = 54; k.rollSky = b.sky; k.rollLong = b.long; break;
     }
   }
 };
@@ -876,16 +969,16 @@ P.stepHazards = function () {
         if (d2 >= r * r) continue;
         if (hs.fr * H.act < 1) { this.launchV(k, 8, 'piston'); continue; }
         const d = Math.sqrt(d2) || 1, nx = dx / d, ny = dy / d; k.x = hs.x[0] + nx * r; k.y = hs.y[0] + ny * r;
-        if (Math.cos(k.dir) * nx + Math.sin(k.dir) * ny < 0) { k.v = -0.3 * Math.abs(k.v); if (!k.wallT) { this.ev('bounce', k.i, 'piston'); k.wallT = 24; } }
+        if (Math.cos(k.dir) * nx + Math.sin(k.dir) * ny < 0) { k.v = -0.3 * Math.abs(k.v); k.slow = Math.max(k.slow, 30); if (!k.wallT) { this.ev('bounce', k.i, 'piston'); k.wallT = 24; } }   /* a bounce off a piston costs more than the long way (fix round 1) */
       }
     }
   }
 };
 
 /* ---------- places, results, the fun bookkeeping ---------- */
+const better = (a, b) => a.finished !== b.finished ? a.finished : a.finished ? (a.finishT !== b.finishT ? a.finishT < b.finishT : a.i < b.i) : a.rp !== b.rp ? a.rp > b.rp : a.i < b.i;
 P.updatePlaces = function () {
   const ks = this.karts, o = this.order;
-  const better = (a, b) => a.finished !== b.finished ? a.finished : a.finished ? (a.finishT !== b.finishT ? a.finishT < b.finishT : a.i < b.i) : a.rp !== b.rp ? a.rp > b.rp : a.i < b.i;
   for (let x = 1; x < o.length; x++) { const v = o[x]; let y = x - 1; while (y >= 0 && better(ks[v], ks[o[y]])) { o[y + 1] = o[y]; y--; } o[y + 1] = v; }
   for (let r = 0; r < o.length; r++) ks[o[r]].place = r + 1;
 };
@@ -923,6 +1016,13 @@ function bendRuns(T) {
   for (let i = N - 1 + N; i >= 0; i--) { const j = i % N, k = T.K[j], sg = Math.abs(k) > 0.011 ? Math.sign(k) : 0, nx = out[(j + 1) % N]; out[j] = sg === 0 ? 0 : Math.sign(nx) === sg ? nx + sg * T.ds : sg * T.ds; }
   return out;
 }
+/* hazard danger lanes for the CPU driver: pairs [lo, hi] in a reused array (no closures per tick) */
+const IVS = [];
+function inIV(q) { for (let j = 0; j < IVS.length; j += 2) if (q > IVS[j] && q < IVS[j + 1]) return true; return false; }
+/* another kart g metres ahead in race metres (lo < g < hi), or null */
+function nearRp(sim, k, lo, hi) { const ks = sim.karts; for (let j = 0; j < ks.length; j++) { const o = ks[j]; if (o === k || o.fall || o.lift || o.finished) continue; const g = o.rp - k.rp; if (g > lo && g < hi) return o; } return null; }
+const inCone = (k, o, ang) => Math.abs(wrapA(Math.atan2(o.y - k.y, o.x - k.x) - k.dir)) < ang;
+const vSafeOf = (sim, ahead) => { if (!(ahead > 0.001)) return 99; const Rr = 0.95 / ahead; return sim.TR * Rr / (1 + (0.22 * sim.TR / sim.VT) * Rr) + 2; };
 function nearestU(C, x, y, guess) {   /* metres along a cut nearest to (x, y), searched around a guess */
   let bi = clamp(Math.round(guess / C.ds), 0, C.n - 1), bd = 1e18;
   for (let k = -10; k <= 10; k++) { const j = bi + k; if (j < 0 || j >= C.n) continue; const d = (C.X[j] - x) ** 2 + (C.Y[j] - y) ** 2; if (d < bd) { bd = d; bi = j; } }
@@ -1002,10 +1102,10 @@ Sim.ai = function (sim, k) {
       if (it.dy & b) tl += it.lat > tl ? -3.2 : 3.2;
     }
     /* not going to the hops: keep off the catapult */
-    { const cat = sim.fr[-1].find(f => f.aim); if (cat && !(route >= 0 && T.cuts[route].id === 'hops')) { const dl = wrapS(cat.a1 - k.s, T.L); if (dl > -1 && dl < 35) { const edge = cat.l1 + 1.6; if (cat.l0 < 0 && tl < edge) tl = edge; } } }
+    { const cat = sim.cat; if (cat && !(route >= 0 && T.cuts[route].id === 'hops')) { const dl = wrapS(cat.a1 - k.s, T.L); if (dl > -1 && dl < 35) { const edge = cat.l1 + 1.6; if (cat.l0 < 0 && tl < edge) tl = edge; } } }
     /* a picked cut: ease over to its mouth, then onto it */
     if (route >= 0) {
-      const C = T.cuts[route], d = wrapS(C.s0 - k.s, T.L), cat = C.id === 'hops' ? sim.fr[-1].find(f => f.aim) : null;
+      const C = T.cuts[route], d = wrapS(C.s0 - k.s, T.L), cat = C.id === 'hops' ? sim.cat : null;
       if (cat) {
         const dl = wrapS(cat.a1 - k.s, T.L);
         if (dl > 0 && dl < 40) tl = tl + (-5 - tl) * clamp(1 - (dl - 15) / 25, 0, 1);
@@ -1035,20 +1135,19 @@ Sim.ai = function (sim, k) {
     if (!A.hzRead[h]) continue;
     const eta = Math.round(d / Math.max(6, v) * 60);
     SK.hazState(T, H, sim.clock + eta, HS);
-    const IV = A.iv || (A.iv = []); IV.length = 0;
-    const span = (a, b) => IV.push(a, b);
+    const IV = IVS; IV.length = 0;
     if (H.k === 'spray') {
-      let on = HS.ph === 2; for (const dt of [-10, 10]) if (!on) { SK.hazState(T, H, sim.clock + eta + dt, HS); on = HS.ph === 2; }
+      let on = HS.ph === 2; if (!on) { SK.hazState(T, H, sim.clock + eta - 10, HS); on = HS.ph === 2; } if (!on) { SK.hazState(T, H, sim.clock + eta + 10, HS); on = HS.ph === 2; }
       if (!on) continue;
-      if (H.half != null && H.l0 != null) span(H.l0 - 1.3, H.l1 + 1.3); else span(HS.lat[0] - H.r - 1.5, HS.lat[0] + H.r + 1.5);
+      if (H.half != null && H.l0 != null) IV.push(H.l0 - 1.3, H.l1 + 1.3); else IV.push(HS.lat[0] - H.r - 1.5, HS.lat[0] + H.r + 1.5);
     } else if (H.path === 'cross') {
-      for (let j = 0; j < HS.n; j++) span(HS.lat[j] - H.r - 1.7, HS.lat[j] + H.r + 1.7);
+      for (let j = 0; j < HS.n; j++) IV.push(HS.lat[j] - H.r - 1.7, HS.lat[j] + H.r + 1.7);
       /* a ramp just before the rolling lane jumps it: ride the ramp */
       if (!onCut) for (const f of sim.fr[-1]) if (f.k === 'ramp' && !f.aim) { const dl = wrapS(f.a1 - k.s, T.L); if (dl > 0 && dl < d && d - dl < (f.D || 0) - 4) { IV.length = 0; tl = clamp(tl, f.l0 + 1, f.l1 - 1); } }
     }
-    else if (H.k === 'piston') { let on = HS.ph >= 1; for (const dt of [-8, 8]) if (!on) { SK.hazState(T, H, sim.clock + eta + dt, HS); on = HS.ph >= 1; } if (!on) continue; span(H.lat - H.r - 1.5, H.lat + H.r + 1.5); }
-    else if (H.path === 'swing') { for (const dt of [-6, 6]) { SK.hazState(T, H, sim.clock + eta + dt, HS); span(HS.lat[0] - H.r - 1.5, HS.lat[0] + H.r + 1.5); } }
-    const inside = q => { for (let j = 0; j < IV.length; j += 2) if (q > IV[j] && q < IV[j + 1]) return true; return false; };
+    else if (H.k === 'piston') { let on = HS.ph >= 1; if (!on) { SK.hazState(T, H, sim.clock + eta - 8, HS); on = HS.ph >= 1; } if (!on) { SK.hazState(T, H, sim.clock + eta + 8, HS); on = HS.ph >= 1; } if (!on) continue; IV.push(H.lat - H.r - 1.5, H.lat + H.r + 1.5); }
+    else if (H.path === 'swing') { for (let dt = -6; dt <= 6; dt += 12) { SK.hazState(T, H, sim.clock + eta + dt, HS); IV.push(HS.lat[0] - H.r - 1.5, HS.lat[0] + H.r + 1.5); } }
+    const inside = inIV;
     if (!IV.length || !inside(tl)) continue;
     near = d; dodge = H;
     /* the nearest safe lane on the road */
@@ -1066,7 +1165,7 @@ Sim.ai = function (sim, k) {
   A.tl = tl;
   const want = Math.atan2(ty - k.y, tx - k.x), diff = wrapA(want - k.dir);
   let steer = clamp(diff * 2.8, -1, 1);
-  const vSafe = ahead > 0.001 ? (() => { const Rr = 0.95 / ahead; return sim.TR * Rr / (1 + (0.22 * sim.TR / VT) * Rr) + 2; })() : 99;
+  const vSafe = vSafeOf(sim, ahead);
   if (Math.abs(diff) > 1.4 && k.v > 3) held |= IN.BRAKE;
   else if (!k.drift && k.v > vSafe + 1.5 && Math.abs(diff) > 0.15) held |= IN.BRAKE;
   /* drifting through long bends: start at the entry from the outside half, ride the line, release at the class's spark level,
@@ -1090,9 +1189,9 @@ Sim.ai = function (sim, k) {
   held |= A.steer > 0.05 ? IN.RIGHT : A.steer < -0.05 ? IN.LEFT : 0;
   /* TINY THYME: hop the ribbon (rolled once per ribbon) */
   for (const it of sim.items) if (it.k === 'wave' && (it.mask >> k.i) & 1 && !((it.done >> k.i) & 1)) {
-    if (A.hopW !== it.id) { A.hopW = it.id; A.hopOk = sim.rand() < D.hop; }
-    const d = k.rp - it.rp, cl = Math.max(45, k.v * 1.25 + 40) - k.v;
-    if (A.hopOk && d > 0 && d / Math.max(1, cl) * 60 <= 8 && k.z === 0 && !k.drift && !(k.held & IN.DRIFT)) held |= IN.DRIFT;
+    if (A.hopW !== it.id) { A.hopW = it.id; A.hopOk = sim.rand() < D.hop; A.hopEta = 6 + ((sim.rand() * 30) | 0); }
+    const d = k.rp - it.rp, cl = Math.max(1, (it.V || 45) - Math.max(0, k.v));
+    if (A.hopOk && d > 0 && d / cl * 60 <= A.hopEta && sim.clock - k.hopAt > 20 && k.z === 0 && !(k.held & IN.DRIFT)) held |= IN.DRIFT;
   }
   /* items */
   if (k.item && !k.roll && !k.spin && !k.bonk) {
@@ -1102,8 +1201,9 @@ Sim.ai = function (sim, k) {
     A.itemT--;
     const it = k.item, timer = A.itemT <= 0, aimed = PE.eager || sim.rand() < D.aim * 0.2;
     let use = false, fwd = false;
-    const near2 = (lo, hi) => { for (const o of sim.karts) { if (o === k || o.fall || o.lift || o.finished) continue; const g = o.rp - k.rp; if (g > lo && g < hi) return o; } return null; };
-    const cone = (o, ang) => Math.abs(wrapA(Math.atan2(o.y - k.y, o.x - k.x) - k.dir)) < ang;
+    const near2 = (lo, hi) => nearRp(sim, k, lo, hi), cone = (o, ang) => inCone(k, o, ang);   /* (only while holding an item) */
+    /* a final-lap leader's breather: hold leader attacks (a puff, a ribbon, a berry from 2nd) until it is over (fix round 1) */
+    const lk = sim.karts[sim.order[0]], wait = k.cpu && lk && lk !== k && sim.leadCool(lk) && (it === I_PUFF || it === I_THYME || (it === I_BLUE && k.place === 2));
     if (it === I_BOOST || it === I_BOOST3) {
       let cutSoon = false; for (const C of T.cuts) if (A.pick[C.i] && C.ai && C.ai.needBoost) { const d = wrapS(C.s0 - k.s, T.L); if (d > 0 && d < 30) cutSoon = true; }
       use = cutSoon || (aimed && ahead < 0.012 && k.v > 14) || (timer && ahead < 0.02) || (!k.cpu && A.holdT > 25 && ahead < 0.03);   /* players' bots mash their berries */
@@ -1112,7 +1212,7 @@ Sim.ai = function (sim, k) {
       else if ((D.aim >= 0.7 || PE.eager) && aimed) { const o = near2(18, 30); if (o && cone(o, 0.25)) { use = true; fwd = true; } }
       if (!use && PE.mouth) for (const C of T.cuts) { const d = wrapS(k.s - C.s0, T.L); if (d > -10 && d < 10 && near2(-40, -2)) use = true; }
       if (!use && timer) use = true;
-    } else if (it === I_BLUE) use = A.holdT >= (PE.eager || !k.cpu ? 20 : A.blueT);
+    } else if (it === I_BLUE) use = A.holdT >= (PE.eager || !k.cpu ? 20 : A.blueT) && !(wait && A.holdT < 900);
     else if (it === I_SWIRL) {
       if (!k.swirl) use = !!near2(-15, 15) || timer;
       else if (pop(k.petals) >= 3) { const o = near2(5, 20); use = !!(o && cone(o, 12 * PI / 180)); }
@@ -1125,11 +1225,12 @@ Sim.ai = function (sim, k) {
         for (const o of sim.karts) if (o !== k && o.giant && (o.x - k.x) ** 2 + (o.y - k.y) ** 2 < 100) use = true;
         if (A.holdT > 900) use = true;
       }
-    } else if (it === I_PUFF) use = k.place > 1 || !k.cpu ? A.holdT > 4 : A.holdT > 600;
+    } else if (it === I_PUFF) use = !sim.whyNot(k) && !wait && (k.place > 1 || !k.cpu ? A.holdT > 4 : A.holdT > 600);
     else if (it === I_THYME) {
       let n = 0; for (const o of sim.karts) if (o !== k && !o.finished && o.rp > k.rp && o.rp - k.rp < 250) n++;
       const lead = sim.karts[sim.order[0]];
-      use = n >= 2 || (k.diff >= 1 && lead && !lead.cpu && lead !== k) || timer;
+      if (A.holdT === 1) A.thH = sim.rand() < 0.5;   /* a human leader: thrown at once only half the time (rolled once per item) */
+      use = !sim.whyNot(k) && !wait && (n >= 2 || (k.diff >= 1 && lead && !lead.cpu && lead !== k && A.thH) || timer);
     } else if (it === I_GIANT) {
       let cutSoon = false; for (const C of T.cuts) if (A.pick[C.i]) { const d = wrapS(C.s0 - k.s, T.L); if (d > 0 && d < 25) cutSoon = true; }
       use = ahead < 0.02 || cutSoon || A.holdT > 300;

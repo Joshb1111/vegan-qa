@@ -21,7 +21,7 @@ const G = typeof window !== 'undefined' ? window : globalThis, SK = G.SK = G.SK 
 const WS = 256, CELL = 0.5, GN = WS / CELL, TS = 2048, TPM = TS / WS, TAU = Math.PI * 2;
 const S_OFF = 0, S_ROAD = 1, S_WALL = 2, S_BOOST = 3, S_VOID = 4, S_BELT = 6, SURF = ['off', 'road', 'wall', 'boost', 'void', '', 'belt'];
 const hash = (a, b) => { let h = (a * 374761393 + b * 668265263) | 0; h = (h ^ (h >>> 13)) * 1274126177; return ((h ^ (h >>> 16)) >>> 0) / 4294967296; };
-const wrapA = a => { while (a > Math.PI) a -= TAU; while (a < -Math.PI) a += TAU; return a; };
+const wrapA = a => (a > Math.PI || a < -Math.PI) ? a - TAU * Math.floor((a + Math.PI) / TAU) : a;
 const clamp = (v, a, b) => v < a ? a : v > b ? b : v;
 
 /* ---------- the circuits ---------- */
@@ -55,11 +55,12 @@ const DEFS = [
     arch: 0,
     rows: [0.125, 0.420, 0.585, 0.720, 0.905],
     sky: [[0.884, -2.5, 1.6], [0.884, 2.5, 1.6]],
-    pads: [[0.080, 0, 7], [0.490, -3.5, 7], [0.894, 2.5, 7]],
+    pads: [[0.080, 0, 7], [0.490, 3.5, 7], [0.894, 2.5, 7]],   /* fix round 1: the 0.49 pad is on the main line, not aimed into the bridge (30 m/s onto a narrow bridge) */
     rainbows: [0.176, 0.505, 0.790, 0.939],
     feats: [
       { k: 'ramp', skin: 'catapult', f: 0.116, len: 3, l0: -7, l1: -3, aim: 'hops', vmin: 13 },
       { k: 'ramp', skin: 'kicker', f: 0.872, len: 3, l0: -7, l1: 7, D: 22, vmin: 18 },
+      { k: 'ramp', skin: 'kicker', f: 0.757, len: 3, l0: -6, l1: 0, D: 18, vmin: 15 },   /* fix round 1: SKY HOP, a half-width kicker after the windsocks */
       { k: 'gap', f0: 0.879, f1: 0.889, net: [0] },
       { k: 'bumper', f0: 0.14, f1: 0.32, side: 1, cls: [0] },
       { k: 'bumper', f0: 0.36, f1: 0.50, side: -1, cls: [0, 1] },
@@ -72,7 +73,7 @@ const DEFS = [
         feats: [{ k: 'bounce', u: 0.28 }, { k: 'bounce', u: 0.44 }, { k: 'bounce', u: 0.60 }, { k: 'bounce', u: 0.76, to: 'exit' }],
         ai: { minV: 16, avoidEasy: true } },
       { id: 'bridge', name: 'CANDYFLOSS BRIDGE', sa: 0.535, la: -4, sb: 0.690, lb: -4, pts: [[158, 62], [162, 46], [154, 32]],
-        hw: 3, verge: 0, edge: 'void', rail: [0], surf: [[0.19, 0.395, 'rough'], [0.62, 0.80, 'rough']],
+        hw: 3.5, verge: 0, edge: 'void', rail: [0, 1], surf: [[0.15, 0.39, 'rough'], [0.58, 0.86, 'rough']],   /* fix round 1: 7 m wide with soft rails on EASY and MEDIUM too (a keyboard kid fell off the 6 m one on most passes); a candyfloss patch where the jump lands (it saved 2.9 s) */
         feats: [{ k: 'ramp', skin: 'fluff', u: 0.40, len: 2.5, D: 14, vmin: 13 }, { k: 'gap', u0: 0.45, u1: 0.55, net: [0] }],
         ai: { minV: 16, avoidEasy: true } }],
     hazards: [
@@ -87,7 +88,8 @@ const DEFS = [
     gears: [5, 6, 7, 8, 9], chimneys: [[110, 200], [180, 186], [60, 70], [158, 60], [116, 126], [196, 124], [60, 140]], arch: 0,
     rows: [0.086, 0.200, 0.441, 0.600, 0.765],
     belts: [0.104, 0.522, 0.695, 0.870],
-    feats: [{ k: 'ramp', skin: 'crate', f: 0.879, len: 3, l0: -4, l1: 4, D: 32, vmin: 17 }],
+    feats: [{ k: 'ramp', skin: 'crate', f: 0.879, len: 3, l0: -4, l1: 4, D: 32, vmin: 17 },
+      { k: 'ramp', skin: 'crate', f: 0.718, len: 3, l0: -1, l1: 5, D: 18, vmin: 15 }],   /* fix round 1: a side crate ramp on the top straight */
     cuts: [
       { id: 'bay', name: 'LOADING BAY', sa: 0.120, la: -3, sb: 0.270, lb: -3, pts: [[198, 213], [209, 196], [205, 178]],
         hw: 3.5, verge: 1, edge: 'wall',
@@ -287,7 +289,9 @@ function build(def) {
   const st = T.pos(0, 0); T.start = { x: st.x, y: st.y, dir: st.dir };
   T.slots = []; for (let j = 0; j < 6; j++) { const row = j >> 1, side = j & 1 ? 1 : -1, p = T.pos(Ltot - 6 - row * 7.5 - (j & 1) * 3.5, side * hw * 0.42); T.slots.push({ x: p.x, y: p.y, dir: p.dir }); }
   T.items = [];
-  for (const f of def.rows || []) { const s = f * Ltot; for (const q of [-0.6, -0.2, 0.2, 0.6]) { const p = T.pos(s, q * hw); T.items.push({ x: p.x, y: p.y, z: 0, s, sky: 0 }); } }
+  /* a row on the main road beside a shortcut (the long way) gives +1 row of luck: the long way's reward (fix round 1) */
+  const longWay = s => T.cuts.some(c => { const d = ((s - c.s0) % Ltot + Ltot) % Ltot; return d > 15 && d < c.span - 15; });
+  for (const f of def.rows || []) { const s = f * Ltot, lw = longWay(s) ? 1 : 0; for (const q of [-0.6, -0.2, 0.2, 0.6]) { const p = T.pos(s, q * hw); T.items.push({ x: p.x, y: p.y, z: 0, s, sky: 0, long: lw }); } }
   for (const b of def.sky || []) { const s = b[0] * Ltot, p = T.pos(s, b[1]); T.items.push({ x: p.x, y: p.y, z: b[2], s, sky: 1 }); }
   T.deco = makeDeco(T);
   delete T.def;
@@ -391,8 +395,7 @@ SK.WORLD = { WS, CELL, GN, TS, TPM };
 const HAZ_START = 480;
 function hazState(T, h, clock, out) {
   out = out || { ph: 0, fr: 0, n: 0, x: [0, 0, 0, 0, 0, 0, 0, 0], y: [0, 0, 0, 0, 0, 0, 0, 0], z: [0, 0, 0, 0, 0, 0, 0, 0], lat: [0, 0, 0, 0, 0, 0, 0, 0], rot: [0, 0, 0, 0, 0, 0, 0, 0] };
-  const C = h.on >= 0 ? T.cuts[h.on] : null, P = hazState.p || (hazState.p = {});
-  const pos = (a, lat) => C ? C.pos(a, lat, P) : T.pos(a, lat, P);
+  const C = h.on >= 0 ? T.cuts[h.on] : null, P = hazState.p || (hazState.p = {});   /* no closure per call (fix round 1: the sim calls this often) */
   out.ph = 0; out.fr = 0; out.n = 0;
   const live = clock >= HAZ_START;
   if (h.k === 'mover' && h.path === 'cross') {
@@ -403,14 +406,14 @@ function hazState(T, h, clock, out) {
     for (let m = m1; m >= m0 && out.n < 8; m--) {
       const t0 = m * h.every - h.off; if (t0 < HAZ_START) continue;
       const age = clock - t0; if (age < 0 || age > life) continue;
-      const lat = h.l0 + dir * h.sp * age / 60, p = pos(h.a, lat), j = out.n++;
+      const lat = h.l0 + dir * h.sp * age / 60, p = (C ? C.pos(h.a, lat, P) : T.pos(h.a, lat, P)), j = out.n++;
       out.x[j] = p.x; out.y[j] = p.y; out.z[j] = h.r; out.lat[j] = lat; out.rot[j] = h.sp * age / 60 / h.r;
     }
     out.ph = out.n ? 2 : 0; out.fr = 0;
     return out;
   }
   if (h.k === 'mover' && h.path === 'swing') {
-    const lat = h.lat + h.amp * Math.sin(TAU * (clock + h.off) / h.per), p = pos(h.a, lat);
+    const lat = h.lat + h.amp * Math.sin(TAU * (clock + h.off) / h.per), p = (C ? C.pos(h.a, lat, P) : T.pos(h.a, lat, P));
     out.n = 1; out.x[0] = p.x; out.y[0] = p.y; out.z[0] = 1.2; out.lat[0] = lat; out.rot[0] = Math.cos(TAU * (clock + h.off) / h.per) * 0.5;
     out.ph = live ? 2 : 0; out.fr = 0;
     return out;
@@ -425,7 +428,7 @@ function hazState(T, h, clock, out) {
   if (h.skin === 'rain') { lat = h.lat + h.amp * Math.sin(TAU * clock / h.sway); z = 6; }
   else if (h.k === 'gust') lat = h.src;
   else if (h.k === 'piston') z = out.ph === 2 ? Math.min(1, out.fr * 6) * 0.8 : 0;
-  const p = pos(h.a, lat);
+  const p = (C ? C.pos(h.a, lat, P) : T.pos(h.a, lat, P));
   out.n = 1; out.x[0] = p.x; out.y[0] = p.y; out.z[0] = z; out.lat[0] = lat; out.rot[0] = 0;
   return out;
 }
@@ -503,21 +506,27 @@ function makeDeco(T) {
     let su = -1; for (let u = 4; u < c.len * 0.5; u += 1) { c.pos(u, 0, tmp); const q = Math.floor(tmp.y / CELL) * GN + Math.floor(tmp.x / CELL); if (T.dist[q] - edgeD - ce > 2.2) { su = u; break; } }
     if (su > 0) {   /* the nose lies on the main-road side of the cut */
       const side = c.la < 0 ? 1 : -1, q = c.pos(su, side * (ce + 1.2));
-      add({ k: 'sign', x: q.x, y: q.y, w: 4.2, h: 3.4, text: c.id === 'bridge' ? 'BRIDGE' : c.name, cut: c.i });
+      add({ k: 'sign', x: q.x, y: q.y, w: 6.4, h: 5.0, text: c.id === 'bridge' ? 'BRIDGE' : c.name, cut: c.i });   /* fix round 1: bigger boards */
     }
   }
   if (T.id === 'meadows') {
     const c = T.cuts[0];
     for (let u = 0.50 * c.len; u <= 0.79 * c.len; u += 6) for (const side of [-1, 1]) { const p = c.pos(u, side * (c.hw + c.verge + 0.5)); if (freeAt(p.x, p.y, edgeD + 2.5, 0)) add({ k: 'glass', x: p.x, y: p.y, w: 3.2, h: 5.0, side }); }   /* not right by the main road */
     for (const h of T.hazards) if (h.skin === 'basket') { const p = c.pos(h.a, 0); add({ k: 'beam', x: p.x, y: p.y, w: 2 * (c.hw + c.verge) + 1.6, h: 5.2, haz: T.hazards.indexOf(h) }); }
-    for (const r of c.surf) if (r[2] === 'rough') for (let u = r[0] * c.len; u <= r[1] * c.len; u += 3) for (const side of [-1, 1]) { const p = c.pos(u, side * (c.hw + c.verge + 0.9)); add({ k: 'cabbage', x: p.x, y: p.y, w: 2.0, h: 1.5 }); }
+    for (const r of c.surf) if (r[2] === 'rough') for (let u = r[0] * c.len; u <= r[1] * c.len; u += 3) for (const side of [-1, 1]) { const p = c.pos(u, side * (c.hw + c.verge + 0.9)); if (freeAt(p.x, p.y, edgeD + 0.8, 0.3)) add({ k: 'cabbage', x: p.x, y: p.y, w: 2.0, h: 1.5 }); }
     T.hazards.forEach((h, j) => { if (h.skin === 'pumpkin') { const p = T.pos(h.a, 15); add({ k: 'pumpkinpile', x: p.x, y: p.y, w: 5, h: 2.8, haz: j }); } });
-    const pp = T.hazards.find(h => h.skin === 'pumpkin'); if (pp) { const p = T.pos(pp.a - 14, hw + T.off + 1.4); add({ k: 'sign', x: p.x, y: p.y, w: 4.2, h: 3.4, text: 'PUMPKINS!' }); }
+    const pp = T.hazards.find(h => h.skin === 'pumpkin'); if (pp) { const p = T.pos(pp.a - 14, hw + T.off + 1.4); add({ k: 'sign', x: p.x, y: p.y, w: 6.4, h: 5.0, text: 'PUMPKINS!' }); }
   }
   if (T.id === 'skyway') {
     T.hazards.forEach((h, j) => { if (h.k === 'gust') { const C = h.on >= 0 ? T.cuts[h.on] : null, p = C ? C.pos(h.a, h.src) : T.pos(h.a, h.src); add({ k: 'windsock', x: p.x, y: p.y, w: 2.4, h: 5.0, dir: h.dir, haz: j }); } });
     const br = T.cuts.find(c => c.id === 'bridge');
-    if (br) for (const u of [3, br.len - 3]) for (const side of [-1, 1]) { const p = br.pos(u, side * (br.hw + 0.6)); add({ k: 'lampB', x: p.x, y: p.y, w: 1.6, h: 5.5 }); }
+    /* lamps at the bridge's ends: searched inwards from each mouth to the first spot well clear of the main road (fix round 1:
+       two stood on the main road at u 3 and len - 3, where the bridge still overlaps it) */
+    if (br) for (const end of [0, 1]) for (const side of [-1, 1]) for (let j = 3; j < br.len * 0.4; j += 0.5) {
+      const u = end ? br.len - j : j, p = br.pos(u, side * (br.hw + 0.6)), cx = Math.floor(p.x / CELL), cy = Math.floor(p.y / CELL);
+      if (cx < 0 || cy < 0 || cx >= GN || cy >= GN) continue;
+      if (T.dist[cy * GN + cx] - edgeD > 1.5) { add({ k: 'lampB', x: p.x, y: p.y, w: 1.6, h: 5.5 }); break; }
+    }
   }
   for (const f of T.feats) {
     if (f.k === 'ramp') {

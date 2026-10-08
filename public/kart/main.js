@@ -38,7 +38,6 @@ let muted = SILENT || store.get('kart-mute') === '1', musicOn = store.get('kart-
 function au(fn, a, b, c, d) { if (SILENT) return; const A = AU(); if (typeof A[fn] === 'function') try { A[fn](a, b, c, d); } catch (e) { report(e); } }
 function unlock() { if (!SILENT && !unlocked) { unlocked = true; au('unlock'); au('mute', muted); au('musicOn', musicOn); } }
 function sfx(n, a, vol) { if (!muted) au('play', n, a, vol); }
-const sfxV = sfx;
 function music(n, v) { const k = n ? n + (v | 0) : ''; if (k !== mus) { mus = k; au('music', n || null, v | 0); } }
 function post(o) { if (NT.post) { try { NT.post(o); } catch (e) { report(e); } return; } try { if (parent !== window) parent.postMessage(o, location.origin); } catch (_) {} }
 function setMute(on, quiet) { muted = !!on; if (SILENT) return; au('mute', muted); store.set('kart-mute', muted ? 1 : 0); if (!quiet) post({ ty: 'mute', on: muted }); }
@@ -92,7 +91,7 @@ let me = [0], doneUt = -1, results = null, resRows = null, newBest = '', touchMo
 let note = null;   /* a one-line note on the title (the WILD lock), {text, ut} */
 const banners = [null, null], placeUt = [0, 0], lastPlace = [0, 0];
 /* per race: banner counters, the item hint, the threat sounds */
-const twirlN = [0, 0], cutShown = [false, false], ringLap = [-1, -1], hint = [{ id: 0, text: '' }, { id: 0, text: '' }], hopOn = [false, false];
+const twirlN = [0, 0], cutShown = [false, false], ringLap = [-1, -1], hint = [{ id: 0, text: '', why: '' }, { id: 0, text: '', why: '' }], hopOn = [false, false];
 const hintSeen = [new Set(), new Set()];   /* this session only, never stored */
 let blueWarned = new Set();
 let wasDrift = false, demo = null, demoK = 0, demoUt = 0, demoTrack = 0, seedBase = (Date.now() ^ (Math.random() * 1e9)) >>> 0;
@@ -100,6 +99,10 @@ const hidden = () => !forceVis && !!document.hidden;
 const newGp = () => ({ round: 0, order: [0, 1, 2], totals: {}, cls: diff, bot: !!DBG.bot });
 
 function goScreen(s) { screen = s; scrUt = ut; }
+/* the room (kart-room.js) learns which screen is up and whether the race is paused: on an upright phone its tag sits in the
+   control band, which the menus use (fix round 1) */
+let postedScr = '';
+function postScreen() { const k = screen + (paused ? '/p' : ''); if (k !== postedScr) { postedScr = k; post({ ty: 'screen', s: screen, paused: !!paused }); } }
 /* back to the title: the attract demo restarts on the track that is already prepared, so nothing is rebuilt (review E2) */
 function toTitle() { endEngines(); sim = null; gp = null; paused = false; demo = null; goScreen('title'); }
 function endEngines() { for (let i = 0; i < 6; i++) au('engine', i, -1); au('play', 'drift', false); }
@@ -122,7 +125,7 @@ function startRace(ti, seed) {
   if (DBG.bot) for (const i of me) sim.bot[i] = true;
   au('ahead', 0.7); RD.setTrack(T); me.forEach((i, s) => RD.camera(s, sim.karts[i], true));
   paused = false; doneUt = -1; results = resRows = null; newBest = ''; banners[0] = banners[1] = null; lastPlace[0] = lastPlace[1] = 0;
-  for (let p = 0; p < 2; p++) { twirlN[p] = 0; cutShown[p] = false; ringLap[p] = -1; hint[p].id = 0; hint[p].text = ''; hopOn[p] = false; latch[p] = 0; }
+  for (let p = 0; p < 2; p++) { twirlN[p] = 0; cutShown[p] = false; ringLap[p] = -1; hint[p].id = 0; hint[p].text = ''; hint[p].why = ''; hopOn[p] = false; latch[p] = 0; }
   blueWarned = new Set();
   goScreen('race');
 }
@@ -175,6 +178,10 @@ function checkWild() {
 
 /* ---------- input: held keys and touches, plus a latch of fresh presses so a tap between two ticks still counts (E7) ---------- */
 const held = new Set(); let hits = [];
+/* keys a menu used (CARRY ON with ENTER or SPACE, a race started from the title...) do nothing in the race until they are let go
+   (review: ENTER on CARRY ON also fired the held item, SPACE hopped) */
+const swallow = new Set();
+function eat(c) { let b = 0; for (const n in KMAP) b |= KMAP[n].get(c) | 0; latch[0] &= ~b; latch[1] &= ~b; if (held.has(c)) swallow.add(c); }
 const latch = [0, 0], LATCH = IN.DRIFT | IN.ITEM | FWD;   /* only presses are latched: steering is held */
 const GAMEKEY = /^(Arrow|Space$|Enter$|NumpadEnter$|Slash$|ShiftRight$|ShiftLeft$|Tab$)/;
 const KEYS = {
@@ -192,18 +199,18 @@ addEventListener('keydown', e => {
   unlock(); touchMode = false;
   held.add(c); if (!e.repeat) { hits.push(c); latchKey(c); }
 });
-addEventListener('keyup', e => { held.delete(e.code || e.key || ''); });
+addEventListener('keyup', e => { const c = e.code || e.key || ''; held.delete(c); swallow.delete(c); });
 /* focus lost (the planet page or another window clicked): let go of everything, and offline pause the race unless the focus
    is back within 300 ms (the room's own Sound/Music buttons hand it straight back) (E9) */
 let blurT = 0;
 addEventListener('blur', () => {
-  held.clear(); TP.clear(); latch[0] = latch[1] = 0; clearTimeout(blurT); blurT = 0;
+  held.clear(); swallow.clear(); TP.clear(); latch[0] = latch[1] = 0; clearTimeout(blurT); blurT = 0;
   if (screen === 'race' && sim && !sim.done && !paused && !live() && !forceVis) blurT = setTimeout(() => {
     blurT = 0; if (!document.hasFocus() && screen === 'race' && sim && !sim.done && !paused && !live()) { paused = true; pauseSel = 0; }
   }, 300);
 });
 addEventListener('focus', () => { clearTimeout(blurT); blurT = 0; });
-function keyMask(p) { const M = kmapOf(p); let m = 0; for (const c of held) m |= M.get(c) | 0; if (p === 0) m |= touchMask(); return m; }
+function keyMask(p) { const M = kmapOf(p); let m = 0; for (const c of held) if (!swallow.has(c)) m |= M.get(c) | 0; if (p === 0) m |= touchMask(); return m; }
 /* touch: pointers held on the steer zones and buttons (no FWD on touch: juice is dropped, never tossed) */
 const TP = new Map();
 function zoneAt(x, y) {
@@ -223,6 +230,7 @@ document.addEventListener('pointerdown', e => {
   if (e.pointerType !== 'mouse') touchMode = true;
   if (e.cancelable && e.pointerType !== 'mouse') e.preventDefault();
   const [x, y] = toL(e), PZ = RD.UI.touch.pause;
+  if (screen === 'race' && SK.Main.hooks.tap && SK.Main.hooks.tap(x, y)) return;   /* NET HOOK: online, the "went quiet" note takes its tap first (fix round 1) */
   if (screen === 'race' && !paused && PZ && x >= PZ.x && x <= PZ.x + PZ.w && y >= PZ.y && y <= PZ.y + PZ.h) { paused = true; pauseSel = 0; sfx('menu'); return; }
   if (screen === 'race' && !paused && sim && e.pointerType !== 'mouse') { const z = zoneAt(x, y); TP.set(e.pointerId, z); if (z === 'drift') latch[0] |= IN.DRIFT; else if (z === 'item') latch[0] |= IN.ITEM; return; }
   tap(x, y);   /* the screens are drawn over the full page height (LH), so page units are their units */
@@ -257,7 +265,7 @@ function pauseChoose(i) { if (i === 0) { paused = false; sfx('select'); } else i
 function onKey(c) {
   if (c === 'KeyM') { setMute(!muted); return; }
   if (c === 'KeyN') { setMusic(!musicOn); return; }
-  if (SK.Main.hooks.key && SK.Main.hooks.key(c)) return;   /* NET HOOK (net.js): online keys (a waiting guest, "race on alone") */
+  if (SK.Main.hooks.key && SK.Main.hooks.key(c)) return true;   /* NET HOOK (net.js): online keys (a waiting guest, "race on alone"); the key is then eaten */
   const go = c === 'Space' || c === 'Enter' || c === 'NumpadEnter', up = c === 'ArrowUp' || c === 'KeyW', dn = c === 'ArrowDown' || c === 'KeyS', lf = c === 'ArrowLeft' || c === 'KeyA', rt = c === 'ArrowRight' || c === 'KeyD';
   if (screen === 'title') {
     if (c === 'Escape' || c === 'Backspace') { post({ ty: 'exit' }); return; }
@@ -306,7 +314,7 @@ function onEvents(s) {
 /* banners: one at a time per view; a new one replaces the current one if its priority is at least as high, or the current one
    is older than 30 ticks */
 const SUB = {
-  spin: { splat: 'a juicy spin', lob: 'a juice toss', blue: 'a blueberry splash', giant: 'a giant bump' },
+  spin: { splat: 'a juicy spin', lob: 'a juice toss', blue: 'a blueberry splash', giant: 'a giant bump', petal: 'daisy petals' },
   bonk: { pumpkin: 'a rolling pumpkin', barrel: 'a juice barrel', puff: 'a wish puff landed' },
   wobble: { sprinkler: 'sprinkler splash', steam: 'a puff of steam', rain: 'a rain shower', petal: 'daisy petals', basket: 'a hanging basket', blue: 'a splash', puff: 'a splash' }
 };
@@ -322,8 +330,8 @@ function banner(p, n, a, k) {
     case 'wobble': return setBanner(p, 3, 'WIBBLE!', SUB.wobble[a], '#bfe8ff', 32, 70);
     case 'tiny': return setBanner(p, 3, 'TINY!', 'a thyme sparkle', '#e4d8ff', 36, 90);
     case 'shield': if (a === 'pop') setBanner(p, 3, 'SAVED BY THE BUBBLE!', '', '#bfe8ff', 26, 70); return;
-    case 'immune': return setBanner(p, 3, 'TOO BIG TO SPIN!', '', '#b6f07a', 28, 60);
-    case 'lucky': return setBanner(p, 2, a === 2 ? 'SUPER LUCKY!' : 'LUCKY!', '', '#8fe07a', a === 2 ? 34 : 30, 80);
+    case 'immune': return k.giant > 0 ? setBanner(p, 3, 'TOO BIG TO SPIN!', '', '#b6f07a', 28, 60) : setBanner(p, 3, 'SAFE!', 'still dizzy from the last one', '#bfe8ff', 30, 60);
+    case 'lucky': if (a === 2) setBanner(p, 2, 'SUPER LUCKY!', 'a GIANT SPROUT for you', '#8fe07a', 34, 80); return;   /* LUCKY is a flash on the item slot (render) */
     case 'giant': if (a) setBanner(p, 2, 'GIANT SPROUT!', '', '#8fe07a', 34, 90); return;
     case 'dodge': return setBanner(p, 2, 'NICE HOP!', '', '#ffd93b', 30, 60);
     case 'start': return setBanner(p, 1, a === 2 ? 'SUPER SPROUT START!' : 'SPROUT START!', '', '#ffd93b', a === 2 ? 30 : 32, 80);
@@ -338,26 +346,26 @@ function banner(p, n, a, k) {
 }
 /* sim events → the audio names (see the header) */
 function sound(n, a, mine, slot, vol) {
-  const sfx = (nm, ar) => sfxV(nm, ar, vol);
+  const play = (nm, ar) => sfx(nm, ar, vol);
   switch (n) {
-    case 'drift': if (a === 'hop') sfx('hop'); else if (mine && slot === 0) sfx('drift', true); return;
-    case 'spark': if (mine && slot === 0) sfx('drift', a); return;
-    case 'turbo': sfx('turbo', a); if (mine && slot === 0) sfx('drift', false); return;
-    case 'item': if (mine) sfx('got', a); return;
-    case 'use': { const id = typeof a === 'number' ? SK.ITEMS[a] : a; if (id === 'splat' || id === 'splat3') sfx('throw'); return; }
-    case 'splat': if (a !== 'drop') sfx('splat', a); return;   /* a drop already sounded as its 'use' */
-    case 'boost': if (a === 'ring') sfx('ring'); else sfx('boost', a); return;
-    case 'shield': sfx(a === 'pop' ? 'pop' : 'shield'); return;
-    case 'balloon': sfx('lift'); return;
-    case 'giant': sfx(a ? 'grow' : 'shrink'); return;
-    case 'spin': sfx('hit', a); return;
-    case 'puffhover': if (mine) sfx('puffwarn'); return;
-    case 'lap': case 'final': case 'finish': if (mine) sfx(n, a); return;
-    case 'start': case 'lucky': case 'shortcut': case 'tailwind': case 'dodge': case 'tiny': case 'immune': if (mine) sfx(n, a); return;   /* your own kart only */
+    case 'drift': if (a === 'hop') play('hop'); else if (mine && slot === 0) play('drift', true); return;
+    case 'spark': if (mine && slot === 0) play('drift', a); return;
+    case 'turbo': play('turbo', a); if (mine && slot === 0) play('drift', false); return;
+    case 'item': if (mine) play('got', a); return;
+    case 'use': { const id = typeof a === 'number' ? SK.ITEMS[a] : a; if (id === 'splat' || id === 'splat3') play('throw'); return; }
+    case 'splat': if (a !== 'drop') play('splat', a); return;   /* a drop already sounded as its 'use' */
+    case 'boost': if (a === 'ring') play('ring'); else play('boost', a); return;
+    case 'shield': play(a === 'pop' ? 'pop' : 'shield'); return;
+    case 'balloon': play('lift'); return;
+    case 'giant': play(a ? 'grow' : 'shrink'); return;
+    case 'spin': play('hit', a); return;
+    case 'puffhover': if (mine) play('puffwarn'); return;
+    case 'lap': case 'final': case 'finish': if (mine) play(n, a); return;
+    case 'start': case 'lucky': case 'shortcut': case 'tailwind': case 'dodge': case 'tiny': case 'immune': if (mine) play(n, a); return;   /* your own kart only */
     case 'launch': case 'twirl': case 'land': case 'blue': case 'splash':
     case 'puff': case 'puffpop': case 'swirl': case 'fling': case 'petal': case 'thyme': case 'bonk':
     case 'wobble': case 'boing': case 'bounce': case 'box': case 'bump': case 'fall':
-      sfx(n, a); return;
+      play(n, a); return;
   }
 }
 /* events of the world (kart -1): the countdown, items popping, and the hazards (heard only within 40 m of a player) */
@@ -370,7 +378,7 @@ function worldEvent(n, a) {
   const H = sim.track.hazards && sim.track.hazards[a]; if (!H) return;
   const skin = H.k === 'gust' || H.k === 'piston' ? H.k : H.skin;
   const name = n === 'hspawn' ? (skin === 'pumpkin' || skin === 'barrel' ? skin : '') : HZS[skin] ? HZS[skin][n === 'htell' ? 0 : 1] : '';
-  const hd = name ? hazDist(H) : 1e9; if (hd <= 40) sfxV(name, 0, Math.max(0.3, 1 - hd / 40));
+  const hd = name ? hazDist(H) : 1e9; if (hd <= 40) sfx(name, 0, Math.max(0.3, 1 - hd / 40));
 }
 function hazDist(H) {
   let d = 1e9;
@@ -386,13 +394,14 @@ function afterRaceTick() {
     let hop = false;
     for (const it of sim.items) {
       if (it.k === 'blue' && it.tgt === i && !blueWarned.has(it.id) && Math.hypot(it.x - k.x, it.y - k.y) < 40) { blueWarned.add(it.id); sfx('bluewarn'); }
-      else if (it.k === 'wave' && ((it.mask >> i) & 1) && !((it.done >> i) & 1)) { const d = k.rp - it.rp; if (d > 0 && d < 12) hop = true; }
+      else if (it.k === 'wave' && ((it.mask >> i) & 1) && !((it.done >> i) & 1)) { if (SK.Sim.hopCue ? SK.Sim.hopCue(it, k) : (k.rp - it.rp > 0 && k.rp - it.rp < 16)) hop = true; }
     }
     if (hop && !hopOn[p]) sfx('hopwarn');
     hopOn[p] = hop;
     const H = hint[p];
     if (k.item && !k.roll) { if (H.id !== k.item) { H.id = k.item; H.text = hintSeen[p].has(k.item) ? '' : (hintSeen[p].add(k.item), hintText(k.item, p)); } }
     else { H.id = 0; H.text = ''; }
+    H.why = k.item && !k.roll && typeof sim.whyNot === 'function' ? sim.whyNot(k) : '';   /* a puff while one floats: "a wish puff is already floating" */
   }
 }
 /* the first time each item is held this session: SK.ITEM_HINTS with that player's keys (touch: no toss, so no toss clause) */
@@ -423,8 +432,13 @@ function tick() {
   ut++;
   if (SK.Main.hooks.tick) try { SK.Main.hooks.tick(ut); } catch (e) { report(e); }   /* NET HOOK (net.js): messages in and out, every tick */
   const hk = hits; hits = [];
-  for (const c of hk) onKey(c);
-  if (screen === 'title' || screen === 'tracks') { demoTick(); if (DBG.bot && ut - scrUt > 40 && screen === 'title') startMode(false, false, trackIx); }
+  for (const c of hk) { const menu = screen !== 'race' || paused; if (onKey(c) === true || menu || paused) eat(c); }
+  if (screen === 'title' || screen === 'tracks') {
+    demoTick(); if (DBG.bot && ut - scrUt > 40 && screen === 'title') startMode(false, false, trackIx);
+    /* build the track a race would start on ahead, in idle slices (fix round 1: a cold build froze the picker on slow phones):
+       the highlighted one on the picker, the first Grand Prix track while a GRAND PRIX button is chosen */
+    if (ut % 20 === 0 && typeof RD.prefetch === 'function') try { if (screen === 'tracks') RD.prefetch(TR[trackSel]); else if ((titleSel & 1) === 0 && titleSel < 4) RD.prefetch(TR[0]); } catch (e) { report(e); }
+  }
   else if (sim) {
     if (!paused || live()) {
       const inp = sim.karts.map(() => 0);
@@ -452,7 +466,7 @@ function tick() {
     if (DBG.bot && screen === 'podium' && ut - scrUt > 150) toTitle();
   }
   latch[0] = latch[1] = 0;
-  musicWatch();
+  musicWatch(); postScreen();
 }
 function musicWatch() {
   if (screen === 'title' || screen === 'tracks') return music('title');
@@ -492,7 +506,7 @@ function render() {
       const i = me[p]; RD.drawView(ctx, r, sim, i, t, { slot: p });
       const keyHint = touch ? '' : players === 1 ? 'SHIFT' : p ? 'ENTER' : 'E';
       const cdHint = sim.phase === 'count' ? (touch ? 'Tap DRIFT on 1 for a SPROUT START!' : players === 1 ? 'Tap SPACE when the 1 shows for a SPROUT START!' : (p ? 'RIGHT SHIFT' : 'SPACE') + ' on 1: SPROUT START!') : '';
-      RD.drawHUD(ctx, r, sim, i, t, { banner: banners[p], placeAge: ut - placeUt[p], map: players === 1 && !padMode, touchUp: touch && !padMode && players === 1, me, itemKey: keyHint, hint: cdHint, itemX: players === 2 && p === 1 ? 92 : 0, itemHint: p < 2 ? hint[p].text : '' });
+      RD.drawHUD(ctx, r, sim, i, t, { banner: banners[p], placeAge: ut - placeUt[p], map: players === 1 && !padMode, touchUp: touch && !padMode && players === 1, pauseGap: touch && !padMode && players === 1 && screen === 'race' ? 52 : 0, me, itemKey: keyHint, hint: cdHint, itemX: players === 2 && p === 1 ? 92 : 0, itemHint: p < 2 ? hint[p].text : '', itemWhy: p < 2 ? hint[p].why : '' });
     });
     if (players === 2 && screen !== 'podium') { ctx.fillStyle = '#2b2140'; ctx.fillRect(0, VH / 2 - 2, W, 4); ctx.fillStyle = 'rgba(43,33,64,.45)'; ctx.beginPath(); ctx.rect(4, VH / 2 - 44, 88, 88); ctx.fill(); RD.minimap(ctx, sim, 8, VH / 2 - 40, 80, me); }
     if (padMode && screen !== 'podium') { const ms = Math.min(150, (LH - VH) * 0.3 - 20); RD.minimap(ctx, sim, W / 2 - ms / 2, VH + 14, ms, me); }
@@ -595,7 +609,7 @@ window.__sk = {
   visible(on) { forceVis = on !== false; },
   step(n) { for (let i = 0; i < (n || 1); i++) safeTick(); return ut; },
   render() { safeRender(); },
-  key(code, down) { if (down === false) held.delete(code); else { held.add(code); hits.push(code); latchKey(code); } },
+  key(code, down) { if (down === false) { held.delete(code); swallow.delete(code); } else { held.add(code); hits.push(code); latchKey(code); } },
   start(mode, track, d, seed) { const m = parseMode(mode); diff = parseDiff(d); players = m.two ? 2 : 1; gp = m.gp ? newGp() : null; startRace(m.gp ? 0 : parseTrack(track), seed); return this.state; },
   bot(on) { DBG.bot = on !== false && on !== 0; if (sim) { for (const i of me) sim.bot[i] = DBG.bot; if (DBG.bot) { raceBot = true; if (gp) gp.bot = true; } } },
   give(p, id) { const k = pk(p); if (!k || typeof sim.debugGive !== 'function') return null; sim.debugGive(k, id); return SK.ITEMS[k.item]; },
