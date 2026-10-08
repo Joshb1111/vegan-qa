@@ -1,5 +1,5 @@
 // Far Field polish pass (8 Oct): the guard perception module (FF.Guard) in the game (the searcher, the gate guard's entry, the Works
-// painter), the presses against a held Shift + Right, the opening tumble and its light, "1951", the door, the jump. In the browser.
+// painter), the presses against a held Shift + Right, the opening (creeping out of the hole in the wall) and its light, "1951", the door, the jump. In the browser.
 //   node docs/farfield/tests/t-polish.mjs        (PROGRESS_DIR=<dir> saves the chosen shots there; ONLY=A,B for a subset)
 import { boot, save, shot, sleep } from './lib.mjs';
 const only = process.env.ONLY ? process.env.ONLY.split(',') : null, want = n => !only || only.includes(n);
@@ -14,29 +14,35 @@ const b = await boot({ q: 'q=high&seed=1&mute=1&intro=1' });
 const ev = (s, to) => b.ev(s, to || 300000);
 try {
   await ev(HELP);
-  /* ================================================================ A. THE OPENING (tumble, light shaft) */
+  /* ================================================================ A. THE OPENING (creeping out of the hole in the wall, light shaft) */
   if (want('A')) {
-    await ev('__ff.step(60); true'); await b.key('Enter'); await ev('__ff.step(240); true'); await sleep(800); await ev('__ff.step(2); true');
-    const t0 = await ev('({ mode: __ff.G.mode, vis: FF.G.rabbit.visible, k: FF.Opening.debug().k })');
-    R('A title: the empty scene and its light (the rabbit is not there yet), the shaft is up', t0.mode === 'title' && t0.vis === false && t0.k > 0.9, JSON.stringify(t0));
+    await ev('__ff.step(240); true'); await sleep(800); await ev('__ff.step(2); true');   // no notice any more: the loading screen goes straight to the title
+    const t0 = await ev('({ mode: __ff.G.mode, vis: FF.G.rabbit.visible, k: FF.Opening.debug().k, notice: document.querySelector("#ui .notice").classList.contains("on") })');
+    R('A no content notice: the game opens on the title; the empty scene and its light (the rabbit is not there yet), the shaft is up', t0.mode === 'title' && t0.vis === false && t0.k > 0.9 && !t0.notice, JSON.stringify(t0));
     await shot(b, 'polish-00-title', null);
     await ev("__p.log.length = 0; __ff.command('start'); true");
     const tl = []; let last = 0;
-    for (const T of [0.35, 0.75, 1.15, 1.7, 2.2, 2.9, 3.6, 4.2, 4.7]) {
+    for (const T of [0.2, 0.5, 1.0, 1.5, 2.0, 2.5, 3.0, 3.4, 3.65]) {
       await ev(`__ff.step(${Math.round((T - last) * 120)}); true`); last = T;
-      tl.push(await ev('({ t: +__ff.G.t.toFixed(2), mode: FF.G.rabbit.mode, x: +FF.G.rabbit.x.toFixed(2), y: +FF.G.rabbit.y.toFixed(2), ctl: __ff.G.control })'));
-      if (T === 0.75) await shot(b, 'polish-01-opening-tumble', P('polish-01-opening-tumble.jpg'));
-      if (T === 1.7) await shot(b, 'polish-01b-opening-landing', null);
-      if (T === 3.6) await shot(b, 'polish-02-light-shaft', P('polish-02-light-shaft.jpg'));
+      tl.push(await ev('({ t: +__ff.G.t.toFixed(2), mode: FF.G.rabbit.mode, x: +FF.G.rabbit.x.toFixed(2), y: +FF.G.rabbit.y.toFixed(2), z: +FF.G.rabbit.z.toFixed(2), ctl: __ff.G.control })'));
+      if (T === 0.2) await shot(b, 'opening2-01', P('opening2-01.jpg'));
     }
-    const ev1 = await ev('({ intro: __p.log.filter(e => e[0] === "intro").map(e => e[2].phase + "@" + e[1]), sounds: [...new Set(__p.log.filter(e => e[0] === "sound").map(e => e[2].cue))], puffs: __p.log.filter(e => e[0] === "opening:puff").length, mode: FF.G.rabbit.mode, ctl: __ff.G.control, x: +FF.G.rabbit.x.toFixed(2), hint: !!document.querySelector("#ui .hint.show, #ui .hint:not(.off)") })');
-    R('A the tumble: control is off while it plays (tumble through ~4.3 s), the rabbit lands about x 4.4, then control passes', tl.slice(0, 7).every(q => q.mode === 'tumble' && !q.ctl) && ev1.mode === 'play' && ev1.ctl === true && ev1.x > 4.0 && ev1.x < 4.9, JSON.stringify({ tl, ev1 }));
-    R('A the opening plays its sounds (the tin clang, the far clang behind) and throws dust', ev1.sounds.includes('tin-clang') && ev1.sounds.includes('far-clang') && ev1.puffs >= 4, JSON.stringify(ev1.sounds) + ' puffs ' + ev1.puffs);
+    await ev('__ff.step(60); true');
+    const ev1 = await ev('({ intro: __p.log.filter(e => e[0] === "intro").map(e => e[2].phase + "@" + e[1]), mode: FF.G.rabbit.mode, ctl: __ff.G.control, x: +FF.G.rabbit.x.toFixed(2), z: FF.G.rabbit.z, y: FF.G.rabbit.y })');
+    await shot(b, 'opening2-02', P('opening2-02.jpg'));
+    R('A the opening: he is in the hole (z behind the wall) first, comes out into the lane, control is off while it plays, then passes at about x 2.5 inside the light', tl[0].z < -1.5 && tl[0].x > 0.75 && tl[0].x < 1.55 && tl[4].z > tl[1].z && tl.slice(0, 8).every(q => q.mode === 'tumble' && !q.ctl) && ev1.mode === 'play' && ev1.ctl === true && ev1.x > 2.2 && ev1.x < 2.9 && ev1.z === 0 && ev1.y < 0.05, JSON.stringify({ tl, ev1 }));
     const dur = ev1.intro.map(s => s.split('@')), tEnd = +(dur.find(d => d[0] === 'end') || [0, 99])[1], tSt = +(dur.find(d => d[0] === 'start') || [0, 0])[1];
-    R('A short: control passes within 5 s of the start, and not before 3.5 s', tEnd - tSt <= 5.0 && tEnd - tSt >= 3.5, 'start ' + tSt + ' end ' + tEnd);
-    /* a key held from the arrow that began the game does nothing until it is let go and pressed again */
-    const held = await ev(`(() => { const x0 = FF.G.rabbit.x; __ff.step(60); return { moved: +Math.abs(FF.G.rabbit.x - x0).toFixed(2) }; })()`);
-    R('A after the tumble the rabbit stays where it is until the player moves (nothing carried through)', held.moved < 0.05, JSON.stringify(held));
+    R('A short: control passes between 3 and 4.2 s from the start', tEnd - tSt <= 4.2 && tEnd - tSt >= 3.0, 'start ' + tSt + ' end ' + tEnd);
+    /* nothing but the wall stops him going back left, and he cannot get back through the hole (it is behind the lane) */
+    const back = await ev(`(() => { __p.hold({ left: true }); __ff.step(120 * 6); __p.hold({}); const r = FF.G.rabbit; return { x: +r.x.toFixed(2), z: r.z, solidX1: FF.S1.solids.find(s => s.id === 'thicket').x1 }; })()`);
+    R('A going back left he stops at the wall block (x 0.6 + his half width); the hole stays out of reach (z 0, not -1.7)', back.x >= back.solidX1 - 0.01 && back.x < 0.9 && back.z === 0, JSON.stringify(back));
+    /* after the opening the rabbit stays where it is until the player moves (nothing carried through) */
+    await ev("__ff.release(); __ff.command('title'); __ff.step(5); __ff.command('start'); __ff.step(120 * 4.4); true");
+    const held = await ev(`(() => { const x0 = FF.G.rabbit.x; __ff.step(60); return { x0: +x0.toFixed(2), x1: +FF.G.rabbit.x.toFixed(2), mode: FF.G.rabbit.mode, ctl: __ff.G.control }; })()`);
+    R('A after the opening he stays where he is until the player moves', held.mode === 'play' && held.ctl && Math.abs(held.x1 - held.x0) < 0.05, JSON.stringify(held));
+    /* checkpoints and a restart after the opening are unaffected: the first checkpoint is still the grooming title spot */
+    const rs = await ev(`(() => { FF.Game.restart('verge-start', { reason: 'fail' }); FF.Game.control(true); __ff.step(30); const r = FF.G.rabbit; return { mode: r.mode, x: r.x, z: r.z, vis: r.visible }; })()`);
+    R('A a restart at the first checkpoint puts him in the lane in play (no re-run of the opening)', rs.mode === 'play' && rs.z === 0 && rs.vis === true, JSON.stringify(rs));
     /* ?intro=0 skips it (tests, a retry): the old start */
   }
   /* ================================================================ B. "1951" */

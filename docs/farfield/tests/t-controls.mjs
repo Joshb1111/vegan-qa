@@ -27,8 +27,8 @@ const T = (n, k) => b.ev(`__T.tick(${n}, ${k || 0})`);
 const U = (pred, max, k) => b.ev(`__T.until(s => (${pred}), ${max}, ${k || 0})`);
 const down = k => b.key(k, 'down'), up = k => b.key(k, 'up');
 try {
-  /* ---- the notice -> the title: the controls line */
-  await T(4); await down('Enter'); await up('Enter'); await T(30);
+  /* ---- the title: the controls line */
+  await T(30);   // (no notice screen any more: the game opens on the title)
   R.title = await b.ev(`(() => { const e = document.querySelector('#ui .title .keys'); return { mode: __ff.G.mode, keys: e ? e.textContent.replace(/\\s+/g, ' ').trim() : null } })()`);
   ck('title shows the new controls line', R.title.mode === 'title' && /← ?→ move · Shift run · Space jump · ↓ crouch/.test(R.title.keys), R.title);
   await T(120); await shot('controls-title', 'controls-01-title-keys.jpg');
@@ -68,9 +68,9 @@ try {
   const run = await U('s.x >= 15.6', 120 * 4, 1);
   await up('ShiftLeft');
   const back = await T(60, 1);
-  const rmax = Math.max(...run.map(s => s.vx)), r95 = run.find(s => s.vx >= 2.6);
+  const rmax = Math.max(...run.map(s => s.vx)), r95 = run.find(s => s.vx >= 1.95);
   R.run = { vmax: rmax, t95: r95 ? +(r95.t - run[0].t).toFixed(3) : null, backTo: back.at(-1).vx, backT: (() => { const q = back.find(s => s.vx <= 0.96); return q ? +(q.t - back[0].t).toFixed(3) : null; })(), gait: run.at(-1).g };
-  ck('Shift + direction runs at 2.75 m/s (reached within 0.6 s)', Math.abs(rmax - 2.75) < 0.01 && R.run.t95 != null && R.run.t95 <= 0.6, R.run);
+  ck('Shift + direction runs at 2.06 m/s (the slower run, 8 Oct) (reached within 0.6 s)', Math.abs(rmax - 2.06) < 0.01 && R.run.t95 != null && R.run.t95 <= 0.6, R.run);
   ck('releasing Shift returns to the walk within 0.25 s', R.run.backTo <= 0.951 && R.run.backT != null && R.run.backT <= 0.25, R.run);
   R.hintAfterRun = await b.ev('FF.UI.debug().hint');
   ck('the "Shift run" hint goes once Shift has been used (v2 review)', R.hintAfterRun == null, R.hintAfterRun);
@@ -161,7 +161,7 @@ try {
   R.shiftRestart = { controlBack: back2.at(-1).control, rawRun: await b.ev("FF.Input.raw('run')") };
   await down('ArrowLeft'); const sr = await T(96, 6); await up('ArrowLeft');
   R.shiftRestart.vmax = Math.max(...sr.map(q => Math.abs(q.vx)));
-  ck('Shift held through a failure and restart: the next arrow runs (2.75 m/s)', R.shiftRestart.vmax >= 2.7, R.shiftRestart);
+  ck('Shift held through a failure and restart: the next arrow runs (2.06 m/s)', R.shiftRestart.vmax >= 2.0, R.shiftRestart);
   await T(30);
   /* ---- fix 8 Oct, round 2: an arrow held through a failure's black (auto-repeating, Shift too) never moves the rabbit after the
      restart until it is let go and pressed again (the Search: caught in the open, still holding → , restarted under the deck) */
@@ -179,7 +179,7 @@ try {
     R.heldFail[shift ? 'shift' : 'walk'] = { control: held.at(-1).control, moved: +Math.abs(held.at(-1).x - x0).toFixed(3), latched, againMoved: +Math.abs(again.at(-1).x - held.at(-1).x).toFixed(2), againVmax: Math.max(...again.map(q => Math.abs(q.vx))) };
     await b.ev(`__ff.warp('search-platform'); true`); await T(30);
   }
-  ck('an arrow held through a failure (auto-repeating) does not move the rabbit after the restart; let go and pressed again it walks, with Shift held it runs', R.heldFail.walk.control && R.heldFail.walk.moved === 0 && R.heldFail.walk.latched.includes('right') && R.heldFail.walk.againMoved > 0.3 && R.heldFail.walk.againVmax <= 0.96 && R.heldFail.shift.moved === 0 && R.heldFail.shift.againVmax >= 2.7, R.heldFail);
+  ck('an arrow held through a failure (auto-repeating) does not move the rabbit after the restart; let go and pressed again it walks, with Shift held it runs', R.heldFail.walk.control && R.heldFail.walk.moved === 0 && R.heldFail.walk.latched.includes('right') && R.heldFail.walk.againMoved > 0.3 && R.heldFail.walk.againVmax <= 0.96 && R.heldFail.shift.moved === 0 && R.heldFail.shift.againVmax >= 2.0, R.heldFail);
   await down('ShiftLeft'); await T(10);
   await down('ArrowLeft'); await T(30);
   await down('Escape'); await up('Escape'); await b.ev('__ff.step(1); true'); R.pauseKeys = await b.ev(`(() => { const e = document.querySelector('#ui .pause .keys'); return { mode: __ff.G.mode, text: e ? e.textContent.replace(/\\s+/g, ' ').trim() : null } })()`);
@@ -189,7 +189,7 @@ try {
   const pr = await T(20, 4); await up('ArrowLeft'); await up('ShiftLeft');
   R.pauseResume = { vmax: Math.max(...pr.map(q => Math.abs(q.vx))), run: pr.at(-1).run };
   ck('the pause screen shows the controls line', R.pauseKeys.mode === 'pause' && /Shift run/.test(R.pauseKeys.text || ''), R.pauseKeys);
-  ck('Shift + arrow held through pause and resume (the arrow auto-repeating) still runs', R.pauseResume.vmax >= 2.7, R.pauseResume);
+  ck('Shift + arrow held through pause and resume (the arrow auto-repeating) still runs', R.pauseResume.vmax >= 2.0, R.pauseResume);
   await T(60);
 
   /* ---- v2 review fixes: the Shift reminder on entering the Courtyard for a player who has not run for 60 s */

@@ -11,7 +11,7 @@
 window.FF = window.FF || {};
 (function () {
 let T = null, ctx = null, group = null, shaftMat = null, poolMat = null, motes = null, glowMat = null, puffs = null, puffMat = null, tier = 'high';
-const SRC = { x: 5.45, y: 1.92, z: -2.86, w: 0.40, h: 0.28 }, POOL = { x: 4.25, y: 0.012, z: -0.45 };
+const SRC = { x: 5.45, y: 1.92, z: -2.86, w: 0.40, h: 0.28 }, POOL = { x: 2.7, y: 0.012, z: -0.45 };
 const N_PUFF = 72, puff = { pos: new Float32Array(N_PUFF * 3), vel: new Float32Array(N_PUFF * 3), age: new Float32Array(N_PUFF).fill(9), life: new Float32Array(N_PUFF), size: new Float32Array(N_PUFF), dark: new Float32Array(N_PUFF), next: 0 };
 const rnd = () => FF.rng ? FF.rng() : Math.random();
 let k = 0, t = 0;

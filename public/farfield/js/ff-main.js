@@ -414,7 +414,7 @@ async function boot() {
   booted = true;
   const cpQ = Q.get('cp');
   if (cpQ && Game.cp(cpQ)) { G.mode = 'title'; Game.restart(cpQ, { reason: 'warp' }); call('Camera', 'snap'); setMode('play'); Game.control(true); G.fade = 0; }
-  else { setMode('notice'); call('Camera', 'shot', 'title'); call('UI', 'showNotice'); G.fade = 0; }
+  else { G.fade = 0; Game.toTitle(); }   /* Josh 8 Oct: no content-notice screen; the loading screen goes straight to the title (its begin key unlocks audio) */
   present(0); draw();
   prog(1);
   requestAnimationFrame(t => { last = t; frame(t); });

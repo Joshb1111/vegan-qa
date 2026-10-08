@@ -23,7 +23,7 @@ try {
   R.boot = await b.ev('(() => ({ mode: __ff.G.mode, errors: FF.errors.slice(), ac: window.__probe.ac }))()');
   await b.ev('__ff.step(60); true');
   await shot(b, label + '-00-notice');
-  await b.key('Enter');                                  // Continue on the content notice (real key)
+  /* (no content notice any more: the game opens on the title) */
   R.afterNotice = await b.ev('__ff.G.mode');
   await b.ev('__ff.step(240); true'); await sleep(1600); await b.ev('__ff.step(2); true');
   await shot(b, label + '-01-title');

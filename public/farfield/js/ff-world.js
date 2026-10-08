@@ -357,7 +357,7 @@ const POINT_DEF = {
   amber:    { color: '#ffae4a', intensity: 0.8, distance: 3, pos: [78.85, 3.17, -8.93] },
   doorLamp: { color: '#ffae4a', intensity: 0.6, distance: 3, pos: [110.0, 2.3, -2.9] },
   pipeFill: { color: '#9fb0c2', intensity: 0.32, distance: 1.4, pos: [0, -99, 0] },
-  scrapeFill: { color: '#b8c4d0', intensity: 0.55, distance: 2.4, pos: [2.15, 0.55, 1.1] },   // dusk off the wet grass, under the title sheet
+  scrapeFill: { color: '#b8c4d0', intensity: 0.55, distance: 2.4, pos: [2.15, 0.55, 1.1] },   // dusk off the wet grass, by the opening's hole
 };
 const toArr = v => v == null ? null : Array.isArray(v) ? v.slice(0, 3) : [v.x, v.y, v.z];
 function toColor(c, out) { if (c == null) return out; if (c.isColor) return out.copy(c); return out.copy(FF.lin(typeof c === 'number' ? '#' + c.toString(16).padStart(6, '0') : c)); }
@@ -628,7 +628,6 @@ function buildRain() {
           keep *= ok;
           for (int k = 0; k < 4; k++) { vec4 b = uS2B[k]; if (b.w > 0.5 && p.x >= b.x && p.x <= b.y && p.y <= b.z && p.z > -3.5 && p.z < 0.7) keep = 0.0; }
         }
-        if (p.x > 0.3 && p.x < 2.7 && p.y < mix(1.86, 0.99, clamp((p.x - 0.35) / 2.31, 0.0, 1.0)) && p.z > -1.1 && p.z < 0.8) keep = 0.0;   /* dry beneath the title shelter */
         vec4 mv = modelViewMatrix * vec4(p, 1.0); gl_Position = projectionMatrix * mv; float d = -mv.z;
         vA = keep * (0.3 + 0.7 * fract(seed.w * 7.13)) * smoothstep(1.2, 3.5, d) * (1.0 - smoothstep(14.0, 24.0, d)) * (1.0 - end * 0.85);
         vec3 q = p - uHL; float al = dot(q, uHLd); float c = al / max(length(q), 1e-3);
@@ -748,15 +747,22 @@ function buildVerge() {
   for (let x = -24; x < 3.6; x += 2.4) P.bg('timber', B(x, x + 0.08, 0, 1.1 + rnd() * 0.25, -9.2, -9.12));
   P.bg('metal', B(-24, 3.6, 0.95, 0.97, -9.2, -9.18));
   /* the thicket: the left boundary, a dense dark tangle across the lane */
-  for (let i = 0; i < 150; i++) { const x = -6.0 + rnd() * 6.4, edge = clamp((x + 0.6) / 1.2, 0, 1), r = 0.14 + rnd() * 0.3 * (1 - 0.5 * edge);
+  for (let i = 0; i < 110; i++) { const x = -6.0 + rnd() * 3.4, edge = clamp((x + 0.6) / 1.2, 0, 1), r = 0.14 + rnd() * 0.3 * (1 - 0.5 * edge);
     P.add('thicket', lump(r, x, 0.08 + rnd() * (2.9 - 1.2 * edge), -4.0 + rnd() * 4.9, 1.3, 0.55 + rnd() * 0.6, 1.1), true); }
-  for (let i = 0; i < 26; i++) { const g = new T.CylinderGeometry(0.006, 0.018, 0.8 + rnd() * 1.8, 4); g.translate(0, 0.4, 0); g.rotateZ((rnd() - 0.3) * 1.1); g.rotateX((rnd() - 0.5) * 0.6); g.translate(-1.2 + rnd() * 1.9, 0.6 + rnd() * 2.2, -3.2 + rnd() * 4.2); P.add('thicket', g, true); }
-  /* A5: the title shelter, a sheet of hoarding leaning out from the thicket edge (underside 0.95 over the scrape) */
-  { const x0 = 0.35, y0 = 1.85, x1 = 2.66, y1 = 0.99, len = Math.hypot(x1 - x0, y0 - y1), a = Math.atan2(y0 - y1, x1 - x0);
-    const g = corrugated(len, 1.85, 8, 0.02); g.rotateX(22 * D2R); g.rotateZ(-a); g.translate((x0 + x1) / 2, (y0 + y1) / 2 + 0.06, -0.15); P.add('sheet', g, true);
-    P.add('sheet', tilt(0.05, 0.03, 1.85, -a / D2R, x1 - 0.02, y1 + 0.04, -0.15, 22), true);              // its bent bottom edge
-    P.add('timber', B(2.42, 2.66, 0, 0.42, -1.12, -0.86), true); P.add('timber', B(2.46, 2.62, 0.42, 0.96, -1.05, -0.93), true);   // a broken crate behind the lane props its foot
-    for (let i = 0; i < 3; i++) P.add('soil', sphere(0.16 + rnd() * 0.1, 1.0 + i * 0.6, 0.0, -0.75 - rnd() * 0.3, 1.6, 0.35, 1, 8, 5));
+  for (let i = 0; i < 26; i++) { const g = new T.CylinderGeometry(0.006, 0.018, 0.8 + rnd() * 1.8, 4); g.translate(0, 0.4, 0); g.rotateZ((rnd() - 0.3) * 1.1); g.rotateX((rnd() - 0.5) * 0.6); g.translate(-5.6 + rnd() * 2.8, 0.6 + rnd() * 2.2, -3.2 + rnd() * 4.2); P.add('thicket', g, true); }
+  /* THE OPENING'S WALL (Josh 8 Oct; replaces the title shelter and its tin sheet): the lane's left end is solid concrete, a block
+     out to the lane (x < 0.6, the same extent as the 'thicket' solid) and, behind the lane, a wall face-on to the lens with a small,
+     low hole at its foot (x 0.75..1.55, 0.34 high) that the rabbit creeps out of at the start (FF.Player's opening). The hole is
+     behind the lane (z -1.5), the lane itself is blocked by the end block, so he can never walk back in. */
+  { const HX0 = 0.75, HX1 = 1.55, HY = 0.34, WF = -1.5, WB = -1.95;
+    P.add('vWall', B(-3.0, 0.6, 0, 3.0, WB, 0.9), true);                                                                            // the end block (left of the lane)
+    P.add('vWall2', B(-10.0, HX0, 0, 14, WB, WF), true); P.add('vWall', B(HX1, 3.2, 0, 14, WB, WF), true); P.add('vWall2', B(HX0, HX1, HY, 14, WB, WF), true);   // the wall, the hole cut at its foot
+    P.add('vWallDk', B(HX0, HX1, 0, HY, WB - 0.04, WB), true);                                                                      // the hole's dark back
+    P.add('vWallDk', B(HX0 - 0.1, HX0, 0, HY, WB, WF + 0.04), true); P.add('vWallDk', B(HX1, HX1 + 0.1, 0, HY, WB, WF + 0.04), true);   // its reveals (dark: the sides turn away)
+    P.add('vWallDk', B(HX0, HX1, HY - 0.05, HY, WB, WF + 0.03), true);                                                              // its lintel's underside
+    P.add('vWallDk', B(3.2, 4.2, 0, 14, -2.9, -1.5), true);                                                                         // the return back to the pier
+    P.add('sFloor', B(HX0 - 0.1, HX1 + 0.1, 0, 0.02, WB, WF + 0.5)); P.add('vWall', B(HX0 - 0.16, HX1 + 0.16, HY, HY + 0.06, WB, WF + 0.05));   // a pale slab through the hole and a lip over it: the gap reads
+    for (let i = 0; i < 3; i++) P.add('soil', sphere(0.16 + rnd() * 0.1, 1.0 + i * 0.6, 0.0, -1.2 - rnd() * 0.3, 1.6, 0.35, 1, 8, 5));
     { const g = new T.CircleGeometry(1, 20); g.rotateX(-Math.PI / 2); g.scale(0.85, 1, 0.75); g.translate(2.0, FF.Level.groundY(2.0) + 0.005, -0.25); P.add('scrape', g); } }
   /* the boundary: an enormous wall of precast panels with open joints, starting at a massive pier */
   P.add('vWall', B(4.2, 5.8, 0, 14, -4.85, -2.9), true); P.add('vWallDk', B(4.15, 5.85, 0, 0.16, -4.9, -2.85));
@@ -831,8 +837,8 @@ function buildVerge() {
   P.add('section', B(38.0, 38.9, 0.081, 0.083, -1.4, -1.36)); P.add('section', B(38.45, 38.5, 0.081, 0.083, -1.36, -0.45));  // a crack running back across the slab
   const slab = mkProp('culvertSlab', 38.25, 0.08, -1.2); { const me = new T.Mesh(tilt(0.5, 0.06, 0.42, 6, 0, 0.03, 0, 4), mat('vWall')); me.castShadow = me.receiveShadow = true; slab.add(me); }  // a loose broken piece (the person scrapes at it)
   /* foreground: a few dark tall weeds near the lens (silhouettes, out of the action band) */
-  grass(P, 4400, 0.6, 38.0, WZ + 0.2, 2.4, 0.05, 0.3, '#59605a', { r: 0.009, share: 0.62, skip: (x, z) => (Math.abs(z) < 0.24 && rnd() < 0.9) || (x > 1.2 && x < 3.0 && z > -0.3 && z < 2.6 && rnd() < 0.85) || (x > 36.0 && z > -0.7 && z < 0.7) || (x > 10.7 && x < 11.2 && z > -1.7 && z < 1.25) || (x > 16.8 && x < 17.2) || (x > 37.5) });
-  grass(P, 430, 0.6, 3.8, -1.7, -0.35, 0.14, 0.46, '#3e443c', { r: 0.014, share: 0.06 });          // the tussock behind the scrape (dark, so the pale rabbit reads)
+  grass(P, 4400, 0.6, 38.0, WZ + 0.2, 2.4, 0.05, 0.3, '#59605a', { r: 0.009, share: 0.62, skip: (x, z) => (x < 2.3 && z < -0.12 && rnd() < 0.97) || (Math.abs(z) < 0.24 && rnd() < 0.9) || (x > 1.2 && x < 3.0 && z > -0.3 && z < 2.6 && rnd() < 0.85) || (x > 36.0 && z > -0.7 && z < 0.7) || (x > 10.7 && x < 11.2 && z > -1.7 && z < 1.25) || (x > 16.8 && x < 17.2) || (x > 37.5) });
+  grass(P, 330, 2.4, 3.8, -1.4, -0.35, 0.14, 0.46, '#3e443c', { r: 0.014, share: 0.06 });          // the tussock behind the scrape (dark, so the pale rabbit reads)
   grass(P, 140, -4, 38, 2.8, 5.0, 0.12, 0.42, '#1f221e', { r: 0.008, share: 0.02 });                 // foreground silhouettes
   grass(P, 430, -60, 4, -40, -4.4, 0.2, 0.7, '#4a524c', { r: 0.03, back: true, share: 0.06 });      // the outskirts
   P.done();

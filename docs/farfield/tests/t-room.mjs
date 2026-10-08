@@ -26,7 +26,7 @@ try {
   /* Play again: Continue, then Esc on the title -> exit */
   await b.key('Enter'); R.ready2 = await waitReady(); await sleep(300);
   const fr2 = await b.ev(`(() => { const r = document.querySelector('#arcade iframe').getBoundingClientRect(); return [r.x + r.width / 2, r.y + r.height * 0.85]; })()`); await b.click(fr2[0], fr2[1]); await sleep(150);
-  await b.key('Enter'); await sleep(600); R.title = await b.ev(G('({ mode: w.FF.G.mode, muted: w.FF.G.muted, ui: w.FF.UI.debug() })'));
+  await sleep(600); R.title = await b.ev(G('({ mode: w.FF.G.mode, muted: w.FF.G.muted, ui: w.FF.UI.debug() })'));
   await b.shot(path.join(OUT, 'room-room-game-title.jpg'), 85);
   await b.key('Escape'); await sleep(500);
   R.afterEscTitle = await b.ev(`({ frame: !!document.querySelector('#arcade iframe'), menu: !!document.querySelector('#arcade [data-a=play]') })`);

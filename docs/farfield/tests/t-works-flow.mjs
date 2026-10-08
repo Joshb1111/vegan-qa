@@ -14,7 +14,7 @@ const b = await boot({ q: 'start=works&mute=1&seed=1&q=low' });
 const step = async n => b.ev(`__ff.step(${n || 2}); true`);
 const ui = () => b.ev('FF.UI.debug()');
 const title = () => b.ev(`(() => { const t = document.querySelector('#ui .title'); return { go: t.querySelector('.go').className, cont: t.querySelector('.cont:not(.works)').textContent, contSel: t.querySelector('.cont:not(.works)').classList.contains('sel'), works: t.querySelector('.cont.works').textContent, worksSel: t.querySelector('.cont.works').classList.contains('sel') }; })()`);
-const toTitle = async () => { await step(30); await b.key('Enter'); await step(30); await sleep(100); };
+const toTitle = async () => { await step(30); await b.ev('__ff.Game.toTitle(); true'); await step(30); await sleep(100); };   // (no notice screen any more: the game opens on the title)
 try {
   /* 1. the notice */
   const notice = await b.ev(`document.querySelector('#ui .notice p').textContent`);

@@ -646,7 +646,7 @@ function ProcAnim(rig, opt) {
     const k = sstep(2.2, -2.2, s.vy); // 0 rising, 0.5 at the apex (level), 1 falling
     /* Josh (8 Oct): the jump looked stiff. Nose up while rising (stretched, hind legs trailing back), level at the apex, nose down
        falling with the hind legs still trailing so the front paws reach the ground first (the landing settle brings the haunches down) */
-    o.rootY = 0; o.pitch = lerp(0.52, -0.42, k); o.spine = lerp(-0.3, -0.04, k); o.neck = 0; o.head = lerp(-0.26, 0.1, k);
+    o.rootY = 0; o.pitch = 0; o.spine = lerp(-0.3, -0.04, k); o.neck = 0; o.head = lerp(-0.26, 0.1, k);
     o.hL = o.hR = lerp(-1.15, -0.3, k); o.hkL = o.hkR = lerp(0.1, 0.3, k); o.hfL = o.hfR = lerp(-0.6, -0.25, k);
     o.fL = o.fR = lerp(0.7, 0.5, k); o.fkL = o.fkR = lerp(0.05, 0.15, k);
     o.earL = o.earR = lerp(-0.55, -0.15, k); o.earSL = o.earSR = 0.08; o.tail = 0.2;

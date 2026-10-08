@@ -12,6 +12,7 @@ load; t 2400 node play.mjs fast "q=high&seed=1&mute=1" sneak-fast-mute > out/sne
 load; t 2400 node play.mjs firsttimer "q=high&seed=1" firsttimer > out/firsttimer.log 2>&1
 load; t 600 node scen.mjs > out/scen.log 2>&1
 load; t 600 node t-controls.mjs > out/controls.log 2>&1
+load; t 600 node t-floor.mjs > out/floor.log 2>&1
 load; t 1200 node t-reveal.mjs > out/reveal.log 2>&1
 load; t 400 node t-slide.mjs > out/slide.log 2>&1
 load; t 400 node t-detect.mjs > out/detect.log 2>&1
