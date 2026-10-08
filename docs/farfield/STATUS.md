@@ -1,5 +1,11 @@
 # Far Field: status (8 Oct 2026: Sequence 2, The Works, is playable after Sequence 1 v2 with the review fixes)
 
+## S2.3 Josh's real models behind switches (8 Oct)
+
+`?rabbit=tripo` loads `models/ff_rabbit_tripo.glb` (the default stays the code-built rabbit; `models.json` is unchanged) and `?people=models` loads `ff_guard1.glb` (the Verge person), `ff_guard2.glb` (the searcher) and `ff_guard3.glb` (the walkway worker and the painter), each with its `.clips.json`; no AI, timing, perception or position changed.
+
+Known: the guards carry their own props (the searcher's rifle is always in his hands, the worker has no coil of cable), the 180 degree turn swings the way the clip turns, and the stairs and the step-down play the walk clip.
+
 ## S2.2 Held keys after a failure; the presses close cleanly over the slots (8 Oct, second round of the review)
 
 The engineering and fairness reviewers played the §S2.1 fixes again. Two things were left; nothing else changed (the look, the sound, the machine's grammar and beat, the rabbit's moves and speeds are as they were). Progress shots: `farfield-look/progress/s2fix2-01` … `s2fix2-08`.

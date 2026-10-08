@@ -244,8 +244,14 @@ function buildProcedural(L, opt) {
    (the procedural mesh or a supplied model's meshes): the self-lift (the world sets it per place in look.rabbit.lift; the
    player pushes it each frame) and a rim multiplier (the rim drops to behave.hideRim in a hide core, never to zero) */
 const RU = { lift: { value: 0.006 }, rimK: { value: 1 } };
+const SOFT_K = 3.0, SOFT_C = 4.8;
 function rabbitMaterial(L, extra) {
   const R = L.materials.rabbit;
+  /* extra.softCap (supplied models only): a soft ceiling on this material's own output, so a pale coat never reaches the bloom
+     threshold (ff-config grade.bloomThreshold 5.0) in the brightest light pool and grows a halo. A knee from SOFT_K that
+     approaches SOFT_C (< the threshold) and never reaches it; below the knee the colour is untouched, so he looks the same
+     everywhere else. */
+  const softCap = !!(extra && extra.softCap); if (extra && 'softCap' in extra) { extra = Object.assign({}, extra); delete extra.softCap; }
   RU.lift.value = (L.rabbit && L.rabbit.lift) || 0.006;
   /* works: the Works' lighting hooks reach the rabbit too (the press lamps' footprint: dark in the slots), as on its sets */
   const m = FF.mat({ color: extra && extra.map ? '#ffffff' : (extra && extra.vertexColors ? '#ffffff' : R.color), roughness: R.roughness, rim: true, noAO: true, lift: RU.lift.value || 0.006, works: true },
@@ -255,8 +261,14 @@ function rabbitMaterial(L, extra) {
     ob.call(m, sh, r);
     sh.uniforms.uFFLift = RU.lift; sh.uniforms.uFFRabRimK = RU.rimK;
     sh.fragmentShader = 'uniform float uFFRabRimK;\n' + sh.fragmentShader.replace('totalEmissiveRadiance += uFFRim.rgb', 'totalEmissiveRadiance += uFFRabRimK * uFFRim.rgb');
+    if (softCap) {
+      const K = SOFT_K.toFixed(2), E = (SOFT_C - SOFT_K).toFixed(2);
+      sh.fragmentShader = sh.fragmentShader.replace('#include <dithering_fragment>', `{ float ffM = max( gl_FragColor.r, max( gl_FragColor.g, gl_FragColor.b ) );
+      if ( ffM > ${K} ) gl_FragColor.rgb *= ( ${K} + ${E} * ( 1.0 - exp( -( ffM - ${K} ) / ${E} ) ) ) / ffM; }
+    #include <dithering_fragment>`);
+    }
   };
-  m.customProgramCacheKey = () => (ck ? ck.call(m) : '') + '|ffrab1';
+  m.customProgramCacheKey = () => (ck ? ck.call(m) : '') + '|ffrab1' + (softCap ? 'c' : '');
   return m;
 }
 
@@ -990,6 +1002,42 @@ function ModelAnim(root, clips, holder, opts) {
     const ikW = clamp((R.anim.st.last && R.anim.st.last.ik) || 0, 0, 1) * w;
     if (ikW > 0.001) for (const [a, b, c, sign] of LEGS) { const p = R.Pp[c]; legIK(bone[a], bone[b], bone[c], add2([p.y, p.z], R.endOff[c]), sign, ikW, holder, sign > 0 ? R.scap : 0); }
   }
+  /* The stop. Crossfading a moving clip into the standing clip drags the planted feet across the ground to the standing pose
+     (a skid of ~0.3 s: about 15 cm of foot travel over the four feet at the end of a run). So when a moving clip hands over to
+     the stand, the feet on the ground are held where they landed (leg IK) for as long as he stands; the body takes the standing
+     pose over them. When something else begins, they step to the clip's places (a small lift) or, if he moves off, are let go. */
+  let lock = null, lockSaved = null, standY = null;
+  if (by.idle_breathe && NEED.every(n => bone[n])) {   // the standing clip's ankle heights: a foot near them is on the ground
+    standY = {}; const mx = new T.AnimationMixer(root), ac = mx.clipAction(by.idle_breathe); ac.play(); mx.setTime(0); root.updateMatrixWorld(true);
+    for (const [, , c] of LEGS) standY[c] = yz(bone[c], holder)[0];
+    ac.stop(); mx.uncacheClip(by.idle_breathe); restore(); root.updateMatrixWorld(true);
+  }
+  const LOCK_STEP = 0.3, LOCK_GO = 0.12, LOCK_LIFT = 0.010;
+  function lockFeet() {
+    if (!standY) return;
+    lock = { rel: -1, dur: LOCK_STEP, legs: [] };
+    for (const l of LEGS) addLock(l);
+  }
+  /* a foot within a few mm of the standing height is on the ground: held there (a foot still in the air is held once it lands) */
+  function addLock(l) {
+    if (lock.legs.some(g => g.l === l)) return;
+    const p = yz(bone[l[2]], holder); if (p[0] < standY[l[2]] + 0.008) lock.legs.push({ l, p: [standY[l[2]], p[1]] });
+  }
+  /* (the mixer writes a bone only when its animated value changes, so the clip's own pose is put back before each update) */
+  function unlock() { if (lockSaved) { for (const [b, q] of lockSaved) b.quaternion.copy(q); lockSaved = null; } }
+  function applyLock(dt, hold, quick) {
+    if (!hold && lock.rel < 0) { lock.rel = 0; lock.dur = quick ? LOCK_GO : LOCK_STEP; }
+    if (lock.rel >= 0) lock.rel += dt / lock.dur;
+    const u = lock.rel < 0 ? 0 : clamp(lock.rel, 0, 1), k = u * u * (3 - 2 * u);
+    if (lock.rel >= 1) { lock = null; return; }
+    if (lock.rel < 0 && lock.legs.length < 4) for (const l of LEGS) addLock(l);
+    lockSaved = [];
+    for (const g of lock.legs) {
+      const [a, b, c, sign] = g.l, cur = yz(bone[c], holder);
+      for (const n of [a, b, c]) lockSaved.push([bone[n], bone[n].quaternion.clone()]);
+      legIK(bone[a], bone[b], bone[c], [g.p[0] + (cur[0] - g.p[0]) * k + LOCK_LIFT * Math.sin(Math.PI * u), g.p[1] + (cur[1] - g.p[1]) * k], sign, 1, holder, 0);
+    }
+  }
   function update(dt, s) {
     landT += dt; if (s.landed) landT = 0;
     if (s.pose === 'loaf') loafIn += dt; else loafIn = 0;
@@ -1002,6 +1050,7 @@ function ModelAnim(root, clips, holder, opts) {
     const v = s.speed || 0, c = name && cal[name], native = (c && c.speed) || LOCO[name] || 1, g = s.gait;
     let sync = null;
     if (LOCO[name] != null && !curLoco && g && g.phase != null && c && c.touch != null) sync = ((g.phase + c.touch) % 1 + 1) % 1;
+    if (curLoco && LOCO[name] == null && want.idle && !lock && mode !== 'proc' && NEED.every(n => bone[n])) lockFeet();
     const a = name ? play(name, name.startsWith('jump') ? 0.06 : 0.16, want.once && name === want.name, sync) : null;
     if (a) {
       if (want.air && !/^jump/.test(name)) { a.time = ((c && c.extend != null ? c.extend : 0.35) * by[name].duration); ts = 0; }        // a missing jump clip: hold the run's stretched-out moment
@@ -1022,8 +1071,9 @@ function ModelAnim(root, clips, holder, opts) {
     }
     wP = damp(wP, useProc ? 1 : 0, 1 / 0.15, dt); if (!R) wP = 0;
     if (wP > 0.001 && wP < 0.999) for (const m of R.map) { m.b.quaternion.copy(m.restQ); m.b.position.copy(m.restP); }
-    mixer.update(dt);
+    unlock(); mixer.update(dt);
     if (wP > 0.001) retarget(s, wP);
+    if (lock) { if (wP < 0.5) { root.updateMatrixWorld(true); applyLock(dt, want.idle && !want.pose, LOCO[name] != null); } else lock = null; }
     /* live layers on the model's own bones (additive to a clip): ears turn to sounds, the head follows */
     const k = 1 - wP;
     if (k > 0.001 && s.ears && bone.ear_L_01 && bone.ear_R_01) {
@@ -1038,11 +1088,13 @@ function ModelAnim(root, clips, holder, opts) {
     update, mixer, clips: Object.keys(by), cal, retarget: !!R, mode, unusable: Object.keys(LOCO).filter(n => by[n] && unusable(n)),
     setFail(kind) { fail = kind || null; },
     get current() { return curName; },
-    debug() { return { clip: curName, want: want && want.name, ts: +ts.toFixed(3), proc: +wP.toFixed(2), retarget: !!R, mode }; },
+    debug() { return { clip: curName, want: want && want.name, ts: +ts.toFixed(3), proc: +wP.toFixed(2), retarget: !!R, mode, lock: lock ? lock.legs.length + (lock.rel < 0 ? " held" : " rel" + lock.rel.toFixed(2)) : 0 }; },
   };
 }
 
 /* ------------------------------------------------------------------ loading */
+/* short names for ?rabbit=: 'tripo' is the Tripo rabbit (rigged 8 Oct; clips idle_breathe, walk, hop_run) */
+const MODEL_ALIAS = { tripo: 'ff_rabbit_tripo.glb' };
 function loadScript(src) { return new Promise((res, rej) => { const s = document.createElement('script'); s.src = src; s.onload = res; s.onerror = () => rej(new Error('script ' + src)); document.head.appendChild(s); }); }
 FF.loadGLTFLoader = () => T.GLTFLoader ? Promise.resolve() : loadScript('https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/GLTFLoader.js');
 
@@ -1057,7 +1109,7 @@ async function loadModel(url, L) {
   /* the matte look is enforced: keep the model's colour / texture / vertex colours, replace the shading */
   scene.traverse(o => {
     if (!o.isMesh) return; const src = o.material;
-    o.material = rabbitMaterial(L, { vertexColors: !!(o.geometry.attributes.color), map: src.map || null, skinning: !!o.isSkinnedMesh });
+    o.material = rabbitMaterial(L, { vertexColors: !!(o.geometry.attributes.color), map: src.map || null, skinning: !!o.isSkinnedMesh, softCap: true });
     if (!src.map && !o.geometry.attributes.color && src.color) o.material.color.copy(src.color);
     o.castShadow = true; o.receiveShadow = true; o.frustumCulled = false;
   });
@@ -1079,7 +1131,7 @@ FF.Rabbit = {
     const want = q ? q : (opts.file || null);
     let rig = null;
     if (want && want !== 'procedural') {
-      const file = want.replace(/[^\w./-]/g, '').replace(/\.\.+/g, '');
+      const file = (MODEL_ALIAS[want] || want).replace(/[^\w./-]/g, '').replace(/\.\.+/g, '');
       try {
         const m = await loadModel('models/' + file, L);
         if (m) {

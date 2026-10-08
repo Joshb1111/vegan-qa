@@ -161,7 +161,9 @@ const Painter = FF.Painter = {
       else if (kind === 'turn' || kind === 'scrape-hard') { yaw = wall; turnRate = (Math.PI / 2) / 0.8 * 1.25; }
       else { yaw = side; turnRate = (Math.PI / 2) / 0.6 * 1.25; head = { yaw: 0, pitch: -0.3 }; }
     }
-    fig.set({ visible: show, x: D().x, y: 0, z: D().z, yaw, anim: 'idle', speed: 0, head, turnRate });
+    /* the real model (?people=models) plays its scraping clip while he scrapes; everything else is the idle clip with his head and arms layered (the stand-in poses its own bones in pose()) */
+    const scraping = kind === 'scrape' || kind === 'scrape-hard' || kind === 'dip';
+    fig.set({ visible: show, x: D().x, y: 0, z: D().z, yaw, anim: fig.model && fig.model.guard && scraping ? 'scrape' : 'idle', speed: 0, head, turnRate });
     if (own) own.visible = show; if (lampHead && ownHead) lampHead.visible = show;
     if (show) pose(kind, u, dt);
     lamp(show);
@@ -181,7 +183,14 @@ const Painter = FF.Painter = {
 /* ---------------------------------------------------------------- the pose (bone overrides after FF.Humans.frame) */
 let strokeT = 0;
 function pose(kind, u, dt) {
-  const b = fig.bones; if (!b || fig.model) return;
+  const b = fig.bones; if (!b) return;
+  if (fig.model) {
+    /* a model: its clips do the scraping; the lamp arm and the rag reach are layered on its idle (ff-humans.js, s.arms: figure-space swings) */
+    let arms = null;
+    if (kind === 'reach') { const e = Math.sin(Math.PI * Math.min(1, u * 1.1)); arms = { L: [-0.75 * e, -0.2 * e], R: null }; }
+    else if (kind === 'lift-lamp' || kind === 'hold' || kind === 'lower' || kind === 'hang') { const e = kind === 'lift-lamp' ? u : kind === 'hang' ? 1 - u : 1; arms = { L: [-0.42 * e, -1.05 * e], R: null }; }
+    fig.st.arms = arms; return;
+  }
   const hard = P.hard ? 1 : 0, hz = hard ? PR().hardStrokeHz : PR().strokeHz;
   const scraping = kind === 'scrape' || kind === 'scrape-hard' || kind === 'dip';
   if (scraping) strokeT += dt;

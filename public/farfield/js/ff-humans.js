@@ -17,12 +17,15 @@
    shoulders rounded forward, head carried a little low.
    Model slots: models/models.json "human" / "van" (ASSETS-3D.md). No file = these stand-ins. A file is loaded lazily
    (GLTFLoader r128) and driven by its named clips; props by node name (prop_torch, prop_longgun, prop_coil, prop_pack).
+   THE REAL PEOPLE (8 Oct): ?people=models draws the three rigged guard models instead of the stand-in: ff_guard1.glb (the Verge
+   person), ff_guard2.glb (the searcher), ff_guard3.glb (the walkway worker and the Works painter). Visual only: see the section
+   "the real people" below. Default (no switch) is unchanged.
    OWNER: the humans + events builder. API contract: docs/farfield/INTERFACES.md §8.5. */
 'use strict';
 window.FF = window.FF || {};
 (function () {
 const T = THREE, U = FF.util, D2R = Math.PI / 180;
-let ctx = null, mat = null, lensMat = null, depthMat = null, vanMat = null, tyreMat = null, vanGlowHead = null, vanGlowWork = null, vanGlowMarker = null;
+let ctx = null, mat = null, propMat = null, lensMat = null, depthMat = null, vanMat = null, tyreMat = null, vanGlowHead = null, vanGlowWork = null, vanGlowMarker = null;
 const figures = [], vans = [];
 
 /* ================================================================== the stand-in skeleton (rest pose, facing +Z, feet at 0)
@@ -297,12 +300,210 @@ async function useModel(f, file) {
   f.object.remove(f.body); f.body = m; f.object.add(m); f.model = { mixer, clips, cur: null, emitter: node('torch_emitter') };
   f.lens.visible = false;
 }
-function modelPose(f, dt) {
+function modelPoseLegacy(f, dt) {
   const M = f.model, s = f.st; let name = CLIP[s.anim] || 'idle'; if (s.aim > 0.5) name = 'aim_hold'; if (!M.clips[name]) name = M.clips.idle ? 'idle' : null;
   if (name && name !== M.cur) { const a = M.clips[name]; if (M.cur && M.clips[M.cur]) M.clips[M.cur].fadeOut(0.25); a.reset().fadeIn(0.25).play(); M.cur = name; }
   if (name && /walk|run/.test(name)) M.clips[name].timeScale = (s.speed || 0) / (name === 'run' ? 2.6 : name === 'walk' ? 1.3 : 1.0) || 1;
   M.mixer.update(dt);
 }
+
+/* ================================================================== the real people (?people=models)
+   Josh's three rigged characters (Tripo figures on Mixamo skeletons, 8 Oct): models/ff_guard1.glb (the Verge person at the gate),
+   ff_guard2.glb (the Search's armed searcher), ff_guard3.glb (the Courtyard walkway worker and the Works painter), each with its
+   clips and a ff_guardN.clips.json (the planted-foot speed of every moving clip). VISUAL ONLY: every routine, timing, perception
+   rule and position stays with the owners (AI, Events, Painter). What a stand-in does (its `anim` name) is mapped to the nearest
+   clip; moving clips play at ground speed / planted-foot speed (so the feet do not slide at the game's pace; the clips are faster
+   than the game); and code layers stay on top of the clips: the head (look target), the torch arm (aimed so the torch points where
+   its light does), the gun's pitch, a lunge, a reach, the painter's lamp arm. The torch light sits on the model's torch_emitter
+   node (its beam along +Z). Bone names lose the colon in three.js (mixamorigRightHand).
+   The 180 degree turn: turn_180 turns the body in the clip itself. So while the searcher turns, the figure's own yaw is held and
+   the clip does the turning (its progress follows the turn the AI is making, and at the end the figure takes the AI's yaw, which
+   the clip's last pose already faces: a hard cut, no blend). */
+function peopleOn() {
+  try { if (/(^|[?&])people=models(&|$)/.test(location.search)) return true; } catch (_) {}
+  return !!(FF.MODELS && FF.MODELS.people === 'models');
+}
+const PEOPLE_FILE = { verge: 'ff_guard1.glb', searcher: 'ff_guard2.glb', worker: 'ff_guard3.glb', painter: 'ff_guard3.glb' };
+/* per role: idle, walk (an upright walk), search (the careful walk with the torch out), run, and the role's own clips */
+const PEOPLE_CLIPS = {
+  verge:    { idle: 'idle', walk: 'walk', search: 'sneak', run: 'run', kneel: 'kneel', unlock: 'unlock_loop', torchIn: 'torch_down_in', torch: 'torch_down_loop' },
+  searcher: { idle: 'rifle_idle', walk: 'walk', search: 'walk_rifle', run: 'run', kneel: 'kneel', aim: 'aim', aimHold: 'aim_hold', turn: 'turn_180' },
+  worker:   { idle: 'idle', walk: 'walk', search: 'walk', run: 'run', rail: 'rail_look_out' },
+  painter:  { idle: 'idle', walk: 'walk', search: 'walk', run: 'run', scrape: 'scrape_wall_loop' },
+};
+const FOOT_FALLBACK = { walk: 1.86, walk_rifle: 1.35, sneak: 2.3, run: 4.8 };        // m/s, if a clips.json can't be read
+const MB = { hips: 'mixamorigHips', spine: 'mixamorigSpine', chest: 'mixamorigSpine2', neck: 'mixamorigNeck', head: 'mixamorigHead',
+  upperArmL: 'mixamorigLeftArm', foreArmL: 'mixamorigLeftForeArm', handL: 'mixamorigLeftHand', upperArmR: 'mixamorigRightArm', foreArmR: 'mixamorigRightForeArm', handR: 'mixamorigRightHand',
+  thighL: 'mixamorigLeftUpLeg', shinL: 'mixamorigLeftLeg', footL: 'mixamorigLeftFoot', thighR: 'mixamorigRightUpLeg', shinR: 'mixamorigRightLeg', footR: 'mixamorigRightFoot' };
+const MOVING = { walk: 'walk', 'door-step-in': 'search', 'walk-search': 'search', climb: 'search', descend: 'search', 'step-down': 'search', run: 'run' };
+const AIM_RAISE = 0.5;                    // seconds of the aim clip that raise the rifle (then it holds): scrubbed with s.aim
+const DOWN_T = 0.8;                       // seconds a kneel / crouch takes to go down (the stand-in took ~0.5 s)
+const speedCache = {};
+function footSpeeds(file) {
+  const j = file.replace(/\.glb$/, '.clips.json');
+  if (!speedCache[j]) speedCache[j] = fetch('models/' + j).then(r => r.ok ? r.json() : null).then(d => {
+    const o = {}; if (d && d.clips) for (const k in d.clips) o[k] = d.clips[k].planted_foot_speed_mps; return o; }).catch(() => ({}));
+  return speedCache[j];
+}
+const _v = new T.Vector3(), _w = new T.Vector3(), _q = new T.Quaternion(), _q2 = new T.Quaternion(), _q3 = new T.Quaternion();
+const wrapPI = a => { a = (a + Math.PI) % (2 * Math.PI); if (a < 0) a += 2 * Math.PI; return a - Math.PI; };
+/* the code layers are applied after the clips every frame, and the mixer only writes a bone whose animated value changed, so each
+   layer first saves the bone's clip pose and the next frame puts it back before the mixer runs (else a layer would pile up on a held pose) */
+function restoreLayers(M) { for (const [b, q] of M.saved) b.quaternion.copy(q); M.saved.clear(); }
+function save(M, b) { if (!M.saved.has(b)) M.saved.set(b, b.quaternion.clone()); }
+/* turn a bone about an axis fixed in the figure's own space (x its sideways, y up) by ang (rotation.x < 0 swings a hanging limb forward) */
+function swing(M, b, axis, ang) {
+  if (!b || Math.abs(ang) < 1e-5) return;
+  save(M, b);
+  M.group.getWorldQuaternion(_q);
+  _v.set(axis === 'x' ? 1 : 0, axis === 'y' ? 1 : 0, axis === 'z' ? 1 : 0).applyQuaternion(_q);
+  b.parent.getWorldQuaternion(_q2).invert(); _v.applyQuaternion(_q2).normalize();
+  b.quaternion.premultiply(_q3.setFromAxisAngle(_v, ang)); b.updateMatrixWorld(true);
+}
+/* turn the torch arm (the forearm half way, then the wrist) so the torch's beam axis (+Z of torch_emitter) points along dir, by at
+   most maxA in all, weighted w */
+function aimEmitter(M, dir, w, maxA) {
+  const em = M.emitter; if (!em || w < 0.001) return;
+  for (const [b, share] of [[M.b.foreArmL, 0.5], [M.b.handL, 1.0]]) {
+    if (!b) continue;
+    em.getWorldQuaternion(_q); _v.set(0, 0, 1).applyQuaternion(_q);
+    const ang = _v.angleTo(dir); if (ang < 1e-3) continue;
+    const k = Math.min(1, maxA / ang) * w * share;
+    _q2.setFromUnitVectors(_v, dir); _q3.identity().slerp(_q2, k);
+    save(M, b); b.getWorldQuaternion(_q); _q.premultiply(_q3);
+    b.parent.getWorldQuaternion(_q2).invert(); b.quaternion.copy(_q2.multiply(_q)); b.updateMatrixWorld(true);
+  }
+}
+/* the part of a kneel clip that goes down (from where the hips start to drop to where they bottom out), as its own clip */
+function descentClip(root, bones, clip) {
+  const mixer = new T.AnimationMixer(root), hips = bones[MB.hips], N = Math.max(2, Math.round(clip.duration * 30)), ys = [];
+  const act = mixer.clipAction(clip); act.play();
+  for (let i = 0; i <= N; i++) { mixer.setTime(Math.min(i / 30, clip.duration - 1e-4)); root.updateMatrixWorld(true); hips.getWorldPosition(_v); ys.push(_v.y); }
+  act.stop(); mixer.uncacheAction(clip); mixer.uncacheClip(clip);
+  const mn = Math.min(...ys); let f1 = ys.findIndex(y => y < mn + 0.02), f0 = 0; if (f1 < 1) f1 = ys.length - 1;
+  for (let i = 0; i < f1; i++) if (ys[i] < ys[0] - 0.03) { f0 = Math.max(0, i - 2); break; }
+  return T.AnimationUtils.subclip(clip, clip.name + '_down', f0, f1 + 1, 30);
+}
+async function useGuard(f) {
+  const role = f.role, file = PEOPLE_FILE[role] || PEOPLE_FILE.searcher, tab = PEOPLE_CLIPS[role] || PEOPLE_CLIPS.searcher;
+  const [gltf, feet] = await Promise.all([parseModel(file), footSpeeds(file)]);
+  const m = gltf.scene, bone = {};
+  m.traverse(o => { if (o.name) bone[o.name] = o; });
+  /* the same charcoal for everything; a material can't be shared between a skinned and a plain mesh in r128 (the skinned body then
+     draws unskinned), so the props (torch, gun, pack, scraper) get their own */
+  if (!propMat) propMat = FF.mat({ color: '#1a1d21', roughness: 0.9, rim: true });
+  m.traverse(o => { if (o.isMesh) { o.castShadow = true; o.receiveShadow = true; o.frustumCulled = false; o.material = o.isSkinnedMesh ? mat : propMat; if (o.isSkinnedMesh) o.customDepthMaterial = depthMat; } });
+  const rest = Object.values(bone).filter(o => o.isBone).map(b => [b, b.position.clone(), b.quaternion.clone(), b.scale.clone()]);
+  const mixer = new T.AnimationMixer(m), clips = {}, acts = {};
+  for (const c of gltf.animations || []) clips[c.name] = c;
+  const down = {};                                           // name -> { clip, dur }: a kneel's going-down part
+  for (const n of [tab.kneel]) if (n && clips[n] && bone[MB.hips]) { try { const c = descentClip(m, bone, clips[n]); down[n] = c; } catch (e) { FF.report && FF.report(e, 'Humans.guard descent ' + n); } }
+  for (const [b, p, q, sc] of rest) { b.position.copy(p); b.quaternion.copy(q); b.scale.copy(sc); }   // back to the bind pose
+  m.updateMatrixWorld(true);
+  const act = n => { if (!n) return null; if (!acts[n]) { const c = down[n] || clips[n]; if (c) acts[n] = mixer.clipAction(c); } return acts[n] || null; };
+  const b = {}; for (const k in MB) b[k] = bone[MB[k]] || null;
+  const M = { guard: true, role, tab, mixer, clips, down, acts, act, bone, b, feet, group: f.object, emitter: bone.torch_emitter || null, saved: new Map(),
+    cur: null, curName: '', curKind: '', turn: null, prevYaw: null, unlockK: 0, downT: 0 };
+  f.object.remove(f.body); f.body = m; f.object.add(m); f.model = M;
+  Object.assign(f.bones, Object.fromEntries(Object.keys(MB).filter(k => b[k]).map(k => [k, b[k]])));     // painter / tests reach hands, feet, head by the stand-in's names
+  if (M.emitter && f.lens) { f.lens.parent && f.lens.parent.remove(f.lens); M.emitter.add(f.lens); f.lens.position.set(0, 0, 0.004); f.lens.rotation.set(0, 0, 0); }
+  f.lens.visible = !!f.props.torch;
+  f._tgt = f._tgt || null;
+  console.log('[farfield] people: ' + role + ' = models/' + file + ' (' + Object.keys(clips).length + ' clips' + (M.emitter ? ', torch_emitter' : '') + ')');
+}
+/* which clip this moment of the stand-in's `anim` asks for, and how to play it */
+function chooseGuard(f) {
+  const M = f.model, s = f.st, T_ = M.tab, v = f.vt != null ? f.vt : (s.speed || 0);
+  let a = s.anim || 'idle'; if (a === 'stand') a = 'idle';
+  if (a === 'turn' && T_.turn && M.clips[T_.turn]) return { name: T_.turn, kind: 'turn' };
+  if (MOVING[a] && v > 0.05) {
+    const key = MOVING[a], name = T_[key] && M.clips[T_[key]] ? T_[key] : T_.walk;
+    const foot = M.feet[name] || FOOT_FALLBACK[name] || 1.8;
+    return { name, kind: 'loco', rate: U.clamp(v / foot, 0.2, 2.6) };
+  }
+  if (a === 'aim' || (s.aim || 0) > 0.5) {
+    if ((s.aim || 0) > 0.999 && M.clips[T_.aimHold]) return { name: T_.aimHold, kind: 'aimhold' };
+    if (T_.aim && M.clips[T_.aim]) return { name: T_.aim, kind: 'aimscrub' };       // the raise / lower follows the AI's own ramp (s.aim)
+  }
+  if ((a === 'kneel' || a === 'crouch-look' || a === 'reach' || a === 'shake-sheet') && T_.kneel && !(a === 'reach' && T_.torch)) return { name: T_.kneel, kind: 'down' };
+  if ((a === 'torch-down' || a === 'reach') && T_.torch) return { name: T_.torchIn, kind: 'torch' };
+  if (a === 'unlock' && T_.unlock) return { name: T_.unlock, kind: 'unlock' };
+  if (a === 'rail-look-out' && T_.rail) return { name: T_.rail, kind: 'loop' };
+  if (a === 'scrape' && T_.scrape) return { name: T_.scrape, kind: 'loop' };
+  return { name: T_.idle, kind: 'loop' };
+}
+function guardPose(f, dt, fresh) {
+  const M = f.model, s = f.st, g = f.object;
+  g.updateMatrixWorld(true);
+  restoreLayers(M);
+  const want = chooseGuard(f); let name = want.name, kind = want.kind;
+  /* the turn: hold the figure's yaw at where the turn began; the clip turns the body, in step with the AI's yaw */
+  if (kind === 'turn') {
+    if (!M.turn) M.turn = { y0: M.prevYaw != null ? M.prevYaw : f.yaw };
+  } else if (M.turn) M.turn = null;
+  const leavingTurn = M.curKind === 'turn' && kind !== 'turn';
+  let a = M.act(name);
+  if (!a) { name = M.tab.idle; kind = 'loop'; a = M.act(name); }
+  if (!a) return;
+  /* a down clip plays its going-down part once and holds; torch_down_in plays once and hands over to torch_down_loop */
+  let once = kind === 'down' || kind === 'turn' || (kind === 'torch' && name === M.tab.torchIn), nameNow = name;
+  if (kind === 'torch' && M.cur === M.act(M.tab.torchIn) && M.cur && M.cur.time >= M.cur.getClip().duration - 0.04) { nameNow = M.tab.torch; once = false; a = M.act(nameNow); }
+  else if (kind === 'torch' && M.curName === M.tab.torch) { nameNow = M.tab.torch; once = false; a = M.act(nameNow); }
+  const cut = fresh || leavingTurn;
+  if (a !== M.cur) {
+    const prev = M.cur, prevLoco = M.curKind === 'loco';
+    if (cut) M.mixer.stopAllAction();
+    a.reset(); a.enabled = true; a.setEffectiveWeight(1); a.setLoop(once ? T.LoopOnce : T.LoopRepeat, Infinity); a.clampWhenFinished = !!once;
+    if (kind === 'loco' && prev && prevLoco) a.time = ((prev.time / Math.max(1e-3, prev.getClip().duration)) % 1) * a.getClip().duration;   // keep the stride going from another walk
+    if (prev && !cut) a.crossFadeFrom(prev, kind === 'turn' || kind === 'aimscrub' ? 0.15 : 0.22, false);
+    a.play(); M.cur = a; M.curName = nameNow; M.curKind = kind;
+  }
+  /* playback rate */
+  let ts = 1;
+  const dur = a.getClip().duration;
+  if (kind === 'loco') ts = want.rate;
+  else if (kind === 'down') ts = a.getClip().duration / DOWN_T;
+  else if (kind === 'unlock') { M.unlockK = U.approach(M.unlockK, (s.shakeAmt || 0) > 0.05 ? 1 : 0, 6 * dt); ts = M.unlockK; }
+  else if (kind === 'aimscrub') { a.time = U.clamp(s.aim || 0, 0, 1) * AIM_RAISE; ts = 0; }
+  else if (kind === 'turn') {
+    /* the clip's time follows the turn made so far (the AI's yaw vs where it began) */
+    const prog = U.clamp(Math.abs(wrapPI(f.yaw - M.turn.y0)) / Math.PI, 0, 1);
+    a.time = prog * dur * 0.999; ts = 0;
+  }
+  a.timeScale = ts;
+  M.mixer.update(dt);
+  M.prevYaw = f.yaw;
+  g.rotation.y = M.turn ? M.turn.y0 : f.yaw;
+  g.updateMatrixWorld(true);
+  /* ---- the code layers, after the clips */
+  const b = M.b, torchOn = !!(s.torch && s.torch.on && f.props.torch);
+  if (s.head) {
+    const hy = U.clamp(s.head.yaw || 0, -1.3, 1.3), hp = U.clamp(s.head.pitch || 0, -0.6, 0.8);
+    swing(M, b.neck, 'y', hy * 0.3); swing(M, b.head, 'y', hy * 0.7); swing(M, b.neck, 'x', hp * 0.3); swing(M, b.head, 'x', hp * 0.7);
+  }
+  const aimK = kind === 'aimscrub' || kind === 'aimhold' ? U.sstep(0.45, 1, s.aim || 0) : 0;
+  if (aimK > 0 && M.bone.gun_muzzle && b.chest) {              // the gun's pitch: the upper body tips the rifle to the target
+    M.bone.gun_muzzle.getWorldQuaternion(_q); _v.set(0, 0, 1).applyQuaternion(_q);
+    _q2.copy(g.getWorldQuaternion(_q3)).invert(); _v.applyQuaternion(_q2);
+    const cur = Math.asin(U.clamp(_v.y, -1, 1)), des = (s.aimPitch != null ? s.aimPitch : -20) * D2R;
+    swing(M, b.chest, 'x', -U.clamp(des - cur, -0.7, 0.7) * aimK);
+  }
+  if (torchOn && f._tgt && M.emitter && kind !== 'aimscrub' && kind !== 'aimhold' && kind !== 'turn' && kind !== 'unlock') {
+    M.emitter.getWorldPosition(_w); _v.set(f._tgt[0] - _w.x, f._tgt[1] - _w.y, f._tgt[2] - _w.z);
+    if (_v.lengthSq() > 1e-6) aimEmitter(M, _v.normalize().clone(), 1, 0.7);
+  }
+  const lean = s.lean || 0, reach = s.reach || 0;
+  if (lean > 0.001) { swing(M, b.spine, 'x', 0.35 * lean); swing(M, b.upperArmR, 'x', -1.0 * lean); }
+  if (reach > 0.001) { swing(M, b.spine, 'x', 0.12 * reach); swing(M, b.upperArmR, 'x', -1.0 * reach); swing(M, b.foreArmR, 'x', -0.15 * reach); }
+  if (s.anim === 'shake-sheet') { const j = (s.shakeAmt || 0) * Math.sin(f.time * 2 * Math.PI * 6); swing(M, b.upperArmR, 'x', -1.1 + 0.2 * j); swing(M, b.foreArmR, 'x', -0.2); }
+  if (s.arms) for (const sd of ['L', 'R']) { const a2 = s.arms[sd]; if (a2) { swing(M, b['upperArm' + sd], 'x', a2[0]); swing(M, b['foreArm' + sd], 'x', a2[1]); } }
+  /* props by role */
+  const vis = (n, on) => { const o = M.bone[n]; if (o && o.visible !== !!on) o.visible = !!on; };
+  vis('prop_torch', f.props.torch); vis('prop_longgun', f.props.gunSling || f.props.gunAim); vis('prop_pack', f.props.pack); vis('prop_scraper', f.role === 'painter');
+  g.updateMatrixWorld(true);
+}
+/* where the torch's light sits: the model's torch_emitter (its beam along +Z), else the 2D lens */
+function emitterPos(f, out) { const M = f.model; if (!M || !M.guard || !M.emitter) return null; M.emitter.getWorldPosition(out); return out; }
 
 /* ================================================================== figures */
 function makeFigure(role) {
@@ -355,11 +556,12 @@ const Humans = FF.Humans = {
       drawnLens() { const v = new T.Vector3(); f.lens.getWorldPosition(v); return v; },
       /* keep a World spot handle on the torch lens (A16: its axis meets z 0 at the 2D aim point) */
       attachTorch(handle) { f.torchHandle = handle || null; f._torchOn = null; return f; },
-      setRole(r) { Object.assign(props, ROLE_PROPS[r] || {}); f.lens.visible = !!props.torch && !f.model; return f; },
+      setRole(r) { Object.assign(props, ROLE_PROPS[r] || {}); f.lens.visible = !!props.torch && !(f.model && !f.model.guard); return f; },
       dispose() { ctx.scene.remove(g); },
     };
     figures.push(f);
-    if (FF.MODELS && FF.MODELS.human) useModel(f, FF.MODELS.human).catch(e => FF.report(e, 'Humans.model ' + FF.MODELS.human));
+    if (peopleOn()) useGuard(f).catch(e => { console.warn('[farfield] people model failed for ' + role + ', using the stand-in:', e.message); });
+    else if (FF.MODELS && FF.MODELS.human) useModel(f, FF.MODELS.human).catch(e => FF.report(e, 'Humans.model ' + FF.MODELS.human));
     return f;
   },
   /* the van (stand-in): facing +Z, origin on the ground at its centre. set({ x, z, yaw (rad; PI/2 = driving +x), visible,
@@ -443,7 +645,16 @@ const Humans = FF.Humans = {
         const dg = gx - f._g, dd = Math.hypot(s.x - f._x, s.z - f._z);
         if (dg > 1e-4 && dd < 0.6) f.step = U.lerp(f.step, U.clamp(dd > 1e-4 ? dd / dg : 0.3, 0.2, 1.3), 1 - Math.exp(-8 * dt));
       }
+      /* the figure's own ground speed over the game clock (not the owner's `speed`, which some beats only approximate, e.g. a step that
+         also crosses in z): a model plays its walk at this speed so its feet stay put */
+      const tNow = FF.G && FF.G.t != null ? FF.G.t : null;
+      if (f._x != null && wasVis && !s.snap && tNow != null && f._t != null) {
+        const dT = tNow - f._t, dd = Math.hypot(s.x - f._x, s.z - f._z);
+        if (dT > 1e-4 && dd < 2.5) f.vt = f.vt == null ? dd / dT : f.vt + (dd / dT - f.vt) * (1 - Math.exp(-dt / 0.06));
+      } else f.vt = null;
+      f._t = tNow;
       f._g = gx; f._x = s.x; f._z = s.z;
+      const fresh = !wasVis || !!s.snap;                    // appearing or restarted: a model starts in its clip, no blend from a stale one
       /* body yaw: explicit, or from facing (turns pass through the camera side, yaw 0) */
       const want = s.yaw != null ? s.yaw : s.face > 0 ? Math.PI / 2 : s.face < 0 ? -Math.PI / 2 : 0;
       if (f.yaw == null || s.snap) f.yaw = want; else f.yaw = U.approach(f.yaw, want, (s.turnRate || 6.0) * dt);
@@ -451,18 +662,25 @@ const Humans = FF.Humans = {
       g.position.set(s.x, s.y, s.z); g.rotation.y = f.yaw;
       /* a torch aimed at an explicit target tilts towards it (in the figure's forward plane) */
       if (s.torch.target) { const l = f.torchLens(), tg = s.torch.target; s.torch.pitchVis = Math.atan2(tg[1] - l.y, Math.hypot(tg[0] - l.x, tg[2] - l.z) + 1e-3) / D2R; } else s.torch.pitchVis = null;
-      if (f.model) modelPose(f, dt); else poseStandIn(f, dt);
+      /* A16: the light sits where the 2D model puts the lens; the axis meets the lane (z 0) where the 2D axis reaches
+         rabbit height (y 0.12) or 8 m. A target override (the culvert) aims it directly. (Worked out before the pose, so a model's
+         torch arm can be aimed at it.) */
+      const torchOn = !!(s.torch.on && f.props.torch);
+      let lens = null, tgt = null;
+      if (torchOn) {
+        lens = f.torchLens(); const p = (s.torch.pitch || 0) * D2R, dir = s.face || (f.yaw > 0 ? 1 : -1);
+        tgt = s.torch.target;
+        if (!tgt) { const d = Math.sin(p) < -0.02 ? Math.min(8, (lens.y - 0.12) / -Math.sin(p)) : 8; tgt = [lens.x + Math.cos(p) * d * dir, lens.y + Math.sin(p) * d, 0]; }
+      }
+      f._tgt = tgt;
+      if (f.model) { if (f.model.guard) guardPose(f, dt, fresh); else modelPoseLegacy(f, dt); } else poseStandIn(f, dt);
       if (f.torchHandle) {
-        const on = !!(s.torch.on && f.props.torch);
+        const on = torchOn;
         if (f._torchOn !== on) { f._torchOn = on; f.torchHandle.on(on); if (f.torchHandle.beam) f.torchHandle.beam(on); }
         if (on) {
-          /* A16: the light sits where the 2D model puts the lens; the axis meets the lane (z 0) where the 2D axis reaches
-             rabbit height (y 0.12) or 8 m. A target override (the culvert) aims it directly. */
-          const lens = f.torchLens(), p = (s.torch.pitch || 0) * D2R, dir = s.face || (f.yaw > 0 ? 1 : -1);
-          let tgt = s.torch.target;
-          if (!tgt) { const d = Math.sin(p) < -0.02 ? Math.min(8, (lens.y - 0.12) / -Math.sin(p)) : 8; tgt = [lens.x + Math.cos(p) * d * dir, lens.y + Math.sin(p) * d, 0]; }
-          const half = s.torch.half || 13, R = FF.RULES.sight.torch;
-          f.torchHandle.set({ pos: [lens.x, lens.y, lens.z], target: tgt, angle: half * D2R * (R.renderHalf / R.half), penumbra: half < 8 ? 0.15 : R.renderPenumbra,
+          const half = s.torch.half || 13, R = FF.RULES.sight.torch, ep = emitterPos(f, _w);          // a model's light sits on its torch_emitter, the stand-in's on the 2D lens
+          const lp = ep ? [ep.x, ep.y, ep.z] : [lens.x, lens.y, lens.z];
+          f.torchHandle.set({ pos: lp, target: tgt, angle: half * D2R * (R.renderHalf / R.half), penumbra: half < 8 ? 0.15 : R.renderPenumbra,
             intensity: s.torch.intensity != null ? s.torch.intensity : 26, color: s.torch.color || '#e8edf2', distance: s.torch.distance || 14, decay: 1.6 });
         }
       }

@@ -1,0 +1,1267 @@
+{
+ "file": "guard1_fixed.glb",
+ "units": "metres, Y up, facing +Z, origin on the ground under the hips",
+ "height_m": 1.8,
+ "skeleton": "Josh's Mixamo rig, 25 bones (no finger bones), names and rest pose unchanged",
+ "three_js_names": "GLTFLoader strips the colon: bones are mixamorigHips, mixamorigRightHand, ...; node names unchanged",
+ "triangles": {
+  "body": 27465,
+  "prop_torch": 760,
+  "prop_pack": 3372
+ },
+ "nodes": {
+  "hand_R_socket": "child of mixamorig:RightHand; grip centre; +Z forward out of the fist (guard 1: along the torch beam; guard 3: along the scraper handle towards the blade), +Y up",
+  "hand_L_socket": "child of mixamorig:LeftHand; grip point in the curled fingers; +Z forward out of the fist, +Y back up the hand",
+  "prop_torch": "child of hand_R_socket (identity); 760 triangles; rigid",
+  "torch_emitter": "child of prop_torch; at the lens, +Z along the beam",
+  "prop_pack": "the backpack, its own rigid node: child of the mixamorig:Spine2 bone; closed base; 3372 triangles; hide it and the coat's back is closed (a slightly recessed patch)"
+ },
+ "chains": {
+  "kneel": "torch_down_in",
+  "torch_down_in": "torch_down_loop",
+  "crouch_in": "crouch_idle"
+ },
+ "renamed_since_last_pass": {
+  "crouch_to_stand": "crouch_out (the same clip, now named as in guard 2)",
+  "rail_lean": "rail_look_out (the name in ASSETS-3D)",
+  "scrape_wall": "scrape_wall_loop (ASSETS-3D name; remade with the long-handled scraper)",
+  "stumble": "stumble is now Jogging Stumble, as guard 2 (Stumble Backwards, which ends on the floor, is no longer exported)"
+ },
+ "rig": {
+  "torch": {
+   "grip": [
+    -0.2717,
+    0.0219,
+    0.8479
+   ],
+   "emitter": [
+    -0.3013,
+    -0.1189,
+    0.7454
+   ],
+   "axis": [
+    -0.168,
+    -0.797,
+    -0.58
+   ],
+   "grip_to_lens_m": 0.177
+  },
+  "pack": {
+   "node": "prop_pack",
+   "parent": "mixamorig:Spine2",
+   "panel_verts": 1766
+  },
+  "jacket_verts": 1992,
+  "side": {
+   "Right": {
+    "sleeve_radius_m": 0.063,
+    "nodes": 2113,
+    "verts": 2320,
+    "smoothed_nodes": 1733
+   },
+   "Left": {
+    "sleeve_radius_m": 0.07,
+    "nodes": 2249,
+    "verts": 2584,
+    "smoothed_nodes": 1665
+   }
+  }
+ },
+ "clips": {
+  "idle": {
+   "frames": 251,
+   "fps": 30,
+   "duration_s": 8.333,
+   "loop": true,
+   "source": "Guard_1.fbx (embedded Mixamo idle)",
+   "root_speed_mps": 0.0,
+   "planted_foot_speed_mps": 0.0,
+   "travel_m": 0.0,
+   "direction_rig": [
+    0.0,
+    0.0,
+    0.0
+   ],
+   "hands_moved_clear_of_the_body": {
+    "Right": {
+     "frames": 0
+    },
+    "Left": {
+     "frames": 0
+    }
+   },
+   "prop_torch_vs_hand_mm": 0,
+   "prop_torch_grip_skin_mm": 0,
+   "prop_pack_vs_hand_mm": 0,
+   "into_body_ray_test": {
+    "R_hand": {
+     "verts": 0,
+     "depth_mm": 0
+    },
+    "L_hand": {
+     "verts": 0,
+     "depth_mm": 0
+    },
+    "R_forearm": {
+     "verts": 0,
+     "depth_mm": 0
+    },
+    "L_forearm": {
+     "verts": 0,
+     "depth_mm": 0
+    },
+    "torch": {
+     "verts": 0,
+     "depth_mm": 0
+    }
+   },
+   "stretched_triangles": {
+    "over_4x_rest_area": 67,
+    "of_which_visible_over_1cm2": 24,
+    "visible_by_zone": {
+     "sides": 18,
+     "hem_crotch": 6
+    },
+    "worst_frame": 24
+   },
+   "pack_zone": {
+    "triangles_over_3x": 29,
+    "growth_cm2": 8
+   }
+  },
+  "walk": {
+   "frames": 32,
+   "fps": 30,
+   "duration_s": 1.033,
+   "loop": true,
+   "source": "Walking (1).fbx",
+   "root_speed_mps": 1.822,
+   "planted_foot_speed_mps": 1.862,
+   "travel_m": 1.883,
+   "direction_rig": [
+    -0.0,
+    -1.0,
+    0.0
+   ],
+   "hands_moved_clear_of_the_body": {
+    "Right": {
+     "frames": 0
+    },
+    "Left": {
+     "frames": 0
+    }
+   },
+   "prop_torch_vs_hand_mm": 0,
+   "prop_torch_grip_skin_mm": 0,
+   "prop_pack_vs_hand_mm": 0,
+   "into_body_ray_test": {
+    "R_hand": {
+     "verts": 0,
+     "depth_mm": 0
+    },
+    "L_hand": {
+     "verts": 0,
+     "depth_mm": 0
+    },
+    "R_forearm": {
+     "verts": 0,
+     "depth_mm": 0
+    },
+    "L_forearm": {
+     "verts": 0,
+     "depth_mm": 0
+    },
+    "torch": {
+     "verts": 0,
+     "depth_mm": 0
+    }
+   },
+   "stretched_triangles": {
+    "over_4x_rest_area": 107,
+    "of_which_visible_over_1cm2": 65,
+    "visible_by_zone": {
+     "sides": 33,
+     "hem_crotch": 32
+    },
+    "worst_frame": 8
+   },
+   "pack_zone": {
+    "triangles_over_3x": 15,
+    "growth_cm2": 2
+   }
+  },
+  "sneak": {
+   "frames": 51,
+   "fps": 30,
+   "duration_s": 1.667,
+   "loop": true,
+   "source": "Sneaking Forward.fbx",
+   "root_speed_mps": 2.269,
+   "planted_foot_speed_mps": 2.331,
+   "travel_m": 3.781,
+   "direction_rig": [
+    0.0,
+    -1.0,
+    0.0
+   ],
+   "hands_moved_clear_of_the_body": {
+    "Right": {
+     "frames": 0
+    },
+    "Left": {
+     "frames": 0
+    }
+   },
+   "prop_torch_vs_hand_mm": 0,
+   "prop_torch_grip_skin_mm": 0,
+   "prop_pack_vs_hand_mm": 0,
+   "into_body_ray_test": {
+    "R_hand": {
+     "verts": 0,
+     "depth_mm": 0
+    },
+    "L_hand": {
+     "verts": 0,
+     "depth_mm": 0
+    },
+    "R_forearm": {
+     "verts": 0,
+     "depth_mm": 0
+    },
+    "L_forearm": {
+     "verts": 0,
+     "depth_mm": 0
+    },
+    "torch": {
+     "verts": 0,
+     "depth_mm": 0
+    }
+   },
+   "stretched_triangles": {
+    "over_4x_rest_area": 290,
+    "of_which_visible_over_1cm2": 179,
+    "visible_by_zone": {
+     "sides": 98,
+     "hem_crotch": 68,
+     "other": 2,
+     "back": 11
+    },
+    "worst_frame": 38
+   },
+   "pack_zone": {
+    "triangles_over_3x": 106,
+    "growth_cm2": 67
+   }
+  },
+  "run": {
+   "frames": 22,
+   "fps": 30,
+   "duration_s": 0.7,
+   "loop": true,
+   "source": "Running.fbx",
+   "root_speed_mps": 4.845,
+   "planted_foot_speed_mps": 4.835,
+   "travel_m": 3.392,
+   "direction_rig": [
+    0.0,
+    -1.0,
+    0.0
+   ],
+   "hands_moved_clear_of_the_body": {
+    "Right": {
+     "frames": 0
+    },
+    "Left": {
+     "frames": 0
+    }
+   },
+   "prop_torch_vs_hand_mm": 0,
+   "prop_torch_grip_skin_mm": 0,
+   "prop_pack_vs_hand_mm": 0,
+   "into_body_ray_test": {
+    "R_hand": {
+     "verts": 0,
+     "depth_mm": 0
+    },
+    "L_hand": {
+     "verts": 0,
+     "depth_mm": 0
+    },
+    "R_forearm": {
+     "verts": 0,
+     "depth_mm": 0
+    },
+    "L_forearm": {
+     "verts": 0,
+     "depth_mm": 0
+    },
+    "torch": {
+     "verts": 0,
+     "depth_mm": 0
+    }
+   },
+   "stretched_triangles": {
+    "over_4x_rest_area": 195,
+    "of_which_visible_over_1cm2": 102,
+    "visible_by_zone": {
+     "sides": 68,
+     "hem_crotch": 26,
+     "other": 1,
+     "back": 7
+    },
+    "worst_frame": 15
+   },
+   "pack_zone": {
+    "triangles_over_3x": 51,
+    "growth_cm2": 30
+   }
+  },
+  "turn_180": {
+   "frames": 31,
+   "fps": 30,
+   "duration_s": 1.0,
+   "loop": false,
+   "source": "Walking Turn 180.fbx",
+   "root_speed_mps": 0.108,
+   "planted_foot_speed_mps": 0.155,
+   "travel_m": 0.108,
+   "direction_rig": [
+    0.021,
+    1.0,
+    0.0
+   ],
+   "hands_moved_clear_of_the_body": {
+    "Right": {
+     "frames": 0
+    },
+    "Left": {
+     "frames": 11,
+     "max_move_mm": 13,
+     "frames_still_in": 0,
+     "still_in_mm": 0
+    }
+   },
+   "prop_torch_vs_hand_mm": 0,
+   "prop_torch_grip_skin_mm": 0,
+   "prop_pack_vs_hand_mm": 0,
+   "into_body_ray_test": {
+    "R_hand": {
+     "verts": 0,
+     "depth_mm": 0
+    },
+    "L_hand": {
+     "verts": 0,
+     "depth_mm": 0
+    },
+    "R_forearm": {
+     "verts": 0,
+     "depth_mm": 0
+    },
+    "L_forearm": {
+     "verts": 0,
+     "depth_mm": 0
+    },
+    "torch": {
+     "verts": 0,
+     "depth_mm": 0
+    }
+   },
+   "stretched_triangles": {
+    "over_4x_rest_area": 114,
+    "of_which_visible_over_1cm2": 56,
+    "visible_by_zone": {
+     "sides": 40,
+     "hem_crotch": 12,
+     "other": 1,
+     "back": 3
+    },
+    "worst_frame": 22
+   },
+   "pack_zone": {
+    "triangles_over_3x": 40,
+    "growth_cm2": 17
+   }
+  },
+  "look_around": {
+   "frames": 135,
+   "fps": 30,
+   "duration_s": 4.467,
+   "loop": true,
+   "source": "Look Around.fbx",
+   "root_speed_mps": 0.0,
+   "planted_foot_speed_mps": 0.003,
+   "travel_m": 0.0,
+   "direction_rig": [
+    0.0,
+    0.0,
+    0.0
+   ],
+   "hands_moved_clear_of_the_body": {
+    "Right": {
+     "frames": 0
+    },
+    "Left": {
+     "frames": 0
+    }
+   },
+   "prop_torch_vs_hand_mm": 0,
+   "prop_torch_grip_skin_mm": 0,
+   "prop_pack_vs_hand_mm": 0,
+   "into_body_ray_test": {
+    "R_hand": {
+     "verts": 0,
+     "depth_mm": 0
+    },
+    "L_hand": {
+     "verts": 0,
+     "depth_mm": 0
+    },
+    "R_forearm": {
+     "verts": 0,
+     "depth_mm": 0
+    },
+    "L_forearm": {
+     "verts": 0,
+     "depth_mm": 0
+    },
+    "torch": {
+     "verts": 0,
+     "depth_mm": 0
+    }
+   },
+   "stretched_triangles": {
+    "over_4x_rest_area": 268,
+    "of_which_visible_over_1cm2": 140,
+    "visible_by_zone": {
+     "sides": 95,
+     "hem_crotch": 10,
+     "other": 28,
+     "back": 7
+    },
+    "worst_frame": 55
+   },
+   "pack_zone": {
+    "triangles_over_3x": 75,
+    "growth_cm2": 37
+   }
+  },
+  "kneel": {
+   "frames": 84,
+   "fps": 30,
+   "duration_s": 2.767,
+   "loop": false,
+   "source": "Kneeling Down.fbx",
+   "root_speed_mps": 0.005,
+   "planted_foot_speed_mps": 0.006,
+   "travel_m": 0.014,
+   "direction_rig": [
+    -0.016,
+    0.014,
+    -1.0
+   ],
+   "hands_moved_clear_of_the_body": {
+    "Right": {
+     "frames": 0
+    },
+    "Left": {
+     "frames": 45,
+     "max_move_mm": 57,
+     "frames_still_in": 0,
+     "still_in_mm": 0
+    }
+   },
+   "prop_torch_vs_hand_mm": 0,
+   "prop_torch_grip_skin_mm": 0.24,
+   "prop_pack_vs_hand_mm": 0,
+   "into_body_ray_test": {
+    "R_hand": {
+     "verts": 3,
+     "depth_mm": 9
+    },
+    "L_hand": {
+     "verts": 0,
+     "depth_mm": 0
+    },
+    "R_forearm": {
+     "verts": 0,
+     "depth_mm": 0
+    },
+    "L_forearm": {
+     "verts": 0,
+     "depth_mm": 0
+    },
+    "torch": {
+     "verts": 0,
+     "depth_mm": 0
+    }
+   },
+   "stretched_triangles": {
+    "over_4x_rest_area": 320,
+    "of_which_visible_over_1cm2": 189,
+    "visible_by_zone": {
+     "sides": 98,
+     "other": 10,
+     "hem_crotch": 71,
+     "back": 10
+    },
+    "worst_frame": 53
+   },
+   "pack_zone": {
+    "triangles_over_3x": 117,
+    "growth_cm2": 60
+   }
+  },
+  "crouch_in": {
+   "frames": 123,
+   "fps": 30,
+   "duration_s": 4.067,
+   "loop": false,
+   "source": "Crouching.fbx",
+   "root_speed_mps": 0.021,
+   "planted_foot_speed_mps": 0.019,
+   "travel_m": 0.084,
+   "direction_rig": [
+    0.118,
+    0.074,
+    -0.99
+   ],
+   "hands_moved_clear_of_the_body": {
+    "Right": {
+     "frames": 59,
+     "max_move_mm": 43,
+     "frames_still_in": 0,
+     "still_in_mm": 0
+    },
+    "Left": {
+     "frames": 61,
+     "max_move_mm": 61,
+     "frames_still_in": 0,
+     "still_in_mm": 0
+    }
+   },
+   "prop_torch_vs_hand_mm": 0,
+   "prop_torch_grip_skin_mm": 0.292,
+   "prop_pack_vs_hand_mm": 0,
+   "into_body_ray_test": {
+    "R_hand": {
+     "verts": 0,
+     "depth_mm": 0
+    },
+    "L_hand": {
+     "verts": 0,
+     "depth_mm": 0
+    },
+    "R_forearm": {
+     "verts": 0,
+     "depth_mm": 0
+    },
+    "L_forearm": {
+     "verts": 0,
+     "depth_mm": 0
+    },
+    "torch": {
+     "verts": 0,
+     "depth_mm": 0
+    }
+   },
+   "stretched_triangles": {
+    "over_4x_rest_area": 494,
+    "of_which_visible_over_1cm2": 298,
+    "visible_by_zone": {
+     "sides": 145,
+     "other": 43,
+     "hem_crotch": 92,
+     "back": 18
+    },
+    "worst_frame": 92
+   },
+   "pack_zone": {
+    "triangles_over_3x": 185,
+    "growth_cm2": 141
+   }
+  },
+  "crouch_idle": {
+   "frames": 76,
+   "fps": 30,
+   "duration_s": 2.5,
+   "loop": true,
+   "source": "Crouching Idle.fbx",
+   "root_speed_mps": 0.0,
+   "planted_foot_speed_mps": 0.0,
+   "travel_m": 0.0,
+   "direction_rig": [
+    0.0,
+    0.0,
+    0.0
+   ],
+   "hands_moved_clear_of_the_body": {
+    "Right": {
+     "frames": 0
+    },
+    "Left": {
+     "frames": 0
+    }
+   },
+   "prop_torch_vs_hand_mm": 0,
+   "prop_torch_grip_skin_mm": 0.074,
+   "prop_pack_vs_hand_mm": 0,
+   "into_body_ray_test": {
+    "R_hand": {
+     "verts": 0,
+     "depth_mm": 0
+    },
+    "L_hand": {
+     "verts": 0,
+     "depth_mm": 0
+    },
+    "R_forearm": {
+     "verts": 0,
+     "depth_mm": 0
+    },
+    "L_forearm": {
+     "verts": 0,
+     "depth_mm": 0
+    },
+    "torch": {
+     "verts": 0,
+     "depth_mm": 0
+    }
+   },
+   "stretched_triangles": {
+    "over_4x_rest_area": 342,
+    "of_which_visible_over_1cm2": 210,
+    "visible_by_zone": {
+     "sides": 94,
+     "hem_crotch": 97,
+     "other": 6,
+     "back": 13
+    },
+    "worst_frame": 52
+   },
+   "pack_zone": {
+    "triangles_over_3x": 127,
+    "growth_cm2": 60
+   }
+  },
+  "crouch_out": {
+   "frames": 101,
+   "fps": 30,
+   "duration_s": 3.333,
+   "loop": false,
+   "source": "Crouch To Stand.fbx",
+   "root_speed_mps": 0.107,
+   "planted_foot_speed_mps": 0.106,
+   "travel_m": 0.356,
+   "direction_rig": [
+    0.317,
+    -0.466,
+    0.826
+   ],
+   "hands_moved_clear_of_the_body": {
+    "Right": {
+     "frames": 60,
+     "max_move_mm": 80,
+     "frames_still_in": 0,
+     "still_in_mm": 0
+    },
+    "Left": {
+     "frames": 101,
+     "max_move_mm": 147,
+     "frames_still_in": 0,
+     "still_in_mm": 0
+    }
+   },
+   "prop_torch_vs_hand_mm": 0,
+   "prop_torch_grip_skin_mm": 0.306,
+   "prop_pack_vs_hand_mm": 0,
+   "into_body_ray_test": {
+    "R_hand": {
+     "verts": 0,
+     "depth_mm": 0
+    },
+    "L_hand": {
+     "verts": 8,
+     "depth_mm": 16
+    },
+    "R_forearm": {
+     "verts": 3,
+     "depth_mm": 9
+    },
+    "L_forearm": {
+     "verts": 0,
+     "depth_mm": 0
+    },
+    "torch": {
+     "verts": 0,
+     "depth_mm": 0
+    }
+   },
+   "stretched_triangles": {
+    "over_4x_rest_area": 357,
+    "of_which_visible_over_1cm2": 209,
+    "visible_by_zone": {
+     "sides": 107,
+     "other": 9,
+     "hem_crotch": 76,
+     "back": 17
+    },
+    "worst_frame": 16
+   },
+   "pack_zone": {
+    "triangles_over_3x": 133,
+    "growth_cm2": 100
+   }
+  },
+  "reach_down": {
+   "frames": 91,
+   "fps": 30,
+   "duration_s": 3.0,
+   "loop": false,
+   "source": "Reaching Down.fbx",
+   "root_speed_mps": 0.0,
+   "planted_foot_speed_mps": 0.052,
+   "travel_m": 0.0,
+   "direction_rig": [
+    0.0,
+    0.0,
+    0.0
+   ],
+   "prop_torch_vs_hand_mm": 0,
+   "prop_torch_grip_skin_mm": 0.175,
+   "prop_pack_vs_hand_mm": 0,
+   "into_body_ray_test": {
+    "R_hand": {
+     "verts": 0,
+     "depth_mm": 0
+    },
+    "L_hand": {
+     "verts": 0,
+     "depth_mm": 0
+    },
+    "R_forearm": {
+     "verts": 0,
+     "depth_mm": 0
+    },
+    "L_forearm": {
+     "verts": 0,
+     "depth_mm": 0
+    },
+    "torch": {
+     "verts": 0,
+     "depth_mm": 0
+    }
+   },
+   "stretched_triangles": {
+    "over_4x_rest_area": 357,
+    "of_which_visible_over_1cm2": 203,
+    "visible_by_zone": {
+     "sides": 145,
+     "hem_crotch": 19,
+     "other": 10,
+     "back": 29
+    },
+    "worst_frame": 37
+   },
+   "pack_zone": {
+    "triangles_over_3x": 157,
+    "growth_cm2": 143
+   }
+  },
+  "stumble": {
+   "frames": 36,
+   "fps": 30,
+   "duration_s": 1.167,
+   "loop": false,
+   "source": "Jogging Stumble.fbx",
+   "root_speed_mps": 3.034,
+   "planted_foot_speed_mps": 3.132,
+   "travel_m": 3.539,
+   "direction_rig": [
+    0.0,
+    -1.0,
+    0.0
+   ],
+   "root_track_m_per_frame": [
+    [
+     0.0,
+     0.0
+    ],
+    [
+     0.007,
+     -0.11
+    ],
+    [
+     0.016,
+     -0.236
+    ],
+    [
+     0.031,
+     -0.369
+    ],
+    [
+     0.044,
+     -0.495
+    ],
+    [
+     0.052,
+     -0.61
+    ],
+    [
+     0.063,
+     -0.706
+    ],
+    [
+     0.059,
+     -0.803
+    ],
+    [
+     0.047,
+     -0.884
+    ],
+    [
+     0.049,
+     -0.963
+    ],
+    [
+     0.047,
+     -1.048
+    ],
+    [
+     0.035,
+     -1.127
+    ],
+    [
+     0.034,
+     -1.224
+    ],
+    [
+     0.043,
+     -1.347
+    ],
+    [
+     0.068,
+     -1.423
+    ],
+    [
+     0.1,
+     -1.464
+    ],
+    [
+     0.112,
+     -1.513
+    ],
+    [
+     0.11,
+     -1.606
+    ],
+    [
+     0.11,
+     -1.706
+    ],
+    [
+     0.109,
+     -1.795
+    ],
+    [
+     0.108,
+     -1.887
+    ],
+    [
+     0.1,
+     -1.983
+    ],
+    [
+     0.09,
+     -2.08
+    ],
+    [
+     0.076,
+     -2.178
+    ],
+    [
+     0.063,
+     -2.288
+    ],
+    [
+     0.049,
+     -2.412
+    ],
+    [
+     0.037,
+     -2.535
+    ],
+    [
+     0.026,
+     -2.663
+    ],
+    [
+     0.016,
+     -2.786
+    ],
+    [
+     0.009,
+     -2.898
+    ],
+    [
+     0.004,
+     -3.008
+    ],
+    [
+     0.0,
+     -3.118
+    ],
+    [
+     -0.003,
+     -3.231
+    ],
+    [
+     -0.004,
+     -3.34
+    ],
+    [
+     -0.004,
+     -3.444
+    ],
+    [
+     0.0,
+     -3.539
+    ]
+   ],
+   "hands_moved_clear_of_the_body": {
+    "Right": {
+     "frames": 11,
+     "max_move_mm": 50,
+     "frames_still_in": 0,
+     "still_in_mm": 0
+    },
+    "Left": {
+     "frames": 21,
+     "max_move_mm": 27,
+     "frames_still_in": 0,
+     "still_in_mm": 0
+    }
+   },
+   "prop_torch_vs_hand_mm": 0,
+   "prop_torch_grip_skin_mm": 0.316,
+   "prop_pack_vs_hand_mm": 0,
+   "into_body_ray_test": {
+    "R_hand": {
+     "verts": 0,
+     "depth_mm": 0
+    },
+    "L_hand": {
+     "verts": 0,
+     "depth_mm": 0
+    },
+    "R_forearm": {
+     "verts": 0,
+     "depth_mm": 0
+    },
+    "L_forearm": {
+     "verts": 0,
+     "depth_mm": 0
+    },
+    "torch": {
+     "verts": 0,
+     "depth_mm": 0
+    }
+   },
+   "stretched_triangles": {
+    "over_4x_rest_area": 341,
+    "of_which_visible_over_1cm2": 204,
+    "visible_by_zone": {
+     "sides": 110,
+     "other": 16,
+     "back": 14,
+     "hem_crotch": 64
+    },
+    "worst_frame": 11
+   },
+   "pack_zone": {
+    "triangles_over_3x": 150,
+    "growth_cm2": 87
+   }
+  },
+  "unlock_loop": {
+   "frames": 121,
+   "fps": 30,
+   "duration_s": 4.0,
+   "loop": true,
+   "source": "authored on the idle stance: tugs and a shake at a chained gate; the legs brace and rock",
+   "root_speed_mps": 0,
+   "planted_foot_speed_mps": 0.0,
+   "travel_m": 0,
+   "direction_rig": [
+    0,
+    0,
+    0
+   ],
+   "context": {
+    "padlock": [
+     0.045,
+     -0.45,
+     1.13
+    ],
+    "chain_z": 1.16,
+    "gate_plane_y": -0.44,
+    "note": "rig space: facing -Y (glTF +Z); the gate stands 0.44 m in front of the hips origin; padlock at chest height"
+   },
+   "range_mm": {
+    "Hips": 70,
+    "Spine2": 75,
+    "Head": 81,
+    "LeftHand": 71,
+    "RightHand": 53,
+    "LeftLeg": 48,
+    "RightLeg": 113,
+    "LeftFoot": 23,
+    "RightFoot": 81
+   },
+   "head_from_vertical_deg": [
+    28,
+    65
+   ],
+   "idle_head_from_vertical_deg": 37,
+   "spine_from_vertical_max_deg": 11,
+   "head_turn": {
+    "glance_up_s": [
+     1.4,
+     2.1
+    ],
+    "glance_down_s": [
+     2.4,
+     3.05
+    ],
+    "glance_up_peak_deg_per_s": 106,
+    "glance_down_peak_deg_per_s": 94,
+    "face_pitch_deg_min_max": [
+     -27,
+     9
+    ],
+    "shake_jitter_peak_deg_per_s": 150,
+    "note": "face direction (head rest -Y) frame to frame, Blender; eased (smootherstep) turns",
+    "round2_snap_peak_deg_per_s_three_js": {
+     "up": 276,
+     "down": 317
+    },
+    "now_glance_peak_deg_per_s_three_js": {
+     "up": 99,
+     "down": 94
+    }
+   },
+   "prop_torch_vs_hand_mm": 0,
+   "prop_torch_grip_skin_mm": 0.438,
+   "prop_pack_vs_hand_mm": 0,
+   "into_body_ray_test": {
+    "R_hand": {
+     "verts": 0,
+     "depth_mm": 0
+    },
+    "L_hand": {
+     "verts": 0,
+     "depth_mm": 0
+    },
+    "R_forearm": {
+     "verts": 0,
+     "depth_mm": 0
+    },
+    "L_forearm": {
+     "verts": 0,
+     "depth_mm": 0
+    },
+    "torch": {
+     "verts": 0,
+     "depth_mm": 0
+    }
+   },
+   "stretched_triangles": {
+    "over_4x_rest_area": 178,
+    "of_which_visible_over_1cm2": 83,
+    "visible_by_zone": {
+     "sides": 68,
+     "other": 2,
+     "hem_crotch": 7,
+     "back": 6
+    },
+    "worst_frame": 12
+   },
+   "pack_zone": {
+    "triangles_over_3x": 86,
+    "growth_cm2": 37
+   }
+  },
+  "torch_down_loop": {
+   "frames": 121,
+   "fps": 30,
+   "duration_s": 4.0,
+   "loop": true,
+   "source": "authored on the last frame of Kneeling Down: torch arm down, beam straight down",
+   "root_speed_mps": 0,
+   "planted_foot_speed_mps": 0.0,
+   "travel_m": 0,
+   "direction_rig": [
+    0,
+    0,
+    0
+   ],
+   "context": {
+    "beam": "straight down (+/- 6 deg search circle)",
+    "lens_height_m": 0.14,
+    "spot_on_ground": [
+     -0.33,
+     -0.3,
+     0.0
+    ],
+    "note": "rig space; the culvert opening goes under the spot; play torch_down_in first (from the end of kneel)"
+   },
+   "range_mm": {
+    "Hips": 21,
+    "Spine2": 23,
+    "Head": 30,
+    "LeftHand": 0,
+    "RightHand": 75,
+    "LeftLeg": 25,
+    "RightLeg": 33,
+    "LeftFoot": 0,
+    "RightFoot": 0
+   },
+   "head_to_nearest_knee_min_m": 0.455,
+   "prop_torch_vs_hand_mm": 0,
+   "prop_torch_grip_skin_mm": 0.544,
+   "prop_pack_vs_hand_mm": 0,
+   "into_body_ray_test": {
+    "R_hand": {
+     "verts": 0,
+     "depth_mm": 0
+    },
+    "L_hand": {
+     "verts": 0,
+     "depth_mm": 0
+    },
+    "R_forearm": {
+     "verts": 0,
+     "depth_mm": 0
+    },
+    "L_forearm": {
+     "verts": 0,
+     "depth_mm": 0
+    },
+    "torch": {
+     "verts": 0,
+     "depth_mm": 0
+    }
+   },
+   "stretched_triangles": {
+    "over_4x_rest_area": 322,
+    "of_which_visible_over_1cm2": 196,
+    "visible_by_zone": {
+     "sides": 113,
+     "other": 11,
+     "hem_crotch": 64,
+     "back": 8
+    },
+    "worst_frame": 7
+   },
+   "pack_zone": {
+    "triangles_over_3x": 135,
+    "growth_cm2": 86
+   }
+  },
+  "torch_down_in": {
+   "frames": 37,
+   "fps": 30,
+   "duration_s": 1.2,
+   "loop": false,
+   "source": "authored: eases from the last frame of kneel into the first of torch_down_loop",
+   "root_speed_mps": 0,
+   "planted_foot_speed_mps": 0.006,
+   "travel_m": 0,
+   "direction_rig": [
+    0,
+    0,
+    0
+   ],
+   "note": "one-shot: kneel -> torch_down_in -> torch_down_loop",
+   "prop_torch_vs_hand_mm": 0,
+   "prop_torch_grip_skin_mm": 0.804,
+   "prop_pack_vs_hand_mm": 0,
+   "seams_mm": {
+    "kneel_to_torch_down_in": 0,
+    "torch_down_in_to_loop": 0,
+    "loop_wrap": 0
+   },
+   "into_body_ray_test": {
+    "R_hand": {
+     "verts": 0,
+     "depth_mm": 0
+    },
+    "L_hand": {
+     "verts": 0,
+     "depth_mm": 0
+    },
+    "R_forearm": {
+     "verts": 0,
+     "depth_mm": 0
+    },
+    "L_forearm": {
+     "verts": 0,
+     "depth_mm": 0
+    },
+    "torch": {
+     "verts": 3,
+     "depth_mm": 9
+    }
+   },
+   "stretched_triangles": {
+    "over_4x_rest_area": 327,
+    "of_which_visible_over_1cm2": 201,
+    "visible_by_zone": {
+     "sides": 116,
+     "other": 11,
+     "hem_crotch": 66,
+     "back": 8
+    },
+    "worst_frame": 29
+   },
+   "pack_zone": {
+    "triangles_over_3x": 134,
+    "growth_cm2": 84
+   }
+  }
+ },
+ "torch": {
+  "grip": [
+   -0.2717,
+   0.0219,
+   0.8479
+  ],
+  "emitter": [
+   -0.3013,
+   -0.1189,
+   0.7454
+  ],
+  "axis": [
+   -0.168,
+   -0.797,
+   -0.58
+  ],
+  "grip_to_lens_m": 0.177
+ },
+ "shading": {
+  "body_triangles_with_normals_against_their_face": {
+   "this_file": 45,
+   "original_Guard_1_fbx": 45,
+   "round_1": 53,
+   "round_2": 3846
+  },
+  "the_45": "the same 45 triangles as in Josh's original model (small folds); every other triangle's normals agree with its winding",
+  "original_triangles_in_this_file": 26251,
+  "original_triangles_with_winding_reversed": {
+   "this_file": 0,
+   "round_2": 3811
+  },
+  "original_corner_normals_kept": "all corners of the original triangles carry the original model's normals (worst difference 0.0 deg)",
+  "new_faces": "the fist and coat-patch caps are shaded on their own (sharp rim edges); their normals agree with their faces",
+  "cause_round_2": "packcut.py ran bmesh recalc_face_normals over the whole body after cutting the pack off; it re-oriented whole open islands of the coat by a heuristic, reversing 3,811 original triangles while their stored original normals were written back, so the double-sided material lit them from behind"
+ }
+}
