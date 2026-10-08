@@ -47,6 +47,15 @@
 
    Optional samples: FF.AUDIO_SAMPLES = { <cue>: 'audio/<cue>.ogg', ... } set before boot replaces that cue with a file
    (fetched only when named: no probing, no 404s).
+   EXTENSIONS (Sequence 2 and later; nothing here changes Sequence 1): a file loaded after this one pushes an object onto
+   FF.AUDIO_EXT ({name, install(X), debug()}); init() calls install(X) with the engine's internals X (the cue, loop, bed,
+   reverb, salience and trim tables, cue(), hold(), later(), spatial(), listener(), the scene D, the settings st, the live
+   engine X.E) and these hooks: X.derive (called every play / title frame after Sequence 1's derivations), X.walls (applied
+   in spatial() to sources marked {s2: true} only), X.mix (the bed mix after mixNow), X.surface (the rabbit's surface; a
+   hook returns null outside its own stretch), X.land (a landing it plays itself), X.failCue ({kind: cue} for the black),
+   X.rest (places where the breathing-space behaviours apply: breath, close miking, the warm pad at the groom). A loop may
+   go on the ambience bus (hold(..., 'amb'): N removes it); a cue with {noPub: true} is not published for the ears.
+   ff-audio-s2.js (FF.AudioS2) is the Sequence 2 soundscape.
    Test hooks: FF.Audio.level() (master RMS / peak), FF.Audio.renderOffline(seconds, tick) (an OfflineAudioContext run of
    the same engine, driven by tick(dt)), debug(). */
 'use strict';
@@ -152,7 +161,7 @@ function Engine(ac, sync) {
   /* the heavier things (the rain, every room's reverb, the beds) are made over the next frames, so the user's gesture that
      unlocked sound never stalls the picture; offline renders build them at once */
   const work = [() => { E.buf.rain = rainBuf(ac, 3, 1200); }, () => { E.buf.tin = rainBuf(ac, 2.5, 260, true); }, () => { E.bed = buildBeds(E); }]
-    .concat(Object.keys(VERB).map(k => () => { if (!E.irs[k]) E.irs[k] = makeIR(ac, k); }));
+    .concat(Object.keys(VERB).filter(k => !VERB[k].lazy).map(k => () => { if (!E.irs[k]) E.irs[k] = makeIR(ac, k); }));   // a later sequence's rooms ({lazy}) are made when it asks (X.prepare)
   if (sync) work.forEach(f => f());
   else { const next = () => { if (E.dead || !work.length) return; try { work.shift()(); } catch (e) { FF.report(e, 'Audio.prepare'); } setTimeout(next, 20); }; setTimeout(next, 20); }
   if (FF.AUDIO_SAMPLES && !E.offline) for (const k in FF.AUDIO_SAMPLES) loadSample(E, k, FF.AUDIO_SAMPLES[k]);
@@ -219,7 +228,9 @@ function spatial(p, L, roll) {
   if ((L.x > 113.5 && p.x < 113.0) || (L.x < 113.0 && p.x > 113.5 && p.x < 130)) { lp = Math.min(lp, 1700); g *= 0.7; }  // the fence
   if ((L.x < 83.5 && p.x > 86.0) || (L.x > 86.0 && L.x < 113.5 && p.x < 83.5 && p.x > 52)) { lp = Math.min(lp, 600); g *= 0.35; } // the divide wall
   const pan = clamp((p.x - L.camX) / (L.halfW * 1.5), -0.9, 0.9);
-  return { g: clamp(g, 0, 1), lp, pan, d };
+  const out = { g: clamp(g, 0, 1), lp, pan, d };
+  if (p.s2) for (const w of X.walls) w(p, L, out);                                       // later sequences' walls (their own sources only)
+  return out;
 }
 
 /* one voice: in -> low-pass -> pan -> bus (+ reverb send). Disconnected once its sounds have ended. */
@@ -443,7 +454,7 @@ P.loop = function (id, kind, pos, gain, params, bus) {
   let L = this.loops.get(id);
   if (!L) {
     const ac = this.ac, out = this.g(0), lp = this.filt('lowpass', 12000, 0.5), pn = ac.createStereoPanner(); out.connect(lp); lp.connect(pn);
-    pn.connect(bus === 'music' ? this.music : this.sfx); const send = this.g(bus === 'music' ? 0 : 0.25 * this.verbAmt, this.verbIn); pn.connect(send);
+    pn.connect(bus === 'music' ? this.music : bus === 'amb' ? this.amb : this.sfx); const send = this.g(bus === 'music' ? 0 : 0.25 * this.verbAmt, this.verbIn); pn.connect(send);
     const inner = this.g(1, out), body = LOOPS[kind](this, inner);
     L = { id, kind, out, lp, pn, send, inner, body }; this.loops.set(id, L);
   }
@@ -479,7 +490,7 @@ P.update = function (dt, D) {
     const k = this.verbCur < 0 ? 0 : 1 - this.verbCur, v = this.verb[k];
     if (!this.irs[m.verb]) this.irs[m.verb] = makeIR(this.ac, m.verb);
     if (v.type !== m.verb) { v.c.buffer = this.irs[m.verb]; v.type = m.verb; }
-    const first = this.verbCur < 0; this.verbCur = k; this.verbType = m.verb; this.verbAmt = { open: 0.5, wet: 0.8, hall: 1.0, metal: 0.8, yard: 0.6, soft: 0.5 }[m.verb] || 0.5;
+    const first = this.verbCur < 0; this.verbCur = k; this.verbType = m.verb; this.verbAmt = VERB[m.verb].amt != null ? VERB[m.verb].amt : { open: 0.5, wet: 0.8, hall: 1.0, metal: 0.8, yard: 0.6, soft: 0.5 }[m.verb] || 0.5;
     this.to(v.o.gain, VERB[m.verb].ret, first ? 0.01 : 0.4); this.to(this.verb[1 - k].o.gain, 0, first ? 0.01 : 0.4);
   }
   /* landmark loops */
@@ -510,7 +521,9 @@ function mixNow(G) {
   else if (FF.Level && FF.Level.lookBlend) { const lb = FF.Level.lookBlend(x); a = BEDS[lb.from] || BEDS[G.place] || BEDS.verge; b = BEDS[lb.to] || a; k = clamp(lb.t || 0, 0, 1); }
   else { a = b = BEDS[G.place] || BEDS.verge; }
   const o = {}; for (const key of ['rain', 'rainLP', 'wind', 'hum', 'hall', 'drips', 'mach']) o[key] = lerp(a[key], b[key], k);
-  o.verb = k < 0.5 ? a.verb : b.verb; return o;
+  o.verb = k < 0.5 ? a.verb : b.verb;
+  for (const f of X.mix) f(o, G, x);
+  return o;
 }
 
 /* ================================================================== the scene: what is heard, derived from the game */
@@ -546,7 +559,7 @@ function cue(name, pos, o) {
   o = o || {}; st.heard[name] = (st.heard[name] || 0) + 1;
   if (pos && SAL[name] != null) {
     remember(name, pos, o);
-    if (!o.fromBus && name !== 'drip') FF.bus.emit('sound', { cue: name, x: +pos.x.toFixed(2), y: +(pos.y || 0).toFixed(2), z: +(pos.z || 0).toFixed(2), gain: o.gain == null ? 1 : o.gain, id: o.id || undefined, surface: o.surface, run: o.run || undefined, src: 'audio' });
+    if (!o.fromBus && !o.noPub && name !== 'drip') FF.bus.emit('sound', { cue: name, x: +pos.x.toFixed(2), y: +(pos.y || 0).toFixed(2), z: +(pos.z || 0).toFixed(2), gain: o.gain == null ? 1 : o.gain, id: o.id || undefined, surface: o.surface, run: o.run || undefined, src: 'audio' });
   }
   if (E && !st.muted && !st.hidden) { try { E.play(name, pos, o); } catch (e) { FF.report(e, 'Audio.play:' + name); } }
 }
@@ -559,6 +572,20 @@ function hold(id, kind, pos, gain, params, bus) {
 }
 const xp = name => !!st.explicit[name];
 
+/* the extension interface (see EXTENSIONS in the header): later sequences add cues, loops, beds and reverbs to these
+   tables and hook in below; with no extension installed every hook list is empty and Sequence 1 sounds exactly as before */
+const X = {
+  CUES, CUE_OPT, TRIM, SAL, LOOPS, BEDS, VERB, MARKS, D, st,
+  cue, hold, later, spatial, listener, figure: role => figure(role), xp, rnd, rr, clamp, lerp,
+  get E() { return E; },
+  /* make a room's impulse response now (a later sequence calls this ahead of need, one per frame, so its rooms never stall
+     the picture and Sequence 1 draws exactly the same noise as before they existed) */
+  prepare(type) { if (E && VERB[type] && !E.irs[type]) { E.irs[type] = makeIR(E.ac, type); return true; } return false; },
+  derive: [], walls: [], mix: [], surface: [], land: [], failCue: {}, rest: ['rest'],
+  restLike: p => X.rest.indexOf(p) >= 0,
+};
+const exts = [];
+
 /* surfaces */
 function humanSurface(role, p) {
   if (role === 'worker') return 'grate';
@@ -568,6 +595,7 @@ function humanSurface(role, p) {
   return 'wet';
 }
 function rabbitSurface(r) {
+  for (const f of X.surface) { const s = f(r); if (s) return s; }
   if (r.onBox) return 'wood';
   if (r.y < -0.5) return r.x < 53.4 ? 'water' : 'concrete';
   if (r.x < 36.2) return 'grass'; if (r.x < 38.6) return 'wet'; if (r.x < 86) return 'concrete'; if (r.x < 119.2) return 'wet'; return 'grass';
@@ -763,7 +791,7 @@ function deriveRabbit(now, r) {
   }
   /* poses, close-miked (the rest is the most intimate) */
   if (r && r.mode === 'play') {
-    const pose = r.pose || null, closeK = G.place === 'rest' ? 1 : G.place === 'verge' ? 0.55 : 0.75;
+    const pose = r.pose || null, closeK = X.restLike(G.place) ? 1 : G.place === 'verge' ? 0.55 : 0.75;
     if (pose !== R.pose) { R.pose = pose; R.poseNext = now; if (pose && /shake/.test(pose)) cue('shake', { x: r.x, y: r.y, z: 0 }, { gain: closeK }); if (pose && /settle|loaf|lie/.test(pose)) cue('settle', { x: r.x, y: r.y, z: 0 }, { gain: closeK }); }
     if (pose && now >= R.poseNext) {
       if (/groom|wash/.test(pose)) { cue('groom', { x: r.x, y: r.y, z: 0 }, { gain: closeK }); R.poseNext = now + rr(0.4, 0.6); }
@@ -772,10 +800,10 @@ function deriveRabbit(now, r) {
       else R.poseNext = now + 0.5;
     }
     /* the warm pad: the first music, at the groom in the breathing space */
-    if (G.place === 'rest' && pose && /groom/.test(pose) && G.mode === 'play') D.end.pad = true;
+    if (X.restLike(G.place) && pose && /groom/.test(pose) && G.mode === 'play') D.end.pad = true;
     /* breath, close-miked: in the squeeze pipe, hidden in the Search, and in the breathing space; held while a beam is close */
     const s = G.searcher, inCore = G.place === 'search' && FF.Level && FF.Level.coreAt && FF.Level.coreAt(r.x);
-    const ctxW = r.squeeze && r.y < -0.5 ? 0.9 : inCore ? 0.8 : G.place === 'rest' ? 1.0 : 0;
+    const ctxW = r.squeeze && r.y < -0.5 ? 0.9 : inCore ? 0.8 : X.restLike(G.place) ? 1.0 : 0;
     if (ctxW > 0 && now >= R.breathNext) {
       const mood = r.mood || 'calm', hz = { calm: 1.0, alert: 1.6, afraid: 2.4, fleeing: 2.8, flee: 2.8, recovering: 1.6, recover: 1.6, settled: 0.6 }[mood] || (G.place === 'search' ? 2.4 : 1.0);
       const heldK = s && s.lit > 0 ? 0.3 : 1;
@@ -844,7 +872,7 @@ const Audio = FF.Audio = {
     on('fail', d => {
       D.black = true; D.timeline = D.timeline.filter(e => e.tag === 'keep');
       if (E) { const t = E.ac.currentTime; E.world.gain.cancelScheduledValues(t); E.world.gain.setValueAtTime(0, t); E.world.gain._ffv = 0; for (const id of [...E.loops.keys()]) E.loopStop(id, 0.02); }
-      cue((d && d.kind) === 'shot' ? 'shot' : 'scuff', null, {});
+      cue(X.failCue[d && d.kind] || ((d && d.kind) === 'shot' ? 'shot' : 'scuff'), null, {});
     });
     on('restart', d => {
       const cp = FF.Game && FF.Game.cp ? FF.Game.cp(d && d.cp) : null;
@@ -871,9 +899,10 @@ const Audio = FF.Audio = {
       else if (ph === 'start') D.rab.claws = { t0: now, dur: ((FF.S1.links || []).find(l => l.id === 'duct') || {}).transit || 3.8, next: now };
       else if (ph === 'end') { D.rab.claws = null; later(0.45, () => cue('sniff', { x: 87.3, y: 0.82, z: 0 }), 'duct'); later(1.2, () => cue('land', { x: 87.6, y: 0, z: 0 }, { h: 0.8, surface: 'wet' }), 'duct'); }
     });
-    const surf = (sf, r) => { sf = String(sf || ''); return /wet/.test(sf) ? 'wet' : /water/.test(sf) ? 'water' : /wood/.test(sf) ? 'wood' : /metal|duct/.test(sf) ? 'metal' : /grass/.test(sf) ? 'grass' : /concrete/.test(sf) ? 'concrete' : (r ? rabbitSurface(r) : 'grass'); };
+    const surf = (sf, r) => { if (r) for (const f of X.surface) { const s = f(r, sf); if (s) return s; } sf = String(sf || ''); return /wet/.test(sf) ? 'wet' : /water/.test(sf) ? 'water' : /wood/.test(sf) ? 'wood' : /metal|duct/.test(sf) ? 'metal' : /grass/.test(sf) ? 'grass' : /concrete/.test(sf) ? 'concrete' : (r ? rabbitSurface(r) : 'grass'); };
     on('rabbit:land', d => {
-      const r = GG().rabbit; if (!r || xp('land')) return; const h = d && d.h != null ? +d.h : (r.airT || 0.3) * 1.6;
+      const r = GG().rabbit; if (!r || xp('land')) return;
+      for (const f of X.land) if (f(d, r)) return; const h = d && d.h != null ? +d.h : (r.airT || 0.3) * 1.6;
       if (d && d.y < -0.8 && d.x > 38.3 && d.x < 39.8) cue('splash', { x: d.x, y: d.y, z: 0 });
       else if (h > 0.08) cue('land', { x: r.x, y: r.y, z: 0 }, { h: clamp(h, 0.15, 1.2), surface: surf(d && d.surface, r) });
     });
@@ -881,7 +910,7 @@ const Audio = FF.Audio = {
     on('rabbit:step', d => { if (!d) return; st.explicit.paw = true; const r = GG().rabbit; cue('paw', { x: d.x, y: d.y || 0, z: 0 }, { surface: surf(d.surface, r), w: clamp(0.45 + 0.55 * (+d.run || 0), 0.35, 1.0) }); });
     on('rabbit:jump', d => { if (d) cue('paw', { x: d.x, y: d.y || 0, z: 0 }, { surface: surf(null, GG().rabbit), w: 0.5 }); });
     on('person', d => { const f = figure('verge'); if (d && /kneel/.test(d.phase || '') && f && !xp('kneel')) cue('kneel', { x: f.st.x, y: 0, z: f.st.z || 0 }, { id: 'verge' }); });
-    on('rabbit:pose', d => { if (d && d.pose && GG().rabbit) { const p = d.pose, r = GG().rabbit; if (/groom/.test(p) && GG().place === 'rest') D.end.pad = true; if (/shake/.test(p)) cue('shake', { x: r.x, y: r.y, z: 0 }); } });
+    on('rabbit:pose', d => { if (d && d.pose && GG().rabbit) { const p = d.pose, r = GG().rabbit; if (/groom/.test(p) && X.restLike(GG().place)) D.end.pad = true; if (/shake/.test(p)) cue('shake', { x: r.x, y: r.y, z: 0 }); } });
     on('box', d => { if (d && d.moving && !D.box.firstPush) { D.box.firstPush = true; if (!D.walk.explicit) startWalkway(GG().t || 0); } });
     on('entry', d => { if (!d) return; if (d.phase === 'cue') onEntryCue(); else if (d.phase === 'doorway' && D.entry && !D.entry.door) { D.entry.door = true; if (!xp('door-open')) cue('door-open', { x: 110.0, y: 1.0, z: -3.0 }); } });
     on('end', d => { if (d && /settled|pullout/.test(d.phase || '')) D.end.pad = true; });
@@ -894,6 +923,8 @@ const Audio = FF.Audio = {
     };
     addEventListener('keydown', wake, true); addEventListener('pointerdown', wake, true);
     Audio._wake = wake;
+    /* later sequences' sound (FF.AUDIO_EXT, loaded after this file): each adds to the tables and hooks of X */
+    for (const m of FF.AUDIO_EXT || []) { if (exts.indexOf(m) >= 0) continue; try { m.install(X); exts.push(m); } catch (e) { FF.report(e, 'Audio.ext:' + (m && m.name)); } }
   },
   /* from a user gesture (the notice's Continue, the title's start; also any later key). Makes the context only when sound
      is on: muted players never get one. Never with ?mute=1. */
@@ -919,6 +950,7 @@ const Audio = FF.Audio = {
       if (G.mode === 'play' || G.mode === 'title') {
         deriveRabbit(now, r); deriveVerge(now, r); deriveWorld(now, r); deriveSearcher(now, r);
         const fig = figure('worker'); if (fig && fig.st) steps('fig:worker', 'worker', fig.st, !!fig.st.visible);
+        for (const f of X.derive) { try { f(now, r, dt); } catch (e) { FF.report(e, 'Audio.derive'); } }
       }
       if (G.mode === 'title' || G.mode === 'end') D.end.pad = G.mode === 'end' ? D.end.pad : false;
       if (D.end.pad && G.mode === 'end' && E && !st.muted) E.loop('pad', 'pad', null, 1.4 * (1 - clamp(G.fade || 0, 0, 1)), null, 'music');
@@ -977,6 +1009,11 @@ const Audio = FF.Audio = {
   dispose() { if (E) E.dead = true; if (Audio._wake) { removeEventListener('keydown', Audio._wake, true); removeEventListener('pointerdown', Audio._wake, true); } clearTimeout(suspT); if (E && !E.offline) try { E.ac.close(); } catch (_) {} E = null; },
   get muted() { return st.muted; },
   debug() {
+    const o = Audio.debugS1();
+    for (const m of exts) if (m.debug) { try { o[m.name || 'ext'] = m.debug(); } catch (e) { o[m.name || 'ext'] = { err: String(e && e.message || e) }; } }
+    return o;
+  },
+  debugS1() {
     return { stub: false, silent: !!FF.SILENT, unlocked: st.unlocked, muted: st.muted, music: st.music, hidden: st.hidden, context: E ? E.ac.state : null, made: st.made, failed: st.failed || undefined,
       bed: E && E.mix ? { rain: +E.mix.rain.toFixed(2), wind: +E.mix.wind.toFixed(2), verb: E.mix.verb } : null, loops: E ? [...E.loops.keys()] : Object.keys(D.loops),
       black: D.black, thud: D.thud && D.thud.on, van: D.van && { on: D.van.on, fb: D.van.fb, stopped: D.van.stopped, leaving: D.van.leaving, gone: D.van.gone, x: +D.van.x.toFixed(1) },

@@ -15,6 +15,13 @@ try {
       search: () => { __ff.warp('search-platform'); },
       searchAim: () => { __ff.warp({ id: 't', x: 99.0, face: 1 }); FF.G.flags.entryDone = true; FF.AI.setLoopT(9.5); for (let i = 0; i < 400 && FF.G.searcher.state !== 'aim'; i++) __ff.tick(); },
       rest: () => { __ff.warp({ x: 121.4, face: 1 }); },
+      /* Sequence 2 (the machines running: their clocks start at these checkpoints) */
+      hall: () => { __ff.warp('works-apron'); },
+      pitA: () => { __ff.warp('works-pitA'); },
+      passage: () => { __ff.warp({ x: 157.6, face: 1 }); },
+      line: () => { __ff.warp('works-line'); },
+      great: () => { __ff.warp('works-g2'); },
+      out: () => { __ff.warp({ x: 202.0, face: 1 }); },
     };
     for (const tier of ['high', 'medium', 'low']) {
       __ff.setTier(tier); out[tier] = {};

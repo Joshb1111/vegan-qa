@@ -1,4 +1,4 @@
-# Far Field: 3D models and animations to commission (7 Oct 2026; updated for Sequence 1 the same day)
+# Far Field: 3D models and animations to commission (7 Oct 2026; updated for Sequence 1 the same day, and for Sequence 2, The Works, on 8 Oct)
 
 What to supply to replace the temporary rabbit, the stand-in human and the stand-in van, and later the environment. Written so it can be handed to a 3D artist as it is. The game (`public/farfield/index.html`) and the look test (`look.html`) already have the rabbit slot and the loader. Until a file arrives, the game uses its temporary stand-ins.
 
@@ -156,6 +156,18 @@ Replaces the earlier human outline (SEQUENCE-1.md §14 and Amendment A4/A21). **
 
 **Not needed:** `fire`. The cut to black happens on the shot's first frame.
 
+### Sequence 2: a fourth role, the maintenance worker (`painter`)
+
+The same model (SEQUENCE-2.md §7, §17). He scrapes hand-sprayed END ANIMAL USE off a passage wall with his back to the lane; when he notices the rabbit he lifts his work lamp off its tripod, holds its light on the rabbit for two seconds, hangs it back and goes back to work, harder. He never steps towards the rabbit, never calls out, never reaches for it.
+
+| Role | Gun | Torch | Other | Behaviour |
+|---|---|---|---|---|
+| The maintenance worker | **no** | **no** (his tripod lamp is world decor) | `prop_scraper` in his right hand; no backpack, no coil | stands at one spot facing a wall: scrapes, stops, turns along the passage for a rag, turns back; the look |
+
+- **New prop nodes:** `prop_scraper` (a long-handled wire scraper, about 1.0 m, held in both hands), `prop_worklamp` (a tripod work lamp whose head lifts off the mast, with a `lamp_emitter` empty at the lens, +Z along the beam). A bucket and a trolley are world decor.
+- **New clips (30 fps, in place):** `scrape_wall_loop` (both hands on the handle, strokes up and down at chest height, 1.5 a second; the game speeds it to 2.2 for "harder"), `straighten` (0.5 s, the scraper lowered), `reach_trolley` (1.6 s, the left hand out to his side for a rag, the head looking along the lane), `dip` (the scraper into the bucket), `lamp_lift` (0.5 s), `lamp_hold_loop` (utterly still, the lamp at shoulder height), `lamp_lower` (0.6 s), `lamp_hang` (0.5 s). `turn_180` and `idle` already exist.
+- Until they exist, the stand-in figure is posed in code (`ff-painter.js`), with every Sequence 1 prop hidden and a stand-in scraper in its hand.
+
 ## The van (Sequence 1)
 
 **File:** `ff_vehicle.glb`. A boxy, unbranded utility van: 5.0–5.6 × 1.9–2.1 × 2.2–2.5 m, ≤ 8,000 triangles, metres, Y up, facing +Z, origin on the ground at the centre.
@@ -180,9 +192,21 @@ Replaces the earlier human outline (SEQUENCE-1.md §14 and Amendment A4/A21). **
 | Openings | `ff_env_culvert_opening` (a 2 m block with a 0.46 × 0.40 m low opening and a short tunnel), `ff_env_drain` (beat 1), `ff_env_vent` |
 | Props | `ff_prop_box` (0.52 × 0.44 × 0.50 m crate), `ff_prop_pipe_4m` (radius 0.25 m), `ff_prop_pipe_elbow`, `ff_prop_tank` (radius 0.5 m, 1.6 m tall), `ff_prop_railing_2m`, `ff_prop_grate`, `ff_prop_valve`, `ff_prop_plank` |
 
+**Sequence 2, The Works** (SEQUENCE-2.md §17; collision stays data; the stand-ins in `ff-world-s2.js` show the sizes):
+
+| Piece | Notes |
+|---|---|
+| `ff_env_press_platen` | three sizes: 3.8, 7.0 and 8.0 m long (1.6 m thick; the great press 2.4 m), about 3.5 m deep; chamfered lower edges; a strip lamp along the underside's front edge as a separate emissive node |
+| `ff_env_press_frame` | two columns, two screws, the crosshead about 12 m up; the great press's frame twice the mass |
+| `ff_env_counterweight` | about 1.0 × 2.2 × 0.85 m, in its shaft |
+| `ff_env_bed_slot` | a bed segment with a drainage slot cut through its front face (the slots are 1.0–1.1 m wide at the floor, 0.40 deep, with 0.6 m ramps) |
+| `ff_env_sluice_gate` | a solid steel drainage gate (no bars), 0.1 m thick, 0.3 m tall, sliding up into the bed |
+| `ff_env_slab_lid` | a cracked precast channel lid, 2.6 m, weeds in the crack |
+| `ff_env_pipe_large` | 1.4 m diameter, about 7 m long, on two concrete saddles |
+| `ff_prop_worklamp`, `ff_prop_trolley`, `ff_prop_bucket`, `ff_prop_paint_tins` | the passage's props (the tins on a pallet are a hiding place: the pallet's top 0.26 m up) |
+
 **Later**
 - `ff_env_walkway` (beat 2)
-- Machine pieces with named moving parts (beat 4)
 - Shifting platforms (beat 6)
 - Grass and weed clumps, and `ff_env_slope_wall` (beats 7 and 9)
 

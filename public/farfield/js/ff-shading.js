@@ -12,6 +12,8 @@
        key      unique name (part of the program cache key)
        uniforms merged into FF.U (shared by every patched material)
        pars     GLSL at file scope (after the shared functions; vFFW = world position is available)
+       only     (optional) a material option name: the hook goes only into materials made with it (FF.mat({…, works: true})),
+                so a later sequence's costly lighting code stays out of every other shader (Sequence 2's footprint mask)
        spot     GLSL inside  void ffSpotMod( const in int i, const in vec3 p, inout vec3 c )  run for every spot light i
                 (i = three's spot index: shadow-casting spots first, in the order they were added), p = world pos, c = colour
        lights   GLSL after the lighting sums (reflectedLight, diffuseColor, ffN = world normal, ffO = occlusion in scope)
@@ -58,7 +60,7 @@ FF.addShadingHook = function (h) {
   if (FF.hooks.some(x => x.key === h.key)) return;   // idempotent
   FF.hooks.push(h); if (h.uniforms) Object.assign(FF.U, h.uniforms);
 };
-const hookCode = part => FF.hooks.map(h => h[part] ? `/* hook ${h.key} */\n${h[part]}\n` : '').join('');
+const hookCode = (part, opts) => FF.hooks.map(h => h[part] && (!h.only || (opts && opts[h.only])) ? `/* hook ${h.key} */\n${h[part]}\n` : '').join('');
 FF.MAX_AO = MAX_AO;
 
 /* shadow filtering: a rotated disc of N taps with per-pixel rotation (interleaved gradient noise); the film grain hides
@@ -170,10 +172,10 @@ function patch(m, opts) {
     const spotFn = `
 void ffSpotMod( const in int i, const in vec3 p, inout vec3 c ) {
   if ( i == 0 && uFFKeyMode > 0.5 ) c *= ffKeyMask( p ) * ( uFFCookie.y + uFFCookie.x * ffBands( p ) );
-  ${hookCode('spot')}
+  ${hookCode('spot', opts)}
 }
 `;
-    let f = defs + PARS + hookCode('pars') + spotFn + sh.fragmentShader;
+    let f = defs + PARS + hookCode('pars', opts) + spotFn + sh.fragmentShader;
     f = f.replace('#include <shadowmap_pars_fragment>', shadowChunk(FF.tier ? FF.tier.shadowTaps : 8));
     if (opts.mottle) f = f.replace('#include <color_fragment>', `#include <color_fragment>
       diffuseColor.rgb *= 1.0 + ${(+opts.mottle).toFixed(3)} * ( ffNoise( vFFW * vec3( 0.55, 0.9, 0.55 ) ) + 0.5 * ffNoise( vFFW * 2.3 ) - 0.75 );`);
@@ -190,10 +192,10 @@ void ffSpotMod( const in int i, const in vec3 p, inout vec3 c ) {
         ${opts.rim ? `float ffF = 1.0 - clamp( dot( normal, normalize( vViewPosition ) ), 0.0, 1.0 );
         totalEmissiveRadiance += uFFRim.rgb * pow( ffF, uFFRim.w ) * ( 0.55 + 0.45 * clamp( ffN.y + 0.3, 0.0, 1.0 ) );` : ''}
         ${opts.lift ? 'totalEmissiveRadiance += diffuseColor.rgb * uFFLift;' : ''}
-        ${hookCode('lights')}
+        ${hookCode('lights', opts)}
       }`);
     }
-    if (!opts.noFog) f = f.replace('#include <fog_fragment>', FOG + hookCode('fog'));
+    if (!opts.noFog) f = f.replace('#include <fog_fragment>', FOG + hookCode('fog', opts));
     sh.fragmentShader = f;
   };
   m.customProgramCacheKey = () => 'ff|' + (FF.tier ? FF.tier.name : '') + '|' + FF.hooks.map(h => h.key).join(',') + '|' + JSON.stringify(opts);
@@ -207,7 +209,9 @@ FF.mat = function (spec, extra) {
   const m = new T.MeshStandardMaterial(Object.assign({
     color: lin(spec.color || '#808080'), roughness: spec.roughness != null ? spec.roughness : 0.9, metalness: 0, dithering: true,
   }, extra || {}));
-  return patch(m, { mottle: spec.mottle || 0, rim: !!spec.rim, noAO: !!spec.noAO, lift: spec.lift || 0, wallFill: spec.wallFill || 0 });
+  const o = { mottle: spec.mottle || 0, rim: !!spec.rim, noAO: !!spec.noAO, lift: spec.lift || 0, wallFill: spec.wallFill || 0 };
+  if (spec.works) o.works = true;      /* Sequence 2: the Works' lighting hooks (FF.addShadingHook's `only`) */
+  return patch(m, o);
 };
 /* unlit glowing surfaces (the light beyond the opening, the amber lamp): colour in linear HDR so they bloom */
 FF.glow = function (rgb, fog) {

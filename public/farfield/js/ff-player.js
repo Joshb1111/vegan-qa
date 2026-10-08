@@ -50,6 +50,37 @@ const box = { x: 0, vx: 0, w: 0.52, h: 0.44, d: 0.5, minX: -1e9, maxX: 1e9 };
 const RB = () => FF.RULES.rabbit, BH = () => FF.RULES.behave;
 const FLEE_STATES = { spotted: 1, aim: 1, pursue: 1, grab: 1, lower: 1 };
 
+/* ------------------------------------------------------------------ Sequence 2 (THE WORKS; SEQUENCE-2.md §0, §10, §11, §16).
+   Everything here is inert unless ff-works.js (FF.Works) and the Sequence 2 data are loaded, so Sequence 1 alone behaves
+   exactly as before. With them: the chamfer shove (shove(), involuntary, 0.12 s, the startle); a pit under a press that is
+   coming down or pressing counts as cover for the flatten pose (flat, held breath); AFRAID within 3 m of a moving press; the
+   0.15 s startle at a contact within 6 m; the ears to the Works' sounds (FF.RULES.behave.earsWorks: the clank, the roar, the
+   thud, the gate's draught, the scraping and its stopping); the surfaces; the settle chain under the pipe (ending a); and
+   THE JOIN: Sequence 1's rest no longer auto-stops (60 s) and its settle no longer locks input (FF.S2.join.player). */
+const WORKS = () => !!(FF.Works && FF.S2 && FF.S2.works);
+const joined = () => !!(FF.S2 && FF.S2.join && FF.S2.join.player && FF.S2.join.player.settleLocksInput === false);
+const W2 = { threat: 99, pitCovered: false, scrape: false, look: false };
+function worksAssess() {
+  W2.threat = 99; W2.pitCovered = false;
+  if (!WORKS() || !FF.Works.started) return;
+  const hw = RB().hw;
+  for (const id of ['P1', 'Q1', 'Q2', 'Q3']) {
+    const p = FF.Works.press(id); if (!p) continue;
+    const moving = p.state === 'release' || p.state === 'descent', d = Math.max(0, p.x0 - (S.x + hw), (S.x - hw) - p.x1);
+    if (moving) W2.threat = Math.min(W2.threat, d);
+    if ((moving || p.state === 'down') && d === 0) { const sh = FF.Works.shelterAt(S.x); if (sh && sh.kind === 'pit' && sh.under === id && S.y < -0.2) W2.pitCovered = true; }
+  }
+}
+function worksSurface() {
+  const p = FF.G.place, x = S.x, wet = S.y < -0.2;
+  if (p === 'approach') return x < 129.6 ? 'concrete' : 'wet-concrete';
+  if (p === 'tunnel' || p === 'passage') return 'concrete';
+  if (p === 'culvert') return 'water';
+  if (p === 'hall') return wet ? 'water' : x >= 140.0 && x < 147.0 ? 'steel' : 'wet-concrete';
+  if (p === 'line') return wet ? 'water' : FF.Works.over(x) ? 'steel' : 'wet-concrete';
+  return 'grass';
+}
+
 /* behaviour tuning that is presentation, not a game rule (game rules stay in FF.RULES). No RULES OVERRIDE is needed. */
 const P = {
   reachBoxGap: 0.5,        // A15: a box edge nearer than this to the body = "a box top within jump reach" -> an ordinary jump
@@ -115,8 +146,9 @@ function freshB(keepSeen) {
     reachFails: 0, lookedAtBox: false, lipCool: 0, idleNext: rr(0.6, 1.2), twitchNext: rr(2, 5), sniffNext: rr(3, 8), groomCool: 0, sniffCool: 0, edgeCool: 0,
     pushBlockT: 0, boxSniffCool: 0, beamD: 99, vehicleT: -1, vehicleStopped: false, gateOpen: false, personOutT: -1, torchDownT: -1,
     srPrevX: null, srMoving: false, holdWant: null, holdWantT: 0, srWasMoving: false, aimK: 0, grabK: 0, noticeT: -1, flinchK: 0, wasBoxMoving: false, firstSqueezeId: null,
-    drainRecovered: false, escaped: false, lastPlace: null, walkwayT: -1, ranT: 0,
+    drainRecovered: false, escaped: false, lastPlace: null, walkwayT: -1, ranT: 0, shove: null,
   });
+  Object.assign(W2, { threat: 99, pitCovered: false, scrape: false, look: false });
   B.seen = seen; B.src.clear();
   B.add = { startle: 9, shake: 9, splash: 9, sniff: 9, twitchL: 9, twitchR: 9, look: 9, lookDir: -1, snap: 9 };
   B.ears = { pL: 0.06, pR: 0.06, yL: -0.45, yR: 0.45, w: 1 }; B.head = { yaw: 0, pitch: 0 };
@@ -134,6 +166,7 @@ function fleeing() { const s = FF.G.searcher; return !!(s && FLEE_STATES[s.state
 function figs() { try { return (FF.Humans && FF.Humans.figures) || []; } catch (_) { return []; } }
 function surface() {
   if (S.onBox) return 'wood'; const p = FF.G.place;
+  if (WORKS() && S.x >= FF.S2.sections[0].x0) return worksSurface();
   return p === 'verge' ? 'grass' : p === 'drain' ? 'water' : p === 'search' ? 'wet-concrete' : p === 'rest' ? (S.x > 116 ? 'grass' : 'wet-concrete') : 'concrete';
 }
 function boxGap() { const b = boxSpan(); return Math.max(0, b.x0 - (S.x + RB().hw), (S.x - RB().hw) - b.x1); }
@@ -235,9 +268,11 @@ function pollSources(dt) {
   /* the way on: a draught from the raised opening (Courtyard), the culvert's gurgle (Verge), the fence corner (Search) */
   if (G.place === 'courtyard' && Math.abs(S.x - 76.0) < 3.2) addSrc('draught', { x: 76.0, y: 0.98, z: -0.45, w: 0.3, life: 0.3, kind: 'wayOn', quiet: true });
   if (G.place === 'verge' && S.x > 28) addSrc('gurgle', { x: 38.75, y: -0.4, z: -0.5, w: 0.3, life: 0.3, kind: 'wayOn', quiet: true });
+  /* Sequence 2: the worker's scraping (a loop while he scrapes) */
+  if (W2.scrape && WORKS() && S.x > 150 && S.x < 168) { const PD = FF.S2.painter; addSrc('scrape', { x: PD.x, y: 1.2, z: PD.z, w: (BH().earsWorks || {}).scrape || 0.7, life: 0.3, kind: 'chain', quiet: true }); }
   /* the settle chain's listen: the ears swivel to the fence (nothing is left there), then forward to the drip */
   if (B.pose && B.pose.step === 'listen') {
-    if (B.pose.t < 1.3) addSrc('fence-mem', { x: 113.2, y: 0.5, z: 0, w: 0.7, life: 0.2, kind: 'other', quiet: true });
+    if (B.pose.t < 1.3) addSrc('fence-mem', { x: G.place === 'out' && WORKS() ? 193.8 : 113.2, y: 0.5, z: 0, w: 0.7, life: 0.2, kind: 'other', quiet: true });
     else addSrc('drip', { x: S.x + 1.4 * S.face, y: 1.4, z: -0.9, w: 0.7, life: 0.2, kind: 'other', quiet: true });
   }
 }
@@ -270,7 +305,9 @@ function assess(dt) {
   if (G.place === 'search' && sr && sr.active && sr.state !== 'off') B.searchT = 0; else B.searchT += dt;
   B.humanVisible = human; B.humanStill = humanStill; B.near = near;
   const flee = S.fleeing;
-  const afraid = (G.place === 'search' && sr && sr.active && sr.state !== 'off') || B.searchT < 5 || (searching && near < P.afraidNear) || B.beamD < 2;
+  let afraid = (G.place === 'search' && sr && sr.active && sr.state !== 'off') || B.searchT < 5 || (searching && near < P.afraidNear) || B.beamD < 2;
+  /* Sequence 2: within 3 m of a press that is coming down, sheltering under one, or in the worker's lamp */
+  worksAssess(); if (W2.threat < 3 || W2.pitCovered || W2.look) afraid = true;
   B.cueT += dt; B.moodT += dt;
   const m = B.mood;
   if (flee) { setMood('flee'); B.safeT = 0; }
@@ -286,7 +323,7 @@ function assess(dt) {
   let tHz = mm === 'alert' ? hz.alert : mm === 'afraid' ? hz.afraid : mm === 'flee' ? hz.flee : mm === 'recover' ? lerp(hz.recover[0], hz.recover[1], clamp(B.recoverT / hz.recover[2], 0, 1)) :
     mm === 'settled' ? lerp(H.settle.breath[0], H.settle.breath[1], clamp(B.settledT / 3, 0, 1)) : hz.calm;
   let amp = mm === 'afraid' ? 1.35 : mm === 'flee' ? 1.5 : mm === 'alert' ? 1.1 : mm === 'settled' ? 0.8 : mm === 'recover' ? lerp(1.35, 1, clamp(B.recoverT / 12, 0, 1)) : 1;
-  const held = B.beamD <= H.heldBreath.within; B.held = held;
+  const held = B.beamD <= H.heldBreath.within || W2.pitCovered || W2.look; B.held = held;
   if (held) amp *= H.heldBreath.amp;
   B.hz = tHz; B.amp = amp;
 }
@@ -360,7 +397,7 @@ function schedule(dt, dir) {
        open space); watching (ears live) from cover that is not low (under the deck); peeking at a cover's reachable end;
        anywhere else, a beam, the gate's glare or a far human who stops included, it freezes: ears back, a slight lowering */
     let want = 'freeze'; const c = FF.Level.coverAt(S.x, 0), inCore = c && c.core && S.x >= c.core[0] && S.x <= c.core[1];
-    if (S.low || S.crouchHeld) want = 'hide';
+    if (S.low || S.crouchHeld || W2.pitCovered) want = 'hide';
     else if (inCore || B.hideHold) want = 'watch';
     else if (G.place === 'search' && c && c.core) want = 'peek';
     /* a short hysteresis so a beam or a shadow edge hovering at a threshold cannot flicker the posture */
@@ -375,7 +412,9 @@ function schedule(dt, dir) {
   if (B.pushBlockT >= P.rearAfter) return;
   B.idleNext -= dt; if (B.idleNext > 0) return;
   B.idleNext = rr(0.3, 0.8);
-  const place = G.place, safe = mm === 'calm' && (place === 'courtyard' || place === 'rest' || (place === 'verge' && B.vehicleT < 0));
+  const place = G.place, safe = mm === 'calm' && (place === 'courtyard' || place === 'rest' || (place === 'out' && WORKS()) || (place === 'verge' && B.vehicleT < 0));
+  /* Sequence 2: from the apron, a long look up at the hanging press, the first time it is still there */
+  if (WORKS() && place === 'hall' && !B.seen.pressLook && S.x > 136.2 && S.x < 139.9 && still > 2.0) { B.seen.pressLook = true; setPose('lookup', { dur: 1.2 }); return; }
   /* the hall: a long look up, the first time it is still there */
   if (place === 'courtyard' && !B.seen.lookUp && S.x > 57 && S.x < 70 && still > 1.5) { B.seen.lookUp = true; setPose('lookup', { dur: 2.5 }); return; }
   /* after two reach-fails, a look over at the box */
@@ -394,13 +433,20 @@ function schedule(dt, dir) {
 function dropAhead() { const R = RB(), ax = S.x + S.face * (R.hw + 0.12); return S.y - floorAt(ax, S.y + 0.05) > P.edgeDrop || (FF.Level.hitSolid(ax - 0.02, ax + 0.02, S.y + 0.01, S.y + 0.2) || {}).kind === 'edge'; }
 function chainStep(dt) {
   const G = FF.G, H = BH().settle;
-  if (G.place !== 'rest' || B.settledSent) return false;
+  const pipe = WORKS() && G.place === 'out' ? FF.S2.triggers.find(t => t.id === 'out-rest') : null;    // Sequence 2: under the pipe (ending a)
+  /* Sequence 2 (integration): the chain belongs to its place. A rabbit that settled (or half-settled) under Sequence 1's lean-to
+     and walked on starts afresh under the pipe, so ending (a) is still there for it */
+  const at = pipe ? 'pipe' : G.place === 'rest' ? 'rest' : null;
+  if (at && B.chainAt && B.chainAt !== at) { B.chain = null; B.settledSent = false; B.chainAt = null; }
+  if ((G.place !== 'rest' && !pipe) || B.settledSent) return false;
   if (!B.chain) {
     const sr = G.searcher, guard = sr && sr.active && /gap/.test(sr.state || '') && Math.abs(sr.x - S.x) < 4;
-    const ok = !S.fleeing && !guard && S.grounded && ((S.x >= 120.2 && S.x <= 122.8 && S.still >= H.still) || (S.x >= 116 && S.still >= H.stillElsewhere));
+    const where = pipe ? ((S.x >= pipe.x0 && S.x <= pipe.x1 && S.still >= pipe.still) || (S.x >= pipe.alt.x0 && S.x <= pipe.alt.x1 && S.still >= pipe.alt.still))
+      : ((S.x >= 120.2 && S.x <= 122.8 && S.still >= H.still) || (S.x >= 116 && S.still >= H.stillElsewhere));
+    const ok = !S.fleeing && !guard && S.grounded && where;
     if (!ok) return false;
     if (B.pose) cancelPose(0.2);
-    B.chain = { i: 0, wait: false }; startChain(); return true;
+    B.chain = { i: 0, wait: false }; B.chainAt = at; startChain(); return true;
   }
   if (B.chain.wait && !B.pose && S.still >= H.resumeStill) { B.chain.wait = false; startChain(); }
   return true;
@@ -573,6 +619,8 @@ const Player = FF.Player = {
         addSrc('boom', { x: S.x + 40, y: 9, z: -26, w: 0.95, life: 2.8, kind: 'boom', wall: true, decay: true, far: true });
         queue('sit', { dur: FF.RULES.listen.auto.firstBoom || 1.2, within: 1.0 });   // A2: sits up only if standing still
       }
+      /* Sequence 2, at the slab: the ears and head turn to the intake's draught and the machine beyond (sits up only if still) */
+      if (d.arg === 'works-draught' && WORKS()) { addSrc('works-draught', { x: 136.0, y: 0.6, z: -0.5, w: 0.6, life: 3.0, kind: 'boom', decay: true }); queue('sit', { dur: 1.2, within: 1.0 }); }
     });
     on('vehicle-arrive', () => { if (B.vehicleT < 0) { B.vehicleT = 0; B.cueT = 0; B.add.snap = 0; } });
     on('vehicle', d => { const ph = String(d.phase || ''); if (/stop/.test(ph)) { B.vehicleStopped = true; B.stopAt = B.vehicleT; } if (/leave|gone|away/.test(ph)) B.vehicleGone = /gone/.test(ph) || B.vehicleGone; if (d.x != null) addSrc('engine', { x: d.x, y: 1, z: d.z != null ? d.z : -8.5, w: 0.8, life: 1.5, kind: 'engine', wall: true }); });
@@ -605,6 +653,27 @@ const Player = FF.Player = {
     on('shake-off', () => { if (!B.seen.dryShake) { B.seen.dryShake = true; queue('shake', { dur: 0.8, within: 3, moving: () => { B.add.shake = 0; } }); } });
     on('safe', () => { if (B.mood === 'flee' || B.mood === 'afraid') { B.escaped = true; } });
     on('mode', d => { if (d.to === 'play' && B.pose && B.pose.kind === 'title') cancelPose(0.25); });
+    /* Sequence 2: the Works' sounds for the ears (the salience of FF.RULES.behave.earsWorks), the startle at a contact, the
+       gate's draught, the worker's scraping and its stopping, his lamp; out of the long hall, a look back and a shake */
+    on('press', d => {
+      if (!WORKS()) return; const E = BH().earsWorks || {}, cx = (d.x0 + d.x1) / 2, key = 'press:' + d.id, far = d.d != null && d.d > 8;   // far ones (through the walls) turn the ears, never snap them
+      if (d.phase === 'release') addSrc(key, { x: cx, y: 2.4, z: -1.0, w: E.release || 0.9, life: 2.0, kind: 'door', decay: true, quiet: far });
+      else if (d.phase === 'descent') addSrc(key, { x: cx, y: 1.2, z: -1.0, w: E.descent || 0.8, life: 2.0, kind: 'door', decay: true, quiet: true });
+      else if (d.phase === 'contact') { addSrc(key, { x: cx, y: 0.3, z: -1.0, w: E.contact || 1.0, life: E.contactDecay || 2.0, kind: 'boom', decay: true, quiet: far }); if (d.d != null && d.d <= ((FF.RULES.works && FF.RULES.works.press.flinchWithin) || 6)) B.add.startle = 0; }
+      else if (d.phase === 'rise') addSrc(key, { x: cx, y: 1.5, z: -1.0, w: E.rise || 0.4, life: 1.5, kind: 'door', decay: true, quiet: true });
+    });
+    on('sluice', d => {
+      if (!WORKS() || (d.phase !== 'lift' && d.phase !== 'open')) return;
+      addSrc('sluice', { x: d.x, y: -0.25, z: 0, w: (BH().earsWorks || {}).sluice || 0.6, life: 4.0, kind: 'wayOn' });
+      const sh = FF.Works.shelterAt(S.x); if (d.phase === 'open' && sh && sh.id === 'pit-B') queue('sniff', { dur: 1.5, within: 2.5 });
+    });
+    on('painter', d => {
+      if (!WORKS()) return; const ph = d.phase;
+      W2.scrape = ph === 'scrape' || ph === 'resume' || ph === 'dip';
+      if (ph === 'stop') { B.noticeT = 0; B.cueT = 0; }          // the scraping stops: the ears hold on him, upright
+      W2.look = ph === 'lift' || ph === 'hold';
+    });
+    on('safe', d => { if (d.arg === 'works' && WORKS()) B.restArrive = 0; });    // out of the long hall: +1.5 s a look back, +4 s a shake
     on('fail', () => { B.frozen = true; S.vx = 0; if (B.pose) cancelPose(0.05); setPose('flinch', { loop: true, kind: 'script', cancel: 'none' }); });
     on('end', d => { if (d.phase && d.phase !== 'settled') B.locked = true; });
   },
@@ -642,6 +711,8 @@ const Player = FF.Player = {
     /* involuntary holds: the reach-fail; the channel lip (only movement towards the edge is held); the rest's auto-stop */
     if (B.inv && B.inv.kind === 'reach') { dir = 0; up = jumpP = false; }
     if (B.inv && B.inv.kind === 'lip' && dir === B.inv.dir) dir = 0;
+    /* Sequence 2: the chamfer shove (FF.Works, involuntary, 0.12 s): carried clear of a descending press's edge */
+    if (B.shove) { const v = B.shove; v.t += dt; const k = clamp(v.t / v.dur, 0, 1), e = k * k * (3 - 2 * k); S.x = v.from + (v.to - v.from) * e; S.vx = 0; dir = 0; up = jumpP = false; if (k >= 1) B.shove = null; }
     if (B.lipHold && dir === B.lipHold) dir = 0; else if (B.lipHold && dir !== B.lipHold) B.lipHold = 0;
     if (B.autoStop) { if (In.axis() === 0) B.autoStop = false; dir = 0; }
     /* any movement input or jump ends an expressive pose within 0.15 s (involuntary and scripted ones excepted) */
@@ -810,6 +881,8 @@ const Player = FF.Player = {
       RU.rimK.value += (want - RU.rimK.value) * (1 - Math.exp(-dt * P.rimEase));
     }
   },
+  /* Sequence 2 (FF.Works): the chamfer shove: carried to toX over dur seconds (involuntary; the 0.15 s startle; no harm) */
+  shove(toX, dur) { B.shove = { from: S.x, to: toX, t: 0, dur: dur || 0.12 }; B.add.startle = 0; S.vx = 0; if (B.pose && B.pose.cancel !== 'none') cancelPose(0.08); },
   /* scripted poses other modules may ask for: 'groom', 'hide', 'look-back', 'settle', 'sniff', 'sit', 'shake', 'freeze',
      'peek', 'lookup', 'nibble', 'flinch', or null to end the current one */
   setPose(name) {
@@ -829,7 +902,7 @@ const Player = FF.Player = {
       fleeing: S.fleeing, inCore: S.inCore, hidden: S.hidden, ears: { pL: +B.ears.pL.toFixed(2), pR: +B.ears.pR.toFixed(2), yL: +B.ears.yL.toFixed(2), yR: +B.ears.yR.toFixed(2) },
       head: { yaw: +B.head.yaw.toFixed(2), pitch: +B.head.pitch.toFixed(2) }, top: B.top || [], reachFails: B.reachFails, inv: B.inv ? B.inv.kind : null, locked: B.locked, frozen: B.frozen,
       seen: Object.keys(B.seen), queue: B.queue.map(q => q.name), add: Object.fromEntries(Object.entries(B.add).map(([k, v]) => [k, typeof v === 'number' ? +v.toFixed(2) : v])),
-      aimK: +B.aimK.toFixed(2), flinchK: +B.flinchK.toFixed(2), vehicle: { t: +B.vehicleT.toFixed(2), stopped: B.vehicleStopped, gateOpen: B.gateOpen },
+      aimK: +B.aimK.toFixed(2), flinchK: +B.flinchK.toFixed(2), shove: B.shove ? +B.shove.to.toFixed(3) : null, works: WORKS() ? { threat: +W2.threat.toFixed(2), pitCovered: W2.pitCovered, scrape: W2.scrape, look: W2.look } : null, vehicle: { t: +B.vehicleT.toFixed(2), stopped: B.vehicleStopped, gateOpen: B.gateOpen },
       run: !!S.run, crouchHeld: !!S.crouchHeld, crouchF: +S.crouchF.toFixed(3), crouchR: +S.crouchR.toFixed(3), sq: S.sq ? S.sq.phase : null, ranT: +B.ranT.toFixed(2),
       gait: S.gait ? { name: S.gait.name, phase: +S.gait.phase.toFixed(3), stride: +S.gait.stride.toFixed(3), cadence: +S.gait.cadence.toFixed(2), runK: +S.gait.runK.toFixed(2),
         feet: FEET.filter(k => S.gait.feet[k]).join(','), lift: [+S.gait.lift.front.toFixed(4), +S.gait.lift.rear.toFixed(4)] } : null };
@@ -869,7 +942,7 @@ function behave(dt, dir, act) {
     if (was < 1.5 && B.restArrive >= 1.5) queue('lookback', { dur: 1.2, within: 1.5, data: { dir: S.face > 0 ? -1 : 1, dur: 1.2 }, moving: () => { B.add.look = 0; B.add.lookDir = S.face > 0 ? -1 : 1; } });
     if (was < 4.0 && B.restArrive >= 4.0) { queue('shake', { dur: 0.8, within: 2.5, moving: () => { B.add.shake = 0; } }); B.restArrive = -1; }
   }
-  if (G.place === 'rest' && S.x >= 116 && !B.chain && !B.settledSent) { B.restT += dt; if (B.restT >= BH().settle.autoStop && Math.abs(S.vx) > 0.05) { B.autoStop = true; B.restT = 0; } }
+  if (G.place === 'rest' && S.x >= 116 && !B.chain && !B.settledSent && !joined()) { B.restT += dt; if (B.restT >= BH().settle.autoStop && Math.abs(S.vx) > 0.05) { B.autoStop = true; B.restT = 0; } }
   /* poses run their course */
   if (B.pose) { B.pose.t += dt; if (!B.pose.loop && B.pose.dur && B.pose.t >= B.pose.dur) finishPose(); }
   if (B.inv && B.inv.kind === 'lip' && !B.pose) B.inv = null;
@@ -877,7 +950,7 @@ function behave(dt, dir, act) {
      pull-out. It commits here: from now on only pause works (§11) */
   if (B.mood === 'settled' && B.pose && B.pose.name === 'loaf') {
     B.settledT += dt;
-    if (!B.settledSent && B.settledT >= BH().settle.chain.lie) { B.settledSent = true; B.locked = true; FF.bus.emit('end', { phase: 'settled', x: +S.x.toFixed(2) }); }
+    if (!B.settledSent && B.settledT >= BH().settle.chain.lie) { B.settledSent = true; if (!joined()) B.locked = true; FF.bus.emit('end', { phase: 'settled', x: +S.x.toFixed(2) }); }
   }
   schedule(dt, dir);
   /* small life: ear twitches, the nose working (calm and alert only; frozen when afraid) */

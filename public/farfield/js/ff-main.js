@@ -1,4 +1,4 @@
-/* FAR FIELD — ff-main.js: the game shell for Sequence 1 (index.html). Renderer + post, quality tiers (carried over from the
+/* FAR FIELD — ff-main.js: the game shell for Sequences 1 and 2 (index.html; one lane, no loading). Renderer + post, quality tiers (carried over from the
    look test, with the step-down held during danger, A22), the fixed 120 Hz loop, input (keyboard + gamepad), the mode
    machine (notice -> title -> play <-> pause -> end -> title), module wiring, checkpoint restart, the parent-page protocol,
    mute/music settings, teardown and the window.__ff test handle.
@@ -9,16 +9,22 @@
    overlay (?debug=1). Gamepad: stick or d-pad move, X / RB / RT (buttons 2, 5, 7) run, A jump, Y or d-pad up climb in,
    B or d-pad down crouch, Start pause.
    URL: ?q=high|medium|low  ?mute=1 (no audio, no storage)  ?seed=n  ?cp=<checkpoint id> (skip notice + title, start there)
-        ?clean=1 (no hints, no fps)  ?debug=1  ?rabbit=procedural|<file under models/> */
+        ?start=works (review Sequence 2: the notice, then the title with "Begin at the Works" chosen)
+        ?clean=1 (no hints, no fps)  ?debug=1  ?rabbit=procedural|<file under models/>
+   Sequence 2 (THE WORKS, SEQUENCE-2.md §10-§11): its modules join the call orders below (Works first in the fixed step, so the
+   presses move before the rabbit collides; Painter after Humans in the frame, so it poses its figure; Works before World, so it
+   moves the props); the save is 'ff-progress' (courtyard -> search-arrive -> rest -> works-in -> works-line -> works-out ->
+   completed) with a one-time migration from Sequence 1's 'ff-s1-progress' (its "completed" becomes "works-in"); the end card
+   follows Sequence 2 (FF.WorksFlow calls endCard()). */
 'use strict';
 (function () {
 const T = THREE, U = FF.util, Q = FF.Q, L0 = FF.LOOK;
 const FIX = 1 / 120;
 /* module call order (docs/farfield/INTERFACES.md §3). A missing module or method is skipped; every call is isolated. */
-const INIT = ['Level', 'World', 'Player', 'Humans', 'AI', 'Events', 'Camera', 'Audio', 'UI'];
-const RESET = ['Level', 'World', 'Player', 'Humans', 'AI', 'Events', 'Camera', 'Audio', 'UI'];
-const STEP = ['Player', 'Level', 'AI', 'Events'];
-const FRAME = ['Player', 'Humans', 'AI', 'Events', 'World', 'Camera', 'Audio', 'UI'];
+const INIT = ['Level', 'Works', 'World', 'Player', 'Humans', 'AI', 'Painter', 'Events', 'WorksFlow', 'Camera', 'Audio', 'UI'];
+const RESET = ['Level', 'Works', 'World', 'Player', 'Humans', 'AI', 'Painter', 'Events', 'WorksFlow', 'Camera', 'Audio', 'UI'];
+const STEP = ['Works', 'Player', 'Level', 'AI', 'Painter', 'Events', 'WorksFlow'];
+const FRAME = ['Player', 'Humans', 'AI', 'Painter', 'Events', 'Works', 'World', 'Camera', 'Audio', 'UI'];
 function call(name, fn, a, b, c) {
   const m = FF[name]; if (!m || typeof m[fn] !== 'function') return undefined;
   try { return m[fn](a, b, c); } catch (e) { FF.report(e, name + '.' + fn); return undefined; }
@@ -59,8 +65,9 @@ function setTier(name) {
   scene.traverse(o => { if (o.material) { const ms = Array.isArray(o.material) ? o.material : [o.material]; for (const m of ms) if (m.userData && m.userData.ff) m.needsUpdate = true; } });
   resize(true);
 }
-/* the automatic step-down never fires while the searcher is alert or a scripted beat runs (a recompile would hitch) */
-const calm = () => G.mode === 'play' && !call('AI', 'danger') && !call('Events', 'scripted');
+/* the automatic step-down never fires while the searcher is alert, a press is coming down over the rabbit, or a scripted beat
+   or an ending runs (a recompile would hitch) */
+const calm = () => G.mode === 'play' && !call('AI', 'danger') && !call('Events', 'scripted') && !call('Works', 'danger') && !call('WorksFlow', 'scripted');
 
 /* ---------------------------------------------------------------- size */
 let W = 1, H = 1;
@@ -156,6 +163,10 @@ function pollPad() {
 const padPrev = {};
 
 /* ---------------------------------------------------------------- the mode machine (§3) */
+/* progress saves (SEQUENCE-2.md §10): one key for both sequences; an old Sequence 1 save is migrated once */
+const J = FF.S2 && FF.S2.join && FF.S2.join.saves;
+const SAVE = J ? { key: J.key, order: J.order, from: J.migrate.from, map: J.migrate.map } : { key: 'ff-s1-progress', order: ['courtyard', 'search-arrive', 'rest', 'completed'], from: null, map: {} };
+const START_WORKS = Q.get('start') === 'works' && !!(FF.S2 && FF.S2.join && FF.S1.checkpoints.some(c => c.id === FF.S2.join.start.checkpoint));
 const setMode = m => { if (m === G.mode) return; const from = G.mode; G.mode = m; FF.Input.clear(); FF.bus.emit('mode', { from, to: m }); };
 let fadeTo = null; /* { from, to, t, dur, resolve } */
 const Game = FF.Game = {
@@ -185,7 +196,7 @@ const Game = FF.Game = {
     Game.restart(FF.S1.checkpoints[0], { reason: 'title' });
     Game.control(false); setMode('title');
     call('Camera', 'shot', 'title');
-    call('UI', 'showTitle', { save: Game.loadSave() });
+    call('UI', 'showTitle', { save: Game.loadSave(), order: SAVE.order, works: FF.S2 && FF.S2.join ? FF.S2.join.start : null, startWorks: START_WORKS });
     Game.fade(0, G.fade > 0.5 ? 1.5 : 0);
   },
   /* title -> play (optionally continuing from a saved checkpoint) */
@@ -196,13 +207,19 @@ const Game = FF.Game = {
     setMode('play'); Game.control(true);
     FF.bus.emit('play:start', { cp: G.checkpoint });
   },
-  /* the end (Events calls this after the pull-out and the fade): the card, then the title */
+  /* the end (FF.WorksFlow calls this at the end of Sequence 2, after either ending's fade): the card, then the title */
   async endCard() { setMode('end'); Game.control(false); G.fade = 1; await Promise.resolve(call('UI', 'endCard')); Game.save('completed'); Game.toTitle(); },
   exit() { postParent({ ty: 'exit' }); },
   send: o => postParent(o),            /* a message to the parent page (the arcade room) */
-  /* progress save: the furthest of courtyard, search-arrive, rest, completed (localStorage; nothing with ?mute=1) */
-  save(id) { const order = ['courtyard', 'search-arrive', 'rest', 'completed'], cur = Game.loadSave(); if (order.indexOf(id) > order.indexOf(cur)) FF.store.set('ff-s1-progress', id); },
-  loadSave() { return FF.store.get('ff-s1-progress') || null; },
+  /* progress save: the furthest of courtyard, search-arrive, rest, works-in, works-line, works-out, completed (localStorage
+     'ff-progress'; nothing with ?mute=1). An old 'ff-s1-progress' is read once and carried over ("completed" -> "works-in":
+     Josh's finished Sequence 1 becomes "Continue from the Works") */
+  save(id) { const cur = Game.loadSave(); if (SAVE.order.indexOf(id) > SAVE.order.indexOf(cur)) FF.store.set(SAVE.key, id); },
+  loadSave() {
+    let v = FF.store.get(SAVE.key);
+    if (v == null && SAVE.from) { const old = FF.store.get(SAVE.from); if (old) { v = SAVE.map[old] || old; if (SAVE.order.indexOf(v) < 0) v = null; if (v) FF.store.set(SAVE.key, v); } }
+    return v || null;
+  },
   setTier, get tier() { return tierName; },
   setMute(on, quiet) { G.muted = !!on; call('Audio', 'mute', G.muted); FF.store.set('ff-mute', G.muted ? 1 : 0); if (!quiet) postParent({ ty: 'mute', on: G.muted }); FF.bus.emit('mute', { on: G.muted }); },
   setMusic(on, quiet) { G.music = !!on; call('Audio', 'music', G.music); FF.store.set('ff-music', G.music ? 1 : 0); if (!quiet) postParent({ ty: 'music', on: G.music }); FF.bus.emit('music', { on: G.music }); },
@@ -386,9 +403,11 @@ window.__ff = {
     return Object.assign(lite(), { tier: tierName, errors: FF.errors.slice(),
       modules: Object.fromEntries(INIT.map(m => [m, FF[m] ? (FF[m].stub ? 'stub' : 'live') : 'missing'])),
       player: call('Player', 'debug'), ai: call('AI', 'debug'), events: call('Events', 'debug'), camera: call('Camera', 'debug'), world: call('World', 'debug'), audio: call('Audio', 'debug'), ui: call('UI', 'debug'),
+      works: call('Works', 'debug'), painter: call('Painter', 'debug'), flow: call('WorksFlow', 'debug'),
       bus: FF.bus.log.slice(-20) });
   },
   get ai() { return call('AI', 'debug'); },
+  get works() { return call('Works', 'debug'); }, get painter() { return call('Painter', 'debug'); },
   seed: n => FF.seed(n), fire: (name, data) => FF.bus.emit(name, data),
   teardown, Game,
 };

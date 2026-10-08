@@ -13,7 +13,7 @@
 'use strict';
 window.FF = window.FF || {};
 (function () {
-let root = null, el = {}, titleSel = 0, titleSave = null, pendingHint = null, hintNow = null, pauseSel = 0, endState = null, titleT = 0, noticeT = 0;
+let root = null, el = {}, titleSel = 0, titleSave = null, titleOpts = [], pendingHint = null, hintNow = null, pauseSel = 0, endState = null, titleT = 0, noticeT = 0;
 const seenHints = {};
 const K = s => '<kbd>' + s + '</kbd>';
 const HINTS = {
@@ -24,8 +24,9 @@ const HINTS = {
   push: K('→') + ' push',
   'go-in': K('↑') + ' go in',
 };
-const NOTICE = 'Far Field contains pursuit, capture and non-graphic violence towards the rabbit. If the rabbit is caught or shot, the screen cuts to black and you continue from nearby. No injury is shown.';
-const SAVES = { courtyard: 'the Courtyard', 'search-arrive': 'the Search', rest: 'the breathing space' };
+/* the content notice (Josh 7 Oct, with Sequence 2: "dangerous machinery" added; SEQUENCE-2.md §10) */
+const NOTICE = 'Far Field contains pursuit, capture, dangerous machinery and non-graphic violence towards the rabbit. If the rabbit is caught or harmed, the screen cuts to black and you continue from nearby. No injury is shown.';
+const SAVES = { courtyard: 'the Courtyard', 'search-arrive': 'the Search', rest: 'the breathing space', 'works-in': 'the Works', 'works-line': 'the long hall', 'works-out': 'the end of the Works' };
 const inFrame = (() => { try { return window.parent !== window; } catch (_) { return true; } })();
 const CSS = `
 #ui{position:absolute;inset:0;pointer-events:none;z-index:2;font:15px/1.55 ui-sans-serif,system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;color:#aab4be;letter-spacing:.02em;-webkit-font-smoothing:antialiased}
@@ -88,6 +89,13 @@ const show = (e, on) => {
 };
 const focusGame = () => { try { const a = document.activeElement; if (a && a.blur && root.contains(a)) a.blur(); const c = document.getElementById('c'); if (c) c.focus({ preventScroll: true }); } catch (_) {} };
 const noticeBtns = () => [...el.notice.querySelectorAll('button')].filter(b => !b.hidden);
+/* the title's selection: the begin line dims while another choice is marked */
+function markTitle(i) {
+  titleSel = (i + titleOpts.length) % titleOpts.length; const id = titleOpts[titleSel].id;
+  el.title.querySelector('.cont:not(.works)').classList.toggle('sel', id === 'cont');
+  el.title.querySelector('.cont.works').classList.toggle('sel', id === 'works');
+  el.title.querySelector('.go').classList.toggle('dim', id !== 'begin');
+}
 const pauseBtns = () => [...el.pause.querySelectorAll('button')];
 function markPause(i) { const b = pauseBtns(); pauseSel = (i + b.length) % b.length; b.forEach((x, k) => x.classList.toggle('sel', k === pauseSel)); }
 function setLabels() {
@@ -120,9 +128,10 @@ const UI = FF.UI = {
     const coarse = !!(window.matchMedia && matchMedia('(pointer: coarse)').matches && !matchMedia('(pointer: fine)').matches);
     div('small', (coarse ? 'Far Field needs a keyboard or a gamepad. ' : '') + 'Enter to continue' + (inFrame ? ' · Esc to go back' : '') + (FF.SILENT ? '' : ' · best with sound (M)'), el.notice);
     /* the title */
-    el.title = div('scr title', `<h1>FAR FIELD</h1><div class="keys">${K('←')}${K('→')} move <i>·</i> ${K('Shift')} run <i>·</i> ${K('Space')} jump <i>·</i> ${K('↓')} crouch</div><div class="go">press ${K('→')} to begin</div><div class="cont"></div>`);
+    el.title = div('scr title', `<h1>FAR FIELD</h1><div class="keys">${K('←')}${K('→')} move <i>·</i> ${K('Shift')} run <i>·</i> ${K('Space')} jump <i>·</i> ${K('↓')} crouch</div><div class="go">press ${K('→')} to begin</div><div class="cont"></div><div class="cont works"></div>`);
     div('foot', (FF.SILENT ? '' : 'M sound <i>·</i> N music <i>·</i> ') + 'Esc pause' + (inFrame ? ' <i>·</i> Esc here: back to the arcade' : ''), el.title);
-    el.title.querySelector('.cont').addEventListener('click', () => { if (titleSave) act('start:' + titleSave); });
+    el.title.querySelector('.cont:not(.works)').addEventListener('click', () => { if (titleSave) act('start:' + titleSave); });
+    el.title.querySelector('.cont.works').addEventListener('click', () => { const o = titleOpts.find(k => k.id === 'works'); if (o) act('start:' + o.cp); });
     /* pause */
     el.pause = div('scr pause', '<div class="cap">Paused</div>');
     const menu = div('menu', null, el.pause);
@@ -148,11 +157,25 @@ const UI = FF.UI = {
   },
   showNotice() { show(el.notice, true); noticeT = performance.now(); const b = noticeBtns()[0]; if (b) try { b.focus({ preventScroll: true }); } catch (_) {} },
   hideNotice() { if (el.notice.classList.contains('on')) { show(el.notice, false); focusGame(); } },
+  /* the title's choices (↑ ↓, then Enter or →): begin (Sequence 1, "press → to begin"); "Continue from …" a save; and, once
+     Sequence 1 has been finished on this computer (save >= works-in) or with ?start=works, "Begin at the Works" (Sequence 2's
+     start; not shown when the save is already that place). ?start=works selects it. o: {save, order, works: FF.S2.join.start,
+     startWorks} */
   showTitle(o) {
-    titleSave = o && o.save && SAVES[o.save] ? o.save : null; titleSel = 0; titleT = performance.now();
-    const c = el.title.querySelector('.cont');
-    c.innerHTML = titleSave ? 'Continue from ' + SAVES[titleSave] + ' <i>' + K('↓') + '</i>' : ''; c.classList.remove('sel'); c.style.pointerEvents = titleSave ? 'auto' : 'none'; c.style.cursor = 'pointer';
-    el.title.querySelector('.go').classList.remove('dim');
+    o = o || {};
+    titleSave = o.save && SAVES[o.save] ? o.save : null; titleT = performance.now();
+    const W = o.works, order = o.order || [], past = W && o.save && order.indexOf(o.save) >= order.indexOf(W.checkpoint) && order.indexOf(W.checkpoint) >= 0;
+    titleOpts = [{ id: 'begin' }];
+    if (titleSave) titleOpts.push({ id: 'cont', cp: titleSave });
+    if (W && (past || o.startWorks) && titleSave !== W.checkpoint) titleOpts.push({ id: 'works', cp: W.checkpoint });
+    const c = el.title.querySelector('.cont:not(.works)'), w = el.title.querySelector('.cont.works');
+    /* the ↑ ↓ key caps sit after the last choice */
+    const hasW = titleOpts.some(k => k.id === 'works'), caps = titleOpts.length > 1 ? ' <i>' + K('↑') + K('↓') + '</i>' : '';
+    c.innerHTML = titleSave ? 'Continue from ' + SAVES[titleSave] + (hasW ? '' : caps) : ''; c.style.pointerEvents = titleSave ? 'auto' : 'none'; c.style.cursor = 'pointer';
+    w.innerHTML = hasW ? (W.title || 'Begin at the Works') + caps : ''; w.style.pointerEvents = hasW ? 'auto' : 'none'; w.style.cursor = 'pointer';
+    /* ?start=works: "Begin at the Works" chosen (or "Continue from the Works", the same place, when that is the save) */
+    const pick = o.startWorks && W ? titleOpts.findIndex(k => k.cp === W.checkpoint) : -1;
+    markTitle(pick > 0 ? pick : 0);
     show(el.title, true);
   },
   hideTitle() { if (el.title.classList.contains('on')) show(el.title, false); },
@@ -169,8 +192,10 @@ const UI = FF.UI = {
       return null;
     }
     if (mode === 'title') {
-      if (titleSave && /^(ArrowDown|ArrowUp|KeyS|KeyW)$/.test(code)) { titleSel = titleSel ? 0 : 1; el.title.querySelector('.cont').classList.toggle('sel', !!titleSel); el.title.querySelector('.go').classList.toggle('dim', !!titleSel); return true; }
-      if ((code === 'Enter' || code === 'Space') && titleSel && titleSave) return 'start:' + titleSave;
+      if (titleOpts.length > 1 && /^(ArrowDown|ArrowUp|KeyS|KeyW)$/.test(code)) { markTitle(titleSel + (/Up|KeyW/.test(code) ? -1 : 1)); return true; }
+      /* a chosen save or the Works: Enter, Space or an arrow starts there (the arrow also walks the rabbit on, as at the begin) */
+      const sel = titleOpts[titleSel];
+      if (sel && sel.cp && /^(Enter|Space|ArrowLeft|ArrowRight|KeyA|KeyD)$/.test(code)) return 'start:' + sel.cp;
       if (code === 'Escape' && !inFrame) return true;
       return null;
     }
@@ -233,7 +258,7 @@ const UI = FF.UI = {
   dispose() { const s = document.getElementById('ff-ui-css'); if (s) s.remove(); },
   debug() {
     return { stub: false, screens: Object.keys(el).filter(k => el[k] && el[k].classList && el[k].classList.contains('on')), hint: hintNow && hintNow.id, hints: Object.keys(seenHints), pending: pendingHint,
-      titleSave, titleSel, pauseSel, inFrame };
+      titleSave, titleSel, titleOpts: titleOpts.map(k => k.id + (k.cp ? ':' + k.cp : '')), pauseSel, inFrame };
   },
 };
 const clampN = (v, a, b) => v < a ? a : v > b ? Math.max(a, b) : v;

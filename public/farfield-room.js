@@ -5,8 +5,9 @@
      else if(act.kind==='farfield'&&window.farfieldRoom)houseStop=farfieldRoom(body,{musicOn});
    Test it with public/farfield/room-test.html.
      farfieldRoom(body, ctx) -> stop()
-   The menu: FAR FIELD, one line, the CONTENT NOTICE (pursuit, capture and non-graphic violence towards the rabbit), Play.
-   The game's own first screen repeats the notice. The iframe exists only while playing (farfield/index.html?v=3); stop()
+   The menu: FAR FIELD, one line, the CONTENT NOTICE (pursuit, capture, dangerous machinery and non-graphic violence towards
+   the rabbit; "dangerous machinery" since Sequence 2, Josh 7 Oct), Play. The game's own first screen repeats the notice. The
+   iframe exists only while playing (farfield/index.html?v=4); stop()
    and the game's Exit both remove it (the game frees its GPU on 'leave').
    The Sound and Music buttons sit in the house's header bar beside its title (on a page without one, a row at the top
    right); they never cover the game. Music in this game is the ambience and the little music it has; Sound is everything.
@@ -97,18 +98,18 @@ function farfieldRoom(body, ctx) {
   const menu = (msg, focus) => {
     dropFrame(); window.__duck = 0;
     const box = document.createElement('div'); box.className = 'ffm';
-    box.innerHTML = '<h3>FAR FIELD</h3><p class="sub">A dark, quiet side-on puzzle adventure. A rabbit finds its own way along the foot of an enormous wall, at dusk, into the night.</p>' +
-      '<p class="cn"><b>Content notice:</b> pursuit, capture and non-graphic violence towards the rabbit.</p>' +
+    box.innerHTML = '<h3>FAR FIELD</h3><p class="sub">A dark, quiet side-on puzzle adventure. A rabbit finds its own way along the foot of an enormous wall, at dusk, into the night and through the Works.</p>' +
+      '<p class="cn"><b>Content notice:</b> pursuit, capture, dangerous machinery and non-graphic violence towards the rabbit.</p>' +
       '<div class="row"><button type="button" data-a="play">Play</button></div>' +
       '<p class="msg">' + String((touchOnly ? 'Far Field needs a keyboard or a gamepad. ' : '') + (msg || '')).replace(/[<>&"]/g, '') + '</p>' +
-      '<p class="fine">An original game made for the planet · keyboard or gamepad · about five minutes</p>';
+      '<p class="fine">An original game made for the planet · keyboard or gamepad · about ten minutes</p>';
     [...el.children].forEach(c => { if (c !== bar) c.remove(); }); el.insertBefore(box, el.firstChild);
     if (focus) { const b = box.querySelector('[data-a=play]'); try { if (b) b.focus({ preventScroll: true }); } catch (_) {} }
   };
   const play = () => {
     dropFrame(); window.__duck = 1;   /* the game has its own sound: the planet's music steps back */
     [...el.children].forEach(c => { if (c !== bar) c.remove(); });
-    const f = frame = document.createElement('iframe'); f.className = 'tyframe'; f.title = 'Far Field'; f.src = 'farfield/index.html?v=3' + (silent ? '&mute=1' : ''); f.allow = 'autoplay; fullscreen; gamepad';
+    const f = frame = document.createElement('iframe'); f.className = 'tyframe'; f.title = 'Far Field'; f.src = 'farfield/index.html?v=4' + (silent ? '&mute=1' : ''); f.allow = 'autoplay; fullscreen; gamepad';
     el.insertBefore(f, el.firstChild);
     toGame({ ty: 'mute', on: muted || silent }); toGame({ ty: 'music', on: music });
     /* a frame only gets the keyboard once it has been clicked or focused */

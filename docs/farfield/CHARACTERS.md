@@ -134,6 +134,17 @@ A middle way: the Tripo mesh rigged here now, and an animator later animating th
 
 Not needed as downloads: `torch_down_loop` (the kneeling idle, with the torch arm aimed by the game) and `door_step_in` (the walk). That is 24 downloads, about an hour. Put them in one folder and send it.
 
+**Sequence 2 adds a fourth role on the same figure** (8 Oct): the maintenance worker scraping END ANIMAL USE off a passage wall (no gun, no torch, no backpack; a long-handled scraper; his tripod lamp is part of the set). Until his clips exist he is the same stand-in posed in code (`js/ff-painter.js`). Six more downloads if you take Route A:
+
+| save as | search Mixamo for | pick |
+|---|---|---|
+| `scrape_wall_loop.fbx` | scrubbing / cleaning wall / painting | standing close to a wall, both hands working up and down at chest height |
+| `straighten.fbx` | stand up straight / stretch | straightening from a slight lean, arms lowering |
+| `reach_trolley.fbx` | reach / pick up | turning the head along the passage while one hand reaches out to the side at waist height |
+| `dip.fbx` | bend / pick up low | a short bend towards a bucket at the feet |
+| `lamp_lift.fbx`, `lamp_hold_loop.fbx` | holding a lantern / flashlight | lifting something to shoulder height in one hand and holding it utterly still |
+| (`lamp_lower`, `lamp_hang`) | | can be the lift played backwards |
+
 **3. Here:** merge everything in Blender (background) into `public/farfield/models/ff_human.glb`: the character, every clip renamed to the `ASSETS-3D.md` names, the torch, long gun, coil of cable and backpack attached as separate objects with the named sockets, the matte charcoal material, and the light copy for distant figures. Then measure each walk clip's stride, layer the torch arm and head over the clips and plant the feet, as for the rabbit.
 **What it gets you:** real human proportions and natural, weighted movement for every action, quickly.
 **Its limits:** library motion is generic. The unsettling quality has to come from our speeds, pauses and the code layers. Some actions (the reach under cover, the torch straight down) are approximations.

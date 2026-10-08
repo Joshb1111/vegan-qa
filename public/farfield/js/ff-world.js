@@ -189,7 +189,14 @@ const MAT = {
   works:   { color: '#161b20', roughness: 1.0, mottle: 0.05, wallFill: 0.15 },
   back:    { color: '#101317', roughness: 1.0, noAO: true },
 };
-function mat(k) { if (!mats[k]) { const s = typeof MAT[k] === 'function' ? MAT[k]() : MAT[k]; mats[k] = FF.mat(s || { color: '#808080' }); } return mats[k]; }
+function mat(k) {
+  /* Sequence 2: while FF.WorldS2 builds, every material it asks for is a 'works' variant (the Works' lighting hooks compiled
+     in, ff-shading.js `only`); Sequence 1's own materials stay exactly as they were */
+  const key = matWorks ? k + '|works' : k;
+  if (!mats[key]) { const s = typeof MAT[k] === 'function' ? MAT[k]() : MAT[k]; mats[key] = FF.mat(Object.assign({}, s || { color: '#808080' }, matWorks ? { works: true } : {})); }
+  return mats[key];
+}
+let matWorks = false;
 
 /* =========================================================================================== place builder */
 function place(id, x0, x1) {
@@ -464,7 +471,7 @@ function applyPoint(slot) {
   const st = h.st; L.position.set(st.pos[0], st.pos[1], st.pos[2]); L.color.copy(st.color); L.distance = st.distance;
   let I = h.effective();
   if (id === 'bounce' && FF.tier && !FF.tier.bounce) I = 0;
-  if ((id === 'amber' || id === 'doorLamp') && FF.tier && !FF.tier.amberLight) I = 0;
+  if ((id === 'amber' || id === 'doorLamp' || (POINT_DEF[id] && POINT_DEF[id].amberTier)) && FF.tier && !FF.tier.amberLight) I = 0;
   L.intensity = I;
 }
 
@@ -601,14 +608,24 @@ function buildRain() {
   const g = new T.BufferGeometry(); g.setAttribute('position', new T.BufferAttribute(P, 3)); g.setAttribute('seed', new T.BufferAttribute(Sd, 4)); g.setAttribute('end', new T.BufferAttribute(E, 1));
   const m = new T.ShaderMaterial({
     uniforms: { uMin: { value: new T.Vector3() }, uSize: { value: new T.Vector3(22, 8, 16) }, uTime: FF.U.uFFTime, uLen: { value: 0.42 }, uSpd: { value: 9 }, uWind: { value: 0.18 }, uRate: { value: 1 },
-      uCol: { value: FF.lin('#c9d2da').multiplyScalar(0.07) }, uHL: { value: new T.Vector3(0, -99, 0) }, uHLd: { value: new T.Vector3(0, 0, 1) }, uHLc: { value: new T.Vector2(0.9, 0) }, uHLcol: { value: FF.lin('#ffe3bd').multiplyScalar(0.6) }, uWL: { value: new T.Vector3(0, -99, 0) }, uWLd: { value: new T.Vector3(0, -1, 0) }, uWLc: { value: new T.Vector2(0.9, 0) }, uWLcol: { value: FF.lin('#e7edf2').multiplyScalar(0.5) } },
+      uCol: { value: FF.lin('#c9d2da').multiplyScalar(0.07) },
+      /* Sequence 2: inside the Works the rain falls only through the broken roof and stops on the platens' tops (FF.WorldS2.rain) */
+      uS2: { value: 0 }, uS2X: { value: Array.from({ length: 6 }, () => new T.Vector4(0, 0, 0, 0)) }, uS2B: { value: Array.from({ length: 4 }, () => new T.Vector4(0, 0, 0, 0)) }, uFloorY: { value: -0.02 },
+      uHL: { value: new T.Vector3(0, -99, 0) }, uHLd: { value: new T.Vector3(0, 0, 1) }, uHLc: { value: new T.Vector2(0.9, 0) }, uHLcol: { value: FF.lin('#ffe3bd').multiplyScalar(0.6) }, uWL: { value: new T.Vector3(0, -99, 0) }, uWLd: { value: new T.Vector3(0, -1, 0) }, uWLc: { value: new T.Vector2(0.9, 0) }, uWLcol: { value: FF.lin('#e7edf2').multiplyScalar(0.5) } },
     vertexShader: `attribute vec4 seed; attribute float end; uniform vec3 uMin, uSize, uHL, uHLd, uWL, uWLd; uniform vec2 uHLc, uWLc; uniform float uTime, uLen, uSpd, uWind, uRate; varying float vA; varying float vHL; varying float vWL;
+      uniform float uS2, uFloorY; uniform vec4 uS2X[6]; uniform vec4 uS2B[4];
       void main(){
         vec3 p; p.x = uMin.x + mod(seed.x * uSize.x - uMin.x, uSize.x); p.z = uMin.z + seed.z * uSize.z;
         float sp = uSpd * (0.8 + 0.4 * seed.w); p.y = uMin.y + mod(seed.y * uSize.y - uTime * sp, uSize.y);
         vec3 dir = normalize(vec3(uWind, -1.0, 0.05)); p -= dir * (uLen * end);
         float keep = step(seed.w, uRate);
-        if (p.y < -0.02) keep = 0.0;
+        if (p.y < uFloorY) keep = 0.0;
+        if (uS2 > 0.5) {
+          float ok = 0.0;
+          for (int k = 0; k < 6; k++) { vec4 a = uS2X[k]; if (a.y > a.x && p.x >= a.x && p.x <= a.y && p.z >= a.z && p.z <= a.w) ok = 1.0; }
+          keep *= ok;
+          for (int k = 0; k < 4; k++) { vec4 b = uS2B[k]; if (b.w > 0.5 && p.x >= b.x && p.x <= b.y && p.y <= b.z && p.z > -3.5 && p.z < 0.7) keep = 0.0; }
+        }
         if (p.x > 0.3 && p.x < 2.7 && p.y < mix(1.86, 0.99, clamp((p.x - 0.35) / 2.31, 0.0, 1.0)) && p.z > -1.1 && p.z < 0.8) keep = 0.0;   /* dry beneath the title shelter */
         vec4 mv = modelViewMatrix * vec4(p, 1.0); gl_Position = projectionMatrix * mv; float d = -mv.z;
         vA = keep * (0.3 + 0.7 * fract(seed.w * 7.13)) * smoothstep(1.2, 3.5, d) * (1.0 - smoothstep(14.0, 24.0, d)) * (1.0 - end * 0.85);
@@ -626,7 +643,7 @@ function buildRain() {
     for (let i = 0; i < n; i++) { const s = [rnd(), rnd(), rnd(), rnd()]; for (let e = 0; e < 2; e++) { Sd2.set(s, (i * 2 + e) * 4); E2[i * 2 + e] = e; } }
     const g2 = new T.BufferGeometry(); g2.setAttribute('position', new T.BufferAttribute(Pp, 3)); g2.setAttribute('seed', new T.BufferAttribute(Sd2, 4)); g2.setAttribute('end', new T.BufferAttribute(E2, 1));
     const m2 = m.clone(); m2.uniforms.uTime = FF.U.uFFTime; m2.uniforms.uMin.value.set(46.25, -1.0, -0.35); m2.uniforms.uSize.value.set(0.3, 1.2, 0.6);
-    m2.vertexShader = m.vertexShader.replace('if (p.y < -0.02) keep = 0.0;', 'if (p.y < -0.99) keep = 0.0;').replace('smoothstep(1.2, 3.5, d)', '1.0');
+    m2.vertexShader = m.vertexShader.replace('smoothstep(1.2, 3.5, d)', '1.0'); m2.uniforms.uFloorY.value = -0.99;
     m2.uniforms.uCol.value = FF.lin('#c9d2da').multiplyScalar(0.1);
     slabRain = new T.LineSegments(g2, m2); slabRain.frustumCulled = false; slabRain.renderOrder = 12; slabRain.name = 'slabRain'; places.drain.obj(slabRain); }
   /* splashes on the grass (cheap: points that blink) */
@@ -1218,9 +1235,11 @@ function buildRest() {
     P.add('timber', B(119.62, 119.72, 0, 0.47, 0.32, 0.42), true); P.add('timber', B(123.28, 123.38, 0, 0.47, 0.32, 0.42), true); }
   /* the channel at the end (127.2: a deep drainage channel), its far wall rising into the foot of the colossal Works */
   P.add('sWall', B(127.2, 129.0, -3.0, -1.6, -6, 8)); P.add('section', B(127.0, 127.2, -3.0, 0.0, 0.45, 8.0)); P.add('wetDark', B(127.2, 129.0, -1.6, -1.55, -6, 8));
+  if (!S2on()) {   /* Sequence 2: the far bank (y 0) and the sloped wall, cut at the section plane, are FF.WorldS2's */
   P.add('works', B(129.0, 131.0, -3.0, 0.4, -8, 8), true);
   { const g = new T.BufferGeometry(); const x0 = 131, x1 = 175, z0 = -40, z1 = 6;
     g.setAttribute('position', new T.Float32BufferAttribute([x0, 0.4, z1, x1, 70, z1, x1, 70, z0, x0, 0.4, z1, x1, 70, z0, x0, 0.4, z0, x0, 0.4, z1, x0, -3, z1, x1, 70, z1], 3)); g.computeVertexNormals(); P.add('works', g); }
+  }
   /* the Works in the haze (revealed by the pull-out): a colossal mass, one vast arm moving with the 4 s thud, a tiny amber light */
   works = new T.Group(); works.name = 'works';
   { const mk = mat('works');
@@ -1245,6 +1264,16 @@ function buildRest() {
   P.done();
 }
 
+/* =========================================================================================== Sequence 2 (FF.WorldS2, ff-world-s2.js) */
+/* The Works are built by ff-world-s2.js with this file's toolkit. Everything below marked "Sequence 2" is inert while the
+   rabbit is in Sequence 1 (and absent when FF.S2 or FF.WorldS2 is not loaded). */
+const S2on = () => !!(FF.S2 && FF.S2.ground && FF.WorldS2);
+function s2api() {
+  return { T, B, CY, tilt, sphere, lump, dome, quadGeo, corrugated, profileGeo, glowMesh, halo, mkProp, grass, place, mat, prng, MAT, GLYPH, catmull,
+    SETS, SPOT_IDS, POINT_IDS, SPOT_DEF, POINT_DEF, H, rig, owner, props, propBase, places,
+    get rnd() { return rnd; }, setRnd(f) { rnd = f; }, get S() { return S; }, get root() { return root; }, get ctx() { return ctx; }, get rain() { return rain; } };
+}
+
 /* =========================================================================================== the World object */
 const World = FF.World = {
   stub: false,
@@ -1252,6 +1281,7 @@ const World = FF.World = {
   get looks() { return FF.LOOKS; },
   init(c) {
     ctx = c; rnd = prng(20261007); tierNow = FF.tier;
+    if (S2on()) FF.WorldS2.declare(s2api());          // Sequence 2: the Works' looks, light handles, sets, materials, the footprint mask
     buildLooks(); World.look = clone(FULL.verge);
     registerHooks();
     root = new T.Group(); root.name = 'world'; c.scene.add(root);
@@ -1260,6 +1290,7 @@ const World = FF.World = {
     buildVerge(); buildDrain(); buildCourtyard(); buildSearch(); buildRest();
     makeConeBeam('K0'); makeConeBeam('K1');
     buildRain();
+    if (S2on()) { matWorks = true; try { FF.WorldS2.build(s2api()); } finally { matWorks = false; } }   // Sequence 2: the Works (its own seeded random, after every S1 placement; its materials carry the Works' lighting)
     /* a fogged backdrop box so every pixel gets haze, never the clear colour */
     { const m = mat('back'); m.side = T.BackSide; const me = new T.Mesh(B(-240, 330, -8, 150, -215, 60), m); me.name = 'backdropBox'; me.frustumCulled = false; root.add(me); }   // inside the camera's far plane (260)
     /* contact-shadow boxes 1..5 are the world's (index 0 is the box, the Player's): set per light set in applySet() */
@@ -1297,6 +1328,7 @@ const World = FF.World = {
     S.walkwayT = -1; S.entryOpen = 0; S.thud0 = -1; S.shadowCfg = {}; S.mine = {}; for (const k in asked) delete asked[k]; for (const k in lastPose) delete lastPose[k];
     const x = cp ? cp.x : FF.S1.spawn.x;
     S.set = x < 52 ? 'VD' : x < 86 ? 'C' : 'SR';
+    if (S2on()) { if (x >= 124) S.set = FF.WorldS2.setAt(x); FF.WorldS2.reset(cp); }   // Sequence 2
     S.lookKey = ''; updateLook(x, true, true); applySet(true);
   },
   frame(dt) {
@@ -1308,6 +1340,7 @@ const World = FF.World = {
     let set = rx >= 86 ? 'SR' : rx < 52 ? 'VD' : rx >= 55.4 ? 'C' : (S.set === 'SR' ? 'C' : S.set);   // 52..55.4 (the sump): keep the set you came with
     if (r && (r.mode === 'transit' || r.mode === 'climb')) set = cam.x > 84.7 ? 'SR' : 'C';
     if (r && r.mode === 'popout') set = 'SR';
+    if (S2on() && (rx >= 124 || S.set[0] === 'W')) set = FF.WorldS2.setFor(rx, r, S.set, cam);   // Sequence 2: the Works' sets
     if (set !== S.set) { S.set = set; applySet(); }
     updateLook(rx, false);
     derivedLights(dt);
@@ -1319,6 +1352,7 @@ const World = FF.World = {
     visibility(cam);
     weather(cam, dt);
     decor(dt);
+    if (S2on()) FF.WorldS2.frame(dt, cam);             // Sequence 2: the press lamps' masks, water, drips
   },
   setTier(t) {
     tierNow = t; if (!root) return;
@@ -1333,6 +1367,7 @@ const World = FF.World = {
        cover much of the screen (measured at Retina 2x: the two beams cost ~1.8 ms of the Search's frame at 8 samples) */
     for (const s in beams) { const n = t.coneSamples || 5; beams[s].mat.defines.SAMPLES = s === 'K0' ? Math.min(n, 6) : Math.max(3, n - 3); beams[s].mat.needsUpdate = true; }
     const sz = t.skyShadow || 1024; if (rig.D0 && rig.D0.shadow.radius >= 0) setMap(rig.D0, sz);
+    if (S2on()) FF.WorldS2.setTier(t);
   },
   /* debug overlay (O with ?debug=1): solids, covers with their cores, triggers */
   overlay(on) {
@@ -1360,7 +1395,8 @@ const World = FF.World = {
     const vis = []; for (const id in places) if (places[id].group.visible) vis.push(id + (places[id].back.visible ? '+bg' : ''));
     const sh = {}; for (const s of ['K0', 'K1', 'D0']) sh[s] = rig[s].shadow.radius < 0 ? 'dormant' : rig[s].shadow.mapSize.x + (rig[s].shadow.autoUpdate ? ' live' : ' frozen');
     return { stub: false, set: S.set, look: S.look.from + (S.look.from !== S.look.to ? '>' + S.look.to + ' ' + S.look.t.toFixed(2) : ''), lights: own, D0: +rig.D0.intensity.toFixed(2), shadows: sh, places: vis,
-      beams: Object.keys(beams).filter(k => beams[k].mesh.visible), rain: rain ? +(rain.material.uniforms.uRate.value).toFixed(2) : 0, keyMode: FF.U.uFFKeyMode.value, coreMask: FF.U.uFFCoreOn.value };
+      beams: Object.keys(beams).filter(k => beams[k].mesh.visible), rain: rain ? +(rain.material.uniforms.uRate.value).toFixed(2) : 0, keyMode: FF.U.uFFKeyMode.value, coreMask: FF.U.uFFCoreOn.value,
+      s2: S2on() ? FF.WorldS2.debug() : null };
   },
 };
 
@@ -1386,6 +1422,7 @@ function applySet() {
   const k = FF.LOOK.ao.objects;
   const off = i => FF.setAOBox(i, [0, -50, 0], [0.1, 0.1, 0.1], 0, 0.3);
   if (S.set === 'C') { FF.setAOBox(1, [63.9, 6, -5.5], [11.3, 6, 0.5], k, 0.6); FF.setAOBox(2, [79.35, 0.725, -2.72], [4.15, 0.725, 2.28], k, 0.4); FF.setAOBox(3, [84.75, 6, -2.2], [1.25, 6, 2.8], k, 0.45); off(4); off(5); }
+  else if (S.set[0] === 'W' && S2on()) FF.WorldS2.applySet(S.set, k, off);   // Sequence 2
   else if (S.set === 'SR') { FF.setAOBox(1, [100, 1.3, -3.35], [14, 1.3, 0.15], k, 0.5); FF.setAOBox(2, [106.1, 0.9, 0], [1.1, 0.6, 0.85], k, 0.45); FF.setAOBox(3, [87.2, 0.62, -1.7], [1.2, 0.62, 1.3], k, 0.45); FF.setAOBox(4, [121.5, 0.45, -2.55], [5.8, 0.45, 0.15], k, 0.45); off(5); }
   else { FF.setAOBox(1, [21.6, 6, -4.5], [17.4, 6, 0.3], k, 0.55); FF.setAOBox(2, [5.0, 6, -3.9], [0.8, 6, 1.0], k, 0.5); FF.setAOBox(3, [40.3, 6, -1.8], [1.3, 6, 2.4], k, 0.5); FF.setAOBox(4, [10.95, 0.15, -0.2], [0.15, 0.15, 1.4], k, 0.25); off(5); }
 }
@@ -1446,6 +1483,7 @@ function derivedLights(dt) {
     col.needsUpdate = true;
     if (wallGlow) { const vis = on > 0 && _hp.z < -4.4; wallGlow.visible = vis; if (vis) { wallGlow.material.uniforms.uCol.value.copy(wc).multiplyScalar(0.05 * on / 34); wallGlow.position.x = gw > 0 ? gx / gw : _hp.x + 3; } }
   }
+  if (S2on()) FF.WorldS2.derived(dt);                  // Sequence 2: the press lamps from FF.Works, the gate's light, the work lamp's stand
 }
 function skyAndFill(cam) {
   const L = World.look, sky = L.sky, D0 = rig.D0, D1 = rig.D1;
@@ -1468,7 +1506,8 @@ function visibility(cam) {
   for (const id in places) {
     const P = places[id], inView = P.x1 > lo && P.x0 < hi;
     P.group.visible = inView;
-    P.back.visible = inView ? !!placeActive(id) || (id === 'rest' && cam.z > 14) : (id === 'rest' && cam.z > 14);
+    const pull = id === 'rest' && cam.z > 14 && !(S2on() && cam.x > 131);    // the pull-out shows the far Works (Sequence 2: not from inside them)
+    P.back.visible = inView ? !!placeActive(id) || !!(P.looks && P.looks.some(l => active[l])) || pull : pull;
   }
   if (motes) motes.visible = !!motes.userData.tierOn && S.set === 'C';
   if (winBeam) winBeam.visible = S.set === 'C';
@@ -1477,10 +1516,11 @@ function weather(cam, dt) {
   const L = World.look, R = L.rain;
   if (rain) {
     const u = rain.material.uniforms, rate = clamp(R.rate, 0, 1);
-    rain.visible = rate > 0.01 && cam.x < 46; u.uRate.value = rate; u.uMin.value.set(cam.x - 11, -0.2, -10.0); u.uSize.value.set(22, 8.2, 16.5);
+    rain.visible = rate > 0.01 && (cam.x < 46 || (S2on() && cam.x > 118)); u.uRate.value = rate; u.uMin.value.set(cam.x - 11, -0.2, -10.0); u.uSize.value.set(22, 8.2, 16.5);
     u.uLen.value = R.len; u.uSpd.value = R.speed; u.uWind.value = R.wind; u.uCol.value.copy(FF.lin('#c9d2da')).multiplyScalar(0.13 * R.bright);
     const hl = H.headlights; if (owner('K0') === 'headlights' && hl.effective() > 0) { u.uHL.value.fromArray(hl.st.pos); u.uHLd.value.fromArray(hl.st.target).sub(u.uHL.value).normalize(); u.uHLc.value.set(Math.cos(hl.st.angle), hl.effective() / 34); } else u.uHLc.value.set(0.99, 0);
     const wl = H.worklight; if (owner('P0') === 'worklight' && wl.effective() > 0) { u.uWL.value.fromArray(wl.st.pos); u.uWLd.value.fromArray(wl.st.target).sub(u.uWL.value).normalize(); u.uWLc.value.set(Math.cos(wl.st.angle), wl.effective() / 10); } else u.uWLc.value.set(0.99, 0);
+    if (S2on()) FF.WorldS2.rain(u, cam); else u.uS2.value = 0;     // Sequence 2: the roof's gaps, the platens' tops, the high bay
   }
   if (splash) { const u = splash.material.uniforms; splash.visible = (FF.tier.splashes || 0) > 0 && R.rate > 0.05 && cam.x < 42; u.uMin.value.set(cam.x - 9, 0, -3.6); u.uRate.value = clamp(R.rate, 0, 1); u.uPx.value = ctx.renderer.getPixelRatio(); }
   if (slabRain) slabRain.visible = places.drain.group.visible && S.set === 'VD';

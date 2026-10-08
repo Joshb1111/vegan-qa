@@ -247,7 +247,8 @@ const RU = { lift: { value: 0.006 }, rimK: { value: 1 } };
 function rabbitMaterial(L, extra) {
   const R = L.materials.rabbit;
   RU.lift.value = (L.rabbit && L.rabbit.lift) || 0.006;
-  const m = FF.mat({ color: extra && extra.map ? '#ffffff' : (extra && extra.vertexColors ? '#ffffff' : R.color), roughness: R.roughness, rim: true, noAO: true, lift: RU.lift.value || 0.006 },
+  /* works: the Works' lighting hooks reach the rabbit too (the press lamps' footprint: dark in the slots), as on its sets */
+  const m = FF.mat({ color: extra && extra.map ? '#ffffff' : (extra && extra.vertexColors ? '#ffffff' : R.color), roughness: R.roughness, rim: true, noAO: true, lift: RU.lift.value || 0.006, works: true },
     Object.assign({ skinning: true }, extra || {}));
   const ob = m.onBeforeCompile, ck = m.customProgramCacheKey;
   m.onBeforeCompile = (sh, r) => {

@@ -96,7 +96,8 @@ function sample(segs, t, swayT) {
 
 /* ================================================================== A6: the reference detection model (pure)
    pose { x, y, face (-1 | 0 turning | 1), kneel, torchOn, pitch (deg), half (deg) }; pts = the rabbit's 3 sight points [[x, y]];
-   opts { doorOpen, floorY (the rabbit's floor), cx (rabbit centre x, default pts[1][0]), only: 'torch' (the checker's hide audit) }.
+   opts { doorOpen, floorY (the rabbit's floor), cx (rabbit centre x, default pts[1][0]), only: 'torch' (the checker's hide audit),
+          areas (Sequence 2: the area lights to use instead of FF.S1.areaLights, e.g. the Works painter's lamp spill) }.
    -> { w (seen weight 0..1), src 'touch' | 'torch' | 'area' | 'dark' | '', d (m) }
    A sight point counts only if the straight line from the source (the lens for torch light, the eye for everything else)
    crosses no occluder: solid cover blocks completely, darkness only shortens the range (A6). While he turns (face 0) the
@@ -127,7 +128,7 @@ function see(pose, pts, opts) {
   }
   if (opts.only === 'torch') return best ? { w: best.w, src: best.src, d: best.d } : { w: 0, src: '', d };
   /* area light (door spill, floodlight): he faces the rabbit within range, a clear line from the eye */
-  if (f && (cx - pose.x) * f > 0 && d <= S.area.range && !L.segmentBlocked(eye.x, eye.y, cx, fy + 0.15)) for (const a of FF.S1.areaLights) {
+  if (f && (cx - pose.x) * f > 0 && d <= S.area.range && !L.segmentBlocked(eye.x, eye.y, cx, fy + 0.15)) for (const a of (opts.areas || FF.S1.areaLights)) {
     if ((a.on === 'always' || (a.on === 'door-open' && opts.doorOpen)) && cx >= a.x0 && cx <= a.x1) { take({ w: S.area.weight, src: 'area', d }); break; }
   }
   /* darkness at close range (A6): never ignored within dark.front in front of him (dark.behind behind); still telegraphed */

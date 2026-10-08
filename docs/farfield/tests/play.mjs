@@ -1,5 +1,6 @@
-// Integrator: a bot plays Sequence 1 through the REAL input path (CDP key events), frames stepped via __ff.tick.
-//   node play.mjs [plaus|fast] [query]      e.g.  node play.mjs plaus "q=high&seed=1"
+// Integrator: a bot plays the whole game (Sequence 1, then Sequence 2, The Works, to the card) through the REAL input path
+// (CDP key events), frames stepped via __ff.tick.
+//   node play.mjs [plaus|fast|firsttimer] [query] [label]      e.g.  node play.mjs firsttimer "q=high&seed=1" firsttimer
 import { boot, save, shot, sleep } from './lib.mjs'; import fs from 'node:fs'; import path from 'node:path';
 const DIR = path.dirname(new URL(import.meta.url).pathname);
 const mode = process.argv[2] || 'plaus', q = process.argv[3] || 'q=high&seed=1', label = process.argv[4] || ('sneak-' + mode);
@@ -8,6 +9,7 @@ const R = { mode, q };
 const t0 = Date.now();
 try {
   await b.ev(fs.readFileSync(path.join(DIR, 'bot.js'), 'utf8'));
+  await b.ev(fs.readFileSync(path.join(DIR, 'works-bot.js'), 'utf8'));     // Sequence 2's route (routes.js calls __worksBot)
   await b.ev(fs.readFileSync(path.join(DIR, 'routes.js'), 'utf8'));
   /* no unexpected flattening in the open (Josh §9.2): every fixed step in play, a flat pose (hide) or a lowered front while
      nothing is low overhead, no cover is over it, no squeeze and Down is not held, counts */
@@ -15,6 +17,7 @@ try {
     if (g.mode !== 'play' || !r || r.mode !== 'play' || !r.grounded) return; __FLAT.steps++; const p = FF.Player.debug();
     if (!(p.pose === 'hide' || p.crouchF > 0.6)) return;
     if (p.crouchHeld || p.squeeze || p.low || FF.Level.coverAt(r.x, 0) || FF.Level.ceilingAbove(r.x, FF.RULES.rabbit.hw * 3, r.y) - r.y < 0.5) return;
+    if (p.works && p.works.pitCovered) return;      /* Sequence 2: flat in a pit while a press comes down over it, as designed */
     __FLAT.open++; if (__FLAT.ex.length < 8) __FLAT.ex.push([+g.t.toFixed(2), +r.x.toFixed(2), p.pose, p.crouchF, g.place]); }; })(); true`);
   await b.ev(`window.__HINTS = []; FF.bus.on('hint', d => __HINTS.push([+FF.G.t.toFixed(2), d.arg, d.x])); window.__REVEAL = []; FF.bus.on('reveal', d => __REVEAL.push([+FF.G.t.toFixed(2), d.phase, d.cause, d.x])); true`);
   R.boot = await b.ev('(() => ({ mode: __ff.G.mode, errors: FF.errors.slice(), ac: window.__probe.ac }))()');
@@ -27,7 +30,7 @@ try {
   await b.ev(mode === 'firsttimer' ? 'BOT.use(ROUTES.firsttimer()); true' : `BOT.use(ROUTES.sneak(${mode === 'plaus'})); true`);
   let n = 0;
   for (;;) {
-    if (Date.now() - t0 > 900000) throw new Error('real-time limit');
+    if (Date.now() - t0 > 2400000) throw new Error('real-time limit');
     const r = await b.ev(`BOT.adv(${JSON.stringify([...b.held])}, 120 * 120)`);
     n++;
     if (r.repress && r.repress.length) for (const k of r.repress) { await b.key(k, 'up'); b.held.delete(k); }
@@ -40,7 +43,8 @@ try {
   await b.setKeys([]);
   R.calls = n;
   R.marks = await b.ev('BOT.marks.filter(m => !/^leg-done/.test(m.name))');
-  R.fails = await b.ev("__ff.bus.log.filter(e => e.name === 'fail').map(e => [e.t, e.data.kind, e.data.x])");
+  R.fails = await b.ev("(window.__REC || []).filter(e => e.name === 'fail').map(e => [e.t, e.data.kind, e.data.x, e.data.by || null])");
+  R.checkpoints = await b.ev("(window.__REC || []).filter(e => e.name === 'checkpoint').map(e => [e.t, e.data.id])");
   R.endMode = await b.ev('__ff.G.mode'); R.hints = await b.ev('__HINTS'); R.reveal = await b.ev('__REVEAL'); R.flat = await b.ev('__FLAT');
   if (R.endMode === 'end') {                                   // the end card runs on real-time timers (6.5 s), then the title
     for (let i = 0; i < 40; i++) { await sleep(300); await b.ev('__ff.step(6); true'); if (i === 8) await shot(b, label + '-card'); if (await b.ev('__ff.G.mode') === 'title') break; }

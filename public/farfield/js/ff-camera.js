@@ -34,10 +34,17 @@ const TAN13x2 = 2 * Math.tan(13 * Math.PI / 180);      // frame height per metre
 let cam = null, aspect = 16 / 9, offs = [];
 const out = { x: 4.6, y: 1.6, dist: 11, horizon: 0.62 };            // what the lens shows
 const play = { x: 4.6, y: 1.15, dist: 8.2, horizon: 0.57, ok: false }; // the damped play framing (always running)
-const st = { lead: 1, zone: '', shot: null, w: 0, rel: null, mods: { watch: 0, held: 0, danger: 0, intimate: 0 }, torchDown: false, torchT: -1, lastIdeal: null };
+const st = { lead: 1, zone: '', shot: null, w: 0, rel: null, mods: { watch: 0, held: 0, danger: 0, intimate: 0 }, torchDown: false, torchT: -1, lastIdeal: null, shakeT: -1, shakeA: 0, shakeD: 0.25 };
 const attends = {};      // key -> { x, y?, w, t (seconds left or Infinity), k (eased weight), still (only while the rabbit is still), fn }
 const base = () => FF.S1.camera.base;
-const zones = () => FF.S1.camera.zones;
+/* Sequence 2: the merged lane (ff-lane.js) appends FF.S2's zones to FF.S1's; without it they are appended here */
+let zCache = null;
+const zones = () => {
+  const z1 = FF.S1.camera.zones; if (!FF.S2 || !FF.S2.camera || FF.S1._lane) return z1;
+  if (!zCache || zCache.src !== z1) { zCache = z1.concat(FF.S2.camera.zones.filter(z => !z1.includes(z))); zCache.src = z1; }
+  return zCache;
+};
+const isS2 = z => !!(FF.S2 && FF.S2.camera && FF.S2.camera.zones.includes(z));
 const zoneById = id => zones().find(z => z.id === id) || {};
 const G = () => FF.G;
 const widthAt = d => TAN13x2 * aspect * d;
@@ -52,20 +59,26 @@ function zoneWeight(z, r) {
   if (z.x0 <= -5 && r.x < z.x0) w = 1;
   if (z.yBelow != null) w *= 1 - sstep(z.yBelow - 0.25, z.yBelow + 0.25, r.y);
   else if (r.y < -0.5 && r.x > 38.4 && r.x < 53.4) w *= 0;        // the open zones never frame the rabbit below ground
+  else if (r.y < -0.5 && r.x > 145.7 && r.x < 152.8) w *= 0;       // Sequence 2: nor in the culvert under the dividing wall
   return w;
 }
 function zoneParams(z, r) {
-  const B = base(), floor = Math.max(-1.0, FF.Level.groundY(r.x));
-  let dist = z.dist || B.dist; if (z.span) dist = clamp(fitDist(z.span[1] - z.span[0]), dist, B.maxDist);
+  const B = base(), s2 = isS2(z);
+  /* Sequence 2: a held frame keeps its height over the slots (the floor at the lane, not the pit), and a zone that stops
+     following (holdX, the walk into the fog) keeps the height it had there */
+  let floor = Math.max(-1.0, FF.Level.groundY(z.holdX != null ? Math.min(r.x, z.holdX) : r.x));
+  if (s2 && (z.hold || z.softHold)) floor = Math.max(0, floor);
+  let dist = z.dist || B.dist; if (z.span) dist = clamp(fitDist(z.span[1] - z.span[0]), dist, z.maxDist || B.maxDist);
   const speed = Math.abs(r.vx || 0);
   let la = z.lookAhead != null ? z.lookAhead : B.lookAhead; if (z.runAhead) la = lerp(la, z.runAhead, sstep(1.6, 2.6, speed));
   let x = z.hold && z.span ? (z.span[0] + z.span[1]) / 2 : r.x + la * st.lead + 0.12 * (r.vx || 0);
   if (z.softHold) x = clamp(x, z.softHold[0], z.softHold[1]);
   if (z.minX != null) x = Math.max(x, z.minX); if (z.maxX != null) x = Math.min(x, z.maxX);
+  if (z.holdX != null) x = Math.min(x, z.holdX);
   let y;
   if (z.y != null) y = z.y;
   else if (z.yRamp) y = lerp(z.yRamp[0], z.yRamp[1], clamp((r.x - z.x0) / (z.x1 - z.x0), 0, 1));
-  else y = floor + (z.height != null ? z.height : B.height) + B.jumpFollow * Math.max(0, r.y - floor);
+  else y = floor + (z.height != null ? z.height : B.height) + (z.holdX != null ? 0 : B.jumpFollow * Math.max(0, r.y - floor));
   return { x, y, dist, horizon: z.horizon || B.horizon, follow: z.follow || B.follow };
 }
 function baseParams(r) { return zoneParams({}, r); }
@@ -80,8 +93,8 @@ function standingAttends() {
 function ideal(dt) {
   const r = rabbit(), s = G().searcher, B = base();
   /* 1. zones */
-  const acc = { x: 0, y: 0, dist: 0, horizon: 0, follow: 0 }; let wsum = 0, best = null, bestW = 0;
-  for (const z of zones()) { const w = zoneWeight(z, r); if (w <= 1e-4) continue; const p = zoneParams(z, r); for (const k in acc) acc[k] += p[k] * w; wsum += w; if (w > bestW) { bestW = w; best = z; } }
+  const acc = { x: 0, y: 0, dist: 0, horizon: 0, follow: 0 }; let wsum = 0, best = null, bestW = 0, holdW = 0;
+  for (const z of zones()) { const w = zoneWeight(z, r); if (w <= 1e-4) continue; const p = zoneParams(z, r); for (const k in acc) acc[k] += p[k] * w; wsum += w; if (w > bestW) { bestW = w; best = z; } if (z.holdX != null) holdW = Math.max(holdW, w); }
   if (wsum < 1) { const p = baseParams(r), w = 1 - wsum; for (const k in acc) acc[k] += p[k] * w; wsum = 1; }
   for (const k in acc) acc[k] /= wsum;
   st.zone = best ? best.id : 'base';
@@ -101,7 +114,8 @@ function ideal(dt) {
   const dangerOn = inSearch && /notice|spotted|aim|pursue|grab|lower/.test(s.state || '') && sd <= 10;
   const heldOn = inSearch && !dangerOn && ((s.y > 0.5 && r.x > 92 && r.x < 98 && sd < 3.5) || (s.kneel && sd < 3.0));
   const watchOn = inSearch && !dangerOn && sd < 16 && ((r.still || 0) > 0.6 || hidden);
-  const intimateOn = r.x >= 116 && r.x < 127.2 && (((r.still || 0) > 1.5) || r.mood === 'settled') && !(s && s.active && s.x > 112 && Math.abs(s.x - r.x) < 6);
+  const intimateOn = (r.x >= 116 && r.x < 127.2 && (((r.still || 0) > 1.5) || r.mood === 'settled') && !(s && s.active && s.x > 112 && Math.abs(s.x - r.x) < 6))
+    || (r.x >= 199.0 && r.x <= 206.0 && (((r.still || 0) > 1.5) || r.mood === 'settled'));          // Sequence 2: under the pipe
   const M = st.mods;
   M.danger = damp(M.danger, dangerOn ? 1 : 0, dangerOn ? 3.0 : 1.2, dt);
   M.held = damp(M.held, heldOn ? 1 : 0, 1.5, dt);
@@ -122,12 +136,12 @@ function ideal(dt) {
     x = lerp(x, xD, M.danger); dist = lerp(dist, dD, M.danger); horizon = lerp(horizon, dz.horizon || 0.58, M.danger); follow = lerp(follow, dz.follow || 3.5, M.danger);
   }
   if (M.intimate > 1e-3) {
-    const iz = zoneById('rest-intimate');
+    const iz = zoneById(r.x > 190 ? 'out-intimate' : 'rest-intimate');
     x = lerp(x, r.x + (iz.lookAhead || 0.3) * st.lead, M.intimate); dist = lerp(dist, iz.dist || 5.8, M.intimate); y = lerp(y, floor + (iz.height || 0.62), M.intimate);
     horizon = lerp(horizon, iz.horizon || 0.58, M.intimate); follow = lerp(follow, iz.follow || 1.2, M.intimate);
   }
   /* 4. the edge rule (in play): the rabbit >= 15% of the frame width from either edge */
-  { const hw = widthAt(dist) / 2, e = B.edge || 0.15; x = clamp(x, r.x - hw * (1 - 2 * e), r.x + hw * (1 - 2 * e)); }
+  { const hw = widthAt(dist) / 2, e = B.edge || 0.15; x = lerp(clamp(x, r.x - hw * (1 - 2 * e), r.x + hw * (1 - 2 * e)), x, holdW); }   // (not while a frame lets the rabbit go: out-leave)
   return { x, y, dist, horizon, follow };
 }
 
@@ -138,6 +152,7 @@ const SHOTS = {
   'search-entry-hold':{ ease: 1.5, release: 1.3 },      // the door reveal (FF.Events passes its own ease / release)
   'duct-transit':     { ease: 0, release: 1.0, scripted: true },
   'pull-out':         { ease: 0, release: 2.0, scripted: true },
+  'out-pullout':      { ease: 0, release: 2.0, scripted: true },   // Sequence 2, ending (a): the pipe becomes a crack at the foot of the Works
 };
 function shotParams(sh, dt) {
   const z = zoneById(sh.id), r = rabbit();
@@ -153,7 +168,7 @@ function shotParams(sh, dt) {
   }
   if (sh.id === 'duct-transit') { const to = z.to || { x: 90.4, dist: 10.6, height: 1.3, horizon: 0.6 }, k = easeIO(sh.t / (z.time || 3.6)), f = sh.from;
     return { x: lerp(f.x, to.x, k), y: lerp(f.y, to.height, k), dist: lerp(f.dist, to.dist, k), horizon: lerp(f.horizon, to.horizon, k) }; }
-  if (sh.id === 'pull-out') { const to = z.to || { dist: 22, height: 3.5, horizon: 0.52, driftX: 2.5 }, k = easeIO(sh.t / (z.time || 8.0)), f = sh.from, floor = Math.max(0, FF.Level.groundY(f.x));
+  if (sh.id === 'pull-out' || sh.id === 'out-pullout') { const to = z.to || { dist: 22, height: 3.5, horizon: 0.52, driftX: 2.5 }, k = easeIO(sh.t / (z.time || 8.0)), f = sh.from, floor = Math.max(0, FF.Level.groundY(f.x));
     return { x: f.x + (to.driftX || 0) * k, y: lerp(f.y, floor + to.height, k), dist: lerp(f.dist, to.dist, k), horizon: lerp(f.horizon, to.horizon, k) }; }
   return { x: z.x != null ? z.x : out.x, y: z.y != null ? z.y : out.y, dist: z.dist || out.dist, horizon: z.horizon || out.horizon };
 }
@@ -192,6 +207,10 @@ const Camera = FF.Camera = {
     on('walkway-start', walkway); on('walkway', d => { if (d && (d.phase === 'start' || d.phase === 'boots')) walkway(); });
     /* the drain hold extends to 45 while the torch is down the crack */
     on('torch-down', d => { st.torchDown = !!(d && d.phase !== 'end' && d.phase !== 'up' && d.on !== false); });
+    /* Sequence 2: a press's contact within FF.RULES.works.press.shake.within shakes the lens a centimetre (physical feedback, not
+       a takeover; the frame itself never moves) */
+    on('press', d => { const sk = FF.RULES.works && FF.RULES.works.press && FF.RULES.works.press.shake; if (d && d.phase === 'contact' && sk && (d.d == null || d.d <= sk.within)) { st.shakeT = G().frameT; st.shakeA = sk.amp; st.shakeD = sk.time; } });
+    on('restart', () => { st.shakeT = -1; });
     /* the end: the pull-out (Events emits end { phase: 'pullout' } or calls Camera.shot('pull-out')) */
     on('end', d => { if (d && (d.phase === 'pullout' || d.phase === 'pull-out')) Camera.shot('pull-out'); });
   },
@@ -261,7 +280,7 @@ const Camera = FF.Camera = {
   debug() {
     const a = {}; for (const k in attends) a[k] = +(attends[k].k || 0).toFixed(2);
     const m = {}; for (const k in st.mods) if (st.mods[k] > 0.01) m[k] = +st.mods[k].toFixed(2);
-    return { stub: false, zone: st.zone, shot: st.shot && st.shot.id, releasing: !!st.rel, x: +out.x.toFixed(2), y: +out.y.toFixed(2), dist: +out.dist.toFixed(2), horizon: +out.horizon.toFixed(3), attends: a, mods: m, torchDown: st.torchDown };
+    return { stub: false, zone: st.zone, shot: st.shot && st.shot.id, releasing: !!st.rel, shake: st.shakeT >= 0, x: +out.x.toFixed(2), y: +out.y.toFixed(2), dist: +out.dist.toFixed(2), horizon: +out.horizon.toFixed(3), attends: a, mods: m, torchDown: st.torchDown };
   },
   dispose() { for (const off of offs) off(); offs = []; },
 };
@@ -272,5 +291,9 @@ function vehicleX() {
   const v = FF.S1.verge && FF.S1.verge.vehicle, t = G().frameT - (st.vehicleT || 0);
   return v ? lerp(v.fromX, v.stop[0], clamp(t / 6.0, 0, 1)) : null;
 }
-function apply() { cam.position.set(out.x, out.y, out.dist); cam.rotation.set(0, 0, 0); cam.updateMatrixWorld(); Camera.project(); }
+function apply() {
+  let sx = 0, sy = 0;
+  if (st.shakeT >= 0) { const t = G().frameT - st.shakeT; if (t >= 0 && t < st.shakeD) { const k = st.shakeA * (1 - t / st.shakeD); sx = k * Math.sin(t * 97.0); sy = k * Math.sin(t * 131.0 + 1.3); } else if (t >= st.shakeD) st.shakeT = -1; }
+  cam.position.set(out.x + sx, out.y + sy, out.dist); cam.rotation.set(0, 0, 0); cam.updateMatrixWorld(); Camera.project();
+}
 })();

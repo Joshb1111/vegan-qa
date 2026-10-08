@@ -470,7 +470,9 @@ const Events = FF.Events = {
     on('restart', () => replayStart());
     on('play:start', () => { if (RV.held) FF.Game.control(false); });
     /* the end */
-    on('end', d => { if (d && d.phase === 'settled' && !E.phase) { E.phase = 'hold'; E.t = 0; } });
+    /* with Sequence 2 loaded, FF.WorksFlow owns every settle: Sequence 1's rest becomes an optional pull-out that comes back
+       to the player, and the card moves to the end of Sequence 2 (SEQUENCE-2.md §10; ff-works-flow.js) */
+    on('end', d => { if (d && d.phase === 'settled' && !E.phase && !(FF.WorksFlow && FF.WorksFlow.ownsEnd)) { E.phase = 'hold'; E.t = 0; } });
     for (const n of ['vehicle-arrive', 'gate-lit', 'person-out', 'rabbit-in-pipe', 'walkway-timer', 'shake-off', 'safe', 'rest', 'sound-cue', 'camera-shot'])
       on(n, () => { st.beats[n] = (st.beats[n] || 0) + 1; });
   },
@@ -542,6 +544,8 @@ const Events = FF.Events = {
   reveal() { return { phase: RV.phase, cause: RV.cause, done: RV.done, seen: RV.seen, held: RV.held, pose: RV.pose, t: +RV.t.toFixed(3), maxX: RV.maxX == null ? null : +RV.maxX.toFixed(3), latched: latched(), resumed: (FF.Input && FF.Input.resumed) || [], log: RV.log }; },
   /* FF.AI asks on reset: replay only the end of his entry (from the aim), briefly (see entryReplay above) */
   entryReplay,
+  /* Sequence 2 (ff-works-flow.js): the shelter checkpoints, reached in any order, set the restart point here */
+  setCheckpoint(id) { if (FF.Level.checkpoint(id)) setCheckpoint(id); },
   dispose() { for (const id of Object.keys(lit)) lightOff(id); },
   debug() {
     return { cp: st.cp, failing: st.failing && st.failing.kind, beats: Object.assign({}, st.beats), flags: Object.assign({}, G().flags),
