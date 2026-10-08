@@ -3,7 +3,7 @@
 // Real key events; frames stepped via __ff. node t-slide.mjs (PORT as lib.mjs). Writes out/t-slide.json.
 import { boot, OUT } from './lib.mjs'; import fs from 'node:fs'; import path from 'node:path';
 const DIR = path.dirname(new URL(import.meta.url).pathname);
-const b = await boot({ q: 'q=high&seed=1&mute=1&clean=1' }); const R = { cases: {}, checks: [] };
+const b = await boot({ q: 'q=high&seed=1&mute=1&clean=1&rabbit=procedural&people=standin' })      /* the feet test is about the code-built rabbit's leg IK and the stand-in searcher (the models are the defaults since the polish pass; t-models.mjs covers theirs) */; const R = { cases: {}, checks: [] };
 const ck = (name, ok, info) => { R.checks.push({ name, ok: !!ok, info }); console.log(ok ? 'PASS' : 'FAIL', name, JSON.stringify(info)); };
 const ev = e => b.ev(e);
 const worstOf = (o, keys) => Math.max(...keys.map(k => o[k].slide));

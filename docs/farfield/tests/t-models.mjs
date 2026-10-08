@@ -29,7 +29,7 @@ const torchOff = (b, role) => b.ev(`(function(){ const f = FF.Humans.figures.fin
   const lens = f.lens.getWorldPosition(new THREE.Vector3()); return { light: +Math.hypot(p[0] - e.x, p[1] - e.y, p[2] - e.z).toFixed(3), lens: +lens.distanceTo(e).toFixed(3), on: !!h.st.on }; })()`);
 
 /* ---- 1. the console, switches off and on: Sequence 1 and ?start=works */
-for (const [tag, sw] of [['off', ''], ['on', '&people=models&rabbit=tripo']]) {
+for (const [tag, sw] of [['off', '&rabbit=procedural&people=standin'], ['on', '']]   /* polish pass 8 Oct: the models are the defaults; 'off' is the switch back */) {
   for (const [where, extra] of [['s1', ''], ['works', '&start=works']]) {
     const b = await boot({ q: BASE + sw + extra, pause: false });
     try {
@@ -126,7 +126,7 @@ async function play(tag, sw) {
   R['play_' + tag] = out; b.close(); await new Promise(r => setTimeout(r, 1500));
   return out;
 }
-const off = await play('off', ''), on = await play('on', '&people=models&rabbit=tripo');
+const off = await play('off', '&rabbit=procedural&people=standin'), on = await play('on', '');
 /* the figures stand where they stood and do what they did: positions and the anim names, models vs stand-ins */
 const same = (a, b2) => JSON.stringify(a) === JSON.stringify(b2);
 ck('the searcher is in the same place doing the same thing with the models (loop times 5.6 .. 40)', same(off.searcherPos, on.searcherPos), { off: off.searcherPos, on: on.searcherPos });

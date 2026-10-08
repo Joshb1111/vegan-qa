@@ -210,6 +210,7 @@ const Camera = FF.Camera = {
     /* Sequence 2: a press's contact within FF.RULES.works.press.shake.within shakes the lens a centimetre (physical feedback, not
        a takeover; the frame itself never moves) */
     on('press', d => { const sk = FF.RULES.works && FF.RULES.works.press && FF.RULES.works.press.shake; if (d && d.phase === 'contact' && sk && (d.d == null || d.d <= sk.within)) { st.shakeT = G().frameT; st.shakeA = sk.amp; st.shakeD = sk.time; } });
+    on('camera:bump', d => { st.shakeT = G().frameT; st.shakeA = (d && d.amp) || 0.02; st.shakeD = (d && d.time) || 0.25; });   // polish pass: the opening tumble's landings
     on('restart', () => { st.shakeT = -1; });
     /* the end: the pull-out (Events emits end { phase: 'pullout' } or calls Camera.shot('pull-out')) */
     on('end', d => { if (d && (d.phase === 'pullout' || d.phase === 'pull-out')) Camera.shot('pull-out'); });

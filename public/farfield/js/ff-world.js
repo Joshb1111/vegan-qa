@@ -25,6 +25,8 @@ window.FF = window.FF || {};
 const T = THREE, D2R = Math.PI / 180;
 const clamp = (v, a, b) => v < a ? a : v > b ? b : v, lerp = (a, b, t) => a + (b - a) * t;
 const sstep = (a, b, x) => { const t = clamp((x - a) / (b - a), 0, 1); return t * t * (3 - 2 * t); };
+/* polish pass 8 Oct (Josh): the door N0 bursts open (0.16 s, a hard ease-out with a small rebound), not a 0.5 s swing: 0 .. 1.04 .. 1 */
+const doorBurst = u => { u = clamp(u, 0, 1); const e = 1 - Math.pow(1 - u, 3); return u < 0.72 ? e * 1.04 : 1.04 - 0.04 * sstep(0.72, 1, u); };
 const B = (x0, x1, y0, y1, z0, z1) => FF.geo.box(x0, x1, y0, y1, z0, z1);
 const CY = (r, h, x, y0, z, seg, rTop) => FF.geo.cyl(r, h, x, y0, z, seg, rTop);
 let ctx = null, root = null, overlayGroup = null, tierNow = null, offs = [];
@@ -1317,7 +1319,8 @@ const World = FF.World = {
   open(id, v) {
     const p = props[id], b = propBase[id]; if (!p) return;
     if (id === 'gateLeafL') p.position.x = b.x - v; else if (id === 'gateLeafR') p.position.x = b.x + v;
-    else if (id === 'doorN0' || id === 'walkwayDoorL') p.rotation.y = -1.55 * clamp(v, 0, 1);
+    else if (id === 'doorN0') p.rotation.y = -1.55 * clamp(v, 0, 1.04);
+    else if (id === 'walkwayDoorL') p.rotation.y = -1.55 * clamp(v, 0, 1);
     else if (id === 'walkwayDoorR') p.rotation.y = 1.55 * clamp(v, 0, 1);
   },
   get rig() { return rig; },
@@ -1454,7 +1457,7 @@ function derivedLights(dt) {
     const roomOn = done || entryT >= 0 || !!s.replay || (s.active && s.state !== 'wait' && s.state !== 'off');
     const dn = props.doorN0; if (dn && S.mine.doorN0 != null && Math.abs(dn.rotation.y - S.mine.doorN0) > 1e-4) asked.doorN0 = true;
     let open = Math.abs(dn ? dn.rotation.y : 0) / 1.55;
-    if (!asked.doorN0) { const want = done || s.replay || (s.active && s.state !== 'wait' && s.state !== 'off' && entryT < 0) ? 1 : entryT >= doorAt ? clamp((entryT - doorAt) / 0.5, 0, 1) : 0; open = want; World.open('doorN0', open); S.mine.doorN0 = dn.rotation.y; }
+    if (!asked.doorN0) { const want = done || s.replay || (s.active && s.state !== 'wait' && s.state !== 'off' && entryT < 0) ? 1 : entryT >= doorAt ? doorBurst((entryT - doorAt) / 0.16) : 0; open = want; World.open('doorN0', open); S.mine.doorN0 = dn.rotation.y; }
     H.doorSpill.st.derived = SPOT_DEF.doorSpill.intensity * clamp(open, 0, 1);
     const flick = roomOn ? 1 : 0, torchBehind = entryT >= 0 && entryT < doorAt ? 0.5 + 0.5 * Math.sin(G.frameT * 2.3) : 0;
     if (doorRoom) doorRoom.material.color.copy(FF.lin('#d9e2ea')).multiplyScalar(1.2 * flick);

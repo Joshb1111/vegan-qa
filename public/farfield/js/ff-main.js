@@ -10,7 +10,7 @@
    B or d-pad down crouch, Start pause.
    URL: ?q=high|medium|low  ?mute=1 (no audio, no storage)  ?seed=n  ?cp=<checkpoint id> (skip notice + title, start there)
         ?start=works (review Sequence 2: the notice, then the title with "Begin at the Works" chosen)
-        ?clean=1 (no hints, no fps)  ?debug=1  ?rabbit=procedural|<file under models/>
+        ?clean=1 (no hints, no fps)  ?debug=1  ?rabbit=procedural|tripo|<file under models/> (the default is tripo)  ?people=standin (the stand-in guards; the default is the models)  ?intro=0 (skip the opening tumble)
    Sequence 2 (THE WORKS, SEQUENCE-2.md §10-§11): its modules join the call orders below (Works first in the fixed step, so the
    presses move before the rabbit collides; Painter after Humans in the frame, so it poses its figure; Works before World, so it
    moves the props); the save is 'ff-progress' (courtyard -> search-arrive -> rest -> works-in -> works-line -> works-out ->
@@ -21,10 +21,10 @@
 const T = THREE, U = FF.util, Q = FF.Q, L0 = FF.LOOK;
 const FIX = 1 / 120;
 /* module call order (docs/farfield/INTERFACES.md §3). A missing module or method is skipped; every call is isolated. */
-const INIT = ['Level', 'Works', 'World', 'Player', 'Humans', 'AI', 'Painter', 'Events', 'WorksFlow', 'Camera', 'Audio', 'UI'];
-const RESET = ['Level', 'Works', 'World', 'Player', 'Humans', 'AI', 'Painter', 'Events', 'WorksFlow', 'Camera', 'Audio', 'UI'];
+const INIT = ['Level', 'Works', 'World', 'Player', 'Humans', 'AI', 'Painter', 'Opening', 'Events', 'WorksFlow', 'Camera', 'Audio', 'UI'];
+const RESET = ['Level', 'Works', 'World', 'Player', 'Humans', 'AI', 'Painter', 'Opening', 'Events', 'WorksFlow', 'Camera', 'Audio', 'UI'];
 const STEP = ['Works', 'Player', 'Level', 'AI', 'Painter', 'Events', 'WorksFlow'];
-const FRAME = ['Player', 'Humans', 'AI', 'Painter', 'Events', 'Works', 'World', 'Camera', 'Audio', 'UI'];
+const FRAME = ['Player', 'Humans', 'AI', 'Painter', 'Opening', 'Events', 'Works', 'World', 'Camera', 'Audio', 'UI'];
 function call(name, fn, a, b, c) {
   const m = FF[name]; if (!m || typeof m[fn] !== 'function') return undefined;
   try { return m[fn](a, b, c); } catch (e) { FF.report(e, name + '.' + fn); return undefined; }
@@ -206,6 +206,7 @@ const Game = FF.Game = {
     call('UI', 'hideNotice'); call('UI', 'hidePause');
     Game.restart(FF.S1.checkpoints[0], { reason: 'title' });
     Game.control(false); setMode('title');
+    call('Player', 'introHide', true);                    // polish pass: the title shows the empty scene and its light; the rabbit tumbles in on "begin"
     call('Camera', 'shot', 'title');
     call('UI', 'showTitle', { save: Game.loadSave(), order: SAVE.order, works: FF.S2 && FF.S2.join ? FF.S2.join.start : null, startWorks: START_WORKS });
     Game.fade(0, G.fade > 0.5 ? 1.5 : 0);
@@ -215,8 +216,9 @@ const Game = FF.Game = {
     call('UI', 'hideTitle'); call('UI', 'hideNotice');
     if (cpId && cpId !== FF.S1.checkpoints[0].id) { Game.restart(cpId, { reason: 'continue' }); Game.fade(0, 0.8); call('Camera', 'snap'); }
     else call('Camera', 'toPlay', (FF.S1.camera.zones.find(z => z.id === 'title') || {}).toPlay || 2.5);
-    setMode('play'); Game.control(true);
-    FF.bus.emit('play:start', { cp: G.checkpoint });
+    const intro = !(cpId && cpId !== FF.S1.checkpoints[0].id) && !!call('Player', 'intro');
+    setMode('play'); if (!intro) Game.control(true);
+    FF.bus.emit('play:start', { cp: G.checkpoint, intro });
   },
   /* the end (FF.WorksFlow calls this at the end of Sequence 2, after either ending's fade): the card, then the title */
   async endCard() { setMode('end'); Game.control(false); G.fade = 1; await Promise.resolve(call('UI', 'endCard')); Game.save('completed'); Game.toTitle(); },

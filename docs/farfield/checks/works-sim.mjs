@@ -93,7 +93,7 @@ for (const m of ALL) {
       `still (up) ${(m.period - m.marks.up).toFixed(1)} s  window under it ${(m.period + lp - pp).toFixed(2)} s`);
 }
 check(ALL.every(m => m.lethal >= 3.8), 'every press: >= 3.8 s from the unmistakable RELEASE cue to the cut (target >= 1.0-1.5 s, Sequence 1 A7)');
-check(ALL.every(m => mod(m.marks.contact + (m.offset || 0), RU.works.beat) < 1e-9), 'every contact lands on the 4.0 s heartbeat');
+check(ALL.every(m => mod(m.marks.contact + (m.offset || 0), RU.works.beat / 2) < 1e-9), 'every contact lands on the heartbeat or its half (polish pass 8 Oct: the long hall cycles every 10 s, so its contacts fall on the 2.0 s half beat)');
 { const open = firstTime(p => sluiceGap(p) >= SL.passClear, WK.P1.marks.descent, WK.P1.marks.contact);
   const shut = firstTime(p => sluiceGap(p) < PR.hLow + PR.lethalMargin, WK.P1.marks.rise, WK.P1.marks.up);
   log(`  sluice: passable (gap >= ${SL.passClear}) from P1 phase ${open.toFixed(2)}; lethal band from ${shut.toFixed(2)} (closing); window ${f2(shut - open)} s; full open ${SL.open} m for ${WK.P1.marks.rise - WK.P1.marks.contact} s`);
@@ -256,8 +256,8 @@ function runLine(ph0, policy) {
     }
     if (mode === 'go') {
       const nxt = QS.find(q => q.x0 > st.x + 1e-6);
-      if (!under && nxt && st.x >= nxt.x0 - HW - 0.06 && !waited.has(nxt.id)) { const L = lineState(nxt, ph);
-        if (!isPass(L.s, L.y) || (policy.cautious && nxt.id !== 'Q1')) { mode = 'hold'; waited.add(nxt.id); hold = Math.min(st.x, nxt.x0 - HW - 0.02); ready = -1; sawDown = !isPass(L.s, L.y); where = 'gap'; seq.push(`waits in ${LS.find(s => hold >= s.x0 - 0.2 && hold <= s.x1 + 0.2)?.id || 'x' + hold.toFixed(1)} @${t.toFixed(1)}`); } }
+      if (!under && nxt && st.x >= nxt.x0 - HW - 0.06 - (policy.reads ? st.v * st.v / (2 * RB.decel) + 0.25 : 0) && !waited.has(nxt.id)) { const L = lineState(nxt, ph);
+        if (!isPass(L.s, L.y) || (policy.cautious && nxt.id !== 'Q1')) { mode = 'hold'; waited.add(nxt.id); hold = Math.min(st.x + (policy.reads ? st.v * st.v / (2 * RB.decel) : 0), nxt.x0 - HW - 0.02); ready = -1; sawDown = !isPass(L.s, L.y); where = 'gap'; seq.push(`waits in ${LS.find(s => hold >= s.x0 - 0.2 && hold <= s.x1 + 0.2)?.id || 'x' + hold.toFixed(1)} @${t.toFixed(1)}`); } }
     }
     stepTo(st, target, mode === 'flee' ? fleeGait : gait); t += DT;
   }
@@ -267,7 +267,7 @@ const policies = [
   { name: 'continuous walker (walks on whenever the press ahead is up)', gait: 'walk' },
   { name: 'walker who runs when a release catches it', gait: 'walk', fleeGait: 'run' },
   { name: 'cautious walker (waits in every gap for a fresh rise)', gait: 'walk', cautious: true },
-  { name: 'runner (Shift all the way)', gait: 'run' },
+  { name: 'runner who reads the rhythm (Shift, stops in each gap and goes when the press ahead has risen)', gait: 'run', reads: true },
 ];
 for (const pol of policies) {
   let n = 0, ok = 0, tmin = Infinity, tmax = 0, sum = 0, fl = [], pitCUsed = 0, minM = Infinity;
@@ -276,6 +276,33 @@ for (const pol of policies) {
   for (const f of fl.slice(0, 6)) log('    ' + f);
   check(ok === n, `long hall: the ${pol.name} survives from every arrival phase`);
 }
+/* THE BLIND RUN (polish pass 8 Oct, Josh: "holding max run must NOT bypass them"): Shift + Right held from the hall entry, no
+   reading at all. Physics as the game's: a press that is too low is a wall (the rabbit stops at its edge and goes on the moment it
+   is high enough), a descending press with the rabbit's centre under it is the cut. The squeeze under the door caps the speed. */
+function blindRun(ph0, x0, v0, delay) {
+  const pitC = sh('pit-C'); const st = { x: x0, v: v0 || 0 }; let t = 0;
+  for (let i = 0; i < 120 * 40; i++, t += DT) {
+    const ph = mod(ph0 + t, LINE.period);
+    for (const q of QS) { const L = lineState(q, ph);
+      if (L.s === 'descent' && inFoot(q, st.x) && !(q.id === 'Q3' && st.x >= pitC.core[0] && st.x <= pitC.core[1]) && L.y < floorAt(st.x, false) + lethalH(false)) return { caught: true, by: q.id, t, x: st.x }; }
+    if (st.x >= QS[2].x1 + HW + 0.02) return { caught: false, t, x: st.x };
+    if (t < (delay || 0)) continue;
+    let vmax = SPEED.run; if (st.x > 166.6 - HW && st.x < 167.0 + HW) vmax = RB.duckUnder.speed;
+    let blockedNow = false;
+    for (const q of QS) if (st.x + HW <= q.x0 + 1e-6 && st.x + HW + st.v * DT + 0.01 > q.x0 && lineState(q, ph).y < floorAt(st.x, false) + PR.hStand + 0.003) blockedNow = true;
+    if (blockedNow) { st.v = 0; continue; }
+    st.v = Math.min(vmax, st.v + RB.accel * DT); st.x += st.v * DT;
+  }
+  return { caught: false, t, x: st.x, timeout: true };
+}
+{ let n = 0, c = 0; const esc = [];
+  for (let ph = 0; ph < LINE.period; ph += 0.25) { n++; const r = blindRun(ph, 168.0, 0, 0); if (r.caught) c++; else esc.push(ph); }
+  log(`  BLIND RUN (Shift + Right held from the entry floor, no reading): caught in ${c}/${n} arrival phases` + (esc.length ? ' · escapes at phase ' + esc.map(f2).join(', ') : ''));
+  check(c / n >= 0.9, 'long hall: a blind full-speed run is caught from at least 90% of arrival phases');
+  const cps = S2.checkpoints.filter(k => k.works && k.works.line != null && k.x < QS[0].x0 && k.id === 'works-line');
+  for (const k of cps) { const r = blindRun(mod(k.works.line + 1.0, LINE.period), k.x, 0, 0), r2 = blindRun(mod(k.works.line + 1.4, LINE.period), k.x, 0, 0);
+    log(`  BLIND RUN from the ${k.id} restart (control back 1.0 s after it): ${r.caught ? 'caught by ' + r.by + ' at ' + f2(r.t) + ' s' : 'ESCAPED'} (a 0.4 s later key press: ${r2.caught ? 'caught by ' + r2.by : 'ESCAPED'})`);
+    check(r.caught && r2.caught, `${k.id}: the blind run from the restart is caught`); } }
 /* the designed climax: a walker who leaves on Q1's first passable moment and keeps walking */
 { const r = runLine(mod(QS[0].pass - 0.001, LINE.period), { gait: 'walk' });
   log('  the designed flow (Q1 just passable, leave after the reaction, walk on): ' + (r.ok ? `out after ${f2(r.t)} s` : 'CUT') + ' · ' + r.seq.join(' · '));
@@ -305,7 +332,14 @@ for (const c of S2.checkpoints.filter(k => k.works)) {
        restart), so its whole telegraph is heard and seen; it used to restart already falling, the clank lost under the black */
     const clank = firstTime(t => t > 0 && lineState(ahead, mod(ph + t, period)).s === 'release' && lineState(ahead, mod(ph + t - 0.01, period)).s === 'up', 0, 40, 0.01);
     const inRelease = lineState(ahead, mod(ph, period)).s !== 'up';
-    log(`  ${c.id.padEnd(14)} the press ahead (${ahead.id}) clanks ${f2(clank)} s after the restart`);
+    if (c.id !== 'works-line') log(`  ${c.id.padEnd(14)} the press ahead (${ahead.id}) clanks ${f2(clank)} s after the restart`);
+    if (c.id === 'works-line') {
+      /* polish pass 8 Oct: the entry floor restarts with Q1 one second from its contact (the picture is back at 0.45 s): a press to
+         read, the slam in front of the player, the way on when it rises; and the NEXT press (Q2) clanks as Q1 rises */
+      const q2 = QS[1], cl2 = firstTime(t => t > 0 && lineState(q2, mod(ph + t, period)).s === 'release' && lineState(q2, mod(ph + t - 0.01, period)).s === 'up', 0, 40, 0.01);
+      log(`  ${c.id.padEnd(14)} Q1 touches down ${f2(contact)} s after the restart; Q2 clanks ${f2(cl2)} s after, as Q1 rises (passable ${f2(window)} s)`);
+      check(contact >= 0.6 && contact <= 2.0 && cl2 > window - 1.5 && cl2 < window + 0.5, `${c.id}: restart with Q1 about to land (a press to read), and Q2's clank as Q1 rises`);
+    } else
     check(!inRelease && clank > 0 && clank <= 0.5, `${c.id}: the press ahead clanks after the restart, as the picture comes back (its whole telegraph seen and heard)`);
   }
   const pic = RU.fail.fadeIn;          // the restart comes RU.fail.black after the cut; the picture is back fadeIn after the restart
@@ -315,7 +349,7 @@ for (const c of S2.checkpoints.filter(k => k.works)) {
 
 /* ================================================================== 6. THE MAINTENANCE WORKER */
 log('');
-log('== 6. The maintenance worker (Sequence 1\'s detection model A6; he sees only while turned along the lane)');
+log('== 6. The maintenance worker (Sequence 1\'s detection model A6 + sound; he sees only while turned along the lane, but hears a run with his back turned)');
 const PN = S2.painter, SI = RU.sight, occ = S2.occluders.map(id => S2.solids.find(s => s.id === id)).filter(Boolean);
 function segHitsBox(ax, ay, bx, by, b) { let t0 = 0, t1 = 1; const dx = bx - ax, dy = by - ay; const p = [-dx, dx, -dy, dy], q = [ax - b.x0, b.x1 - ax, ay - b.y0, b.y1 - ay];
   for (let i = 0; i < 4; i++) { if (p[i] === 0) { if (q[i] < 0) return false; } else { const r = q[i] / p[i]; if (p[i] < 0) { if (r > t1) return false; if (r > t0) t0 = r; } else { if (r < t0) return false; if (r < t1) t1 = r; } } }
@@ -333,9 +367,12 @@ function seeP(lt, x, crouch) {   // { w, src, d } at loop time lt
   return best || { w: 0 };
 }
 /* walk the rabbit past him: start at xs in the dark at loop time lt0, walk right to 165 at gait; suspicion as Sequence 1 §9.2 */
-function passBy(xs, lt0, gait, crouch) {
+const HEARC = RU.sight.hear, noiseOf = v => Math.max(0, Math.min(1, (Math.abs(v || 0) - HEARC.floorSpeed) / (HEARC.fullSpeed - HEARC.floorSpeed)));
+function passBy(xs, lt0, gait, crouch) {   // polish pass 8 Oct: + SOUND (FF.Guard.hear): a run is heard with his back turned
   let s = 0, grace = 0, x = xs, t = 0, maxS = 0, noticedAt = null; const v = SPEED[gait];
-  while (x < 165 && t < 40) { const lt = mod(lt0 + t, PN.loopT), r = seeP(lt, x, crouch);
+  while (x < 165 && t < 40) { const under0 = x + HW > 155.6 && x - HW < 156.8, vNow = under0 ? Math.min(v, RB.duckUnder.speed) : v, lt = mod(lt0 + t, PN.loopT);
+    let r = seeP(lt, x, crouch); const hd = Math.hypot(x - PN.x, Math.abs(PN.z)), hw = noiseOf(crouch ? 0 : vNow) * Math.max(0, 1 - hd / HEARC.range);
+    if (hw > 0 && (!(r.w > 0) || hw / HEARC.t > r.r)) r = { w: hw, r: hw / HEARC.t };
     if (r.w > 0) { s = Math.min(1, s + r.w * DT / (r.r ? r.w / r.r : 1)); grace = SI.fill.grace; } else if (grace > 0) grace -= DT; else s = Math.max(0, s - SI.fill.decay * DT);
     maxS = Math.max(maxS, s); if (s >= SI.fill.notice && noticedAt == null) noticedAt = x;
     const under = x + HW > 155.6 && x - HW < 156.8; x += (under ? Math.min(v, RB.duckUnder.speed) : v) * DT; t += DT; }
@@ -349,7 +386,8 @@ function passBy(xs, lt0, gait, crouch) {
   const safeK = []; for (let k = 0; k < PN.loopT; k += 0.25) if (!noticed.includes(k)) safeK.push(k);
   const ranges = (arr) => { const out = []; let a = null, p = null; for (const k of arr) { if (a == null) a = k; else if (k - p > 0.26) { out.push([a, p]); a = k; } p = k; } if (a != null) out.push([a, p]); return out.map(([a, b]) => `${a.toFixed(2)}-${b.toFixed(2)}`).join(', '); };
   log(`  leaving the dark at loop time k (walk): never noticed for k in ${ranges(safeK)}; noticed (the look, no failure) for k in ${ranges(noticed) || 'none'}`);
-  const run = passBy(darkEdge, 5.0, 'run'); log(`  running past at k 5.0 (Shift): ${run.noticedAt == null ? 'never noticed' : 'noticed'} (noise never matters)`);
+  const run = passBy(darkEdge, 5.0, 'run'); log(`  running past at k 5.0 (Shift, his back turned): ${run.noticedAt == null ? 'never noticed' : 'NOTICED at x ' + f2(run.noticedAt) + ' (he HEARS it)'}`);
+  check(run.noticedAt != null, 'a rabbit that RUNS past him while he scrapes is heard (his back turned): the look starts');
   check(safeK.length >= 20, 'the safe window to pass him at a walk is at least 5 s of his 12 s loop');
   let palletSeen = false; for (let lt = 0; lt < PN.loopT; lt += 0.05) { const q = seeP(lt, 156.2, true); if (q.w > 0) palletSeen = true; }
   check(!palletSeen, 'under the paint pallet (crouched, x 156.2) he never sees the rabbit, at any moment of his loop');

@@ -72,12 +72,12 @@ try {
     __t.go(120 * 30, () => ({}), () => FF.Works.press('P1').state === 'up' && FF.Works.press('P1').phase > 12.4);
     __t.go(120 * 10, r => ({ right: r.x < 143.9 }), r => r.x >= 143.9); __t.go(120 * 30, () => ({}), () => !!FF.Works.debug().cut);
     const cut = __t.log.find(e => e[0] === 'fail'); __t.go(120 * 3, () => ({}), null); const rs = cut && __t.log.find(e => e[0] === 'restart' && e[1] > cut[1]);
-    const inBlack = cut && rs ? FF.AudioS2.log.filter(e => e.t > cut[1] && e.t < rs[1]) : null;
+    const inBlack = cut && rs ? FF.AudioS2.log.filter(e => e.t > cut[1] && e.t < rs[1] - 0.02)   /* (a cue on the restart frame itself, 0.3 ms before it, is the picture coming back, not the black) */ : null;
     return { cut: cut && [cut[1], cut[2].kind, cut[2].by], restart: rs && rs[1], inBlack, failCue: FF.Audio.debug().heard['contact-muffled'] || 0 }; })()`);
   report('a machine failure: the muffled contact, and nothing of the Works starts in the black', F.cut && F.cut[1] === 'machine' && F.restart && F.inBlack && F.inBlack.length === 0 && F.failCue >= 1, JSON.stringify(F));
   /* 6: the worker's look; the splash */
   const W = await b.ev(`(() => { FF.AudioS2.log.length = 0; __ff.warp({ x: 160.0, y: 0 }); FF.Painter.setLoopT(6.5); const h0 = FF.Audio.debug().heard.heart || 0;
-    __t.go(120 * 9, () => ({}), null); const cues = FF.AudioS2.log.filter(e => e.id === 'painter').map(e => e.cue), looks = FF.Painter.debug().looks;
+    let n0 = null; __t.go(120 * 16, r => { if (n0 == null && FF.Painter.debug().looks > 0) n0 = FF.G.t; return n0 != null && FF.G.t >= n0 + 0.6 && r.x < 167.5 ? { right: true, run: true } : {}; }, null); const cues = FF.AudioS2.log.filter(e => e.id === 'painter').map(e => e.cue), looks = FF.Painter.debug().looks;   /* polish pass: he chases a rabbit that stays: it runs at his NOTICE */
     const s0 = FF.Audio.debug().heard.splash || 0; __ff.warp({ x: 145.95, y: -0.4 }); FF.Works.setPhase('P1', 6.0); __t.go(120 * 3, () => ({ right: true }), r => r.x > 147.2); __t.go(60, () => ({}), null);
     return { looks, cues, heart: (FF.Audio.debug().heard.heart || 0) - h0, splash: (FF.Audio.debug().heard.splash || 0) - s0 }; })()`);
   report('the worker\'s look: the lamp unhooked and hung back, a heartbeat', W.looks >= 1 && W.cues.includes('lamp-unhook') && W.cues.includes('lamp-hang') && W.heart > 0, JSON.stringify(W));

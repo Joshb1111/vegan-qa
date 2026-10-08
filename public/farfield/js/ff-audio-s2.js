@@ -414,6 +414,7 @@ function painterPhase() {
   return { raw: raw == null ? '' : String(raw), hard, src, present: !!Pm || !!S.wk.fact };
 }
 function classify(raw) {
+  if (/chase|return|caught|give-up/.test(raw)) return 'chase';          // polish pass: he is walking after the rabbit, not scraping
   if (/hard|resume/.test(raw)) return 'scrape-hard';
   if (/scrap/.test(raw)) return 'scrape';
   if (/still/.test(raw)) return 'still';
@@ -463,6 +464,7 @@ function onWorkerPhase(cls, from, now, L, pp) {
   else if (cls === 'dip') play('bucket-dip', P(161.4, 0.3, -0.9), {}, L, 'painter');
   else if (cls === 'lift') play('lamp-unhook', lamp, {}, L, 'painter');
   else if (cls === 'hang') play('lamp-hang', lamp, {}, L, 'painter');
+  else if (cls === 'chase') play('boot-turn', P(pp.x, 0.02, pp.z), {}, L, 'painter');
 }
 
 /* ---- the rabbit in the Works: breath held in a pit while the press comes down, a heartbeat there and in his light */

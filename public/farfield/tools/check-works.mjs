@@ -16,7 +16,7 @@
 import fs from 'node:fs'; import path from 'node:path'; import vm from 'node:vm';
 const HERE = path.dirname(new URL(import.meta.url).pathname), JS = process.env.JS || path.resolve(HERE, '../js');
 globalThis.window = globalThis;
-for (const f of ['ff-core.js', 'ff-rules.js', 'ff-rules-s2.js', 'ff-level-s1.js', 'ff-script-s1.js', 'ff-level-s2.js', 'ff-script-s2.js', 'ff-lane.js', 'ff-level.js', 'ff-ai.js', 'ff-works.js', 'ff-painter.js'])
+for (const f of ['ff-core.js', 'ff-rules.js', 'ff-rules-s2.js', 'ff-level-s1.js', 'ff-script-s1.js', 'ff-level-s2.js', 'ff-script-s2.js', 'ff-lane.js', 'ff-level.js', 'ff-guard.js', 'ff-ai.js', 'ff-works.js', 'ff-painter.js'])
   vm.runInThisContext(fs.readFileSync(path.join(JS, f), 'utf8'), { filename: f });
 const FF = globalThis.FF, RU = FF.RULES, RB = RU.rabbit, W = RU.works, PR = W.press, SL = W.sluice, FAIR = W.fairness, S2 = FF.S2, WK = S2.works, WORKS = FF.Works, L = FF.Level;
 FF.G = { mode: 'play', t: 0, control: true, flags: {}, rabbit: null, place: 'rest' };
@@ -75,7 +75,7 @@ for (const m of ALL) {
       `still (up) ${(m.period - m.marks.up).toFixed(1)} s  window under it ${(m.period + lp - pp).toFixed(2)} s`);
 }
 check(ALL.every(m => m.lethal >= 3.8), 'every press: >= 3.8 s from the unmistakable RELEASE cue to the cut (target >= 1.0-1.5 s, Sequence 1 A7)');
-check(ALL.every(m => mod(m.marks.contact + (m.offset || 0), RU.works.beat) < 1e-9), 'every contact lands on the 4.0 s heartbeat');
+check(ALL.every(m => mod(m.marks.contact + (m.offset || 0), RU.works.beat / 2) < 1e-9), 'every contact lands on the heartbeat or its half (polish pass 8 Oct: the long hall cycles every 10 s, so its contacts fall on the 2.0 s half beat)');
 { const open = firstTime(p => sluiceGap(p) >= SL.passClear, WK.P1.marks.descent, WK.P1.marks.contact);
   const shut = firstTime(p => sluiceGap(p) < PR.hLow + PR.lethalMargin, WK.P1.marks.rise, WK.P1.marks.up);
   log(`  sluice: passable (gap >= ${SL.passClear}) from P1 phase ${open.toFixed(2)}; lethal band from ${shut.toFixed(2)} (closing); window ${f2(shut - open)} s; full open ${SL.open} m for ${WK.P1.marks.rise - WK.P1.marks.contact} s`);
@@ -239,8 +239,8 @@ function runLine(ph0, policy) {
     }
     if (mode === 'go') {
       const nxt = QS.find(q => q.x0 > st.x + 1e-6);
-      if (!under && nxt && st.x >= nxt.x0 - HW - 0.06 && !waited.has(nxt.id)) { const L = lineState(nxt, ph);
-        if (!isPass(L.s, L.y) || (policy.cautious && nxt.id !== 'Q1')) { mode = 'hold'; waited.add(nxt.id); hold = Math.min(st.x, nxt.x0 - HW - 0.02); ready = -1; sawDown = !isPass(L.s, L.y); where = 'gap'; seq.push(`waits in ${LS.find(s => hold >= s.x0 - 0.2 && hold <= s.x1 + 0.2)?.id || 'x' + hold.toFixed(1)} @${t.toFixed(1)}`); } }
+      if (!under && nxt && st.x >= nxt.x0 - HW - 0.06 - (policy.reads ? st.v * st.v / (2 * RB.decel) + 0.25 : 0) && !waited.has(nxt.id)) { const L = lineState(nxt, ph);
+        if (!isPass(L.s, L.y) || (policy.cautious && nxt.id !== 'Q1')) { mode = 'hold'; waited.add(nxt.id); hold = Math.min(st.x + (policy.reads ? st.v * st.v / (2 * RB.decel) : 0), nxt.x0 - HW - 0.02); ready = -1; sawDown = !isPass(L.s, L.y); where = 'gap'; seq.push(`waits in ${LS.find(s => hold >= s.x0 - 0.2 && hold <= s.x1 + 0.2)?.id || 'x' + hold.toFixed(1)} @${t.toFixed(1)}`); } }
     }
     stepTo(st, target, mode === 'flee' ? fleeGait : gait); t += DT;
   }
@@ -250,7 +250,7 @@ const policies = [
   { name: 'continuous walker (walks on whenever the press ahead is up)', gait: 'walk' },
   { name: 'walker who runs when a release catches it', gait: 'walk', fleeGait: 'run' },
   { name: 'cautious walker (waits in every gap for a fresh rise)', gait: 'walk', cautious: true },
-  { name: 'runner (Shift all the way)', gait: 'run' },
+  { name: 'runner who reads the rhythm (Shift, stops in each gap and goes when the press ahead has risen)', gait: 'run', reads: true },
 ];
 for (const pol of policies) {
   let n = 0, ok = 0, tmin = Infinity, tmax = 0, sum = 0, fl = [], pitCUsed = 0, minM = Infinity, closest = '';
@@ -260,6 +260,33 @@ for (const pol of policies) {
   for (const f of fl.slice(0, 6)) log('    ' + f);
   check(ok === n, `long hall: the ${pol.name} survives from every arrival phase`);
 }
+/* THE BLIND RUN (polish pass 8 Oct, Josh: "holding max run must NOT bypass them"): Shift + Right held from the hall entry, no
+   reading at all. Physics as the game's: a press that is too low is a wall (the rabbit stops at its edge and goes on the moment it
+   is high enough), a descending press with the rabbit's centre under it is the cut. The squeeze under the door caps the speed. */
+function blindRun(ph0, x0, v0, delay) {
+  const pitC = sh('pit-C'); const st = { x: x0, v: v0 || 0 }; let t = 0;
+  for (let i = 0; i < 120 * 40; i++, t += DT) {
+    const ph = mod(ph0 + t, LINE.period);
+    for (const q of QS) { const L = lineState(q, ph);
+      if (L.s === 'descent' && inFoot(q, st.x) && !(q.id === 'Q3' && st.x >= pitC.core[0] && st.x <= pitC.core[1]) && L.y < floorAt(st.x, false) + lethalH(false)) return { caught: true, by: q.id, t, x: st.x }; }
+    if (st.x >= QS[2].x1 + HW + 0.02) return { caught: false, t, x: st.x };
+    if (t < (delay || 0)) continue;
+    let vmax = SPEED.run; if (st.x > 166.6 - HW && st.x < 167.0 + HW) vmax = RB.duckUnder.speed;
+    let blockedNow = false;
+    for (const q of QS) if (st.x + HW <= q.x0 + 1e-6 && st.x + HW + st.v * DT + 0.01 > q.x0 && lineState(q, ph).y < floorAt(st.x, false) + PR.hStand + 0.003) blockedNow = true;
+    if (blockedNow) { st.v = 0; continue; }
+    st.v = Math.min(vmax, st.v + RB.accel * DT); st.x += st.v * DT;
+  }
+  return { caught: false, t, x: st.x, timeout: true };
+}
+{ let n = 0, c = 0; const esc = [];
+  for (let ph = 0; ph < LINE.period; ph += 0.25) { n++; const r = blindRun(ph, 168.0, 0, 0); if (r.caught) c++; else esc.push(ph); }
+  log(`  BLIND RUN (Shift + Right held from the entry floor, no reading): caught in ${c}/${n} arrival phases` + (esc.length ? ' · escapes at phase ' + esc.map(f2).join(', ') : ''));
+  check(c / n >= 0.9, 'long hall: a blind full-speed run is caught from at least 90% of arrival phases');
+  const cps = S2.checkpoints.filter(k => k.works && k.works.line != null && k.x < QS[0].x0 && k.id === 'works-line');
+  for (const k of cps) { const r = blindRun(mod(k.works.line + 1.0, LINE.period), k.x, 0, 0), r2 = blindRun(mod(k.works.line + 1.4, LINE.period), k.x, 0, 0);
+    log(`  BLIND RUN from the ${k.id} restart (control back 1.0 s after it): ${r.caught ? 'caught by ' + r.by + ' at ' + f2(r.t) + ' s' : 'ESCAPED'} (a 0.4 s later key press: ${r2.caught ? 'caught by ' + r2.by : 'ESCAPED'})`);
+    check(r.caught && r2.caught, `${k.id}: the blind run from the restart is caught`); } }
 /* the designed climax: a walker who leaves on Q1's first passable moment and keeps walking */
 { const r = runLine(mod(QS[0].pass - 0.001, LINE.period), { gait: 'walk' });
   log('  the designed flow (Q1 just passable, leave after the reaction, walk on): ' + (r.ok ? `out after ${f2(r.t)} s` : 'CUT') + ' · ' + r.seq.join(' · '));
@@ -290,7 +317,8 @@ function climax(stopAfter) {
   for (const r of [0.3, 0.6, 1.0, 1.4, 1.8, 2.2, 2.6]) { const q = climax(r); rows.push(`${r} s: ${q.ok ? 'safe' + (q.stopX != null ? ' (stopped at ' + f2(q.stopX) + ')' : '') : 'CUT at ' + f2(q.x)}`); if (q.ok) latest = r; }
   log(`  the climax, stopping after the great press's clank (the designed flow; the clank with the walker at x ${f2(nonstop.relX)}): ` + rows.join(' · '));
   log(`  never stopping (walking straight on through the clank): ${nonstop.ok ? 'out alive' : 'cut at ' + f2(nonstop.x) + ' by ' + nonstop.by} (by design: the great press is 8 m long; the slot is the shelter)`);
-  check(climax(0.6).ok && climax(1.4).ok && latest >= 1.4, `the climax: a walker who stops anywhere in the slot's notch within 1.4 s of the great press's clank (a 0.6 s reaction and more) is safe (latest safe stop tried: ${latest} s)`); }
+  /* polish pass 8 Oct: the long hall cycles every 10 s now, so the great press's clank meets the designed-flow walker 1.4 m short of slot C's lip (it used to meet him in the slot). Walking straight on is still safe, so is any stop in the slot (from 1.8 s after the clank); only stopping dead in the open short of the slot is the cut, 3.9 s after a clank he saw and heard */
+  check(nonstop.ok && climax(1.8).ok && latest >= 1.8, `the climax: walking straight on through the clank is safe, and so is stopping anywhere in the slot's notch (any stop from 1.8 s after the clank; latest safe stop tried: ${latest} s)`); }
 { let worst = null, fl = 0, n = 0;
   for (let k = 0; k <= 9; k += 0.25) for (let ph = 0; ph < 16; ph += 1) { n++; const r = runLine(ph, { gait: 'walk', delay: k }); if (!r.ok) { fl++; if (!worst) worst = `delay ${k} ph ${ph}: ${r.why} at ${f2(r.x)}`; } }
   log(`  late leavers (leaving 0-9 s after Q1 is passable, every arrival phase, ${n} runs): ${fl} cut` + (worst ? ' · first: ' + worst : ''));
@@ -316,7 +344,14 @@ for (const c of S2.checkpoints.filter(k => k.works)) {
        restart), so its whole telegraph is heard and seen; it used to restart already falling, the clank lost under the black */
     const clank = firstTime(t => t > 0 && lineState(ahead, mod(ph + t, period)).s === 'release' && lineState(ahead, mod(ph + t - 0.01, period)).s === 'up', 0, 40, 0.01);
     const inRelease = lineState(ahead, mod(ph, period)).s !== 'up';
-    log(`  ${c.id.padEnd(14)} the press ahead (${ahead.id}) clanks ${f2(clank)} s after the restart`);
+    if (c.id !== 'works-line') log(`  ${c.id.padEnd(14)} the press ahead (${ahead.id}) clanks ${f2(clank)} s after the restart`);
+    if (c.id === 'works-line') {
+      /* polish pass 8 Oct: the entry floor restarts with Q1 one second from its contact (the picture is back at 0.45 s): a press to
+         read, the slam in front of the player, the way on when it rises; and the NEXT press (Q2) clanks as Q1 rises */
+      const q2 = QS[1], cl2 = firstTime(t => t > 0 && lineState(q2, mod(ph + t, period)).s === 'release' && lineState(q2, mod(ph + t - 0.01, period)).s === 'up', 0, 40, 0.01);
+      log(`  ${c.id.padEnd(14)} Q1 touches down ${f2(contact)} s after the restart; Q2 clanks ${f2(cl2)} s after, as Q1 rises (passable ${f2(window)} s)`);
+      check(contact >= 0.6 && contact <= 2.0 && cl2 > window - 1.5 && cl2 < window + 0.5, `${c.id}: restart with Q1 about to land (a press to read), and Q2's clank as Q1 rises`);
+    } else
     check(!inRelease && clank > 0 && clank <= 0.5, `${c.id}: the press ahead clanks after the restart, as the picture comes back (its whole telegraph seen and heard)`);
   }
   const pic = RU.fail.fadeIn;          // the restart comes RU.fail.black after the cut; the picture is back fadeIn after the restart
@@ -326,14 +361,15 @@ for (const c of S2.checkpoints.filter(k => k.works)) {
 
 /* ================================================================== 6. THE MAINTENANCE WORKER */
 log('');
-log('== 6. The maintenance worker (Sequence 1\'s detection model A6; he sees only while turned along the lane)');
+log('== 6. The maintenance worker (FF.Guard: sight only while turned along the lane, his lamp, and SOUND: he hears a run with his back turned)');
 const PN = S2.painter, SI = RU.sight;
 const faceAt = lt => (lt >= PN.sightFacing.from && lt < PN.sightFacing.to) ? PN.sightFacing.face : 0;
 function pts(x, crouch, face) { const s = crouch ? RB.samples.crouch : RB.samples.stand; return s.map(([px, py]) => [x + px * face, py]); }
 const SPILL = S2.areaLights.find(a => a.id === PN.lamp.spill), AREAS = [{ id: SPILL.id, x0: SPILL.x0, x1: SPILL.x1, on: 'always' }];
-function seeP(lt, x, crouch) {   // { w, src, d, r } at loop time lt: FF.AI.see with his pose, as FF.Painter calls it ('touch' = close darkness)
-  const f = faceAt(lt); if (!f) return { w: 0 };
-  let e = FF.AI.see({ x: PN.x, y: 0, face: f, kneel: false, torchOn: false, pitch: 0, half: 0 }, pts(x, crouch, 1), { floorY: 0, cx: x, areas: AREAS });
+function seeP(lt, x, crouch, v) {   // { w, src, d, r } at loop time lt: FF.Guard.sense with his pose, as FF.Painter calls it ('touch' = close darkness); v = the rabbit's speed (sound)
+  const f = faceAt(lt), pose = { x: PN.x, y: 0, face: f, kneel: false, torchOn: false, pitch: 0, half: 0 }, lat = Math.abs(PN.z);
+  const heard = FF.Guard.hear(pose, FF.Guard.noiseOf(v || 0), x, { floorY: 0, lat });
+  let e = f ? FF.Guard.sense(pose, pts(x, crouch, 1), { x, vx: v || 0 }, { floorY: 0, cx: x, areas: AREAS, lat }) : FF.Guard.merge({ w: 0, src: '', d: 99 }, heard);
   if (e.src === 'touch') e = { w: SI.dark.weight, src: 'dark', d: e.d };
   if (!(e.w > 0)) return { w: 0 };
   return Object.assign(e, { r: e.w / FF.AI.fillTime(e.src, e.d) });
@@ -341,7 +377,7 @@ function seeP(lt, x, crouch) {   // { w, src, d, r } at loop time lt: FF.AI.see 
 /* walk the rabbit past him: start at xs in the dark at loop time lt0, walk right to 165 at gait; suspicion as Sequence 1 §9.2 */
 function passBy(xs, lt0, gait, crouch) {
   let s = 0, grace = 0, x = xs, t = 0, maxS = 0, noticedAt = null; const v = SPEED[gait];
-  while (x < 165 && t < 40) { const lt = mod(lt0 + t, PN.loopT), r = seeP(lt, x, crouch);
+  while (x < 165 && t < 40) { const under0 = x + HW > 155.6 && x - HW < 156.8, vNow = under0 ? Math.min(v, RB.duckUnder.speed) : v, lt = mod(lt0 + t, PN.loopT), r = seeP(lt, x, crouch, vNow);
     if (r.w > 0) { s = Math.min(1, s + r.w * DT / (r.r ? r.w / r.r : 1)); grace = SI.fill.grace; } else if (grace > 0) grace -= DT; else s = Math.max(0, s - SI.fill.decay * DT);
     maxS = Math.max(maxS, s); if (s >= SI.fill.notice && noticedAt == null) noticedAt = x;
     const under = x + HW > 155.6 && x - HW < 156.8; x += (under ? Math.min(v, RB.duckUnder.speed) : v) * DT; t += DT; }
@@ -355,7 +391,9 @@ function passBy(xs, lt0, gait, crouch) {
   const safeK = []; for (let k = 0; k < PN.loopT; k += 0.25) if (!noticed.includes(k)) safeK.push(k);
   const ranges = (arr) => { const out = []; let a = null, p = null; for (const k of arr) { if (a == null) a = k; else if (k - p > 0.26) { out.push([a, p]); a = k; } p = k; } if (a != null) out.push([a, p]); return out.map(([a, b]) => `${a.toFixed(2)}-${b.toFixed(2)}`).join(', '); };
   log(`  leaving the dark at loop time k (walk): never noticed for k in ${ranges(safeK)}; noticed (the look, no failure) for k in ${ranges(noticed) || 'none'}`);
-  const run = passBy(darkEdge, 5.0, 'run'); log(`  running past at k 5.0 (Shift): ${run.noticedAt == null ? 'never noticed' : 'noticed'} (noise never matters)`);
+  const run = passBy(darkEdge, 5.0, 'run'); log(`  running past at k 5.0 (Shift, his back turned): ${run.noticedAt == null ? 'never noticed' : 'NOTICED at x ' + f2(run.noticedAt) + ' (he HEARS it; polish pass 8 Oct)'}`);
+  check(run.noticedAt != null, 'a rabbit that RUNS past him while he scrapes is heard (his back turned): the look starts');
+  const crawl = passBy(darkEdge, 5.0, 'crouch'); check(crawl.noticedAt == null, 'the crouch-walk past him while he scrapes is silent: never noticed');
   check(safeK.length >= 20, 'the safe window to pass him at a walk is at least 5 s of his 12 s loop');
   let palletSeen = false; for (let lt = 0; lt < PN.loopT; lt += 0.05) { const q = seeP(lt, 156.2, true); if (q.w > 0) palletSeen = true; }
   check(!palletSeen, 'under the paint pallet (crouched, x 156.2) he never sees the rabbit, at any moment of his loop');
@@ -415,19 +453,22 @@ const cpOf = id => L.checkpoint(id);
 }
 { /* the ramp slide on the module (review fixes 8 Oct): a stub rabbit standing anywhere in each slot's notch (every 2.5 cm) as its
      press comes down is never cut; it ends in the core */
-  for (const pid of ['pit-A', 'pit-B', 'pit-C']) {
+  for (const low of [false, true]) for (const pid of ['pit-A', 'pit-B', 'pit-C']) {   // polish pass 8 Oct: and crouched (a crouched rabbit on a ramp used to stay wedged under the iron)
     const p = sh(pid), m = WORKS.machine(p.under); let n = 0, bad = [], slid = 0;
     for (let x = p.x0; x <= p.x1 + 1e-9; x += 0.025) {
       if (groundY(x) >= PR.ramp.notchBelow || (p.sluice && x > p.core[1])) continue;
       const y = Math.max(groundY(x - RB.hw * 0.9), groundY(x), groundY(x + RB.hw * 0.9));
-      G.rabbit = stubRabbit(x, y); WORKS.reset(cpOf('works-in')); WORKS.setPhase(m.clock, (m.offset || 0) + m.period - 0.25); events.length = 0; n++;
+      G.rabbit = stubRabbit(x, y, low ? { crouch: true, crouchF: 1, crouchR: 1 } : {}); WORKS.reset(cpOf('works-in')); WORKS.setPhase(m.clock, (m.offset || 0) + m.period - 0.25); events.length = 0; n++;
       for (let i = 0; i < 120 * 5; i++) { G.t += DT; WORKS.step(DT); }
       if (events.some(e => e[0] === 'works:shove' && e[2].kind === 'ramp')) slid++;
       /* never cut; and either carried into the core, or so deep in the notch that the platen (stopping at y 0) clears its back */
-      const deep = G.rabbit.y + PR.hStand + PR.lethalMargin <= 1e-9, inCore = G.rabbit.x >= p.core[0] - 1e-6 && G.rabbit.x <= p.core[1] + 1e-6;
-      if (events.some(e => e[0] === 'fail') || !(inCore || deep)) bad.push(x.toFixed(3));
+      const deep = G.rabbit.y + (low ? PR.hLow : PR.hStand) + PR.lethalMargin <= 1e-9, inCore = G.rabbit.x >= p.core[0] - 1e-6 && G.rabbit.x <= p.core[1] + 1e-6;
+      /* polish pass 8 Oct: and it ends ON THE SLOT'S FLOOR whatever its pose (a crouched rabbit on a ramp below y -0.19 used to stay wedged under the pressed iron) */
+      let f0 = null, f1 = null; for (let xx = p.x0; xx <= p.x1 + 1e-9; xx += 0.005) if (groundY(xx) <= p.floor + 1e-6) { if (f0 == null) f0 = xx; f1 = xx; }
+      const onFloor = G.rabbit.x - RB.hw >= f0 - 0.012 && G.rabbit.x + RB.hw <= f1 + 0.012;       // its whole body stands on the slot's floor (the stub moves x only)
+      if (events.some(e => e[0] === 'fail') || !(inCore || deep) || !onFloor) bad.push(x.toFixed(3));
     }
-    check(bad.length === 0, `${pid}: standing anywhere in its notch (${n} points, ${slid} on the ramps slide into the core) as ${p.under} comes down: never cut (in the core at the contact, or deep enough that the platen clears its back)` + (bad.length ? ' · bad at ' + bad.slice(0, 6).join(', ') : ''));
+    check(bad.length === 0, `${pid}: ${low ? 'crouched' : 'standing'} anywhere in its notch (${n} points, ${slid} on the ramps slide into the core) as ${p.under} comes down: never cut (in the core at the contact, or deep enough that the platen clears its back)` + (bad.length ? ' · bad at ' + bad.slice(0, 6).join(', ') : ''));
   }
 }
 { /* the checkpoints on the module: each restart puts its station at the data's phase */
@@ -435,21 +476,32 @@ const cpOf = id => L.checkpoint(id);
   G.rabbit = stubRabbit(124.4, 0); WORKS.reset(cpOf('works-in')); const idle = !WORKS.started;
   check(ok && idle, 'FF.Works.reset: every checkpoint sets its station\'s phase; before the trigger (works-in) the machines hang still');
 }
-{ /* the worker on the module: FF.Painter's own loop and sight, a stub rabbit walking past at the walk */
+{ /* the worker on the module: FF.Painter's own loop, sight, lamp and ears, a stub rabbit walking / running past */
   FF.Player = { sightPoints: () => pts(G.rabbit.x, false, G.rabbit.face) };
-  const run = (k, x0, gait) => { G.rabbit = stubRabbit(x0, 0); FF.Painter.reset(cpOf('works-passage')); FF.Painter.setLoopT(k); events.length = 0; let looked = false;
-    for (let i = 0; i < 120 * 14 && G.rabbit.x < 165; i++) { G.t += DT; G.rabbit.x += SPEED[gait] * DT; G.rabbit.vx = SPEED[gait]; FF.Painter.step(DT); if (events.some(e => e[0] === 'painter:noticed')) looked = true; }
-    return { looked, fails: events.filter(e => e[0] === 'fail').length }; };
-  const darkEdge = Math.min(SPILL.x0, PN.x - SI.dark.front) - RB.hw - 0.05, safe = [], seen = []; let fails = 0;
-  for (let k = 0; k < PN.loopT; k += 0.25) { const q = run(k, darkEdge, 'walk'); (q.looked ? seen : safe).push(k); fails += q.fails; }
-  log(`  FF.Painter, walking past from the dark at loop time k: never noticed for ${safe.length} of ${safe.length + seen.length} starts (k ${safe[0]}..); the look for k in ${seen.length ? seen[0].toFixed(2) + '-' + seen[seen.length - 1].toFixed(2) : 'none'}`);
-  check(fails === 0, 'FF.Painter never emits a failure');
+  /* react: after NOTICE (+0.6 s reaction) the rabbit runs (Shift) instead of walking on */
+  const run = (k, x0, gait, react) => { G.rabbit = stubRabbit(x0, 0); FF.Painter.reset(cpOf('works-passage')); FF.Painter.setLoopT(k); events.length = 0; let looked = null, chased = false, sp = SPEED[gait];
+    for (let i = 0; i < 120 * 16 && G.rabbit.x < 165.5; i++) { G.t += DT; if (looked != null && react && G.t - looked >= REACT) sp = SPEED.run; G.rabbit.x += sp * DT; G.rabbit.vx = sp; FF.Painter.step(DT);
+      if (looked == null && events.some(e => e[0] === 'painter:noticed')) looked = G.t; if (events.some(e => e[0] === 'painter' && e[2].phase === 'chase')) chased = true; if (events.some(e => e[0] === 'fail')) break; }
+    return { looked: looked != null, chased, fails: events.filter(e => e[0] === 'fail' && e[2].by === 'painter').length, x: G.rabbit.x }; };
+  const darkEdge = Math.min(SPILL.x0, PN.x - SI.dark.front) - RB.hw - 0.05, safe = [], seen = []; let walkCaught = 0, runCaught = 0, runEscaped = 0;
+  for (let k = 0; k < PN.loopT; k += 0.25) { const q = run(k, darkEdge, 'walk'); (q.looked ? seen : safe).push(k); if (q.looked) { walkCaught += q.fails; const r2 = run(k, darkEdge, 'walk', true); runCaught += r2.fails; if (r2.x >= 165.5) runEscaped++; } }
+  log(`  FF.Painter, walking past from the dark at loop time k: never noticed for ${safe.length} of ${safe.length + seen.length} starts (k ${safe[0]}..); the look for k in ${seen.length ? seen[0].toFixed(2) + '-' + seen[seen.length - 1].toFixed(2) : 'none'}; walking on after the look: caught in ${walkCaught}/${seen.length}; running on at the NOTICE (+${REACT} s): caught in ${runCaught}/${seen.length}, reached the door in ${runEscaped}/${seen.length}`);
+  check(walkCaught > 0, 'FF.Painter: a rabbit that walks on after his look (he pursues, the lamp on it) is caught: the failure exists');
+  check(runCaught === 0 && runEscaped === seen.length, 'FF.Painter: a rabbit that RUNS at his NOTICE (a 0.6 s reaction) always gets away to the door (he walks at 2.0 m/s)');
   check(!run(REACT, darkEdge, 'walk').looked, `FF.Painter: leaving the dark ${REACT} s after the scraping starts, walking, is never noticed`);
+  { const q = run(5.0, darkEdge, 'run'); check(q.looked, 'FF.Painter: a run past him while he scrapes (his back turned) is heard: the look starts (noticed)'); }
+  { const q = run(5.0, darkEdge, 'crouch'); check(!q.looked, 'FF.Painter: the crouch-walk past him is silent'); }
   G.rabbit = stubRabbit(159.6, 0); FF.Painter.reset(cpOf('works-passage')); FF.Painter.setLoopT(0); events.length = 0;
-  const L2 = []; for (let i = 0; i < 120 * 30; i++) { G.t += DT; FF.Painter.step(DT); }
-  for (const e of events) if (e[0] === 'painter') L2.push([e[1], e[2].step]);
-  const hold = L2.find(e => e[1] === 'hold'), lower = L2.find(e => e[1] === 'lower'), resume = L2.find(e => e[1] === 'scrape-hard');
-  check(!!hold && !!lower && Math.abs(lower[0] - hold[0] - RU.painter.look.hold) < 1e-6 && !!resume, `FF.Painter: standing in his light at his turn -> the look, the lamp held ${hold && lower ? (lower[0] - hold[0]).toFixed(2) : '-'} s, then back to the wall, harder`);
+  const L2 = []; for (let i = 0; i < 120 * 30 && !events.some(e => e[0] === 'fail'); i++) { G.t += DT; FF.Painter.step(DT); }
+  for (const e of events) if (e[0] === 'painter' || e[0] === 'fail') L2.push([e[1], e[0] === 'fail' ? 'FAIL' : e[2].step]);
+  const hold = L2.find(e => e[1] === 'hold'), chase = L2.find(e => e[1] === 'chase'), fl = L2.find(e => e[1] === 'FAIL');
+  log(`  standing still in his light (careless): the look, the lamp held on it, the chase ${chase ? 'begins ' + (chase[0] - hold[0]).toFixed(2) + ' s after the lamp is raised' : 'never'}, caught ${fl ? (fl[0] - chase[0]).toFixed(2) + ' s later' : 'never'}`);
+  const nt = events.find(e => e[0] === 'painter:noticed');
+  check(!!hold && !!chase && !!fl && !!nt && chase[0] - hold[0] <= 2.0 && fl[1] === 'FAIL' && fl[0] - nt[1] >= 1.5, `FF.Painter: a rabbit that stays in his lamp is chased within the 2.0 s hold; NOTICE -> catch takes ${nt && fl ? (fl[0] - nt[1]).toFixed(2) : '-'} s (A7: at least 1.5 s of telegraph)`);
+  /* it steps out of the beam in time: a rabbit that leaves the beam (hides under the pallet) gets the look only, he goes back to his wall */
+  G.rabbit = stubRabbit(159.6, 0); FF.Painter.reset(cpOf('works-passage')); FF.Painter.setLoopT(0); events.length = 0; let hidAt = null;
+  for (let i = 0; i < 120 * 30; i++) { G.t += DT; if (hidAt == null && events.some(e => e[0] === 'painter:noticed')) hidAt = G.t; if (hidAt != null && G.t - hidAt >= REACT && G.rabbit.x > 156.3) { G.rabbit.x -= SPEED.run * DT; G.rabbit.vx = -SPEED.run; G.rabbit.crouch = true; } else G.rabbit.vx = 0; FF.Painter.step(DT); }
+  check(!events.some(e => e[0] === 'fail') && events.some(e => e[0] === 'painter:noticed'), 'FF.Painter: a rabbit that runs back to the pallet and crouches under it after his NOTICE is never caught');
   delete FF.Player;
 }
 

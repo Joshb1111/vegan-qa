@@ -29,8 +29,8 @@ FF.S1.searcher = {
      not clatter the fence again) and covers the reveal's 1.2 s grace; then the loop. */
   entry: [
     ['cue', 1.95, 'N0', 'line of light under the door, a torch beam moving behind its small window, footsteps'],
-    ['doorway', 0.6, 'N0', 'silhouette in the door: cap, coat, backpack, long gun slung, torch'],
-    ['step-in', 0.9, 'N1'],
+    ['doorway', 0.45, 'N0', 'silhouette in the door: cap, coat, backpack, long gun slung, torch (polish pass 8 Oct: the door bursts open in 0.16 s, so the silhouette is 0.15 s shorter and the step-in 0.15 s longer: the reveal still takes about 6.4 s)'],
+    ['step-in', 1.05, 'N1'],
     ['sweep-left', 0.2, 'N1', 'a glance down the yard'],
     ['turn', 0.45, 'N1', 'the fence corner clatters (wind); they turn to it'],
     ['aim-demo', 2.0, 'N1', 'raise 0.5, beam 13 -> 5 deg on the gap, click, hold 1.0, lower 0.5: NO SHOT. Lights the exit. Ends = entry-aim-lowered'],

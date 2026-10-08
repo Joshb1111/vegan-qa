@@ -24,6 +24,7 @@ window.FF = window.FF || {};
 (function () {
 const U = FF.util, D2R = Math.PI / 180;
 const RS = () => FF.RULES.searcher, RT = () => FF.RULES.sight;
+const G_ = () => FF.Guard;
 /* touch.stillBelow (a rabbit slower than this that HE walks into makes him stop dead first) is folded into ff-rules.js. */
 
 /* ================================================================== the routine as timed segments (pure; shared with the checker) */
@@ -94,48 +95,10 @@ function sample(segs, t, swayT) {
   return null;
 }
 
-/* ================================================================== A6: the reference detection model (pure)
-   pose { x, y, face (-1 | 0 turning | 1), kneel, torchOn, pitch (deg), half (deg) }; pts = the rabbit's 3 sight points [[x, y]];
-   opts { doorOpen, floorY (the rabbit's floor), cx (rabbit centre x, default pts[1][0]), only: 'torch' (the checker's hide audit),
-          areas (Sequence 2: the area lights to use instead of FF.S1.areaLights, e.g. the Works painter's lamp spill) }.
-   -> { w (seen weight 0..1), src 'touch' | 'torch' | 'area' | 'dark' | '', d (m) }
-   A sight point counts only if the straight line from the source (the lens for torch light, the eye for everything else)
-   crosses no occluder: solid cover blocks completely, darkness only shortens the range (A6). While he turns (face 0) the
-   torch lights nothing (it swings through the camera side) but close range and touch still count, in front distances. */
-function see(pose, pts, opts) {
-  opts = opts || {}; const S = FF.RULES.sight, R = S.torch, L = FF.Level;
-  if (!pose || !pts || !pts.length) return { w: 0, src: '', d: 99 };
-  const fy = opts.floorY || 0, cx = opts.cx != null ? opts.cx : pts[1][0], f = pose.face || 0, fs = f || 1;
-  const lens = { x: pose.x + (pose.kneel ? R.kneelFwd : R.fwd) * fs, y: pose.y + (pose.kneel ? R.kneelH : R.h) };
-  const eye = { x: pose.x, y: pose.y + (pose.kneel ? S.kneelEye : S.eye) };
-  const d = Math.abs(cx - pose.x), behind = f !== 0 && (cx - pose.x) * f < 0;
-  const losEye = pts.map(([px, py]) => !L.segmentBlocked(eye.x, eye.y, px, py)), anyLOS = losEye.some(Boolean);
-  /* touch: walking into his legs (same floor, a line of sight) */
-  if (!opts.only && anyLOS && Math.abs(fy - pose.y) < S.touch.sameFloor && d <= (behind ? S.touch.behind : S.touch.front)) return { w: 1, src: 'touch', d };
-  /* every term that applies is a candidate; the one that fills suspicion fastest counts (being lit is never slower to notice
-     than darkness at the same range) */
-  let best = null; const take = c => { const r = c.w / fillTime(c.src, c.d); if (!best || r > best.r) best = Object.assign(c, { r }); };
-  /* torch: in the beam, in range, unblocked from the lens */
-  if (pose.torchOn && f) {
-    let lit = 0;
-    for (const [px, py] of pts) {
-      const dx = px - lens.x, dy = py - lens.y;
-      if (Math.hypot(dx, dy) > R.range || dx * f <= 0) continue;
-      const ang = Math.atan2(dy, Math.abs(dx)) / D2R; if (Math.abs(ang - pose.pitch) > (pose.half || R.half)) continue;
-      if (!L.segmentBlocked(lens.x, lens.y, px, py)) lit++;
-    }
-    if (lit) take({ w: lit / pts.length, src: 'torch', d: Math.hypot(cx - lens.x, fy + 0.12 - lens.y) });
-  }
-  if (opts.only === 'torch') return best ? { w: best.w, src: best.src, d: best.d } : { w: 0, src: '', d };
-  /* area light (door spill, floodlight): he faces the rabbit within range, a clear line from the eye */
-  if (f && (cx - pose.x) * f > 0 && d <= S.area.range && !L.segmentBlocked(eye.x, eye.y, cx, fy + 0.15)) for (const a of (opts.areas || FF.S1.areaLights)) {
-    if ((a.on === 'always' || (a.on === 'door-open' && opts.doorOpen)) && cx >= a.x0 && cx <= a.x1) { take({ w: S.area.weight, src: 'area', d }); break; }
-  }
-  /* darkness at close range (A6): never ignored within dark.front in front of him (dark.behind behind); still telegraphed */
-  if (anyLOS && d <= (behind ? S.dark.behind : S.dark.front)) take({ w: S.dark.weight, src: 'dark', d });
-  if (best) return { w: best.w, src: best.src, d: best.d };
-  return { w: 0, src: '', d };
-}
+/* the detection model (sight, torch beam, area light, darkness, touch, and now sound) lives in ff-guard.js (FF.Guard), shared by the
+   searcher, the gate guard (the entry) and the Works painter. FF.AI.see / fillTime stay as aliases. */
+const see = FF.Guard.see, fillTime = FF.Guard.fillTime;
+
 /* once he is alert (SPOTTED, AIM, PURSUE, LOWER, the hide check): can he still see it to aim and chase? (pure; the checker's
    pursuit model uses this same function). Not in a core (every core is a refuge, A11), not through the gap, within the torch's
    10 m, and a clear line from his lens (turned towards the rabbit) to the body's centre sight point (A6's centre sample:
@@ -151,8 +114,6 @@ function seeAlert(pose, r) {
   const lx = pose.x + (pose.kneel ? R.kneelFwd : R.fwd) * dir, ly = (pose.y || 0) + (pose.kneel ? R.kneelH : R.h);
   return !L.segmentBlocked(lx, ly, r.x, cy);
 }
-/* suspicion fill time for a seen weight: torch / area 0.9 s near -> 1.6 s at 10 m; darkness 0.8 s (NOTICE at 0.28 s) */
-function fillTime(src, d) { const F = FF.RULES.sight.fill; if (src === 'dark') return FF.RULES.sight.dark.t; if (src === 'touch') return 1e-3; return U.lerp(F.tNear, F.tFar, U.clamp((d - F.dNear) / (F.dFar - F.dNear), 0, 1)); }
 
 /* ================================================================== where he can go (the yard as three levels)
    floor (right): x 98.0 .. 112.6 (he cannot walk under the deck; the fence at 113) · deck: 92.0 .. 98.0 at y 0.85 (the steps
@@ -274,7 +235,9 @@ function perceive(dt, calm) {
   const r = rabbit(), pts = rabbitPts(); let e = { w: 0, src: '', d: 99 };
   const p = I.p;
   if (r && pts && r.visible !== false && (!r.mode || r.mode === 'play') && r.x < gapCore() && p.visible) {
-    e = see({ x: p.x, y: p.y, face: p.face0 != null ? p.face0 : p.face, kneel: p.kneel, torchOn: p.torchOn, pitch: p.pitch, half: p.half }, pts, { doorOpen: I.doorOpen, floorY: r.y, cx: r.x });
+    /* sight, torch beam, area light AND sound (what its feet make, FF.Guard.noiseOf): the one perception module */
+    e = FF.Guard.sense({ x: p.x, y: p.y, face: p.face0 != null ? p.face0 : p.face, kneel: p.kneel, torchOn: p.torchOn, pitch: p.pitch, half: p.half }, pts, { x: r.x, vx: r.vx },
+      { doorOpen: I.doorOpen, floorY: r.y, cx: r.x, lat: Math.abs(p.z || 0) });
   }
   /* TOUCH by his own movement: a rabbit sitting still that he walks into makes him stop dead (NOTICE at once), then the
      close-range rule fills with its telegraph. Only a rabbit that runs into his legs gets the lunge at once (A6). Tested: a

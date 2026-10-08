@@ -45,6 +45,7 @@ window.FF = window.FF || {};
 const U = FF.util, clamp = U.clamp, approach = U.approach, lerp = U.lerp, sstep = U.sstep;
 const D2R = Math.PI / 180;
 let rig = null, ctx = null, hlHandle = null, ductLink = null;
+let zq = null, tv = null, ZAX = null;
 const S = {};                     // the rabbit's state; FF.G.rabbit points at it (read-only for other modules)
 const box = { x: 0, vx: 0, w: 0.52, h: 0.44, d: 0.5, minX: -1e9, maxX: 1e9 };
 const RB = () => FF.RULES.rabbit, BH = () => FF.RULES.behave;
@@ -113,6 +114,7 @@ const P = {
   afraidNear: 8, alertCue: 0.45,
   rimEase: 2.5,
   /* crouch transitions (7 Oct): the head and shoulders go first, the hips follow; each part rises once it has cleared */
+  jumpWind: 0.065, landSettle: 0.16,          // polish pass 8 Oct (Josh: only a quick improvement): a 65 ms squat before take-off, a 160 ms settle after landing, the body pitched along its arc in the air
   crouchLead: 0.05, crouchLeadPerV: 0.12,     // the front looks this far ahead of the head (m, + per m/s): it dips just before the edge
   crouchDown: [0.075, 0.13],                  // ease time constants going down: [front, rear] (s)
   crouchUp: [0.15, 0.2],                      // and rising: [front, rear]
@@ -638,7 +640,7 @@ const Player = FF.Player = {
   GAITS,
   stub: false,
   async init(c) {
-    ctx = c; freshB(false); ductLink = link('duct');
+    ctx = c; freshB(false); ductLink = link('duct'); zq = new THREE.Quaternion(); tv = new THREE.Vector3(); ZAX = new THREE.Vector3(0, 0, 1);
     rig = await FF.Rabbit.create(FF.LOOK, { file: FF.MODELS.rabbit, seed: 5 });
     rig.object.traverse(o => { if (o.isMesh) { o.castShadow = true; o.receiveShadow = true; } });
     c.scene.add(rig.object);
@@ -717,6 +719,10 @@ const Player = FF.Player = {
     on('end', d => { if (d.phase && d.phase !== 'settled') B.locked = true; });
   },
   get rig() { return rig; },
+  /* the opening tumble (see above): true when it began. Only from the first checkpoint, once per boot of the title, and not with ?intro=0 */
+  introOn() { return FF.Q.get('intro') !== '0'; },
+  introHide(on) { if (on && Player.introOn()) S.visible = false; else S.visible = true; },
+  intro() { if (!Player.introOn() || S.mode !== 'play') { S.visible = true; return false; } tumbleStart(); return true; },
   reset(cp, opts) {
     opts = opts || {};
     const p = FF.S1.pushables[0];
@@ -727,8 +733,8 @@ const Player = FF.Player = {
     Object.assign(S, { x: cp.x, y: cp.y || 0, z: 0, vx: 0, vy: 0, face: cp.face || 1, grounded: true, crouch: cp.pose === 'hide', squeeze: null, onBox: false, push: false, effort: 0,
       run: false, hop: false, crouchHeld: false, crouchHeldT: 0, crouchF: cp.pose === 'hide' ? 1 : 0, crouchR: cp.pose === 'hide' ? 1 : 0, gait: freshGait(), sq: null, airT: 0, landed: false, cut: false, coyote: 0, buf: 0, yaw: Math.PI / 2 * (cp.face || 1), mode: 'play', modeT: 0,
       mood: 'calm', pose: cp.pose || null, still: 0, visible: true, low: false, inCore: false, hidden: false, fleeing: false, settle: null, duckT: 0, peakY: cp.y || 0,
-      blockedBy: null, ears: B.ears, breath: 1 });
-    S.y = floorAt(S.x, S.y + 0.05);
+      blockedBy: null, ears: B.ears, breath: 1, roll: 0, windT: null, settleT: 0, pitchA: 0 });
+    TM = null; S.y = floorAt(S.x, S.y + 0.05);
     if (cp.pose === 'groom') setPose('groom', { loop: true, kind: 'title', cancel: 'any', out: 0.25 });
     else if (cp.pose === 'hide') { B.hideHold = true; setMood('afraid'); S.mood = 'afraid'; setPose(FF.Level.ceilingAbove(S.x, RB().hw, S.y) - S.y < RB().lowPoseUnder ? 'hide' : 'watch', { loop: true, kind: 'hold' }); }
     if (FF.Level.section(S.x, S.y) === 'search' || opts.reason === 'fail') { setMood('afraid'); B.searchT = 0; }
@@ -870,8 +876,12 @@ const Player = FF.Player = {
     if (jumpP || up) S.buf = R.buffer; else S.buf = Math.max(0, S.buf - dt);
     S.coyote = S.grounded ? R.coyote : Math.max(0, S.coyote - dt);
     if (S.buf > 0 && WORKS()) worksAssess();            // (fresh: a jump on the first step after a restart)
-    if (S.buf > 0 && S.coyote > 0 && !S.crouch && !W2.noJump && FF.Level.ceilingAbove(S.x, R.hw, S.y) - S.y > P.jumpHeadroom) {
-      S.vy = Math.sqrt(2 * R.gravity * R.jumpHeight); S.grounded = false; S.coyote = 0; S.buf = 0; S.airT = 0; S.cut = false; S.onBox = false;
+    const canJump = S.buf > 0 && S.coyote > 0 && !S.crouch && !W2.noJump && FF.Level.ceilingAbove(S.x, R.hw, S.y) - S.y > P.jumpHeadroom;
+    /* the wind-up: the hind legs gather (a squat of 65 ms: the first 65 ms of the buffered press), then the same take-off as before */
+    if (canJump && S.grounded && S.windT == null) S.windT = 0;
+    if (S.windT != null) { if (!canJump || !S.grounded) S.windT = null; else { S.windT += dt; S.vx *= 1 - Math.min(1, dt * 6); } }
+    if (canJump && (S.windT == null || S.windT >= P.jumpWind)) {
+      S.windT = null; S.vy = Math.sqrt(2 * R.gravity * R.jumpHeight); S.grounded = false; S.coyote = 0; S.buf = 0; S.airT = 0; S.cut = false; S.onBox = false;
       /* a hop with a direction held leaps forward like a rabbit (v2 review: at the walk it went nearly straight up and landed
          short of the post): at least hopMin at take-off, easing off in the air (hopDrag) */
       if (dir && R.hopMin) { S.vx = dir * Math.max(dir * S.vx, R.hopMin); S.hop = true; }
@@ -904,6 +914,11 @@ const Player = FF.Player = {
     if (!S.grounded) S.airT += dt;
     S.still = Math.abs(S.vx) < 0.05 && S.grounded && !dir ? S.still + dt : 0;
     crouchStep(dt); gaitStep(dt);
+    /* the squat before take-off and the settle after landing (visual: the front and the hips lower; the collision crouch is untouched) */
+    if (S.landed) S.settleT = P.landSettle;
+    else if (S.settleT > 0) S.settleT = Math.max(0, S.settleT - dt);
+    { const wk = S.windT != null ? clamp(S.windT / P.jumpWind, 0, 1) : 0, sk = S.settleT > 0 ? Math.sin(Math.PI * clamp(S.settleT / P.landSettle, 0, 1)) : 0, lvl = Math.max(0.6 * wk, 0.5 * sk);
+      if (lvl > 0 && !S.crouch) { S.crouchF = Math.max(S.crouchF, lvl); S.crouchR = Math.max(S.crouchR, lvl * 0.9); } }
     runHint(dt, ctl);
     behave(dt, dir, up || jumpP);
   },
@@ -916,6 +931,11 @@ const Player = FF.Player = {
     S.yaw += (yawT - S.yaw) * (1 - Math.exp(-dt * (S.mode === 'climb' || S.mode === 'popout' ? 10 : 16)));
     rig.object.visible = S.visible !== false;
     rig.object.position.set(S.x, S.y, S.z); rig.object.rotation.y = S.yaw;
+    /* the forward arc: nose up leaving the ground, level at the apex, nose down into the landing (S.face signs it); eased */
+    { const air = S.mode === 'play' && !S.grounded && !S.onBox && S.y > floorAt(S.x, S.y + 0.02) + 0.04 ? clamp(Math.atan2(S.vy, Math.max(1.2, Math.abs(S.vx) + 0.6)) * 0.55, -0.5, 0.42) * (S.face || 1) : 0;
+      S.pitchA = (S.pitchA || 0) + (air - (S.pitchA || 0)) * (1 - Math.exp(-dt * 14)); if (Math.abs(S.pitchA) < 1e-4) S.pitchA = 0; }
+    const rollNow = (S.roll || 0) + (S.pitchA || 0);
+    if (rollNow) { zq.setFromAxisAngle(ZAX, rollNow); rig.object.quaternion.premultiply(zq); tv.set(0, 0.16, 0).applyQuaternion(zq); rig.object.position.x -= tv.x; rig.object.position.y += 0.16 - tv.y; }   // the tumble: rolls about its middle
     rig.update(dt, animInput());
     /* the footsteps (rabbit:step) now come from the gait cycle in step(): the hind feet's touchdown */
     if (FF.World && FF.World.prop) FF.World.prop('box').position.set(box.x, 0, 0);
@@ -1049,9 +1069,82 @@ function animInput() {
   };
 }
 
+/* THE OPENING TUMBLE (polish pass 8 Oct; Josh's priority 3). On the title's "begin" (and only for a new game, ?intro=0 skips it) the
+   rabbit is not already there: it falls in from above the frame, lands on the title shelter's tin sheet (a clang), slides down it
+   tumbling, shoots off its bent edge, drops onto the grass (a thud, a puff of wet dust), skids, lies flat a moment, lifts its head,
+   shakes, and turns to a faint, far, metallic clang behind it; then control passes (about 4.4 s). No cage, no text, nothing said.
+   Pure kinematics (S.mode 'tumble'): the curled body rolls about its middle (S.roll, drawn in frame()). */
+const SHEET = { x0: 0.35, y0: 1.85, x1: 2.66, y1: 0.99, off: 0.08 };
+const sheetY = x => SHEET.y0 + (SHEET.y1 - SHEET.y0) * (x - SHEET.x0) / (SHEET.x1 - SHEET.x0) + SHEET.off;
+let TM = null;
+function tumblePlan() {
+  const g = 9.8, A = { x0: -0.25, y0: 3.45, vx: 1.7 }, th = Math.atan2(SHEET.y0 - SHEET.y1, SHEET.x1 - SHEET.x0), c = Math.cos(th), sn = Math.sin(th);
+  let lo = 0, hi = 2; for (let i = 0; i < 40; i++) { const m = (lo + hi) / 2, f = A.y0 - 0.5 * g * m * m - sheetY(A.x0 + A.vx * m); if (f > 0) lo = m; else hi = m; }
+  const ta = lo, xl = A.x0 + A.vx * ta;
+  /* B: along the sheet from the landing, v0 = 1.9 m/s, a = 2.0 m/s2 */
+  const v0 = 1.9, ab = 2.0, Lb = (SHEET.x1 - xl) / c; const tb = (-v0 + Math.sqrt(v0 * v0 + 2 * ab * Lb)) / ab, vb = v0 + ab * tb;
+  /* C: off the bent edge with the sheet's velocity, to the grass */
+  const vcx = vb * c, vcy = -vb * sn, yE = SHEET.y1 + SHEET.off, tc = (vcy + Math.sqrt(vcy * vcy + 2 * g * yE)) / g;
+  const xg = SHEET.x1 + vcx * tc, vd0 = vcx * 0.8, kd = 4.5, td = 0.85;
+  const end = ta + tb + tc + td, flat = 0.35;
+  return { th, c, sn, ta, xl, v0, ab, tb, vb, vcx, vcy, yE, tc, xg, vd0, kd, td, tD: end, flat, tShake: end + flat + 0.05, tClang: end + flat + 0.55, tLook: end + flat + 0.9, tEnd: end + flat + 1.55, A, g };
+}
+function tumbleStart() {
+  TM = tumblePlan(); TM.sent = {}; TM.dust = 0;
+  Object.assign(S, { mode: 'tumble', modeT: 0, x: TM.A.x0, y: TM.A.y0, z: 0, vx: 0, vy: 0, face: 1, yaw: Math.PI / 2, grounded: true, crouch: true, roll: 0, visible: true, peakY: 0, hop: false, run: false, push: false, onBox: false });
+  S.crouchF = S.crouchR = 1; S.gait = freshGait(); FF.G.control = false; B.pose = null; B.queue = []; setMood('afraid'); B.hideHold = false;
+  FF.bus.emit('intro', { phase: 'start' });
+}
+function tumbleStep(dt) {
+  const T = TM, t = S.modeT, bus = FF.bus, send = (cue, o) => bus.emit('sound', Object.assign({ cue, x: S.x, y: S.y, z: 0, gain: 1, who: 'rabbit-intro' }, o || {}));
+  const once = (k, f) => { if (!T.sent[k]) { T.sent[k] = true; f(); } };
+  const tB = T.ta, tC = T.ta + T.tb, tD = tC + T.tc, tE = T.tD;
+  /* roll: -2 turns (forward), by phase: the fall 0.3, the slide 0.34, the flight 0.22, the skid 0.14 (eased out) of the whole */
+  const TOT = -4 * Math.PI; let R;
+  if (t < tB) R = 0.30 * t / T.ta;
+  else if (t < tC) R = 0.30 + 0.34 * (t - tB) / T.tb;
+  else if (t < tD) R = 0.64 + 0.22 * (t - tC) / T.tc;
+  else if (t < tE) { const u = (t - tD) / T.td; R = 0.86 + 0.14 * (1 - (1 - u) * (1 - u)); }
+  else R = 1;
+  S.roll = TOT * R;
+  if (t < tB) {                                              // A: the fall from above the frame
+    S.x = T.A.x0 + T.A.vx * t; S.y = T.A.y0 - 0.5 * T.g * t * t;
+  } else if (t < tC) {                                       // B: down the sheet, tumbling
+    const u = t - tB, d = T.v0 * u + 0.5 * T.ab * u * u, x = T.xl + d * T.c;
+    S.x = x; S.y = sheetY(x) + 0.13 + 0.05 * Math.abs(Math.sin(S.roll * 2));
+    once('land', () => { bus.emit('opening:puff', { x: S.x, y: S.y - 0.1, z: 0, n: 9, spread: 0.7, up: 0.7, vx: 1.2, grit: 0.5 }); send('tin-clang', { x: S.x, y: S.y, gain: 1 }); send('tumble', { gain: 0.8 }); bus.emit('camera:bump', { amp: 0.02, time: 0.2 }); });
+  } else if (t < tD) {                                       // C: off the bent edge, to the grass
+    const u = t - tC; S.x = SHEET.x1 + T.vcx * u; S.y = Math.max(0, T.yE + T.vcy * u - 0.5 * T.g * u * u) + 0.13;
+    once('edge', () => { send('tin-clang', { x: SHEET.x1, y: T.yE, gain: 0.55 }); bus.emit('opening:puff', { x: SHEET.x1, y: T.yE - 0.05, z: 0, n: 4, spread: 0.4, up: 0.4, grit: 0.7 }); });
+  } else if (t < tE) {                                       // D: the skid
+    const u = t - tD, x = T.xg + T.vd0 / T.kd * (1 - Math.exp(-T.kd * u));
+    S.x = x; S.y = 0.1 + 0.03 * Math.abs(Math.sin(S.roll * 2));
+    once('ground', () => { S.y = 0.1; bus.emit('opening:puff', { x: S.x, y: 0, z: 0, n: 16, spread: 1.0, up: 0.55, vx: 1.4, grit: 0.25 }); bus.emit('rabbit:land', { x: +S.x.toFixed(2), y: 0, h: 1.05, surface: 'wet', place: 'verge' }); send('tumble', { gain: 1 }); bus.emit('camera:bump', { amp: 0.03, time: 0.25 }); });
+    T.dust += dt; if (T.dust > 0.1 && u < T.td * 0.7) { T.dust = 0; bus.emit('opening:puff', { x: S.x - 0.2, y: 0, z: 0, n: 2, spread: 0.5, up: 0.25, vx: 0.8, grit: 0.4 }); }
+  } else {                                                   // E: lies flat, rises, shakes, turns to the far clang
+    S.roll = TOT; S.x = T.xg + T.vd0 / T.kd * (1 - Math.exp(-T.kd * T.td)); S.y = 0;
+    const te = t - tE;
+    if (te >= T.flat) S.crouch = false;
+    once('shake', () => { if (t >= T.tShake) setPose('shake', { dur: 0.8, kind: 'script', cancel: 'none' }); });
+    if (t >= T.tShake) once('shake2', () => setPose('shake', { dur: 0.8, kind: 'script', cancel: 'none' }));
+    if (t >= T.tClang) once('clang', () => bus.emit('sound', { cue: 'far-clang', x: S.x - 13, y: 1.4, z: -6, gain: 0.55, who: 'world' }));
+    if (t >= T.tLook) once('look', () => setPose('lookback', { dur: 1.2, kind: 'script', cancel: 'none', data: { dir: -1, dur: 1.2 } }));
+    if (t >= T.tEnd) { tumbleEnd(); return; }
+  }
+  S.grounded = true; S.vx = 0; S.vy = 0; S.z = 0; S.face = 1;
+}
+function tumbleEnd() {
+  S.mode = 'play'; S.modeT = 0; S.roll = 0; S.y = 0; S.z = 0; S.grounded = true; S.vx = 0; S.vy = 0; S.crouch = false; S.crouchF = S.crouchR = 0; S.landed = false; S.face = 1; S.yaw = Math.PI / 2; S.visible = true;
+  FF.G.control = true; setMood('alert'); TM = null;
+  FF.bus.emit('intro', { phase: 'end', x: +S.x.toFixed(2) });
+  /* a key held through the tumble (the arrow that began the game) does nothing until it is let go and pressed again */
+  if (FF.Input && FF.Input.latch) FF.Input.latch(['left', 'right', 'up', 'jump'], { resume: false });
+}
+
 /* the links: climb in (0.8 s: coil, spring onto the sill, creep in), inside the wall (3.8 s, the camera dollies), pop out
    towards the lens (0.4 s), sniff the night air (0.3 s), hop down and turn right (0.5 s); control returns */
 function stepLink(dt) {
+  if (S.mode === 'tumble') { tumbleStep(dt); return; }
   const d = ductLink, t = S.modeT;
   if (S.mode === 'climb') {
     S.x += (d.from.x - S.x) * Math.min(1, dt * 8);

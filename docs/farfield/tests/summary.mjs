@@ -81,7 +81,7 @@ if (Lg && Lg.linger) row('the Verge never pushes (60 s before the gate, 30 s in 
 const Rm = J('room.json');
 if (Rm) row('arcade room (menu + notice, Play, mute/music, Esc, teardown, ?mute=1)', !Rm.err && !(Rm.errs || []).length && Rm.ready && Rm.afterEscNotice && Rm.afterEscNotice.menu && Rm.mute1 && Rm.mute1.ac === 0 && Rm.mute1.set.length === 0 && Rm.afterStop && Rm.afterStop.teardown && Rm.afterStop.teardown.lost, '');
 /* Sequence 2's own tests (their logs) */
-for (const [f, label, re] of [['works.log', 'Sequence 2: the machines, the gate, the worker, checkpoints, endings, the join (t-works.mjs W1-W13)', /\n(PASS|FAIL) \((\d+)\/(\d+)\)/], ['audio-works.log', 'Sequence 2: the sound of the Works (t-audio-works.mjs)', /\n(ALL PASS)/]]) {
+for (const [f, label, re] of [['works.log', 'Sequence 2: the machines, the gate, the worker, checkpoints, endings, the join (t-works.mjs W1-W13)', /\n(PASS|FAIL) \((\d+)\/(\d+)\)/], ['polish.log', 'Polish pass: the opening tumble and its light, the painter (hears, chases), the door, the searcher (sound), the jump, the held-Shift run through the presses (t-polish.mjs)', /\n(PASS|FAIL) \((\d+)\/(\d+)\)/], ['audio-works.log', 'Sequence 2: the sound of the Works (t-audio-works.mjs)', /\n(ALL PASS)/]]) {
   let t = ''; try { t = fs.readFileSync(path.join(OUT, f), 'utf8'); } catch (e) {}
   const m = t.match(re), fails = (t.match(/^FAIL .*$/mg) || []).slice(0, 3).join('; ');
   row(label, !!m && (m[1] === 'ALL PASS' || (m[1] === 'PASS' && m[2] === m[3])), m ? m[0].trim() + (fails ? ' ' + fails : '') : 'no result ' + fails);

@@ -247,6 +247,8 @@ function vergeFrame(dt) {
   /* the person */
   if (person) {
     const P = V.p, vis = active && P.vis;
+    /* polish pass 8 Oct (Josh): while he rattles the chain both hands are on it and the torch is put away: it no longer pokes through the gate's steel */
+    person.props.torch = P.anim === 'unlock' ? 0 : 1; if (person.lens) person.lens.visible = !!person.props.torch && !(person.model && !person.model.guard);
     const tl = P.torch;
     person.set({ visible: vis, x: P.x, y: 0, z: P.z, yaw: P.yaw, face: 0, anim: P.anim, speed: P.speed, gait: (person.st.gait || 0) + (vis ? (P.speed || 0) * dt / 0.65 : 0), shakeAmt: P.shake || 0, reach: P.reach || 0,
       torch: tl ? { on: true, target: tl.target, half: tl.half, intensity: tl.intensity, color: '#e6ecf2', distance: 10 } : { on: false } });
@@ -561,7 +563,7 @@ const Events = FF.Events = {
   debug() {
     return { cp: st.cp, failing: st.failing && st.failing.kind, beats: Object.assign({}, st.beats), flags: Object.assign({}, G().flags),
       verge: { on: V.on, gone: V.gone, phase: V.phase, t: +V.t.toFixed(2), T: +V.T.toFixed(2), stopT: V.stopT == null ? null : +V.stopT.toFixed(2), van: { x: +V.van.x.toFixed(2), z: +V.van.z.toFixed(2) }, dropT: V.dropT == null ? null : +V.dropT.toFixed(2), outT: V.outT == null ? null : +V.outT.toFixed(2),
-        step: V.phase === 'after' && V.q[V.qi] ? V.q[V.qi][0] : null, rattle: { on: V.rattle.on, burst: +V.rattle.burst.toFixed(2), silence: +V.rattle.silence.toFixed(2), hard: +V.rattle.hard.toFixed(2) }, person: { x: +V.p.x.toFixed(2), z: +V.p.z.toFixed(2), vis: V.p.vis, anim: V.p.anim }, torchT: +V.torchT.toFixed(2) },
+        step: V.phase === 'after' && V.q[V.qi] ? V.q[V.qi][0] : null, rattle: { on: V.rattle.on, burst: +V.rattle.burst.toFixed(2), silence: +V.rattle.silence.toFixed(2), hard: +V.rattle.hard.toFixed(2) }, person: { torchProp: person && person.props ? person.props.torch : null, anim: V.p.anim, x: +V.p.x.toFixed(2), z: +V.p.z.toFixed(2), vis: V.p.vis, anim: V.p.anim }, torchT: +V.torchT.toFixed(2) },
       walkway: { on: W.on, done: W.done, t: +W.t.toFixed(2), at: W.at == null ? null : +W.at.toFixed(2), cause: W.cause || null, x: +W.x.toFixed(2), vis: W.vis },
       end: E.phase || null, lights: Object.keys(lit), reveal: { phase: RV.phase, cause: RV.cause, done: RV.done, seen: RV.seen, held: RV.held, pose: RV.pose, latched: latched() } };
   },

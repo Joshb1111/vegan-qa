@@ -1,6 +1,6 @@
 /* FAR FIELD — ff-works.js: FF.Works, the machines of Sequence 2 (THE WORKS; docs/farfield/SEQUENCE-2.md §3, §5, §8, §11).
    The first press P1 (24 s cycle) and the sluice gate hung on its counterweight; the long hall's three walking presses Q1, Q2
-   and the great press Q3 (one 16 s bar, a beat apart, left to right). Every press speaks one grammar (FF.RULES.works.press):
+   and the great press Q3 (one 10 s bar since the polish pass, 8 Oct: Q1 at 0, Q3 at 2, Q2 at 6, so a held Shift + Right is caught). Every press speaks one grammar (FF.RULES.works.press):
      UP (stillness, the safe interval) -> RELEASE at 0 (the clank: a jolt of 6 cm, the telegraph, 2.0 s) -> DESCENT (2.0 s,
      slow then slamming) -> CONTACT at 4.0 (THE THUD, on the 4 s heartbeat) -> DOWN (pressing) -> RISE (never lethal) -> UP.
    Both clocks start at the bus event 'works-start' (Level's trigger works-first, the rabbit starting the creep out of the
@@ -15,7 +15,7 @@
    its centre is outside it, in the last shove.time before contact, is pushed clear to the side its centre is on, with the
    startle (FF.Player.shove(toX, t) when the Player has it; otherwise this module moves G.rabbit.x itself before the Player
    steps). If that side is blocked by a solid, the cut applies instead.
-   THE RAMP SLIDE (review fixes 8 Oct; the same path, kind 'ramp'): a rabbit whose centre is in a slot's visible notch but
+   THE RAMP SLIDE (review fixes 8 Oct; the same path, kind 'ramp'; polish pass: whatever the pose, a crouched rabbit on a ramp below y -0.19 too): a rabbit whose centre is in a slot's visible notch but
    outside its core (on a ramp, where the ground dips below the bed) and whose back would meet the platen slides down into the
    core in the last moments of the descent (ramp.lead s before contact, or as the iron comes within ramp.margin), 0.12-0.25 s.
    The whole dark notch is a shelter, as it reads. Fix 8 Oct, round 2: it slides on to where its whole body stands on the
@@ -186,7 +186,7 @@ function hazards(dt) {
       /* the slot's ramps (the rest of the visible notch): sliding down into the core (involuntary, like the chamfer shove) */
       if (st.shove && st.shove.kind === 'ramp' && st.shove.id === m.id) continue;
       const notch = core || inNotch(m, r.x), sl = notch && SLIDE[notch.id], off = !!sl && (r.x < sl[0] - 1e-6 || r.x > sl[1] + 1e-6);
-      if (notch && (core ? off : r.y + h + P.lethalMargin > 0)) {
+      if (notch && off) {          // polish pass: whatever the pose (a crouched rabbit on a ramp too), slide it onto the slot floor
         const RP = P.ramp, tc = m.marks.contact - c.phase;
         if (tc <= RP.lead + 1e-9 || c.y < r.y + h + P.lethalMargin + RP.margin) {
           const to = sl ? (r.x < sl[0] ? sl[0] : sl[1]) : r.x < notch.core[0] ? notch.core[0] + RP.inset : notch.core[1] - RP.inset;

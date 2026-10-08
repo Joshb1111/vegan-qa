@@ -79,6 +79,11 @@ FF.RULES = {
        centre sight point, not in a core, not through the gap, within the torch's range (FF.AI.track). An entry cut short by an
        alert does not count as seen: a restart at search-arrive replays it (the aim demonstration shows the way out). */
     fill: { tNear: 0.9, dNear: 3.0, tFar: 1.6, dFar: 10.0, grace: 0.5, decay: 0.5, notice: 0.35, investigateBelow: 0.15 },
+    /* SOUND (polish pass 8 Oct, Josh's priority 1; FF.Guard.hear): a run is loud, the cautious walk is quiet. Loudness 0 below
+       floorSpeed (the cautious walk 0.95, the crouch-walk 0.75, the creep) .. 1 at fullSpeed (the run 2.75); heard weight =
+       loudness x (1 - distance / range), no line of sight needed, works behind his back; it fills suspicion over `t` s at weight 1
+       (about 1.8 s of running at 3 m for NOTICE-to-SPOTTED). Sound alone never beats a better light term (FF.Guard.merge). */
+    hear: { range: 6.0, t: 1.1, floorSpeed: 1.05, fullSpeed: 2.6 },
     coreMaskSoft: 0.1, coreMaskOnlyWhereProvenDark: true, tick: 60,
   },
 

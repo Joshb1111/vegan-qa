@@ -20,7 +20,7 @@
 import fs from 'node:fs'; import path from 'node:path'; import vm from 'node:vm';
 const HERE = path.dirname(new URL(import.meta.url).pathname), JS = process.env.JS || path.resolve(HERE, '../js');
 globalThis.window = globalThis;
-for (const f of ['ff-core.js', 'ff-rules.js', 'ff-level-s1.js', 'ff-script-s1.js', 'ff-level.js', 'ff-ai.js']) vm.runInThisContext(fs.readFileSync(path.join(JS, f), 'utf8'), { filename: f });
+for (const f of ['ff-core.js', 'ff-rules.js', 'ff-level-s1.js', 'ff-script-s1.js', 'ff-level.js', 'ff-guard.js', 'ff-ai.js']) vm.runInThisContext(fs.readFileSync(path.join(JS, f), 'utf8'), { filename: f });
 const FF = globalThis.FF, L = FF.Level, AI = FF.AI, RU = FF.RULES, RB = RU.rabbit, SI = RU.sight, SR = RU.searcher;
 const OUT = process.env.OUT || null, VERBOSE = !!process.env.VERBOSE, REACT = +(process.env.REACT || SR.firstTimerReaction || 0.6);
 const clamp = (v, a, b) => v < a ? a : v > b ? b : v, lerp = (a, b, t) => a + (b - a) * t;
@@ -92,7 +92,7 @@ function run(name, plan, t0, x0, opts = {}) {
     v = v < dir * top ? Math.min(dir * top, v + RB.accel * dt) : Math.max(dir * top, v - RB.decel * dt);
     if (sqn && Math.abs(v) > RB.duckUnder.speed) v = Math.sign(v) * RB.duckUnder.speed;
     x += v * dt; if (dir) f = dir; const crouched = !!(p.crouch || sqn);
-    const h = searcherAt(t), e = exposure(h, x, f, crouched, t);
+    const h = searcherAt(t), e = FF.Guard.merge(exposure(h, x, f, crouched, t), FF.Guard.hear(pose(h), FF.Guard.noiseOf(v), x, { floorY: 0, lat: Math.abs(FF.S1.searcher.pathZ) }));   // polish pass: + SOUND (a run is loud)
     /* the game's touch rule: a rabbit sitting still (|v| < 0.3) that he walks into makes him stop dead (NOTICE) first, then the
        close-range fill (0.8 s) runs; a rabbit that runs into his legs gets the lunge at once */
     if (e.src === 'touch' && Math.abs(v) < (SI.touch.stillBelow || 0.3)) { s = Math.max(s, SI.fill.notice); s += dt / SI.dark.t; graceT = 0; if (noticeAt == null) noticeAt = { t: +(t - t0).toFixed(2), x: +x.toFixed(2) }; if (s >= 1) { alertAt = { t: +(t - t0).toFixed(2), x: +x.toFixed(2), hx: +h.x.toFixed(2), d: +Math.abs(x - h.x).toFixed(2), by: 'close' }; alertAt.thenFleeing = pursuit(x, h.x, opts.fleeTo ? { target: opts.fleeTo } : {}).out; break; } maxS = Math.max(maxS, s); continue; }

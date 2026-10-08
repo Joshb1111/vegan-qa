@@ -471,6 +471,53 @@ function scrubbedWall(P) {
   const me = new T.Mesh(g, m); me.name = 'scrubbedWall'; me.receiveShadow = true; P.obj(me); ST.decal = me;
 }
 
+/* "1951" on the colossal pipe the rabbit crawls under (polish pass 8 Oct; Josh's priority 4): old white spray, a hand-lettered year on the
+   pipe's front, partly scrubbed away (a wire brush's diagonal rakes) and partly painted over with a roller of slightly lighter
+   masonry grey, so "19" is half there, the "5" is mostly gone and the last "1" shows through the paint. Subtle: faded, low
+   contrast, no light, no explanation. A curved decal 4 mm off the pipe's skin (radius 0.7, axis y 1.18 z -0.1, x 199-206). */
+function pipeNumerals(P) {
+  const R = A.prng(0x1951c0), J = a => (R() - 0.5) * 2 * a, r = 0.7, cy = 1.18, cz = -0.1, X0 = 200.30, X1 = 201.90, TH0 = -19.5 * Math.PI / 180, TH1 = 27 * Math.PI / 180;
+  const W = 1280, H = Math.round(W * (r * (TH1 - TH0)) / (X1 - X0)), ppm = W / (X1 - X0), cv = document.createElement('canvas'); cv.width = W; cv.height = H; const g = cv.getContext('2d');
+  const dot = document.createElement('canvas'); dot.width = dot.height = 64; { const d = dot.getContext('2d'), gr = d.createRadialGradient(32, 32, 0, 32, 32, 32);
+    gr.addColorStop(0, 'rgba(142,150,156,1)'); gr.addColorStop(0.5, 'rgba(142,150,156,0.8)'); gr.addColorStop(0.8, 'rgba(142,150,156,0.15)'); gr.addColorStop(1, 'rgba(142,150,156,0)'); d.fillStyle = gr; d.fillRect(0, 0, 64, 64); }
+  const GL = { '1': [0.34, [[0.04, 0.2], [0.26, 0.02]], [[0.26, 0.02], [0.27, 1]]],
+    '9': [0.52, ['~', [0.47, 0.32], [0.38, 0.06], [0.16, 0.02], [0.05, 0.22], [0.16, 0.5], [0.4, 0.5], [0.48, 0.3]], ['~', [0.48, 0.3], [0.46, 0.66], [0.34, 0.92], [0.12, 0.99]]],
+    '5': [0.5, [[0.46, 0.02], [0.12, 0.05]], [[0.12, 0.05], [0.08, 0.45]], ['~', [0.08, 0.45], [0.3, 0.37], [0.5, 0.52], [0.5, 0.78], [0.3, 0.97], [0.03, 0.9]]] };
+  const cap = 0.36 * ppm, sw = 0.034 * ppm; let x = 0.2 * ppm; const base = H * 0.72, at = [];
+  const catm = A.catmull;
+  for (const ch of '1951') {
+    const gl = GL[ch], h = cap * (1 + J(0.05)), b = base + J(0.012 * ppm), sl = 0.07 + J(0.04); g.save(); g.translate(x, b); g.rotate(J(0.05));
+    for (let k = 1; k < gl.length; k++) { let st = gl[k]; const sm = st[0] === '~'; if (sm) st = st.slice(1);
+      let pts = st.map(([u, v]) => { const yy = (v - 1) * h + J(0.025 * h); return [u * h - yy * sl + J(0.025 * h), yy]; }); if (sm) pts = catm(pts, 6);
+      for (let i = 0; i < pts.length - 1; i++) { const [ax, ay] = pts[i], [bx, by] = pts[i + 1], n = Math.max(1, Math.ceil(Math.hypot(bx - ax, by - ay) / 1.5));
+        for (let q = 0; q < n; q++) { const t = q / n, rr = sw * (0.62 + 0.14 * Math.sin(i * 0.9 + q) + 0.08 * R()); g.globalAlpha = 0.22; g.drawImage(dot, ax + (bx - ax) * t - rr, ay + (by - ay) * t - rr, 2 * rr, 2 * rr); } } }
+    g.restore(); at.push({ ch, x, w: gl[0] * h, b, h }); x += gl[0] * h + 0.2 * cap * (1 + J(0.3));
+  }
+  /* weather first: the old spray is thin and patchy everywhere */
+  g.globalCompositeOperation = 'destination-out';
+  for (let i = 0; i < 70; i++) { const cx = R() * W, cy2 = R() * H, rad = 8 + R() * 26, gr = g.createRadialGradient(cx, cy2, 0, cx, cy2, rad); gr.addColorStop(0, 'rgba(0,0,0,' + (0.15 + R() * 0.4).toFixed(2) + ')'); gr.addColorStop(1, 'rgba(0,0,0,0)'); g.fillStyle = gr; g.fillRect(cx - rad, cy2 - rad, rad * 2, rad * 2); }
+  /* the wire brush: diagonal rakes through the first "9" and the "5" (the work of somebody who stopped before the end) */
+  const sc = (a0, a1, n, edge) => { for (let i = 0; i < n; i++) { const sx = a0 + R() * (a1 - a0), sy = base - cap * 1.1 + R() * cap * 1.3, len = (0.05 + R() * 0.12) * ppm; g.globalAlpha = (0.3 + R() * 0.5) * edge; g.lineWidth = 2 + R() * 5; g.lineCap = 'round'; g.beginPath(); g.moveTo(sx, sy); g.lineTo(sx + len * 0.35, sy + len); g.stroke(); } };
+  sc(at[1].x - 0.03 * ppm, at[1].x + at[1].w * 0.85, 190, 1); sc(at[2].x - 0.04 * ppm, at[2].x + at[2].w + 0.04 * ppm, 330, 1);
+  g.globalCompositeOperation = 'source-over';
+  /* the paint-over: a roller's pass of grey, a shade off the pipe, from the right and below: it takes most of the "5", the foot of the "9"'s tail and half of the last "1" */
+  const p0 = at[1].x + at[1].w * 0.55, p1 = at[3].x + at[3].w * 0.45, pt = base - cap * 0.78, pb = base + 0.05 * ppm;
+  g.save(); g.fillStyle = 'rgb(66,72,78)'; for (let q = 0; q < 4; q++) { g.globalAlpha = 0.30; g.beginPath(); const ins = q * 3;
+    for (let xx = p0 + ins; xx <= p1 - ins; xx += 5) g.lineTo(xx, pt + (xx - p0) * -0.08 + ins + J(2.5)); for (let yy = pt; yy <= pb - ins; yy += 5) g.lineTo(p1 - ins + J(2), yy);
+    for (let xx = p1 - ins; xx >= p0 + ins; xx -= 5) g.lineTo(xx, pb - ins + J(3)); for (let yy = pb - ins; yy >= pt; yy -= 5) g.lineTo(p0 + ins + J(3), yy); g.closePath(); g.fill(); }
+  for (let k = 0; k < 6; k++) { const rx = p0 + (0.1 + 0.8 * R()) * (p1 - p0), len = (0.04 + R() * 0.1) * ppm; g.globalAlpha = 0.5; g.strokeStyle = 'rgb(72,79,85)'; g.lineWidth = 2.4 + R(); g.beginPath(); g.moveTo(rx, pb - 3); g.lineTo(rx + J(1), pb + len); g.stroke(); }
+  g.restore();
+  /* the curved patch */
+  const NX = 24, NY = 8, pos = [], nor = [], uv = [], idx = [];
+  for (let j = 0; j <= NY; j++) for (let i = 0; i <= NX; i++) { const u = i / NX, th = TH1 - (TH1 - TH0) * j / NY, rr = r + 0.004;
+    pos.push(X0 + (X1 - X0) * u, cy + rr * Math.sin(th), cz + rr * Math.cos(th)); nor.push(0, Math.sin(th), Math.cos(th)); uv.push(u, 1 - j / NY); }
+  for (let j = 0; j < NY; j++) for (let i = 0; i < NX; i++) { const a = j * (NX + 1) + i, b = a + 1, c = a + NX + 1, d = c + 1; idx.push(a, c, b, b, c, d); }
+  const geo = new T.BufferGeometry(); geo.setAttribute('position', new T.Float32BufferAttribute(pos, 3)); geo.setAttribute('normal', new T.Float32BufferAttribute(nor, 3)); geo.setAttribute('uv', new T.Float32BufferAttribute(uv, 2)); geo.setIndex(idx);
+  const tex = new T.CanvasTexture(cv); tex.encoding = T.sRGBEncoding; tex.anisotropy = Math.min(4, ctx.renderer.capabilities.getMaxAnisotropy ? ctx.renderer.capabilities.getMaxAnisotropy() : 1);
+  const m = FF.mat({ color: '#ffffff', roughness: 0.9, mottle: 0.03, wallFill: 0.5 }, { map: tex, transparent: true, depthWrite: false, polygonOffset: true, polygonOffsetFactor: -1, polygonOffsetUnits: -2 });
+  const me = new T.Mesh(geo, m); me.name = 'pipe1951'; me.receiveShadow = true; P.obj(me);
+}
+
 /* ---------------------------------------------------------------------------------------------- THE LONG HALL (166.6 .. 194) */
 function buildLine() {
   const P = A.place('line', 166.4, 194.4); P.looks = ['line', 'passage', 'works-out'];
@@ -531,6 +578,7 @@ function buildOut() {
       P.add('saddle', B(x - 0.22, x + 0.22, 1.05, 1.25, -1.15, 0.95), true);
     }
   }
+  if (!/nopipe/.test(location.search)) pipeNumerals(P);                                                       // "1951", old and partly gone, on the pipe's front (polish pass)
   /* grass and clover; under the pipe it is dry and short; rubble down the embankment; dark stems near the lens */
   A.grass(P, 1500, 194.2, 238.0, -6.0, 2.6, 0.05, 0.4, '#55605a', { share: 0.16, skip: (x, z) => (Math.abs(z) < 0.22 && rnd() < 0.85) || (x > 199.2 && x < 205.8 && z > -0.9 && z < 0.7 && rnd() < 0.7) });
   A.grass(P, 90, 194.2, 238.0, 2.8, 4.6, 0.12, 0.42, '#1e211f', { r: 0.007, share: 0.01 });

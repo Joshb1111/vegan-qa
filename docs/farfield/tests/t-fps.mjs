@@ -2,7 +2,7 @@
 // (Sequence 1's four, then Sequence 2's press hall, passage, long hall and the outside).
 import { boot, save, sleep } from './lib.mjs';
 const W = +(process.env.W || 1440), H = +(process.env.H || 720);
-const b = await boot({ q: 'q=high&seed=1&mute=1', w: W, h: H });
+const b = await boot({ q: process.env.Q || 'q=high&seed=1&mute=1', w: W, h: H });
 const R = { W, H, dsf: +(process.env.DSF || 1), res: {} };
 try {
   for (const tier of ['high', 'medium', 'low']) {

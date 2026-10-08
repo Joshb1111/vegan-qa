@@ -3,10 +3,13 @@
    Source: docs/farfield/SEQUENCE-2.md §5-§9. The press grammar (how the underside moves through release, descent, contact,
    down, rise, up) and the sluice's gap are defined in FF.RULES.works (ff-rules-s2.js). Timelines change only with the Works
    checker re-run (docs/farfield/checks/works-sim.mjs).
-   ONE CLOCK: both stations run on the Works heartbeat (4.0 s). Every contact lands on a beat: P1 every 24 s (6 beats), the long
-   hall's presses one bar of 4 beats (16 s: the clank of Q1's release, then thud, thud, thud as Q1, Q2 and Q3 come down in
-   turn, left to right: "the machine walks"). Both clocks start at the trigger works-first (the creep out of the intake);
-   a restart sets the restarting station's phase from the checkpoint (FF.S2.checkpoints[].works). */
+   ONE CLOCK: both stations run on the Works heartbeat (4.0 s). P1 every 24 s (6 beats; its contact on the beat). POLISH PASS
+   (8 Oct, Josh: "holding max run must NOT bypass them"): the long hall's bar is 10 s (was 16), offsets Q1 0, Q2 6, Q3 2, so
+   after the first slam the next ones come back fast: Q1 lands at 4 of the bar, the great press Q3 at 6, Q2 at 10 (on the 2 s
+   half beat). Observe a slam, GO under the press as it rises (passable 6.66 s after its clank), stop and read in the gap
+   (the next press clanks as the last one rises), slam, GO. A blind Shift + Right run is caught in 37 of 40 arrival phases and
+   always after a restart (works-sim.mjs, check-works.mjs). Both clocks start at the trigger works-first (the creep out of the
+   intake); a restart sets the restarting station's phase from the checkpoint (FF.S2.checkpoints[].works). */
 'use strict';
 window.FF = window.FF || {};
 FF.S2 = FF.S2 || {};
@@ -24,17 +27,17 @@ FF.S2.works = {
      (passable from P1 phase 3.53), held open while P1 presses (4-8), closing during P1's rise (the cut from 9.66): 6.1 s of every 24. */
   sluice: { id: 'sluice', solid: 'sluice', follows: 'P1', x0: 145.6, x1: 145.7, floorY: -0.40, top: -0.10 },
 
-  /* THE WALKING PRESSES. One 16 s bar; each platen's marks are relative to its own offset: release 0 -> descent 2 -> CONTACT 4
-     -> held down 2 s -> rise 6 (3 s) -> up 9 -> 16 (7 s still). Offsets one beat apart, left to right. Lethal from 3.89 s
+  /* THE WALKING PRESSES. One 10 s bar (polish pass; it was 16 s); each platen's marks are relative to its own offset: release 0 -> descent 2 -> CONTACT 4
+     -> held down 2 s -> rise 6 (3 s) -> up 9 -> 10 (1 s still). Offsets one beat apart, left to right. Lethal from 3.89 s
      (Q1, Q2) and 3.91 s (Q3) after each release; passable (rising, underside >= 0.30) from 6.66 (Q1, Q2) / 6.59 (Q3).
-     A walker who leaves the entry floor on Q1's first passable moment (+0.6 s reaction) and keeps walking reaches pit C
-     exactly as the great press releases: the designed climax (works-sim.mjs, "the continuous walker"). */
-  line: { period: 16.0, anchor: { trigger: 'works-first', phase: 0.0 },
+     A walker who leaves the entry floor on Q1's first passable moment (+0.6 s reaction) and keeps walking meets the great
+     press's release about 1.4 m short of pit C (polish pass: it used to be in it) and shelters there: the designed climax (works-sim.mjs, "the continuous walker"). */
+  line: { period: 10.0, anchor: { trigger: 'works-first', phase: 0.0 },
           marks: { release: 0.0, descent: 2.0, contact: 4.0, rise: 6.0, up: 9.0 },
           platens: [
             { id: 'Q1', solid: 'Q1', x0: 169.4, x1: 173.2, offset: 0.0, upY: 2.60, thick: 1.60, lamp: 'pressLamp' },
-            { id: 'Q2', solid: 'Q2', x0: 174.8, x1: 178.6, offset: 4.0, upY: 2.60, thick: 1.60, lamp: 'pressLamp' },
-            { id: 'Q3', solid: 'Q3', x0: 181.0, x1: 189.0, offset: 8.0, upY: 3.20, thick: 2.40, lamp: 'greatLamp', name: 'the great press' },
+            { id: 'Q2', solid: 'Q2', x0: 174.8, x1: 178.6, offset: 6.0, upY: 2.60, thick: 1.60, lamp: 'pressLamp' },
+            { id: 'Q3', solid: 'Q3', x0: 181.0, x1: 189.0, offset: 2.0, upY: 3.20, thick: 2.40, lamp: 'greatLamp', name: 'the great press' },
           ] },
 };
 

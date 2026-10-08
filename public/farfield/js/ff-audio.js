@@ -31,7 +31,8 @@
      world    far-boom  machine  thud  horn  drip
      rabbit   paw {surface: grass|wet|concrete|water|wood|metal}  land {h}  splash  sniff  groom  nibble  shake  settle
               rbreath  heart  claw  box-tok  box-stop
-     fail     shot  scuff  (played on the 'fail' event; nothing else is heard in the black)
+     fail     shot  scuff  squeak (a caught rabbit: tiny, restrained)  (played on the 'fail' event; nothing else is heard in the black)
+     opening  tin-clang  far-clang  tumble
      music    end-chord (FF.Audio.endChord())   the pad starts at the rest's groom
    Loops by id: 'sound' {id, cue, loop: true, x, y, z, gain, ...} starts or moves one; {id, loop: false} stops it.
    An explicit 'sound' with a cue name switches OFF the scene's own derivation of that cue (and a 'step' with id 'searcher',
@@ -266,14 +267,14 @@ const CUE_OPT = {
   'aim-click': { send: 0.25, prio: 1 }, breath: { send: 0.3, prio: 1 }, lunge: { send: 0.2, prio: 1 }, kneel: { send: 0.2 }, tick: { send: 0.3 },
   'far-boom': { send: 1.0, prio: 1, roll: 0.22 }, machine: { send: 0.6, roll: 0.25 }, thud: { send: 0.9, roll: 0.22 }, horn: { send: 1.0, roll: 0.3 }, drip: { send: 0.7 },
   sniff: {}, groom: {}, nibble: {}, shake: { send: 0.1 }, settle: {}, rbreath: {}, heart: { prio: 1 }, claw: { send: 0.5 },
-  shot: { bus: 'over', prio: 1 }, scuff: { bus: 'over', prio: 1 }, 'end-chord': { bus: 'music', prio: 1 },
+  shot: { bus: 'over', prio: 1 }, scuff: { bus: 'over', prio: 1 }, squeak: { bus: 'over', prio: 1 }, 'tin-clang': { send: 0.5, prio: 1 }, 'far-clang': { send: 1.0, roll: 0.25 }, tumble: { send: 0.15 }, 'end-chord': { bus: 'music', prio: 1 },
 };
 /* per-cue trims (dB), calibrated with FF.Audio.lab(): point-blank peaks of about -8 dBFS for boots, -6 for the aim click,
    -5 for the lock, -3 for the shot (the loudest sound in the game), about -30 for the rabbit's own small sounds */
 const TRIM = { step: 4.5, paw: 5, land: 6, splash: 2.5, breath: 16, 'aim-click': 10.5, 'torch-click': 8.5, lunge: 8, kneel: 5, reach: 14,
   'door-open': 13, 'door-shut': 2.5, 'door-slam': 3, brakes: 9, chain: 6.5, 'gate-jolt': 5, 'gate-slide': 2.5, 'gate-close': 5, 'slab-scrape': 18,
   relay: 12.5, 'fence-clatter': 15, 'fence-shake': 13, 'far-boom': 12, machine: 7.5, thud: 4, horn: 21, drip: 6, tick: 4, sniff: 8.5, groom: 10,
-  nibble: 1, shake: 5.5, rbreath: 20, shot: 3.2, scuff: 19, 'end-chord': 2 };
+  nibble: 1, shake: 5.5, rbreath: 20, shot: 3.2, scuff: 19, squeak: 19, 'tin-clang': 9, 'far-clang': 12, tumble: 6, 'end-chord': 2 };
 const CUES = {
   /* boots: heel + toe, by surface; heavier and quicker when running */
   step(E, d, t, o) {
@@ -370,6 +371,33 @@ const CUES = {
     return 1.2;
   },
   /* caught: his boot scuff and a cloth rustle (0.2 s), then silence. No rabbit sound. */
+  /* polish pass 8 Oct (Josh): the tiny, restrained squeak at the moment of capture (heard under the black, before the scuff): two
+     short rising chirps of a breathy high tone, about -34 dBFS, over in 0.14 s. Not a scream: the picture cuts, the rabbit is small. */
+  squeak(E, d, t) {
+    E.tone(d, t, { f: 2050, f1: 3050, a: 0.004, d: 0.07, peak: 0.07, type: 'sine' });
+    E.tone(d, t + 0.085, { f: 2300, f1: 3250, a: 0.004, d: 0.055, peak: 0.045, type: 'sine' });
+    E.burst(d, t, { kind: 'white', a: 0.004, d: 0.07, peak: 0.012, bp: 4800, q: 2 });
+    return 0.25;
+  },
+  /* the opening: a rabbit landing on a corrugated sheet (a dull steel pan: low body, ringing partials, rain-wet), a distant clang
+     far behind (small, late, a long filtered tail), and the rustle of a tumble through wet grass */
+  'tin-clang'(E, d, t, o) {
+    const w = o.w || 1;
+    E.tone(d, t, { f: 168, f1: 128, a: 0.003, d: 0.34, peak: 0.28 * w });
+    E.partials(d, t, [[392, 0.5, 1], [742, 0.34, 0.8], [1180, 0.26, 0.6], [1730, 0.2, 0.45], [2410, 0.12, 0.3]], 0.1 * w);
+    E.burst(d, t, { kind: 'pink', a: 0.002, d: 0.07, peak: 0.3 * w, bp: 1500, q: 0.8 });
+    return 0.8;
+  },
+  'far-clang'(E, d, t) {
+    E.partials(d, t, [[221, 1.1, 1], [547, 0.9, 0.7], [903, 0.7, 0.5], [1380, 0.5, 0.3]], 0.13);
+    E.burst(d, t, { kind: 'pink', a: 0.004, d: 0.1, peak: 0.12, bp: 700, q: 0.9 });
+    E.burst(d, t + 0.35, { kind: 'brown', a: 0.05, d: 0.9, peak: 0.05, lp: 240 });
+    return 1.8;
+  },
+  tumble(E, d, t) {
+    for (let k = 0; k < 7; k++) E.burst(d, t + k * rr(0.04, 0.09), { kind: 'pink', a: 0.006, d: rr(0.05, 0.12), peak: rr(0.07, 0.16), bp: rr(900, 2600), q: 0.6 });
+    return 0.8;
+  },
   scuff(E, d, t) { E.burst(d, t, { kind: 'pink', a: 0.01, d: 0.12, peak: 0.3, bp: 1100, q: 0.9 }); E.burst(d, t + 0.05, { kind: 'pink', a: 0.03, d: 0.15, peak: 0.1, hp: 3000 }); return 0.35; },
   /* the end card: one held chord, soft and open */
   'end-chord'(E, d, t) {
@@ -872,6 +900,7 @@ const Audio = FF.Audio = {
     on('fail', d => {
       D.black = true; D.timeline = D.timeline.filter(e => e.tag === 'keep');
       if (E) { const t = E.ac.currentTime; E.world.gain.cancelScheduledValues(t); E.world.gain.setValueAtTime(0, t); E.world.gain._ffv = 0; for (const id of [...E.loops.keys()]) E.loopStop(id, 0.02); }
+      if (d && d.kind === 'caught') cue('squeak', null, {});                         // polish pass: the tiny restrained squeak at the moment of capture, then the scuff under the black
       cue(X.failCue[d && d.kind] || ((d && d.kind) === 'shot' ? 'shot' : 'scuff'), null, {});
     });
     on('restart', d => {

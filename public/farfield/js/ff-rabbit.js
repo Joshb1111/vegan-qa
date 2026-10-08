@@ -4,7 +4,7 @@
    nothing here may need ff-core.js). Plain-English overview for Josh: docs/farfield/CHARACTERS.md.
    1. TEMPORARY procedural rabbit: a real skinned mesh (one draw call) built from smooth ellipsoids, rigidly weighted to
       the same skeleton the commissioned model must have (bone names in docs/farfield/ASSETS-3D.md), animated in code.
-   2. Model slot: if models/models.json names a rabbit file (or ?rabbit=<file under models/>), it is loaded with
+   2. Model slot: the Tripo rabbit by default (polish pass 8 Oct; ?rabbit=procedural for the code-built one), or models/models.json's rabbit file, or ?rabbit=<file under models/>, loaded with
       GLTFLoader (three r128, loaded only then) and driven by its named clips through an AnimationMixer. Every moving clip's
       own ground speed is MEASURED when it loads (how fast its planted feet travel back), so it plays at exactly the rate the
       rabbit moves and its feet don't slide, whatever speed it was authored at. Any clip the file lacks is drawn by the same
@@ -1128,7 +1128,8 @@ FF.Rabbit = {
     const holder = new T.Group(); holder.name = 'rabbit';
     /* the game passes opts.file from models/models.json (FF.MODELS.rabbit); null = no request at all (clean console).
        ?rabbit=<file under models/> overrides, ?rabbit=procedural forces the temporary rabbit. */
-    const want = q ? q : (opts.file || null);
+    /* polish pass 8 Oct: the Tripo rabbit is the DEFAULT (Josh); ?rabbit=procedural brings the code-built stand-in back */
+    const want = q ? q : (opts.file || 'tripo');
     let rig = null;
     if (want && want !== 'procedural') {
       const file = (MODEL_ALIAS[want] || want).replace(/[^\w./-]/g, '').replace(/\.\.+/g, '');

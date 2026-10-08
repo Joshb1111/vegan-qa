@@ -18,6 +18,7 @@ load; t 400 node t-detect.mjs > out/detect.log 2>&1
 load; t 400 node t-linger.mjs > out/linger.log 2>&1
 load; t 300 node t-room.mjs > out/room.log 2>&1
 load; t 1500 node t-works.mjs > out/works.log 2>&1
+load; t 1800 node t-polish.mjs > out/polish.log 2>&1
 load; RENDER=1 t 600 node t-audio-works.mjs > out/audio-works.log 2>&1
 load; t 300 node t-works-flow.mjs > out/works-flow.log 2>&1
 load; DSF=2 t 400 node t-fps.mjs > out/fps.log 2>&1

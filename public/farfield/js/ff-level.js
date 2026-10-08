@@ -121,6 +121,7 @@ const Level = FF.Level = {
     stillT = Math.abs(r.vx || 0) < 0.05 && r.grounded && (r.mode == null || r.mode === 'play') ? stillT + dt : 0;
     const box = g.box;
     if (g.mode && g.mode !== 'play') return;           // triggers belong to play (the title's live scene fires nothing)
+    if (r.mode === 'tumble') return;                   // the opening tumble (FF.Player): the hints wait for control
     for (const tr of S().triggers) {
       if (tr.x0 == null) continue;                      // link-driven triggers (arrive-yard) are emitted by the Player
       if (cool[tr.id] > 0) cool[tr.id] -= dt;

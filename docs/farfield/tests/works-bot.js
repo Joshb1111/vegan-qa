@@ -6,9 +6,9 @@
    safety. It never looks at a timer the player cannot see. Mirrors docs/farfield/checks/works-sim.mjs's bots.
    opts: react (s, 0.6) · p1: 'pits' (pit to pit) | 'direct' (straight to pit B) | 'wall' (on to the bed's end against the
    wall, back into pit B at the release) · line: 'continuous' | 'cautious' (waits in every gap for a fresh rise) | 'runner'
-   (Shift all the way) | 'fleeRun' (walks, runs when a release catches it) · delay (s, a hesitation once at each station) ·
+   (Shift, stops in each gap and goes when the press ahead has risen: a reader at run speed) | 'blind' (Shift + Right held from the entry floor, never reads anything: it must be caught) | 'fleeRun' (walks, runs when a release catches it) · delay (s, a hesitation once at each station) ·
    painter: 'wait' (waits in the dark, leaves 0.6 s after the scraping starts) | 'careless' (stands in his light until he has
-   looked) | 'walk' (walks straight past) · end: 'leave' (down the embankment) | 'rest' (stops under the pipe) | 'none'
+   looked, then RUNS) | 'walk' (walks straight past; runs once he has looked) · end: 'leave' (down the embankment) | 'rest' (stops under the pipe) | 'none'
    (stops at 196) · stopAt (x: stop there and hold still).
    bot.state() -> {mode, where, log}. */
 (function () {
@@ -75,11 +75,14 @@
       /* ---------------- the passage and the worker */
       if (x >= 153.0 && x < 166.4) {
         const P = FF.Painter.debug();
-        if (opts.painter === 'walk') return { right: true };
+        /* polish pass 8 Oct: he hears, watches with his lamp and pursues. Any first-timer who is looked at RUNS (Shift) after a 0.6 s reaction:
+           he is slower than a run, and the door at 166.2 stops him */
+        if (P.looks > 0 && B.used.noticedAt == null) B.used.noticedAt = t;
+        const fleeNow = B.used.noticedAt != null && t >= B.used.noticedAt + opts.react;
+        if (opts.painter === 'walk') return fleeNow ? { right: true, run: true } : { right: true };
         if (opts.painter === 'careless') {
-          if (!B.used.look) { if (P.looks > 0) B.used.look = true; if (x < 159.6) return { right: true }; return {}; }
-          if (P.mode === 'look') return {};
-          return { right: true };
+          if (B.used.noticedAt == null) { if (x < 159.6) return { right: true }; return {}; }
+          return fleeNow ? { right: true, run: true } : {};
         }
         /* wait in the dark at 158.1 until the scraping has started again (0.6 s after) */
         if (!B.used.painterGo) {
@@ -92,6 +95,7 @@
       /* ---------------- the long hall */
       if (x >= 166.4 && x < 190.5) {
         const runner = opts.line === 'runner';
+        if (opts.line === 'blind') return { right: true, run: true };     // polish pass 8 Oct: holds Shift + Right, reads nothing
         if (x < 168.9 && !(B.mode === 'hold' && B.where === 'line-entry') && !B.used.lineEntry) { if (x >= 168.8) { holdAt(168.9, 'line-entry', t); B.used.lineEntry = true; } else return { right: true }; }
         if (B.mode === 'go' && B.target != null && B.target < 190 && Math.abs(x - B.target) < 0.03) holdAt(x, inCore(pitC, x) ? 'pit-C' : 'gap', t);
         if (B.mode === 'hold') {
@@ -105,8 +109,10 @@
         }
         /* walking on: stop at a gap's edge if the press ahead is not passable (the cautious one always waits once per gap) */
         const nxt = Q.find(q => q.x0 > x + 1e-6), inside = Q.find(q => x + HW > q.x0 && x - HW < q.x1);
-        if (!inside && nxt && x >= nxt.x0 - HW - 0.06 && !B.waited[nxt.id]) {
-          if (!pass(nxt.id) || (opts.line === 'cautious' && nxt.id !== 'Q1')) { B.waited[nxt.id] = true; holdAt(Math.min(x, nxt.x0 - HW - 0.02), 'gap', t); B.sawDown = !pass(nxt.id); return {}; }
+        /* a runner starts to stop one stopping distance before the edge (decel 10 m/s2) */
+        const stopD = runner ? r.vx * r.vx / (2 * RB.decel) + 0.25 : 0;
+        if (!inside && nxt && x >= nxt.x0 - HW - 0.06 - stopD && !B.waited[nxt.id]) {
+          if (!pass(nxt.id) || (opts.line === 'cautious' && nxt.id !== 'Q1')) { B.waited[nxt.id] = true; holdAt(Math.min(x + (runner ? r.vx * r.vx / (2 * RB.decel) : 0), nxt.x0 - HW - 0.02), 'gap', t); B.sawDown = !pass(nxt.id); return {}; }
         }
         return dirTo(B.target != null ? B.target : 191.5, runner);
       }

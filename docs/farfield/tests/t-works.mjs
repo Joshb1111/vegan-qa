@@ -7,7 +7,7 @@ import { launch, sleep } from './cdp.mjs'; import fs from 'node:fs'; import path
 const HERE = path.dirname(new URL(import.meta.url).pathname);
 const BOT = fs.readFileSync(path.join(HERE, 'works-bot.js'), 'utf8');
 const PAGE = process.env.PAGE || '/farfield/index.html';
-async function waitLoad() { for (let i = 0; i < 10; i++) { const l = os.loadavg()[0]; if (l <= 25) return; console.log('load', l.toFixed(1), 'waiting 60 s'); await sleep(60000); } }
+async function waitLoad() { if (process.env.NOLOADWAIT) return; for (let i = 0; i < 10; i++) { const l = os.loadavg()[0]; if (l <= 25) return; console.log('load', l.toFixed(1), 'waiting 60 s'); await sleep(60000); } }
 function report(name, ok, detail) { console.log((ok ? 'PASS ' : 'FAIL ') + name + (detail ? '  ' + detail : '')); return ok; }
 const HELPERS = `(() => {
   const A = ['left', 'right', 'up', 'down', 'jump', 'run'];
@@ -65,7 +65,7 @@ if (want('W1')) for (const run of [false, true]) {
 
 /* ---------------- W3: the cut on the step (standing / crouched; P1, Q3), the failure flow timings, the restart phase */
 if (want('W3')) for (const c of [{ id: 'P1', cp: 'works-apron', x: 143.6, ph: { P1: 23.5 }, rel: 'P1', exp: 3.887 }, { id: 'P1 crouched', cp: 'works-pitA', x: 143.6, ph: { P1: 23.5 }, down: true, exp: 3.92 },
-                                  { id: 'Q3', cp: 'works-g2', x: 183.0, ph: { line: 7.5 }, exp: 3.909 }, { id: 'Q3 crouched', cp: 'works-g2', x: 183.0, ph: { line: 7.5 }, down: true, exp: 3.94 }]) {
+                                  { id: 'Q3', cp: 'works-g2', x: 183.0, ph: { line: 1.5 }, exp: 3.909 }, { id: 'Q3 crouched', cp: 'works-g2', x: 183.0, ph: { line: 1.5 }, down: true, exp: 3.94 }]) {
   const r = await ev(`(() => { __t.at('${c.cp}', Object.assign({ x: ${c.x}, y: 0 }, ${JSON.stringify(c.ph)}));
     const out = { rel: null, cut: null, cutPh: null, fadeAtCut: null, restartAt: null, controlAt: null, picAt: null, phAfter: null, x: null };
     let k = 0;
@@ -87,8 +87,8 @@ if (want('W3')) for (const c of [{ id: 'P1', cp: 'works-apron', x: 143.6, ph: { 
 
 /* ---------------- W4: the chamfer shove (a tail under the edge is pushed clear; the centre inside is the cut) */
 if (want('W4')) for (const c of [{ n: 'P1 left edge, tail 0.10 under', cp: 'works-apron', x: 140.0 - 0.16 + 0.10, ph: { P1: 23.5 }, to: 139.83, ok: 'shove' },
-                                  { n: 'Q1 right edge, tail 0.10 under', cp: 'works-g1', x: 173.2 + 0.16 - 0.10, face: -1, ph: { line: 15.5 }, to: 173.37, ok: 'shove' },
-                                  { n: 'Q3 left edge from G2, nose 0.15 under', cp: 'works-g2', x: 181.0 - 0.16 + 0.15, ph: { line: 7.5 }, to: 180.83, ok: 'shove' },
+                                  { n: 'Q1 right edge, tail 0.10 under', cp: 'works-g1', x: 173.2 + 0.16 - 0.10, face: -1, ph: { line: 9.5 }, to: 173.37, ok: 'shove' },
+                                  { n: 'Q3 left edge from G2, nose 0.15 under', cp: 'works-g2', x: 181.0 - 0.16 + 0.15, ph: { line: 1.5 }, to: 180.83, ok: 'shove' },
                                   { n: 'P1 centre 0.03 inside the edge', cp: 'works-apron', x: 140.05, ph: { P1: 23.5 }, ok: 'cut' }]) {
   const r = await ev(`(() => { __t.at('${c.cp}', Object.assign({ x: ${c.x}, y: 0, face: ${c.face || 1} }, ${JSON.stringify(c.ph)})); __s2.go(120 * 5, () => ({})); const L = __s2.log;
     return { shove: L.filter(e => e[0] === 'works:shove').map(e => e[2]), fail: L.filter(e => e[0] === 'fail').map(e => e[2]), x: +__ff.G.rabbit.x.toFixed(3) }; })()`);
@@ -137,7 +137,7 @@ if (want('W2')) {
 if (want('W2')) {
   /* a pressed-down press is solid from inside its slot: holding a direction (Shift too) never carries the rabbit up a ramp into the iron */
   const rows = [];
-  for (const [cp, clock, ph, x0, dir, id] of [['works-pitA', 'P1', 4.3, 142.1, 'right', 'P1'], ['works-pitA', 'P1', 4.3, 142.1, 'left', 'P1'], ['works-pitB', 'P1', 4.3, 145.0, 'left', 'P1'], ['works-pitC', 'line', 12.1, 185.6, 'right', 'Q3'], ['works-pitC', 'line', 12.1, 185.6, 'left', 'Q3']]) {
+  for (const [cp, clock, ph, x0, dir, id] of [['works-pitA', 'P1', 4.3, 142.1, 'right', 'P1'], ['works-pitA', 'P1', 4.3, 142.1, 'left', 'P1'], ['works-pitB', 'P1', 4.3, 145.0, 'left', 'P1'], ['works-pitC', 'line', 6.1, 185.6, 'right', 'Q3'], ['works-pitC', 'line', 6.1, 185.6, 'left', 'Q3']]) {
     rows.push(await ev(`(() => { __t.at('${cp}', { x: ${x0}, y: -0.40, ${clock}: ${ph} }); const r = __ff.G.rabbit, hw = FF.RULES.rabbit.hw; let minClear = 9, x1 = r.x;
       __s2.go(120 * 4, () => ({ ${dir}: true, run: true }), () => { const p = FF.Works.press('${id}'); if (p.state !== 'down') return true; if (r.x + hw > p.x0 && r.x - hw < p.x1) minClear = Math.min(minClear, p.y - r.y); x1 = r.x; return false; });
       return { case: '${cp} ${dir}', x: +x1.toFixed(3), minClear: +minClear.toFixed(3), fails: __s2.log.filter(e => e[0] === 'fail').length }; })()`));
@@ -147,11 +147,13 @@ if (want('W2')) {
   R('W2 a pressed-down press closes its slot like a lid (holding a direction with Shift, slots A, B, C): the rabbit stays on the slot\'s floor, 0.40 m under the iron', rows.every(q => q.minClear >= 0.399 && q.fails === 0), JSON.stringify(rows));
   /* standing anywhere in a slot's dark notch (its ramps) as the press comes down: slides into the core, never cut */
   const ramps = [];
-  for (const [cp, clock, pre, x] of [['works-apron', 'P1', 23.0, 141.3], ['works-apron', 'P1', 23.0, 141.5], ['works-apron', 'P1', 23.0, 142.8], ['works-apron', 'P1', 23.0, 143.05], ['works-apron', 'P1', 23.0, 144.3], ['works-g2', 'line', 7.0, 184.45], ['works-g2', 'line', 7.0, 186.75]]) {
-    ramps.push(await ev(`(() => { __t.at('${cp}', { x: ${x}, ${clock}: ${pre} }); __s2.go(120 * 6, () => ({}));
-      return { x0: ${x}, x: +__ff.G.rabbit.x.toFixed(3), slid: __s2.log.filter(e => e[0] === 'works:shove' && e[2].kind === 'ramp').length, fails: __s2.log.filter(e => e[0] === 'fail').length }; })()`));
+  for (const [cp, clock, pre, x, low] of [['works-apron', 'P1', 23.0, 141.3], ['works-apron', 'P1', 23.0, 141.5], ['works-apron', 'P1', 23.0, 142.8], ['works-apron', 'P1', 23.0, 143.05], ['works-apron', 'P1', 23.0, 144.3], ['works-g2', 'line', 1.0, 184.45], ['works-g2', 'line', 1.0, 186.75],
+   /* polish pass 8 Oct: and CROUCHED (a crouched rabbit on a ramp below y -0.19 used to stay wedged under the pressed iron): slots A, B, C */
+   ['works-apron', 'P1', 23.0, 141.3, true], ['works-apron', 'P1', 23.0, 141.5, true], ['works-apron', 'P1', 23.0, 142.8, true], ['works-apron', 'P1', 23.0, 143.05, true], ['works-apron', 'P1', 23.0, 144.3, true], ['works-g2', 'line', 1.0, 184.45, true], ['works-g2', 'line', 1.0, 186.75, true]]) {
+    ramps.push(await ev(`(() => { __t.at('${cp}', { x: ${x}, ${clock}: ${pre} }); __s2.go(120 * 6, () => (${low ? '{ down: true }' : '{}'}));
+      return { x0: ${x}, low: ${!!low}, x: +__ff.G.rabbit.x.toFixed(3), slid: __s2.log.filter(e => e[0] === 'works:shove' && e[2].kind === 'ramp').length, fails: __s2.log.filter(e => e[0] === 'fail').length }; })()`));
   }
-  R('W2 standing on a slot\'s ramp (inside its dark notch) as the press comes down: slides into the core, never cut', ramps.every(q => q.fails === 0 && q.slid === 1), JSON.stringify(ramps));
+  R('W2 standing OR CROUCHED (Down held) on a slot\'s ramp (inside its dark notch, slots A, B, C) as the press comes down: slides onto the slot floor, never cut', ramps.every(q => q.fails === 0 && q.slid === 1), JSON.stringify(ramps));
   /* a startled hop in a slot while its press comes down: none (the rabbit stays down), never cut, never onto the bed's end */
   const hops = [];
   for (const [cp, x, ph, keys] of [['works-pitA', 142.1, 3.7, '{ jump: true }'], ['works-pitB', 145.2, 0.5, '{ jump: true, right: true }'], ['works-pitB', 145.2, 2.5, '{ jump: true, right: true }']]) {
@@ -168,52 +170,75 @@ if (want('W2')) {
 if (want('W6')) {
   const a = await ev(`(() => { __t.at('works-passage'); const bot = __worksBot({ painter: 'wait', stopAt: 166.0 }); __s2.go(120 * 40, s => bot(s), s => s.x >= 165.9); return { looks: __s2.log.filter(e => e[0] === 'painter:noticed').length, x: __ff.G.rabbit.x, p: __ff.painter }; })()`);
   R('W6 waiting in the dark and passing while he scrapes: never noticed', a.looks === 0 && a.x >= 165.9, JSON.stringify(a.p));
-  const c = await ev(`(() => { __t.at('works-passage'); const bot = __worksBot({ painter: 'careless', stopAt: 166.0 }); __s2.go(120 * 50, s => bot(s), s => s.x >= 165.9);
-    const L = __s2.log.filter(e => e[0] === 'painter').map(e => [e[1], e[2].phase, e[2].step]); const n = __s2.log.filter(e => e[0] === 'painter:noticed');
-    const hold = L.find(e => e[2] === 'hold'), lower = L.find(e => e[2] === 'lower'); return { noticed: n.map(e => e[2]), seq: L.filter(e => !/scrape|stop|dip/.test(e[1]) || e[2] === 'scrape-hard').slice(0, 12), hold: hold && lower ? +(lower[0] - hold[0]).toFixed(3) : null, fails: __s2.log.filter(e => e[0] === 'fail').length, x: __ff.G.rabbit.x }; })()`);
-  R('W6 careless in his light at his turn: the look (2.0 s hold), then back to work; never a failure', c.noticed.length >= 1 && Math.abs(c.hold - 2.0) < 0.02 && c.fails === 0 && c.x >= 165.9, JSON.stringify(c));
-  const again = await ev(`(() => { __t.at('works-passage', { x: 159.6, y: 0 }); FF.Painter.setLoopT(8.2); const t = []; __s2.go(120 * 40, () => ({}), () => { const n = __s2.log.filter(e => e[0] === 'painter:noticed'); if (n.length > t.length) t.push(n[n.length - 1][1]); return false; }); return { looks: t.map(v => +v.toFixed(2)), gap: t.length > 1 ? +(t[1] - t[0]).toFixed(2) : null, fails: __s2.log.filter(e => e[0] === 'fail').length }; })()`);
-  R('W6 still in his light after the look: he scrapes a full loop before he turns again (no second look a second later)', again.looks.length >= 1 && (again.gap == null || again.gap >= 16) && again.fails === 0, JSON.stringify(again));
+  /* polish pass 8 Oct (Josh's priority 1): he hears, he watches with his lamp, and he pursues. A rabbit that stays in his lamp at his turn is
+     chased and caught (the failure flow, a squeak, the restart); one that RUNS at his NOTICE gets away to the door and he goes back */
+  const c = await ev(`(() => { __t.at('works-passage', { x: 159.0, y: 0 }); FF.Painter.setLoopT(7.5); __s2.go(120 * 50, () => ({}), s => __s2.log.some(e => e[0] === 'fail'));
+    const L = __s2.log.filter(e => e[0] === 'painter').map(e => [e[1], e[2].phase, e[2].step]); const n = __s2.log.filter(e => e[0] === 'painter:noticed'), f = __s2.log.find(e => e[0] === 'fail');
+    return { noticed: n.map(e => e[1]), chase: (L.find(e => e[1] === 'chase') || [])[0], fail: f ? { t: f[1], by: f[2].by, kind: f[2].kind } : null }; })()`);
+  R('W6 careless in his light at his turn: the look, the lamp on it, the chase, the catch (squeak + the failure flow), at least 1.5 s after the NOTICE', c.noticed.length >= 1 && c.chase != null && c.fail && c.fail.by === 'painter' && c.fail.kind === 'caught' && c.fail.t - c.noticed[0] >= 1.5, JSON.stringify(c));
+  const esc = await ev(`(() => { __t.at('works-passage', { x: 159.6, y: 0 }); FF.Painter.setLoopT(8.2); let noticed = null;
+    __s2.go(120 * 20, s => { if (noticed == null && __s2.log.some(e => e[0] === 'painter:noticed')) noticed = s.t; return noticed != null && s.t >= noticed + 0.6 ? { right: true, run: true } : {}; }, s => s.x >= 166.4 || __s2.log.some(e => e[0] === 'fail'));
+    const x = __ff.G.rabbit.x; __s2.go(120 * 12, () => ({}));
+    return { x: +x.toFixed(2), fails: __s2.log.filter(e => e[0] === 'fail').length, chase: __s2.log.some(e => e[0] === 'painter' && e[2].phase === 'chase'), back: FF.Painter.debug() }; })()`);
+  R('W6 running at his NOTICE (0.6 s reaction, Shift): away through the door, he goes back to his wall (never caught)', esc.fails === 0 && esc.x >= 165.9 && esc.back.mode !== 'chase', JSON.stringify(esc));
+  const hear = await ev(`(() => { __t.at('works-passage', { x: 157.0, y: 0 }); FF.Painter.setLoopT(2.0); __s2.go(120 * 2.2, () => ({ right: true, run: true }), () => __s2.log.some(e => e[0] === 'painter:noticed'));
+    const heardRun = __s2.log.some(e => e[0] === 'painter:noticed'), P = FF.Painter.debug();
+    __t.at('works-passage', { x: 157.0, y: 0 }); FF.Painter.setLoopT(2.0); __s2.go(120 * 5, () => ({ right: true }), s => s.x > 160.4); const heardWalk = __s2.log.some(e => e[0] === 'painter:noticed');
+    return { heardRun, heardWalk, litBy: P.litBy }; })()`);
+  R('W6 a RUN past him while he scrapes (his back turned) is heard: the look starts; the cautious walk past him in the same place is not', hear.heardRun && !hear.heardWalk, JSON.stringify(hear));
+  const again = await ev(`(() => { __t.at('works-passage', { x: 159.6, y: 0 }); FF.Painter.setLoopT(8.2); const t = []; let n0 = null;
+    __s2.go(120 * 40, s => { if (n0 == null && __s2.log.some(e => e[0] === 'painter:noticed')) n0 = s.t; if (n0 != null && s.t >= n0 + 0.6 && __ff.G.rabbit.x > 156.2) return { left: true, run: true }; return n0 != null && s.t >= n0 + 0.6 ? { down: true } : {}; }, () => { const n = __s2.log.filter(e => e[0] === 'painter:noticed'); if (n.length > t.length) t.push(n[n.length - 1][1]); return __s2.log.some(e => e[0] === 'fail'); });
+    return { looks: t.map(v => +v.toFixed(2)), gap: t.length > 1 ? +(t[1] - t[0]).toFixed(2) : null, fails: __s2.log.filter(e => e[0] === 'fail').length }; })()`);
+  R('W6 after the look, hidden under the pallet: he scrapes a full loop before he can turn again (no second look a second later), never caught', again.looks.length >= 1 && (again.gap == null || again.gap >= 16) && again.fails === 0, JSON.stringify(again));
   const p = await ev(`(() => { __t.at('works-passage', { x: 156.2, y: 0 }); FF.Painter.setLoopT(0); let maxS = 0; __s2.go(120 * 24, () => ({ down: true }), () => { maxS = Math.max(maxS, FF.Painter.debug().s); return false; }); return { maxS, looks: __s2.log.filter(e => e[0] === 'painter:noticed').length }; })()`);
   R('W6 under the paint pallet (crouched) through two of his loops: never seen', p.maxS === 0 && p.looks === 0, JSON.stringify(p));
   let n = 0, looks = 0, fails = 0;
   for (let k = 0; k < 12; k += 1) { const q = await ev(`(() => { __t.at('works-passage', { x: 158.1, y: 0 }); FF.Painter.setLoopT(${k}); __s2.go(120 * 12, () => ({ right: true }), s => s.x > 165.9); return { looks: __s2.log.filter(e => e[0] === 'painter:noticed').length, fails: __s2.log.filter(e => e[0] === 'fail').length }; })()`); n++; if (q.looks) looks++; fails += q.fails; }
-  R('W6 walking straight past at every second of his loop: never a failure', fails === 0, `${looks}/${n} starts were noticed (the look), ${fails} failures`);
+  R('W6 walking straight past at every second of his loop at the cautious walk: a catch only ever follows his look (a walker he noticed and who kept walking in his lamp); never a catch without a NOTICE first', fails <= looks, `${looks}/${n} starts were noticed (the look), ${fails} caught`);
 }
 
 /* ---------------- W7: the designed flow (wait on the entry floor, leave 0.6 s after Q1 is passable, keep walking) */
 if (want('W7')) {
   const r = await ev(`(() => { __t.at('works-line', { x: 168.4, line: 4.5 }); const bot = __worksBot({ line: 'continuous', end: 'none' }); let left = null, atRel = null, q1pass = null;
-    const n = __s2.go(120 * 60, s => { if (q1pass == null && FF.Works.press('Q1').passable) q1pass = s.t; const h = bot(s); if (left == null && bot.state().log.some(l => /on past Q1/.test(l))) left = s.t;
+    const n = __s2.go(120 * 90, s => { if (q1pass == null && FF.Works.press('Q1').passable) q1pass = s.t; const h = bot(s); if (left == null && bot.state().log.some(l => /on past Q1/.test(l))) left = s.t;
         const L = __s2.log.filter(e => e[0] === 'press' && e[2].id === 'Q3' && e[2].phase === 'release' && e[3] > 180); if (L.length && atRel == null) atRel = +L[0][3].toFixed(2); return h; },
       s => s.x > 189.9 || __s2.log.some(e => e[0] === 'fail'));
     return { q1pass: q1pass && +(q1pass).toFixed(2), left: left && +left.toFixed(2), atRel, x: __ff.G.rabbit.x, fails: __s2.log.filter(e => e[0] === 'fail').length, t: +(n / 120).toFixed(1), log: bot.state().log }; })()`);
-  R('W7 the designed flow: at pit C as the great press clanks; out alive', r.fails === 0 && r.x > 189.85 && r.atRel != null && r.atRel >= 184.4 && r.atRel <= 185.95, JSON.stringify(r));
-  /* review fixes 8 Oct: the climax as a player meets it: the designed flow, then stop where the rabbit is 0.6 / 1.4 / 2.0 s after the great press's clank */
+  /* polish pass 8 Oct: the long hall cycles every 10 s, so the designed flow meets the great press's clank in the open about 1.4 m short of slot C */
+  R('W7 the designed flow: sheltering in or at slot C as the great press clanks; out alive', r.fails === 0 && r.x > 189.85 && r.atRel != null && r.atRel >= 181.0 && r.atRel <= 185.95 && r.log.some(l => /pit-C/.test(l)), JSON.stringify(r));
+  /* the climax as a player meets it: the designed flow, then stop where the rabbit is 2.2 / 2.6 s after the great press's clank (in the slot's notch), and walking straight on (a stop at 1.8 s or earlier is short of the notch: the cut, 3.9 s after the clank) */
   const stops = [];
-  for (const after of [0.6, 1.4, 2.0]) {
+  for (const after of [2.2, 2.6, 99]) {
     stops.push(await ev(`(() => { __t.at('works-line', { x: 168.4, line: 4.5 }); let go = null, rel = null, relX = null;
-      const n = __s2.go(120 * 60, s => { const q1 = FF.Works.press('Q1'), q3 = FF.Works.press('Q3'); if (go == null && q1.state === 'rise' && q1.passable) go = s.t + 0.6;
+      const n = __s2.go(120 * 90, s => { const q1 = FF.Works.press('Q1'), q3 = FF.Works.press('Q3'); if (go == null && q1.state === 'rise' && q1.passable) go = s.t + 0.6;
           if (rel == null && go != null && s.t > go && q3.state === 'release' && s.x > 179) { rel = s.t; relX = s.x; }
           if (rel != null && s.t >= rel + ${after}) return {}; return go != null && s.t >= go ? { right: true } : {}; },
-        s => __s2.log.some(e => e[0] === 'fail') || (rel != null && s.t > rel + 6));
+        s => __s2.log.some(e => e[0] === 'fail') || (rel != null && s.t > rel + 6) || s.x > 190);
       return { after: ${after}, relX: relX && +relX.toFixed(2), x: +__ff.G.rabbit.x.toFixed(2), fails: __s2.log.filter(e => e[0] === 'fail').length, slid: __s2.log.filter(e => e[0] === 'works:shove' && e[2].kind === 'ramp').length }; })()`));
   }
-  R('W7 the climax: stopping 0.6, 1.4 or 2.0 s after the great press clanks (wherever that is in the slot) is safe', stops.every(q => q.fails === 0 && q.relX != null && q.relX >= 184.2 && q.relX <= 185.2), JSON.stringify(stops));
+  R('W7 the climax: walking straight on through the great press\'s clank, or stopping 2.2 or 2.6 s after it (in slot C\'s notch), is safe', stops.every(q => q.fails === 0 && q.relX != null && q.relX >= 181.0 && q.relX <= 185.2), JSON.stringify(stops));
 }
 
-/* ---------------- W8: the long hall from every 2 s of arrival phase, four ways */
+/* ---------------- W8: the long hall from every 1 s of arrival phase (the bar is 10 s since the polish pass), five ways */
 if (want('W8')) {
-  for (const line of ['continuous', 'fleeRun', 'cautious', 'runner']) {
+  for (const line of ['continuous', 'fleeRun', 'cautious', 'runner', 'blind']) {
     const res = [];
-    for (let ph = 0; ph < 16; ph += (process.env.FULL ? 1 : 2)) {
+    for (let ph = 0; ph < 10; ph += (process.env.FULL ? 0.5 : 1)) {
       const q = await ev(`(() => { __t.at('works-line', { x: 168.9, line: ${ph} }); const bot = __worksBot({ line: '${line}', end: 'none' }); const n = __s2.go(120 * 90, s => bot(s), s => s.x > 189.9 || __s2.log.some(e => e[0] === 'fail'));
         return { ph: ${ph}, t: +(n / 120).toFixed(1), x: __ff.G.rabbit.x, fails: __s2.log.filter(e => e[0] === 'fail').map(e => e[2].by + '@' + e[3].toFixed(2)), pitC: bot.state().log.some(l => /pit-C/.test(l)), log: bot.state().log.slice(-5) }; })()`);
       res.push(q);
     }
     const bad = res.filter(q => q.fails.length || q.x <= 189.85);
-    R(`W8 the long hall, ${line}: ${res.length - bad.length}/${res.length} out alive`, bad.length === 0, (bad.slice(0, 3).map(q => JSON.stringify(q)).join(' | ') || '') + ` · ${Math.min(...res.map(q => q.t))}-${Math.max(...res.map(q => q.t))} s; pit C used in ${res.filter(q => q.pitC).length}`);
+    if (line === 'blind') {
+      /* Josh (priority 2): holding Shift + Right from the entry floor must not bypass the presses: it is caught from at least 90% of the arrival phases */
+      R(`W8 the long hall, BLIND (Shift + Right held, reads nothing): caught in ${bad.length}/${res.length} arrival phases (at least 90% required)`, bad.length / res.length >= 0.9, 'escaped at phase ' + res.filter(q => !q.fails.length && q.x > 189.85).map(q => q.ph).join(', '));
+    } else R(`W8 the long hall, ${line}: ${res.length - bad.length}/${res.length} out alive`, bad.length === 0, (bad.slice(0, 3).map(q => JSON.stringify(q)).join(' | ') || '') + ` · ${Math.min(...res.map(q => q.t))}-${Math.max(...res.map(q => q.t))} s; pit C used in ${res.filter(q => q.pitC).length}`);
   }
+  /* the restart on the entry floor: the blind run from the works-line restart is caught as well (the picture is back at 0.45 s, control at 1.0 s) */
+  const rs = await ev(`(() => { __ff.release(); FF.Game.restart('works-line', { reason: 'fail' }); FF.Game.control(false); __ff.G.fade = 0; __s2.log.length = 0; __s2.go(120 * 1.05, () => ({})); FF.Game.control(true);
+    const bot = __worksBot({ line: 'blind', end: 'none' }); const n = __s2.go(120 * 30, s => bot(s), s => s.x > 189.9 || __s2.log.some(e => e[0] === 'fail'));
+    return { fails: __s2.log.filter(e => e[0] === 'fail').map(e => e[2].by + '@' + e[3].toFixed(2)), x: +__ff.G.rabbit.x.toFixed(2), t: +(n / 120).toFixed(1) }; })()`);
+  R('W8 a blind run (Shift + Right) from the works-line restart is caught', rs.fails.length >= 1, JSON.stringify(rs));
 }
 
 /* ---------------- W9: every S2 checkpoint: the restart in its core, the danger seen, the way open 2.5-7 s after */
@@ -276,7 +301,7 @@ if (want('W13')) {
   const KC = { ArrowRight: 39, ArrowLeft: 37, ShiftLeft: 16 };
   const key = (code, type, rep, mods) => b.cdp('Input.dispatchKeyEvent', { type: type === 'up' ? 'keyUp' : 'rawKeyDown', code, key: code === 'ShiftLeft' ? 'Shift' : code, windowsVirtualKeyCode: KC[code], nativeVirtualKeyCode: KC[code], autoRepeat: !!rep, modifiers: mods });
   const rows = [];
-  for (const [cp, at, ph, keys] of [['works-line', 170.2, 3.0, ['ArrowRight']], ['works-g1', 175.6, 7.0, ['ArrowRight']], ['works-g1', 175.6, 7.0, ['ShiftLeft', 'ArrowRight']], ['works-g2', 181.6, 11.0, ['ArrowRight']], ['works-g2', 181.6, 11.0, ['ShiftLeft', 'ArrowRight']], ['works-pitC', 184.0, 11.0, ['ShiftLeft', 'ArrowLeft']]]) {
+  for (const [cp, at, ph, keys] of [['works-line', 170.2, 3.0, ['ArrowRight']], ['works-g1', 175.6, 9.0, ['ArrowRight']], ['works-g1', 175.6, 9.0, ['ShiftLeft', 'ArrowRight']], ['works-g2', 181.6, 5.0, ['ArrowRight']], ['works-g2', 181.6, 5.0, ['ShiftLeft', 'ArrowRight']], ['works-pitC', 184.0, 5.0, ['ShiftLeft', 'ArrowLeft']]]) {
     await ev(`(() => { __t.at('${cp}', { x: ${at}, line: ${ph} }); FF.Events.setCheckpoint('${cp}'); __s2.log.length = 0; return true; })()`);
     const mods = keys.includes('ShiftLeft') ? 8 : 0, arrow = keys[keys.length - 1], run = mods > 0;
     for (const k of keys) await key(k, 'down', false, mods);

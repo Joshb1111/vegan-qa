@@ -2,11 +2,11 @@ FAR FIELD · Sequence 2 · THE WORKS · design check (works-sim.mjs) · reaction
 
 == 1. The press grammar (from the RELEASE cue; standing rabbit on the bed, y 0)
   P1  7.00 m  up 2.60 m  period 24  release->lethal 3.887 s (crouched 3.924)  contact 4  passable from 8.88 (rising)  still (up) 12.0 s  window under it 19.00 s
-  Q1  3.80 m  up 2.60 m  period 16  release->lethal 3.887 s (crouched 3.924)  contact 4  passable from 6.66 (rising)  still (up) 7.0 s  window under it 13.23 s
-  Q2  3.80 m  up 2.60 m  period 16  release->lethal 3.887 s (crouched 3.924)  contact 4  passable from 6.66 (rising)  still (up) 7.0 s  window under it 13.23 s
-  Q3  8.00 m  up 3.20 m  period 16  release->lethal 3.909 s (crouched 3.939)  contact 4  passable from 6.59 (rising)  still (up) 7.0 s  window under it 13.31 s
+  Q1  3.80 m  up 2.60 m  period 10  release->lethal 3.887 s (crouched 3.924)  contact 4  passable from 6.66 (rising)  still (up) 1.0 s  window under it 7.23 s
+  Q2  3.80 m  up 2.60 m  period 10  release->lethal 3.887 s (crouched 3.924)  contact 4  passable from 6.66 (rising)  still (up) 1.0 s  window under it 7.23 s
+  Q3  8.00 m  up 3.20 m  period 10  release->lethal 3.909 s (crouched 3.939)  contact 4  passable from 6.59 (rising)  still (up) 1.0 s  window under it 7.31 s
 PASS every press: >= 3.8 s from the unmistakable RELEASE cue to the cut (target >= 1.0-1.5 s, Sequence 1 A7)
-PASS every contact lands on the 4.0 s heartbeat
+PASS every contact lands on the heartbeat or its half (polish pass 8 Oct: the long hall cycles every 10 s, so its contacts fall on the 2.0 s half beat)
   sluice: passable (gap >= 0.18) from P1 phase 3.53; lethal band from 9.66 (closing); window 6.13 s; full open 0.3 m for 4 s
 PASS the sluice window >= 5.0 s
 PASS pit-A core [141.6, 142.6] lies inside the rule's core [141.55, 142.65] (whole body over floor <= -0.26)
@@ -42,15 +42,19 @@ PASS the first descent completes before the fastest rabbit can enter (lead 0.57 
 PASS the first press and the sluice: every walking route survives (no precise timing needed)
 
 == 4b. Routes through the long hall, from every arrival phase of the bar (step 0.25 s)
-  continuous walker (walks on whenever the press ahead is up): 64/64 survive; entry floor -> out of the great press 26.92-38.97 s (mean 32.04); shelters in pit C in 56; least time to spare at a release 1.09 s
+  continuous walker (walks on whenever the press ahead is up): 40/40 survive; entry floor -> out of the great press 46.76-56.51 s (mean 51.63); shelters in pit C in 40; least time to spare at a release 2.60 s
 PASS long hall: the continuous walker (walks on whenever the press ahead is up) survives from every arrival phase
-  walker who runs when a release catches it: 64/64 survive; entry floor -> out of the great press 26.92-38.98 s (mean 32.04); shelters in pit C in 56; least time to spare at a release 1.37 s
+  walker who runs when a release catches it: 40/40 survive; entry floor -> out of the great press 46.14-55.89 s (mean 51.02); shelters in pit C in 40; least time to spare at a release 2.93 s
 PASS long hall: the walker who runs when a release catches it survives from every arrival phase
-  cautious walker (waits in every gap for a fresh rise): 64/64 survive; entry floor -> out of the great press 42.89-58.64 s (mean 50.77); shelters in pit C in 0; least time to spare at a release inf s
+  cautious walker (waits in every gap for a fresh rise): 40/40 survive; entry floor -> out of the great press 46.76-56.51 s (mean 51.63); shelters in pit C in 40; least time to spare at a release 2.38 s
 PASS long hall: the cautious walker (waits in every gap for a fresh rise) survives from every arrival phase
-  runner (Shift all the way): 64/64 survive; entry floor -> out of the great press 8.25-17.89 s (mean 11.25); shelters in pit C in 0; least time to spare at a release inf s
-PASS long hall: the runner (Shift all the way) survives from every arrival phase
-  the designed flow (Q1 just passable, leave after the reaction, walk on): out after 27.56 s · release of Q3 at x 186.45 -> pit-C 0.05 m
+  runner who reads the rhythm (Shift, stops in each gap and goes when the press ahead has risen): 40/40 survive; entry floor -> out of the great press 13.87-23.62 s (mean 19.14); shelters in pit C in 2; least time to spare at a release 2.82 s
+PASS long hall: the runner who reads the rhythm (Shift, stops in each gap and goes when the press ahead has risen) survives from every arrival phase
+  BLIND RUN (Shift + Right held from the entry floor, no reading): caught in 37/40 arrival phases · escapes at phase 1.00, 1.25, 1.50
+PASS long hall: a blind full-speed run is caught from at least 90% of arrival phases
+  BLIND RUN from the works-line restart (control back 1.0 s after it): caught by Q2 at 5.89 s (a 0.4 s later key press: caught by Q2)
+PASS works-line: the blind run from the restart is caught
+  the designed flow (Q1 just passable, leave after the reaction, walk on): out after 47.34 s · release of Q1 at x 171.99 -> on 1.22 m · release of Q2 at x 176.30 -> back 1.51 m · release of Q2 at x 177.87 -> on 0.74 m · release of Q3 at x 181.76 -> back 0.77 m · release of Q3 at x 184.14 -> pit-C 0.66 m · release of Q3 at x 187.95 -> on 1.06 m
 PASS the designed climax: the continuous walker meets the great press's release over pit C and shelters there
   late leavers (leaving 0-9 s after Q1 is passable, every arrival phase, 592 runs): 0 cut
 PASS long hall: leaving late never matters to a walker who reacts to the release
@@ -62,9 +66,9 @@ PASS works-apron: restart in a shelter, the window 2.5-7 s after the restart
 PASS works-pitA: restart in a shelter, the window 2.5-7 s after the restart
   works-pitB     x 145 in pit-B core: true; contact seen 6.51 s after the restart (the picture back 0.45 s after it); the way on opens 6.04 s after
 PASS works-pitB: restart in a shelter, the window 2.5-7 s after the restart
-  works-line     the press ahead (Q1) clanks 0.25 s after the restart
-PASS works-line: the press ahead clanks after the restart, as the picture comes back (its whole telegraph seen and heard)
-  works-line     x 168 in line-entry core: true; contact seen 4.26 s after the restart (the picture back 0.45 s after it); the way on opens 6.92 s after
+  works-line     Q1 touches down 1.00 s after the restart; Q2 clanks 3.01 s after, as Q1 rises (passable 3.67 s)
+PASS works-line: restart with Q1 about to land (a press to read), and Q2's clank as Q1 rises
+  works-line     x 168 in line-entry core: true; contact seen 1.00 s after the restart (the picture back 0.45 s after it); the way on opens 3.67 s after
 PASS works-line: restart in a shelter, the window 2.5-7 s after the restart
   works-g1       the press ahead (Q2) clanks 0.25 s after the restart
 PASS works-g1: the press ahead clanks after the restart, as the picture comes back (its whole telegraph seen and heard)
@@ -79,19 +83,20 @@ PASS works-pitC: the press ahead clanks after the restart, as the picture comes 
   works-pitC     x 185.6 in pit-C core: true; contact seen 4.26 s after the restart (the picture back 0.45 s after it); the way on opens 6.85 s after
 PASS works-pitC: restart in a shelter, the window 2.5-7 s after the restart
 
-== 6. The maintenance worker (Sequence 1's detection model A6; he sees only while turned along the lane)
+== 6. The maintenance worker (Sequence 1's detection model A6 + sound; he sees only while turned along the lane, but hears a run with his back turned)
   waiting in the dark (x 158.19), leaving 0.6 s after the scraping starts, at the cautious walk: max suspicion 0.00 -> never noticed
 PASS the worker never notices a rabbit that passes while he scrapes
   leaving the dark at loop time k (walk): never noticed for k in 0.00-6.25, 10.75-11.75; noticed (the look, no failure) for k in 6.50-10.50
-  running past at k 5.0 (Shift): never noticed (noise never matters)
+  running past at k 5.0 (Shift, his back turned): NOTICED at x 159.79 (he HEARS it)
+PASS a rabbit that RUNS past him while he scrapes is heard (his back turned): the look starts
 PASS the safe window to pass him at a walk is at least 5 s of his 12 s loop
 PASS under the paint pallet (crouched, x 156.2) he never sees the rabbit, at any moment of his loop
   standing in his light at x 159.6 (careless): NOTICE at loop time 9.18 (the scraping stopped at 8.00, he turned at 8.50): the look, 2.0 s, then he goes back to the wall; no failure
 PASS a careless rabbit in his light when he turns IS noticed (so the moment can happen)
 
 == Timing estimate for a first play (walking; distances from the data; waits from the bots above)
-  join 10.00 + creep 3.07 + first press & sluice (pit to pit, mean) 44.90 + culvert 9.16 + passage & worker 30.32 + watching the line 8.00 + long hall (cautious, mean) 50.77 + rest & ending (a) 34.88 + looking around 25
-  = about 3:36 with no failure; each failure +15-25 s
+  join 10.00 + creep 3.07 + first press & sluice (pit to pit, mean) 44.90 + culvert 9.16 + passage & worker 30.32 + watching the line 8.00 + long hall (cautious, mean) 51.45 + rest & ending (a) 34.88 + looking around 25
+  = about 3:37 with no failure; each failure +15-25 s
 PASS a first play lands in 3-5 minutes
 
 PASS (every check)

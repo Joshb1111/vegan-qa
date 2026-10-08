@@ -17,9 +17,9 @@
    shoulders rounded forward, head carried a little low.
    Model slots: models/models.json "human" / "van" (ASSETS-3D.md). No file = these stand-ins. A file is loaded lazily
    (GLTFLoader r128) and driven by its named clips; props by node name (prop_torch, prop_longgun, prop_coil, prop_pack).
-   THE REAL PEOPLE (8 Oct): ?people=models draws the three rigged guard models instead of the stand-in: ff_guard1.glb (the Verge
+   THE REAL PEOPLE (8 Oct; the DEFAULT since the polish pass, ?people=standin for the stand-ins): they draw the three rigged guard models instead of the stand-in: ff_guard1.glb (the Verge
    person), ff_guard2.glb (the searcher), ff_guard3.glb (the walkway worker and the Works painter). Visual only: see the section
-   "the real people" below. Default (no switch) is unchanged.
+   "the real people" below. Default (no switch): the models.
    OWNER: the humans + events builder. API contract: docs/farfield/INTERFACES.md §8.5. */
 'use strict';
 window.FF = window.FF || {};
@@ -320,8 +320,9 @@ function modelPoseLegacy(f, dt) {
    the clip does the turning (its progress follows the turn the AI is making, and at the end the figure takes the AI's yaw, which
    the clip's last pose already faces: a hard cut, no blend). */
 function peopleOn() {
-  try { if (/(^|[?&])people=models(&|$)/.test(location.search)) return true; } catch (_) {}
-  return !!(FF.MODELS && FF.MODELS.people === 'models');
+  /* polish pass 8 Oct: the three guard models are the DEFAULT (Josh); ?people=standin (or FF.MODELS.people = 'standin') brings the stand-ins back */
+  try { if (/(^|[?&])people=standin(&|$)/.test(location.search)) return false; if (/(^|[?&])people=models(&|$)/.test(location.search)) return true; } catch (_) {}
+  return !(FF.MODELS && FF.MODELS.people === 'standin');
 }
 const PEOPLE_FILE = { verge: 'ff_guard1.glb', searcher: 'ff_guard2.glb', worker: 'ff_guard3.glb', painter: 'ff_guard3.glb' };
 /* per role: idle, walk (an upright walk), search (the careful walk with the torch out), run, and the role's own clips */
