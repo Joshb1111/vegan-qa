@@ -142,7 +142,9 @@ if (want('W2')) {
       __s2.go(120 * 4, () => ({ ${dir}: true, run: true }), () => { const p = FF.Works.press('${id}'); if (p.state !== 'down') return true; if (r.x + hw > p.x0 && r.x - hw < p.x1) minClear = Math.min(minClear, p.y - r.y); x1 = r.x; return false; });
       return { case: '${cp} ${dir}', x: +x1.toFixed(3), minClear: +minClear.toFixed(3), fails: __s2.log.filter(e => e[0] === 'fail').length }; })()`));
   }
-  R('W2 a pressed-down press is solid from inside its slot (holding a direction with Shift, slots A, B, C): the floor never closer than 0.18 m to the iron', rows.every(q => q.minClear >= 0.179 && q.fails === 0), JSON.stringify(rows));
+  /* fix 8 Oct, round 2: the pressed-down press is a LID over its slot: the floor under the rabbit stays 0.40 under the iron (its
+     whole body on the slot's floor, the drawn rabbit below the platen's front edge), no longer 0.18 (wedged under the iron) */
+  R('W2 a pressed-down press closes its slot like a lid (holding a direction with Shift, slots A, B, C): the rabbit stays on the slot\'s floor, 0.40 m under the iron', rows.every(q => q.minClear >= 0.399 && q.fails === 0), JSON.stringify(rows));
   /* standing anywhere in a slot's dark notch (its ramps) as the press comes down: slides into the core, never cut */
   const ramps = [];
   for (const [cp, clock, pre, x] of [['works-apron', 'P1', 23.0, 141.3], ['works-apron', 'P1', 23.0, 141.5], ['works-apron', 'P1', 23.0, 142.8], ['works-apron', 'P1', 23.0, 143.05], ['works-apron', 'P1', 23.0, 144.3], ['works-g2', 'line', 7.0, 184.45], ['works-g2', 'line', 7.0, 186.75]]) {
@@ -263,6 +265,36 @@ if (want('W11')) {
   R('W11 back in the Search from the Works, a Search cover never becomes the checkpoint again', back.length > 0 && back.every(s => /->works-apron$/.test(s)), JSON.stringify(back));
   const ch = await ev(`(() => ({ edge: FF.Level.solid('channel-edge'), restTrig: FF.Level.data.triggers.find(t => t.id === 'rest'), restZone: FF.S1.camera.zones.find(z => z.id === 'rest') }))()`);
   R('W11 the lane: no channel-edge stop; rest trigger 116-127 with no auto-stop; rest camera without maxX', !ch.edge && ch.restTrig.alt.x1 === 127 && ch.restTrig.autoStopAfter == null && ch.restZone.maxX == null, JSON.stringify(ch));
+}
+
+/* ---------------- W13 (fix 8 Oct, round 2): a key held through a failure's black never walks the rabbit back into the danger.
+   Real CDP key events, the arrow auto-repeating every 0.1 s as a held key does (Shift held too, as its modifier). Caught under
+   the press ahead of each long-hall restart and still holding: exactly one cut in the 9 s after it, the rabbit still at the
+   restart point with the key latched; let go and pressed again once the way is open, it walks on (with Shift held, it runs). */
+if (want('W13')) {
+  await sleep(7000);        // an end card left pending by W10 (real-time timers, 6 s) goes back to the title: let it finish first
+  const KC = { ArrowRight: 39, ArrowLeft: 37, ShiftLeft: 16 };
+  const key = (code, type, rep, mods) => b.cdp('Input.dispatchKeyEvent', { type: type === 'up' ? 'keyUp' : 'rawKeyDown', code, key: code === 'ShiftLeft' ? 'Shift' : code, windowsVirtualKeyCode: KC[code], nativeVirtualKeyCode: KC[code], autoRepeat: !!rep, modifiers: mods });
+  const rows = [];
+  for (const [cp, at, ph, keys] of [['works-line', 170.2, 3.0, ['ArrowRight']], ['works-g1', 175.6, 7.0, ['ArrowRight']], ['works-g1', 175.6, 7.0, ['ShiftLeft', 'ArrowRight']], ['works-g2', 181.6, 11.0, ['ArrowRight']], ['works-g2', 181.6, 11.0, ['ShiftLeft', 'ArrowRight']], ['works-pitC', 184.0, 11.0, ['ShiftLeft', 'ArrowLeft']]]) {
+    await ev(`(() => { __t.at('${cp}', { x: ${at}, line: ${ph} }); FF.Events.setCheckpoint('${cp}'); __s2.log.length = 0; return true; })()`);
+    const mods = keys.includes('ShiftLeft') ? 8 : 0, arrow = keys[keys.length - 1], run = mods > 0;
+    for (const k of keys) await key(k, 'down', false, mods);
+    let cutT = null;
+    for (let i = 0; i < 200; i++) {
+      await ev('__s2.go(12); true'); await key(arrow, 'down', true, mods);
+      const f = await ev(`(() => { const e = __s2.log.find(e => e[0] === 'fail'); return e ? e[1] : null; })()`);
+      if (f != null && cutT == null) cutT = f;
+      if (cutT != null && (await ev('__ff.G.t')) - cutT >= 9.0) break;
+    }
+    const held = await ev(`(() => { const c = FF.Level.checkpoint('${cp}'), r = __ff.G.rabbit; return { fails: __s2.log.filter(e => e[0] === 'fail').length, restarts: __s2.log.filter(e => e[0] === 'restart').length, dx: +Math.abs(r.x - c.x).toFixed(3), latched: FF.Input.latched, cp: __ff.G.checkpoint }; })()`);
+    await key(arrow, 'up', false, mods); await ev('__s2.go(12); true'); await key(arrow, 'down', false, mods);
+    const again = await ev(`(() => { const x0 = __ff.G.rabbit.x; let v = 0; for (let i = 0; i < 120; i++) { __ff.tick(); v = Math.max(v, Math.abs(__ff.G.rabbit.vx)); } __ff.flush(); return { moved: +Math.abs(__ff.G.rabbit.x - x0).toFixed(2), vmax: +v.toFixed(2), fails: __s2.log.filter(e => e[0] === 'fail').length }; })()`);
+    for (const k of [...keys].reverse()) await key(k, 'up', false, 0);
+    rows.push({ cp, keys: keys.join('+'), ...held, again });
+  }
+  R('W13 a key held through a failure\'s black (real keys, auto-repeat; walking and with Shift): one cut, then it stays at the restart point until let go and pressed again', rows.every(q => q.fails === 1 && q.restarts === 1 && q.dx < 0.05 && q.latched.length > 0), JSON.stringify(rows.map(q => ({ cp: q.cp, keys: q.keys, fails: q.fails, dx: q.dx, latched: q.latched }))));
+  R('W13 let go and pressed again once the way is open: it walks on, and runs with Shift still held (a125461\'s rule)', rows.every(q => q.again.fails === 1 && q.again.moved > 0.3 && (q.keys.startsWith('ShiftLeft') ? q.again.vmax >= 2.7 : q.again.vmax <= 0.96)), JSON.stringify(rows.map(q => ({ cp: q.cp, keys: q.keys, ...q.again }))));
 }
 
 /* ---------------- W12: the real settle chains (the Player's), no fired events */

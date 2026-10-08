@@ -104,13 +104,21 @@ const rawDown = a => !!(keys[a] || bot[a] || pad[a]);
    never bolts the rabbit off. It ends at once with any Shift press or release after control is back (a keydown that is not
    an auto-repeat, a keyup, a pad edge, a bot hold change), and in any case when the takeover's grace ends (graceEnd(), from
    FF.Events): Shift always runs once the searcher can see the rabbit again. A Shift pressed after control is back runs as
-   soon as the direction it goes with acts. */
+   soon as the direction it goes with acts.
+   AFTER A FAILURE (fix 8 Oct, round 2: a player caught walking forward who kept holding → through the black was walked
+   straight back under the press that had just come down, again and again): FF.Events latches at the failure restart too,
+   with latch(list, {resume: false}): a direction or jump held without a break through the cut never acts until it is let
+   go and pressed again (no resume: 0.8 s after control the press ahead may still be coming down), and the restart keeps
+   held keys held (clear(true)) so an auto-repeat that comes late cannot slip past the latch. Shift is the a125461 rule: a
+   Shift held through the cut is never held back by itself (no direction resumes), so Shift + a direction pressed afresh
+   runs at once, and a Shift press or release ends heldRun as always. */
 const LATCH_RESUME = 0.8, DIRS = { left: 1, right: 1 };
+let latchResume = true;              // false while the latch is a failure restart's (no resume: a direction acts only when pressed again)
 const fresh = a => { if (latched[a] && pressed[a]) latched[a] = false; };
 /* a release or a fresh press: while control is off it marks the action broken (not latched); once control is back, a run
    edge ends the hold-back of a run held through the takeover */
 const edge = a => { if (!G.control) broke[a] = true; else if (a === 'run') heldRun = false; };
-const resumeCheck = a => { if (latched[a] && DIRS[a] && latchAt >= 0 && G.t - latchAt >= LATCH_RESUME && rawDown(a)) { latched[a] = false; resumed[a] = true; } };
+const resumeCheck = a => { if (latched[a] && DIRS[a] && latchResume && latchAt >= 0 && G.t - latchAt >= LATCH_RESUME && rawDown(a)) { latched[a] = false; resumed[a] = true; } };
 FF.Input = {
   /* held now (keyboard, gamepad or a bot hold), unless latched; 'run' is not held while it is the run held through a
      takeover (heldRun) and a resumed direction walks on */
@@ -124,9 +132,10 @@ FF.Input = {
   /* control is going off (a takeover): from now on a release or a fresh press of an action marks it as broken */
   off() { offAt = G.t; for (const k in broke) broke[k] = false; },
   /* latch every action in `list` held now without a break since off(); returns the ones latched. A run held now is the
-     run held through the takeover (heldRun) until it is pressed or let go again, or the grace ends */
-  latch(list) { const out = []; latchAt = G.t; heldRun = rawDown('run'); for (const a of list) if (rawDown(a) && !broke[a]) { latched[a] = true; out.push(a); } for (const k in broke) broke[k] = false; return out; },
-  unlatch() { for (const k in latched) latched[k] = false; for (const k in resumed) resumed[k] = false; latchAt = -1; heldRun = false; },
+     run held through the takeover (heldRun) until it is pressed or let go again, or the grace ends. opts.resume false (a
+     failure restart): a latched direction never resumes by itself, it acts only when let go and pressed again */
+  latch(list, opts) { const out = []; latchAt = G.t; latchResume = !(opts && opts.resume === false); heldRun = rawDown('run'); for (const a of list) if (rawDown(a) && !broke[a]) { latched[a] = true; out.push(a); } for (const k in broke) broke[k] = false; return out; },
+  unlatch() { for (const k in latched) latched[k] = false; for (const k in resumed) resumed[k] = false; latchAt = -1; latchResume = true; heldRun = false; },
   /* the takeover's grace is over (FF.Events): a run held through it is no longer held back */
   graceEnd() { heldRun = false; },
   get latched() { return Object.keys(latched).filter(k => latched[k]); },
@@ -134,8 +143,10 @@ FF.Input = {
   get heldRun() { return heldRun; },
   /* a restart, pause or resume drops every held key (a real keyboard sends no new keydown for a key already down), EXCEPT
      Shift ('run'): a held modifier never repeats on macOS, so dropping it made a player still holding Shift only walk, just as
-     they tried to escape. Shift's state is also re-read from every key event's modifier (keydown / keyup below). */
-  clear() { for (const k in keys) if (k !== 'run') keys[k] = false; for (const k in pressed) pressed[k] = false; for (const k in pad) pad[k] = false; for (const k in latched) latched[k] = false; for (const k in resumed) resumed[k] = false; heldRun = false; },
+     they tried to escape. Shift's state is also re-read from every key event's modifier (keydown / keyup below).
+     keepHeld (a failure restart, fix 8 Oct round 2): held keys stay held, because the failure's latch decides what they do
+     (dropping them let the next auto-repeat keydown carry the rabbit straight back under the press) */
+  clear(keepHeld) { if (!keepHeld) for (const k in keys) if (k !== 'run') keys[k] = false; for (const k in pressed) pressed[k] = false; for (const k in pad) pad[k] = false; for (const k in latched) latched[k] = false; for (const k in resumed) resumed[k] = false; heldRun = false; },
   endStep() { for (const k in pressed) pressed[k] = false; for (const k in latched) if (latched[k] && !rawDown(k)) latched[k] = false; for (const k in resumed) if (resumed[k] && !rawDown(k)) resumed[k] = false; if (heldRun && !rawDown('run')) heldRun = false; },
   get lastInputT() { return lastInputT; },
   /* bot hooks (also on __ff). Game.control(false) releases bot holds (sysRel): a plan that holds the same key again right
@@ -179,7 +190,7 @@ const Game = FF.Game = {
     opts = Object.assign({ reason: 'warp' }, opts || {});
     G.checkpoint = cp.id;
     for (const m of RESET) call(m, 'reset', cp, opts);
-    FF.Input.clear(); acc = 0;
+    FF.Input.clear(opts.reason === 'fail'); acc = 0;           // a failure keeps held keys: FF.Events latches them when control returns
     FF.bus.emit('restart', { cp: cp.id, reason: opts.reason });
     return cp;
   },

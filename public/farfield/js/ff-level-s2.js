@@ -125,17 +125,23 @@ FF.S2 = {
   /* checkpoints, after Sequence 1's (rest 116.0). Machine phases at restart (`works`): the restarting shelter is safe at every
      phase; the player sees the danger operate once (a descent and contact) and the next window opens 2.5-7 s after the
      restart (works-sim.mjs, "checkpoints"). Failure restores the last checkpoint reached: progress ones by x, shelter ones
-     (pits, gaps) when the rabbit's centre is in that shelter's core, in any order. */
+     (pits, gaps) when the rabbit's centre is in that shelter's core, in any order.
+     The long hall (fix 8 Oct, round 2): every restart there faces the way on with the press ahead CLANKING 0.25 s after the
+     restart, as the picture comes back (the black ends at 0.45 s): its whole telegraph (the clank, the jolt, the water, the
+     lamp's flicker), then the fall and the thud 4.25 s after, and the way open 6.84-6.91 s after. It used to restart with
+     that press already starting its fall (the clank unheard, under the black): a player who walked on at once met a press
+     that looked still and came down 1.9 s after the restart. A direction held through the black never moves the rabbit
+     (FF.Events latches it); facing the way on keeps the press ahead in frame (facing back put most of it off-screen). */
   checkpoints: [
     { id: 'works-in',      x: 124.4, y: 0,     face: 1, save: true, note: 'the start for ?start=works / "Continue from the Works": on the rest\'s grass, the slab and the colossal wall ahead' },
     { id: 'works-apron',   x: 137.0, y: 0,     face: 1, works: { P1: 2.0 }, note: 'P1 descending: contact 2.0 s after the restart' },
     { id: 'works-pitA',    x: 142.1, y: -0.40, face: 1, pose: 'hide', when: 'centre in pit A core', works: { P1: 5.0 }, note: 'pressed down over the pit; it rises 3 s after the restart' },
     { id: 'works-pitB',    x: 145.0, y: -0.40, face: 1, pose: 'hide', when: 'centre in pit B core', works: { P1: 21.5 }, note: 'the release 2.5 s after the restart; the sluice passable 6.04 s after' },
     { id: 'works-passage', x: 153.6, y: 0,     face: 1, painter: { loopT: 2.0 } },
-    { id: 'works-line',    x: 168.0, y: 0,     face: 1, save: true, works: { line: 2.0 }, note: 'Q1 descending: contact 2.0 s after the restart, passable 4.66 s after' },
-    { id: 'works-g1',      x: 174.0, y: 0,     face: 1, when: 'centre in G1 core', works: { line: 6.0 }, note: 'Q2 descending ahead; passable 4.66 s after the restart' },
-    { id: 'works-g2',      x: 179.8, y: 0,     face: 1, when: 'centre in G2 core', works: { line: 10.0 }, note: 'Q3 descending ahead; passable 4.60 s after the restart' },
-    { id: 'works-pitC',    x: 185.6, y: -0.40, face: 1, pose: 'hide', when: 'centre in pit C core', works: { line: 10.0 }, note: 'the great press comes down over the pit, rises, then walk out right (3.4 m)' },
+    { id: 'works-line',    x: 168.0, y: 0,     face: 1, save: true, works: { line: 15.75 }, note: 'Q1 clanks 0.25 s after the restart: contact 4.25 s after, passable 6.91 s after' },
+    { id: 'works-g1',      x: 174.0, y: 0,     face: 1, when: 'centre in G1 core', works: { line: 3.75 }, note: 'Q2 ahead clanks 0.25 s after the restart (Q1 behind lands as it does); passable 6.91 s after' },
+    { id: 'works-g2',      x: 179.8, y: 0,     face: 1, when: 'centre in G2 core', works: { line: 7.75 }, note: 'the great press ahead clanks 0.25 s after the restart (Q2 behind lands as it does); passable 6.84 s after' },
+    { id: 'works-pitC',    x: 185.6, y: -0.40, face: 1, pose: 'hide', when: 'centre in pit C core', works: { line: 7.75 }, note: 'the great press clanks 0.25 s after the restart and comes down over the pit, rises (passable 6.84 s after), then walk out right (3.4 m)' },
     { id: 'works-out',     x: 195.2, y: 0,     face: 1, save: true },
   ],
 

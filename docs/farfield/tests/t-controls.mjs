@@ -163,6 +163,24 @@ try {
   R.shiftRestart.vmax = Math.max(...sr.map(q => Math.abs(q.vx)));
   ck('Shift held through a failure and restart: the next arrow runs (2.75 m/s)', R.shiftRestart.vmax >= 2.7, R.shiftRestart);
   await T(30);
+  /* ---- fix 8 Oct, round 2: an arrow held through a failure's black (auto-repeating, Shift too) never moves the rabbit after the
+     restart until it is let go and pressed again (the Search: caught in the open, still holding → , restarted under the deck) */
+  await up('ShiftLeft'); await b.ev(`__ff.warp('search-platform'); true`); await T(30);
+  R.heldFail = {};
+  for (const shift of [false, true]) {
+    if (shift) await down('ShiftLeft');
+    await down('ArrowRight'); await T(12); await b.ev("FF.Events.fail('caught'); true");
+    for (let i = 0; i < 40; i++) { await T(6); await b.key('ArrowRight', 'down', { autoRepeat: true }); }        // 2 s of auto-repeat: the black and 1 s after control
+    const x0 = (await T(1)).at(-1).x;
+    for (let i = 0; i < 20; i++) { await T(6); await b.key('ArrowRight', 'down', { autoRepeat: true }); }        // 1 s more, still held
+    const held = await T(1), latched = await b.ev('FF.Input.latched');
+    await up('ArrowRight'); await T(6); await down('ArrowRight'); const again = await T(96, 6); await up('ArrowRight');
+    if (shift) await up('ShiftLeft');
+    R.heldFail[shift ? 'shift' : 'walk'] = { control: held.at(-1).control, moved: +Math.abs(held.at(-1).x - x0).toFixed(3), latched, againMoved: +Math.abs(again.at(-1).x - held.at(-1).x).toFixed(2), againVmax: Math.max(...again.map(q => Math.abs(q.vx))) };
+    await b.ev(`__ff.warp('search-platform'); true`); await T(30);
+  }
+  ck('an arrow held through a failure (auto-repeating) does not move the rabbit after the restart; let go and pressed again it walks, with Shift held it runs', R.heldFail.walk.control && R.heldFail.walk.moved === 0 && R.heldFail.walk.latched.includes('right') && R.heldFail.walk.againMoved > 0.3 && R.heldFail.walk.againVmax <= 0.96 && R.heldFail.shift.moved === 0 && R.heldFail.shift.againVmax >= 2.7, R.heldFail);
+  await down('ShiftLeft'); await T(10);
   await down('ArrowLeft'); await T(30);
   await down('Escape'); await up('Escape'); await b.ev('__ff.step(1); true'); R.pauseKeys = await b.ev(`(() => { const e = document.querySelector('#ui .pause .keys'); return { mode: __ff.G.mode, text: e ? e.textContent.replace(/\\s+/g, ' ').trim() : null } })()`);
   await shot('controls-pause-keys', 'controls-v2-01-pause-shows-controls.jpg');

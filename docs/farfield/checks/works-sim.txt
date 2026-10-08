@@ -56,19 +56,27 @@ PASS the designed climax: the continuous walker meets the great press's release 
 PASS long hall: leaving late never matters to a walker who reacts to the release
 
 == 5. Checkpoints: restart safe, the danger seen operating, the window 2.5-7 s after the restart
-  works-apron    x 137 in apron core: true; contact seen 2.00 s after the restart (picture back at 1.25); the way on opens 6.89 s after
+  works-apron    x 137 in apron core: true; contact seen 2.00 s after the restart (the picture back 0.45 s after it); the way on opens 6.89 s after
 PASS works-apron: restart in a shelter, the window 2.5-7 s after the restart
-  works-pitA     x 142.1 in pit-A core: true; contact seen 0.00 s after the restart (picture back at 1.25); the way on opens 3.89 s after
+  works-pitA     x 142.1 in pit-A core: true; contact seen 0.00 s after the restart (the picture back 0.45 s after it); the way on opens 3.89 s after
 PASS works-pitA: restart in a shelter, the window 2.5-7 s after the restart
-  works-pitB     x 145 in pit-B core: true; contact seen 6.51 s after the restart (picture back at 1.25); the way on opens 6.04 s after
+  works-pitB     x 145 in pit-B core: true; contact seen 6.51 s after the restart (the picture back 0.45 s after it); the way on opens 6.04 s after
 PASS works-pitB: restart in a shelter, the window 2.5-7 s after the restart
-  works-line     x 168 in line-entry core: true; contact seen 2.00 s after the restart (picture back at 1.25); the way on opens 4.67 s after
+  works-line     the press ahead (Q1) clanks 0.25 s after the restart
+PASS works-line: the press ahead clanks after the restart, as the picture comes back (its whole telegraph seen and heard)
+  works-line     x 168 in line-entry core: true; contact seen 4.26 s after the restart (the picture back 0.45 s after it); the way on opens 6.92 s after
 PASS works-line: restart in a shelter, the window 2.5-7 s after the restart
-  works-g1       x 174 in G1 core: true; contact seen 2.00 s after the restart (picture back at 1.25); the way on opens 4.67 s after
+  works-g1       the press ahead (Q2) clanks 0.25 s after the restart
+PASS works-g1: the press ahead clanks after the restart, as the picture comes back (its whole telegraph seen and heard)
+  works-g1       x 174 in G1 core: true; contact seen 4.26 s after the restart (the picture back 0.45 s after it); the way on opens 6.92 s after
 PASS works-g1: restart in a shelter, the window 2.5-7 s after the restart
-  works-g2       x 179.8 in G2 core: true; contact seen 2.00 s after the restart (picture back at 1.25); the way on opens 4.60 s after
+  works-g2       the press ahead (Q3) clanks 0.25 s after the restart
+PASS works-g2: the press ahead clanks after the restart, as the picture comes back (its whole telegraph seen and heard)
+  works-g2       x 179.8 in G2 core: true; contact seen 4.26 s after the restart (the picture back 0.45 s after it); the way on opens 6.85 s after
 PASS works-g2: restart in a shelter, the window 2.5-7 s after the restart
-  works-pitC     x 185.6 in pit-C core: true; contact seen 2.00 s after the restart (picture back at 1.25); the way on opens 4.60 s after
+  works-pitC     the press ahead (Q3) clanks 0.25 s after the restart
+PASS works-pitC: the press ahead clanks after the restart, as the picture comes back (its whole telegraph seen and heard)
+  works-pitC     x 185.6 in pit-C core: true; contact seen 4.26 s after the restart (the picture back 0.45 s after it); the way on opens 6.85 s after
 PASS works-pitC: restart in a shelter, the window 2.5-7 s after the restart
 
 == 6. The maintenance worker (Sequence 1's detection model A6; he sees only while turned along the lane)

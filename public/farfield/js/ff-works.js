@@ -18,7 +18,10 @@
    THE RAMP SLIDE (review fixes 8 Oct; the same path, kind 'ramp'): a rabbit whose centre is in a slot's visible notch but
    outside its core (on a ramp, where the ground dips below the bed) and whose back would meet the platen slides down into the
    core in the last moments of the descent (ramp.lead s before contact, or as the iron comes within ramp.margin), 0.12-0.25 s.
-   The whole dark notch is a shelter, as it reads.
+   The whole dark notch is a shelter, as it reads. Fix 8 Oct, round 2: it slides on to where its whole body stands on the
+   slot's floor (the pit's floor span, inset by hw + ramp.inset), under the lid the Player keeps (ff-player.js P.slotLid), so
+   the drawn rabbit stays below the pressed-down platen's front edge (at the core's edge, on the foot of the ramp, a sniff or a
+   held direction showed its head above it).
    THE SLUICE: its gap above pit B's floor follows P1 (lifts while P1 comes down, held open 0.30 while it presses, closes over
    its rise). Closing, it never cuts (review fixes 8 Oct): as its lower edge reaches the back of a rabbit under it, the rabbit
    is carried clear to the side its centre is on (slot B or the sill), kind 'gate'.
@@ -73,12 +76,21 @@ function sluiceState(p1phase) { const M = FF.S2.works.P1.marks; return p1phase <
 const passableY = (state, y) => state === 'up' || (state === 'rise' && y >= PR().passClear);
 
 /* ================================================================== the machines (from FF.S2.works) */
-let M = null, MI = {}, SLU = null;
+let M = null, MI = {}, SLU = null; const SLIDE = {};
 function build() {
   const WK = FF.S2.works, solid = id => (FF.S2.solids || []).find(s => s.id === id) || null;
   M = [Object.assign({}, WK.P1, { offset: 0, clock: 'P1', marks: WK.P1.marks, period: WK.P1.period })]
     .concat(WK.line.platens.map(q => Object.assign({}, q, { clock: 'line', marks: WK.line.marks, period: WK.line.period })));
   MI = {}; for (const m of M) { m.solidRef = solid(m.solid); m.great = m.id === 'Q3'; m.pits = (FF.S2.shelters || []).filter(s => s.kind === 'pit' && s.under === m.id); m.wallRight = !!m.rightWall; MI[m.id] = m; }
+  /* each pit's floor span (where the ground is at its floor, within its notch) and where the ramp slide ends: the whole body on it */
+  const hw = FF.RULES.rabbit.hw, inset = (PR().ramp || {}).inset || 0;
+  const gr = FF.S2.ground || [], gY = x => { let y = null; for (let i = 0; i + 1 < gr.length; i++) { const a = gr[i], c = gr[i + 1]; if (x >= a[0] && x <= c[0] && c[0] > a[0]) { y = a[1] + (c[1] - a[1]) * (x - a[0]) / (c[0] - a[0]); if (x < c[0]) break; } } return y; };
+  for (const p of (FF.S2.shelters || []).filter(s => s.kind === 'pit')) {
+    let f0 = null, f1 = null;
+    for (let x = p.x0; x <= p.x1 + 1e-9; x += 0.005) { const y = gY(x); if (y != null && y <= p.floor + 1e-6) { if (f0 == null) f0 = x; f1 = x; } }
+    if (f0 == null) { f0 = p.core[0]; f1 = p.core[1]; }
+    SLIDE[p.id] = [Math.min(p.core[1], f0 + hw + inset), Math.max(p.core[0], f1 - hw - inset)];
+  }
   SLU = Object.assign({}, WK.sluice, { solidRef: solid(WK.sluice.solid) });
 }
 const C = { P1: { on: false, base: 0, t: 0 }, line: { on: false, base: 0, t: 0 } };
@@ -168,18 +180,21 @@ function hazards(dt) {
     if (centreIn) {
       /* a pit core: the platen stops at y 0, over its back. Review fixes 8 Oct: airborne too (a startled hop in the slot); the
          Player holds a rabbit in the air under the descending platen (it is a ceiling there) */
-      if (inPitCore(m, r.x)) continue;
+      /* fix 8 Oct, round 2: a rabbit in the core but off the slot's floor (at the core's edge, on the foot of a ramp) settles
+         onto it the same way, so it is drawn under the lid; it was never in danger there */
+      const core = inPitCore(m, r.x);
       /* the slot's ramps (the rest of the visible notch): sliding down into the core (involuntary, like the chamfer shove) */
       if (st.shove && st.shove.kind === 'ramp' && st.shove.id === m.id) continue;
-      const notch = inNotch(m, r.x);
-      if (notch && r.y + h + P.lethalMargin > 0) {
+      const notch = core || inNotch(m, r.x), sl = notch && SLIDE[notch.id], off = !!sl && (r.x < sl[0] - 1e-6 || r.x > sl[1] + 1e-6);
+      if (notch && (core ? off : r.y + h + P.lethalMargin > 0)) {
         const RP = P.ramp, tc = m.marks.contact - c.phase;
         if (tc <= RP.lead + 1e-9 || c.y < r.y + h + P.lethalMargin + RP.margin) {
-          const to = r.x < notch.core[0] ? notch.core[0] + RP.inset : notch.core[1] - RP.inset;
+          const to = sl ? (r.x < sl[0] ? sl[0] : sl[1]) : r.x < notch.core[0] ? notch.core[0] + RP.inset : notch.core[1] - RP.inset;
           startShove(m.id, r, to, Math.max(RP.minTime, Math.min(RP.maxTime, Math.abs(to - r.x) / RP.speed)), 'ramp');
           continue;
         }
       }
+      if (core) continue;
       if (c.y < r.y + h + P.lethalMargin) { cut(m.id, r); return; }
     } else if (!st.shove) {
       const tc = m.marks.contact - c.phase;

@@ -312,9 +312,15 @@ for (const c of S2.checkpoints.filter(k => k.works)) {
     ph = c.works.line; period = LINE.period; ahead = c.id === 'works-pitC' ? QS[2] : QS.find(q => q.x0 > c.x);
     window = firstTime(t => { const L = lineState(ahead, mod(ph + t, period)); return L.s === 'rise' && L.y >= PR.passClear; }, 0, 40, 0.01);
     contact = firstTime(t => lineState(ahead, mod(ph + t, period)).s === 'down', 0, 40, 0.01);
+    /* fix 8 Oct, round 2: the press ahead clanks AFTER the restart, as the picture comes back (the black ends 0.45 s after the
+       restart), so its whole telegraph is heard and seen; it used to restart already falling, the clank lost under the black */
+    const clank = firstTime(t => t > 0 && lineState(ahead, mod(ph + t, period)).s === 'release' && lineState(ahead, mod(ph + t - 0.01, period)).s === 'up', 0, 40, 0.01);
+    const inRelease = lineState(ahead, mod(ph, period)).s !== 'up';
+    log(`  ${c.id.padEnd(14)} the press ahead (${ahead.id}) clanks ${f2(clank)} s after the restart`);
+    check(!inRelease && clank > 0 && clank <= 0.5, `${c.id}: the press ahead clanks after the restart, as the picture comes back (its whole telegraph seen and heard)`);
   }
-  const pic = RU.fail.black + RU.fail.fadeIn;
-  log(`  ${c.id.padEnd(14)} x ${c.x} in ${shel ? shel.id : '?'} core: ${inCore}; contact seen ${f2(contact)} s after the restart (picture back at ${f2(pic)}); the way on opens ${f2(window)} s after`);
+  const pic = RU.fail.fadeIn;          // the restart comes RU.fail.black after the cut; the picture is back fadeIn after the restart
+  log(`  ${c.id.padEnd(14)} x ${c.x} in ${shel ? shel.id : '?'} core: ${inCore}; contact seen ${f2(contact)} s after the restart (the picture back ${f2(pic)} s after it); the way on opens ${f2(window)} s after`);
   check(inCore && window >= 2.5 && window <= 7.0, `${c.id}: restart in a shelter, the window 2.5-7 s after the restart`);
 }
 

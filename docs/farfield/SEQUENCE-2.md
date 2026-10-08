@@ -13,6 +13,8 @@ Data that matches this document exactly:
 
 **Review fixes, 8 Oct** (three reviewers played the integrated build for the experience, fairness and engineering; what changed and why: `STATUS.md` §S2.1; the interfaces: `INTERFACES.md`, "Sequence 2 review fixes"). They amend this design where they differ, marked *(8 Oct)* below: the whole visible notch of a slot is a shelter (a rabbit on a ramp slides down into the core at the last moment, like the chamfer shove); a pressed-down press is solid from inside its slot; no hop in a slot while its press comes down; the gate never cuts (it carries a rabbit under it clear); slot C is 0.6 m wider on the exit side, so stopping in it at the climax is robust (anywhere in the notch within about 2.2 s of the clank); the culvert drop is one-way with hops too (a 6 cm steel angle); the clank's muted twins (a spill of drops off the platen's lower edge at once, the lamp's flicker); the gate's light hangs in the mist before slot B; the worker's tripod lamp within his reach (he lifts it into his hand); his loop resumes at the scraping after a look; the rabbit stays ALERT near the presses; the far windows now show; the endings' frames; no puddle discs; the long hall's gaps darker. The design check (`works-sim.mjs`) and its port (`check-works.mjs`) pass on the new data.
 
+**Review fixes, round 2, 8 Oct** (the engineering and fairness re-reviews; `STATUS.md` §S2.2): marked *(8 Oct, round 2)* below. A direction held through a failure's black never moves the rabbit until it is let go and pressed again (the Search too); the long hall's restarts put the press ahead at its clank just as the picture comes back (its whole telegraph seen and heard; the way open 6.84-6.91 s after the restart, was 4.6 with the press already falling); a pressed-down press is a lid over its slot (the rabbit keeps to the slot's floor, crouched, all of it below the iron's front edge; the ramp slide ends on the floor). The design check passes.
+
 Sources, in order of authority: Josh's briefs (later ones win), his journey (`JOURNEY-josh.md`), Sequence 1 as built (`SEQUENCE-1.md` with its Amendments, `STATUS.md`, `INTERFACES.md`), the visual target and the approved look (`RENDERING.md`).
 
 **Preserved, by Josh's word** (§9: "The atmosphere, tension, music and core mechanics are working. Please preserve those."): the look, the light vocabulary, the rabbit's moves and speeds, the detection model, the failure presentation, the ears as the HUD, the restraint. Sequence 2 adds places and one machine; it changes nothing in Sequence 1 except how its ending joins on (§10).
@@ -37,7 +39,7 @@ Sources, in order of authority: Josh's briefs (later ones win), his journey (`JO
 4. **The long hall** (the climax). Three presses in a row, the last one twice the size, **walking**: once every 16 seconds a clank, then thud, thud, thud, left to right, like a giant's steps; they rise in the same order. Seen whole from the doorway before you step in. You follow the rising wave from gap to gap. If you go as soon as the first rises and keep walking, you arrive at the slot under the great press **exactly as it clanks**: stop in the slot and it comes down over you there, the held breath of the whole sequence (keep walking and it catches you: it is 8 m long). Then it rises and you walk out. *(8 Oct: the slot is wider on the exit side, so a stop anywhere in its dark notch within about 2 seconds of the clank is safe.)*
 5. **Breathing space.** A buckled door, out into drizzle at the foot of the Works' far side. A colossal pipe lies on its saddles over wet grass and clover: shelter. Stay still and the rabbit listens, sniffs, nibbles, grooms (the warm pad, as in Sequence 1), settles. Across a field of fog, a long low building with rows of warm windows; every few seconds tiny figures cross every window at once, in step (beat 5, not explained). **The end is never an invisible wall**: either rest under the pipe (the camera pulls out, fade, "to be continued"), or simply walk on down the embankment into the fog (the camera lets the rabbit go, fade, "to be continued"). Either one ends it; turning back before the fade cancels it.
 
-**Failing.** Only under a press (*8 Oct:* never in the gate; never in a slot's dark notch). The screen cuts to black on the frame before the iron reaches the rabbit (it is never shown touching it), the thud sounds muffled in the dark, no rabbit sound, and about a second later you are back in the last slot or gap you reached, with the machine set so you see it come down once more and your way opens 4 to 7 seconds later. Nothing counts failures.
+**Failing.** Only under a press (*8 Oct:* never in the gate; never in a slot's dark notch). The screen cuts to black on the frame before the iron reaches the rabbit (it is never shown touching it), the thud sounds muffled in the dark, no rabbit sound, and about a second later you are back in the last slot or gap you reached, with the machine set so you see it come down once more and your way opens 4 to 7 seconds later. Nothing counts failures. *(8 Oct, round 2:)* a direction still held from before the black does nothing until you let go and press it again (your son's held →), and in the long hall the press ahead clanks just as the picture comes back, so you hear and see its whole warning before it falls.
 
 **The one sign of resistance: the worker, not the symbol.** I chose your maintenance worker because (1) it continues the Courtyard's painted-over words: the same words, and now we see who keeps painting them over, so players can connect the two on their own; (2) it gives the Works a human presence and tension without another chase, which is exactly what this beat needs after the Search; (3) the symbol works best when it recurs and later turns up beside an opened hatch (your freight idea), so it should start where it can recur, not as a one-off here. One sign per section, each different: erased words, someone erasing them, later the symbol.
 
@@ -61,7 +63,7 @@ Sources, in order of authority: Josh's briefs (later ones win), his journey (`JO
 | fairness | nearest safety ≤ 1.9 m; walking with a 0.6 s reaction: ≥ 1.22 s to spare (first press 1.58), running ≥ 2.34 s; 864 + 848 bot runs, all through alive |
 | first sight | the first press's thud comes 0.57 s before the fastest possible rabbit could reach it |
 | the worker | a 12 s loop: 8 s scraping, back to you; the scrape stops 0.5 s, he turns 0.8 s, looks along the passage 1.6 s; walking past while he scrapes is never noticed |
-| restarts | 10 checkpoints (3 saved); back in the last slot or gap in about 1 s; the way opens 3.9-6.9 s later |
+| restarts | 10 checkpoints (3 saved); back in the last slot or gap in about 1 s; the way opens 3.9-6.9 s later; *(8 Oct, round 2)* in the long hall the press ahead clanks 0.25 s after the restart; a key held through the black is latched until pressed again |
 | moves | none new; no jump needed anywhere; one creep, three duck-unders |
 
 ---
@@ -139,7 +141,7 @@ The "careful" column comes from the check's bots (`works-sim.txt`, "timing estim
 - **The cut:** on the fixed step when a **descending** press's underside comes within 0.04 m of the rabbit's back (standing 0.24, low 0.15) while the rabbit's **centre** is inside its footprint (inset 0.02): `fail {kind: 'machine', by}`. That is about 0.02 s before contact: **3.89 s after the clank** (3.91 for the great press). Measured on a crouched rabbit: 3.92 / 3.94 s.
 - **The shove:** body over the edge but centre outside → pushed clear (§0).
 - **Passable:** while rising, once the underside clears 0.30 m (P1 0.88 s into its 4 s rise; the line's presses 0.66 s into their 3 s rise; the great press 0.59 s).
-- **Solid:** a press is a moving solid box (`FF.S2.solids`, kind 'press', `dynamic`): pressed down it is a wall across the lane; up, the rabbit walks under it. It can't be climbed (its top is ≥ 1.6 m up when down).
+- **Solid:** a press is a moving solid box (`FF.S2.solids`, kind 'press', `dynamic`): pressed down it is a wall across the lane; up, the rabbit walks under it. It can't be climbed (its top is ≥ 1.6 m up when down). *(8 Oct, round 2:)* over a slot it is a lid: the rabbit keeps to the slot's floor, crouched, the floor under it at least 0.40 below the iron (all of it below the platen's front edge as the camera sees it), and follows the press up the ramp as it rises.
 - **Light:** each press carries a strip lamp under its front edge (`pressLamp` / `greatLamp`): the lit bed is its footprint, the danger; the slots and gaps are unlit. The vocabulary of Sequence 1 holds (darkness under something solid = safety) and gains one entry: **a pale pool on the bed = under a press**.
 
 ### 3.2 The first press (P1; `FF.S2.works.P1`)
@@ -333,7 +335,7 @@ The contract is `INTERFACES.md` (unchanged rules: classic scripts on `FF.*`, not
 - **First sight:** the fastest rabbit reaches the first press 4.57 s after its first clank; the thud is at 4.00.
 - **The first press and the gate:** 864 walking runs (slot to slot, straight to slot B, onto the bed's end against the wall; leaving 0–10 s late; every arrival phase): all through alive; 8–65 s from the apron to the culvert, mean 32 s; closest call 1.32 s to spare.
 - **The long hall:** 4 × 64 runs (continuous walker, walker who runs at a clank, cautious walker, runner) and 592 late leavers: all through alive; the designed flow meets the great press's clank at slot C.
-- **Checkpoints:** every restart is in a shelter core; the danger is seen once; the way opens 3.89–6.89 s after the restart.
+- **Checkpoints:** every restart is in a shelter core; the danger is seen once; the way opens 3.89–6.92 s after the restart; *(8 Oct, round 2)* in the long hall the press ahead clanks 0.25 s after the restart (its telegraph seen and heard as the picture comes back).
 - **The worker:** as §7.
 - **Timing:** a careful first play about 3:36 with no failure.
 
@@ -415,12 +417,12 @@ Procedural, as Sequence 1 (the sample slot stays). The arcade starts muted: **ev
 Sequence 1 §4.2's moods and behaviours, placed:
 - **The way on:** ears and head to the Works at the slab; the first drops of rain: a flick of the ears; a hesitation at the intake's mouth if it was running (none needed: it is not a squeeze).
 - **The intake:** the creep, ears flat; the snap to the clank; out, the flinch at the thud, then a shake (if still).
-- **The press hall:** a long look up at the hanging press when still on the apron (`look_up`, 1.2 s, if still ≥ 2 s; ALERT); in a slot under a descending press: flat, ears folded, held breath (amplitude ×0.3) until it rises; sniffs the gate's draught in slot B; the splash dropping into the culvert, a shake.
+- **The press hall:** a long look up at the hanging press when still on the apron (`look_up`, 1.2 s, if still ≥ 2 s; ALERT); in a slot under a descending press: flat, ears folded, held breath (amplitude ×0.3) until it rises; sniffs the gate's draught in slot B (*8 Oct, round 2:* under the pressed-down press it lifts its head and pricks its ears to it from low instead, so its head stays under the iron); the splash dropping into the culvert, a shake.
 - **The passage:** ALERT at the scraping; ears on him; AFRAID and a freeze (no input) in the look, held breath in his light; RECOVERING after.
 - **The long hall:** ALERT/AFRAID by distance to a moving press (within 3 m: AFRAID); flat in slot C; looks back once out of the end door; shakes.
 - **The pipe:** the settle chain.
 
-Involuntary actions (Sequence 1's list, plus): the flinch at a contact within 6 m (0.15 s, additive, control kept); the chamfer shove (0.12 s). Removed: the channel lip's "not yet" and the rest's auto-stop. Expressive poses still play only with no movement input.
+Involuntary actions (Sequence 1's list, plus): the flinch at a contact within 6 m (0.15 s, additive, control kept); the chamfer shove (0.12 s); *(8 Oct, round 2)* the ramp slide carries a rabbit on a ramp, or at the core's edge, onto the slot's floor as the press comes down. Removed: the channel lip's "not yet" and the rest's auto-stop. Expressive poses still play only with no movement input.
 
 ## 17. Assets
 
@@ -443,6 +445,7 @@ Headless as Sequence 1 (one Chrome per agent on its own port, a timeout on every
 | W7 | the long hall (the designed flow) | leaving 0.6 s after Q1 is passable and walking on: in slot C at Q3's clank; out alive |
 | W8 | the long hall (every 1 s of arrival phase) | the continuous walker, the cautious walker and the runner all out alive |
 | W9 | checkpoints | each S2 checkpoint: restart in its core, the way open 2.5–7 s after |
+| W13 *(8 Oct, round 2)* | held keys through a failure | real keys auto-repeating, held through the black at works-line, works-g1, works-g2 (walking and with Shift) and works-pitC (Shift + ←): one cut, then still at the restart point; let go and pressed again: walks on, runs with Shift (`t-works.mjs` W13; the Search: `t-controls.mjs`) |
 | W10 | the endings | (a) settled → pull-out → input during it brings control back; leaving it alone → card → title, save "completed"; (b) walking down the embankment → camera stops at 209 → fade → card; turning back at 210 before the fade: cancelled |
 | W11 | the join | Sequence 1's rest: settling plays the optional pull-out and returns control (no card); no auto-stop after 60 s; standing still past 127.0 never starts S1's settle |
 | W12 | flow | `?start=works`: notice → title with "Begin at the Works" → play at 124.4; an old save "completed" → "Continue from the Works"; `?mute=1` stores nothing |

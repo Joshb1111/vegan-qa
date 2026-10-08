@@ -87,6 +87,9 @@ function dynCeil(x, y) {
   return c;
 }
 const inWorksMachines = () => WORKS() && S.x > 139.0 && S.x < 190.0;
+/* THE LID (fix 8 Oct, round 2): the slot (pit) whose notch, ramps included, holds x, and the underside of its own press */
+function slotAt(x) { for (const s of FF.S2.shelters || []) if (s.kind === 'pit' && x >= s.x0 && x <= s.x1) return s; return null; }
+function lidY(pit) { const p = FF.Works.press(pit.under); return p ? p.y : Infinity; }
 function worksSurface() {
   const p = FF.G.place, x = S.x, wet = S.y < -0.2;
   if (p === 'approach') return x < 129.6 ? 'concrete' : 'wet-concrete';
@@ -118,6 +121,12 @@ const P = {
                                                                          // shown once more on entering the Courtyard if the player has not run for remindAfter s
   /* Sequence 2 (review fixes 8 Oct) */
   dynClear: 0.03,          // a move under a moving solid (a press, the gate) keeps at least hCrouch + this between the floor and its underside
+  /* fix 8 Oct, round 2: a press low over its slot is a LID. In the slot's notch, a move that would raise the rabbit to less than
+     slotLid under its press is refused: with the press down that keeps the whole body on the slot's floor (0.40 deep), so all
+     of the drawn rabbit, ears included, stays below the platen's front lower edge as the camera sees it (it used to walk up a
+     ramp until its back was 3 cm under the iron, half hidden behind the platen's face). As the press rises the rabbit follows
+     it up the ramp, the same distance under it. In the slot, the press within slotLow of its floor keeps the rabbit low. */
+  slotLid: 0.40, slotLow: 0.45,
   gapRim: 1.22,            // the rabbit's rim in the long hall's gaps (G1, G2: dark, rain), for readability (>= 3.0x)
   embankLook: 207.9,       // walking on past the pipe: one look back at the Works at the top of the embankment (additive; a sit-up if it stops)
 };
@@ -524,7 +533,9 @@ function crouchStep(dt) {
   const R = RB(), f = S.face || 1, v = Math.abs(S.vx), lead = P.crouchLead + P.crouchLeadPerV * v;
   const held = !!(S.crouchHeld || B.hideHold || (S.mode !== 'play' && S.crouch));
   S.crouchHeldT = held ? S.crouchHeldT + dt : 0;
-  const frontLow = lowOver(S.x, S.x + f * (R.hw + lead)), rearLow = lowOver(S.x - f * R.hw, S.x + f * lead * 0.8);
+  /* in a slot with its press low over it (the lid, P.slotLow), the whole body stays low (fix 8 Oct, round 2) */
+  const pit = WORKS() && S.y < -0.04 ? slotAt(S.x) : null, lid = !!pit && lidY(pit) - S.y < P.slotLow;
+  const frontLow = lid || lowOver(S.x, S.x + f * (R.hw + lead)), rearLow = lid || lowOver(S.x - f * R.hw, S.x + f * lead * 0.8);
   const tf = held || frontLow ? 1 : 0, tr = (held && S.crouchHeldT >= P.crouchFollow) || rearLow ? 1 : 0;
   S.crouchF = ease(S.crouchF, tf, tf > S.crouchF ? P.crouchDown[0] : P.crouchUp[0], dt);
   S.crouchR = ease(S.crouchR, tr, tr > S.crouchR ? P.crouchDown[1] : P.crouchUp[1], dt);
@@ -691,7 +702,9 @@ const Player = FF.Player = {
     on('sluice', d => {
       if (!WORKS() || (d.phase !== 'lift' && d.phase !== 'open')) return;
       addSrc('sluice', { x: d.x, y: -0.25, z: 0, w: (BH().earsWorks || {}).sluice || 0.6, life: 4.0, kind: 'wayOn' });
-      const sh = FF.Works.shelterAt(S.x); if (d.phase === 'open' && sh && sh.id === 'pit-B') queue('sniff', { dur: 1.5, within: 2.5 });
+      /* the draught when the gate opens in slot B. Fix 8 Oct, round 2: under the pressed-down press (the lid) it lifts its head and
+         pricks its ears from low ('prick', as under the shelf), so its head stays below the iron; a sniff lifted it above the edge */
+      const sh = FF.Works.shelterAt(S.x); if (d.phase === 'open' && sh && sh.id === 'pit-B') { const pit = slotAt(S.x); queue(pit && lidY(pit) - S.y < P.slotLow ? 'prick' : 'sniff', { dur: 1.5, within: 2.5 }); }
     });
     on('painter', d => {
       if (!WORKS()) return; const ph = d.phase;
@@ -837,6 +850,8 @@ const Player = FF.Player = {
     if (nx !== S.x && inWorksMachines()) {
       const nf = S.grounded ? floorAt(nx, S.y + 0.05) : S.y, cN = dynCeil(nx, nf) - nf;
       if (cN < R.hCrouch + P.dynClear && cN < dynCeil(S.x, S.y) - S.y - 1e-6) { nx = S.x; S.vx = 0; }
+      /* the lid (fix 8 Oct, round 2; P.slotLid): in a slot's notch, never up to less than slotLid under its own press */
+      else if (nf > S.y + 1e-6) { const pit = slotAt(nx); if (pit && lidY(pit) - nf < P.slotLid - 1e-6) { nx = S.x; S.vx = 0; } }
     }
     S.x = nx;
     S.effort = approach(S.effort, S.push ? (Math.abs(box.vx) < 0.15 ? 1 : 0.5) : 0, 4 * dt);

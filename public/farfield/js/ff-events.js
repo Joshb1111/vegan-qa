@@ -321,6 +321,8 @@ const REVEAL = {
   glimpse: 1.0,         // a replayed entry after the reveal has run: no takeover, at most this long a lean of the camera
   seenAfterDoor: 0.3,   // the reveal counts as SEEN once the camera is on the door this long after it opened (the man in the doorway)
 };
+/* the failure restart latches the same actions, with no resume (Events.fail; FF.Input.latch(list, {resume: false})) */
+const FAIL_LATCH = REVEAL.latch;
 const RV = { phase: '', t: 0, cause: '', pose: '', poseAt: 0, shot: false, retT: 0, graceT: 0, done: false, glimpsed: false, held: false, log: null, maxX: null,
   seen: false, cueAt: null, stopAt: null, replay: false };
 /* the held-key latch lives in FF.Input (ff-main.js); the no-detection guard in FF.AI (ff-ai.js), both keyed on this takeover */
@@ -519,16 +521,25 @@ const Events = FF.Events = {
     }
   },
   /* cut to black on this step, the report or the scuff under black (Audio listens to 'fail'), restart at the checkpoint after
-     FF.RULES.fail.black, the picture back over fadeIn, control at controlAt. Nothing is counted, nothing rewards harm. */
+     FF.RULES.fail.black, the picture back over fadeIn, control at controlAt. Nothing is counted, nothing rewards harm.
+     Held keys (fix 8 Oct, round 2; the Search and the Works alike): from the cut, a key let go or pressed afresh is a new
+     intention (FF.Input.off); when control returns, every direction or jump held WITHOUT A BREAK through the black is latched
+     with no resume (FF.Input.latch(FAIL_LATCH, {resume: false})): it does nothing until it is let go and pressed again, so a
+     player still holding → is never walked straight back into the danger that caught them. */
   fail(kind) {
     if (st.failing) return; const F = FF.RULES.fail;
     st.failing = { kind, t: 0 };
+    if (FF.Input && FF.Input.off) FF.Input.off();
     FF.Game.cut(); FF.Game.control(false);
     setTimeoutSim(F.black, () => {
       FF.Game.restart(st.cp, { reason: 'fail', kind });
       FF.Game.control(false); st.failing = { kind, t: F.black, back: true };
       FF.Game.fade(0, F.fadeIn);
-      setTimeoutSim(F.controlAt - F.black, () => { FF.Game.control(true); st.failing = null; });
+      setTimeoutSim(F.controlAt - F.black, () => {
+        const held = FF.Input && FF.Input.latch ? FF.Input.latch(FAIL_LATCH, { resume: false }) : [];
+        FF.Game.control(true); st.failing = null;
+        emit('fail-control', { kind, latched: held });
+      });
     });
   },
   /* true while a staged beat or the failure flow runs (main holds the automatic quality step-down) */
