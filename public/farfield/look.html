@@ -1,0 +1,28 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
+<title>Far Field · look test</title>
+<style>
+html,body{margin:0;height:100%;overflow:hidden;background:#0b0d10;touch-action:none;user-select:none;-webkit-user-select:none}
+canvas{display:block;position:absolute;left:0;top:0;width:100%;height:100%;outline:none}
+.hud{position:absolute;font:13px/1.45 ui-sans-serif,system-ui,-apple-system,"Segoe UI",sans-serif;color:#9aa6b2;pointer-events:none;letter-spacing:.02em}
+#help{left:18px;bottom:16px;opacity:0;transition:opacity 1.2s;text-shadow:0 1px 2px #000}
+#help b{color:#c6ced6;font-weight:600}
+#fps{left:12px;top:10px;font:12px ui-monospace,Menlo,monospace;color:#c6ced6;background:rgba(8,10,12,.55);padding:3px 7px;border-radius:4px}
+#fade{position:absolute;inset:0;background:#06080a;opacity:0;pointer-events:none}
+#note{left:0;right:0;top:44%;text-align:center;font-size:15px;color:#aab4be;opacity:0;transition:opacity .9s}
+</style></head>
+<body>
+<canvas id="c" tabindex="0" aria-label="Far Field look test: a rabbit in a vast dark concrete hall, a pool of light from a high window"></canvas>
+<div id="fade"></div>
+<div id="note" class="hud"></div>
+<div id="help" class="hud"><b>← →</b> move (hold to run, Shift to walk) · <b>Space</b> jump · <b>↓</b> crouch · walk into the crate to push it · <b>↑</b> at the glowing opening: go through<br><b>Q</b> quality · <b>F</b> frame rate · <b>H</b> this help</div>
+<div id="fps" class="hud" hidden></div>
+<!-- Far Field (working title): the approved LOOK TEST, frozen (7 Oct 2026). Its scripts live in look/ and are never edited: the game is index.html + js/. three.js r128, same build as the planet. -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script src="look/ff-config.js?v=3"></script>
+<script src="look/ff-shading.js?v=3"></script>
+<script src="look/ff-post.js?v=3"></script>
+<script src="look/ff-scene.js?v=3"></script>
+<script src="look/ff-rabbit.js?v=3"></script>
+<script src="look/ff-main.js?v=3"></script>
+</body></html>

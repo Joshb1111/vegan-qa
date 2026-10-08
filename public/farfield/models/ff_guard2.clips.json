@@ -1,0 +1,301 @@
+{
+ "file": "guard2_fixed.glb",
+ "units": "metres, Y up, facing +Z, origin on the ground under the hips",
+ "height_m": 1.8,
+ "nodes": {
+  "hand_R_socket": "child of mixamorig:RightHand; grip centre; +Z along the barrel, +Y top of the gun",
+  "prop_longgun": "child of hand_R_socket (identity)",
+  "gun_muzzle": "child of prop_longgun; +Z out of the muzzle",
+  "hand_L_socket": "child of mixamorig:LeftHand; grip centre on the torch axis; +Z along the beam",
+  "prop_torch": "child of hand_L_socket (identity)",
+  "torch_emitter": "child of prop_torch; at the lens, +Z along the beam"
+ },
+ "three_js_names": "GLTFLoader strips the colon: bones are mixamorigHips, mixamorigRightHand, ...",
+ "clips": {
+  "walk": {
+   "frames": 32,
+   "fps": 30,
+   "duration_s": 1.033,
+   "loop": true,
+   "source": "Walking (1).fbx",
+   "root_speed_mps": 1.74,
+   "planted_foot_speed_mps": 1.862,
+   "travel_m": 1.798,
+   "gun_vs_hand_max_mm": 0,
+   "torch_vs_hand_max_mm": 0,
+   "grip_fingers_drift_mm": 0,
+   "into_trunk_mm": {
+    "gun": 0.0,
+    "torch": 0.0,
+    "fistR": 24.5,
+    "fistL": 4.8
+   }
+  },
+  "walk_rifle": {
+   "frames": 34,
+   "fps": 30,
+   "duration_s": 1.1,
+   "loop": true,
+   "source": "Walk With Rifle.fbx",
+   "root_speed_mps": 1.278,
+   "planted_foot_speed_mps": 1.346,
+   "travel_m": 1.406,
+   "gun_vs_hand_max_mm": 0,
+   "torch_vs_hand_max_mm": 0,
+   "grip_fingers_drift_mm": 0,
+   "into_trunk_mm": {
+    "gun": 0.0,
+    "torch": 0.0,
+    "fistR": 0.7,
+    "fistL": 0.0
+   }
+  },
+  "rifle_idle": {
+   "frames": 86,
+   "fps": 30,
+   "duration_s": 2.833,
+   "loop": true,
+   "source": "Rifle Idle.fbx",
+   "root_speed_mps": 0.0,
+   "planted_foot_speed_mps": 0.002,
+   "travel_m": 0.0,
+   "gun_vs_hand_max_mm": 0,
+   "torch_vs_hand_max_mm": 0,
+   "grip_fingers_drift_mm": 0,
+   "into_trunk_mm": {
+    "gun": 0.0,
+    "torch": 0.0,
+    "fistR": 0.0,
+    "fistL": 0.0
+   }
+  },
+  "sneak": {
+   "frames": 51,
+   "fps": 30,
+   "duration_s": 1.667,
+   "loop": true,
+   "source": "Sneaking Forward.fbx",
+   "root_speed_mps": 2.167,
+   "planted_foot_speed_mps": 2.29,
+   "travel_m": 3.611,
+   "gun_vs_hand_max_mm": 0,
+   "torch_vs_hand_max_mm": 0,
+   "grip_fingers_drift_mm": 0,
+   "into_trunk_mm": {
+    "gun": 0.0,
+    "torch": 0.0,
+    "fistR": 0.0,
+    "fistL": 0.0
+   }
+  },
+  "run": {
+   "frames": 22,
+   "fps": 30,
+   "duration_s": 0.7,
+   "loop": true,
+   "source": "Running.fbx",
+   "root_speed_mps": 4.627,
+   "planted_foot_speed_mps": 4.837,
+   "travel_m": 3.239,
+   "gun_vs_hand_max_mm": 0,
+   "torch_vs_hand_max_mm": 0,
+   "grip_fingers_drift_mm": 0,
+   "into_trunk_mm": {
+    "gun": 0.0,
+    "torch": 0.0,
+    "fistR": 7.1,
+    "fistL": 0.0
+   }
+  },
+  "turn_180": {
+   "frames": 31,
+   "fps": 30,
+   "duration_s": 1.0,
+   "loop": false,
+   "source": "Walking Turn 180.fbx",
+   "root_speed_mps": 0.104,
+   "planted_foot_speed_mps": 0.163,
+   "travel_m": 0.104,
+   "gun_vs_hand_max_mm": 0,
+   "torch_vs_hand_max_mm": 0,
+   "grip_fingers_drift_mm": 0,
+   "into_trunk_mm": {
+    "gun": 0.0,
+    "torch": 60.0,
+    "fistR": 3.3,
+    "fistL": 40.6
+   }
+  },
+  "look_around": {
+   "frames": 135,
+   "fps": 30,
+   "duration_s": 4.467,
+   "loop": true,
+   "source": "Look Around.fbx",
+   "root_speed_mps": 0.0,
+   "planted_foot_speed_mps": 0.007,
+   "travel_m": 0.0,
+   "gun_vs_hand_max_mm": 0,
+   "torch_vs_hand_max_mm": 0,
+   "grip_fingers_drift_mm": 0,
+   "into_trunk_mm": {
+    "gun": 14.8,
+    "torch": 0.0,
+    "fistR": 0.0,
+    "fistL": 0.0
+   }
+  },
+  "kneel": {
+   "frames": 84,
+   "fps": 30,
+   "duration_s": 2.767,
+   "loop": false,
+   "source": "Kneeling Down.fbx",
+   "root_speed_mps": 0.005,
+   "planted_foot_speed_mps": 0.009,
+   "travel_m": 0.013,
+   "gun_vs_hand_max_mm": 0,
+   "torch_vs_hand_max_mm": 0,
+   "grip_fingers_drift_mm": 0,
+   "into_trunk_mm": {
+    "gun": 33.9,
+    "torch": 26.5,
+    "fistR": 17.4,
+    "fistL": 31.3
+   }
+  },
+  "crouch_idle": {
+   "frames": 76,
+   "fps": 30,
+   "duration_s": 2.5,
+   "loop": true,
+   "source": "Crouching Idle.fbx",
+   "root_speed_mps": 0.0,
+   "planted_foot_speed_mps": 0.001,
+   "travel_m": 0.0,
+   "gun_vs_hand_max_mm": 0,
+   "torch_vs_hand_max_mm": 0,
+   "grip_fingers_drift_mm": 0,
+   "into_trunk_mm": {
+    "gun": 0.0,
+    "torch": 0.0,
+    "fistR": 0.0,
+    "fistL": 0.0
+   }
+  },
+  "reach_down": {
+   "frames": 91,
+   "fps": 30,
+   "duration_s": 3.0,
+   "loop": false,
+   "source": "Reaching Down.fbx",
+   "root_speed_mps": 0.0,
+   "planted_foot_speed_mps": 0,
+   "travel_m": 0.0,
+   "gun_vs_hand_max_mm": 0,
+   "torch_vs_hand_max_mm": 0,
+   "grip_fingers_drift_mm": 0,
+   "into_trunk_mm": {
+    "gun": 0.0,
+    "torch": 0.0,
+    "fistR": 0.0,
+    "fistL": 0.0
+   }
+  },
+  "stumble": {
+   "frames": 36,
+   "fps": 30,
+   "duration_s": 1.167,
+   "loop": false,
+   "source": "Jogging Stumble.fbx",
+   "root_speed_mps": 2.897,
+   "planted_foot_speed_mps": 3.07,
+   "travel_m": 3.38,
+   "gun_vs_hand_max_mm": 0,
+   "torch_vs_hand_max_mm": 0,
+   "grip_fingers_drift_mm": 0,
+   "into_trunk_mm": {
+    "gun": 0.0,
+    "torch": 5.3,
+    "fistR": 22.6,
+    "fistL": 0.0
+   }
+  },
+  "crouch_in": {
+   "frames": 123,
+   "fps": 30,
+   "duration_s": 4.067,
+   "loop": false,
+   "source": "Crouching.fbx",
+   "root_speed_mps": 0.02,
+   "planted_foot_speed_mps": 0.039,
+   "travel_m": 0.081,
+   "gun_vs_hand_max_mm": 0,
+   "torch_vs_hand_max_mm": 0,
+   "grip_fingers_drift_mm": 0,
+   "into_trunk_mm": {
+    "gun": 11.6,
+    "torch": 10.2,
+    "fistR": 40.7,
+    "fistL": 20.4
+   }
+  },
+  "crouch_out": {
+   "frames": 101,
+   "fps": 30,
+   "duration_s": 3.333,
+   "loop": false,
+   "source": "Crouch To Stand.fbx",
+   "root_speed_mps": 0.102,
+   "planted_foot_speed_mps": 0.117,
+   "travel_m": 0.34,
+   "gun_vs_hand_max_mm": 0,
+   "torch_vs_hand_max_mm": 0,
+   "grip_fingers_drift_mm": 0,
+   "into_trunk_mm": {
+    "gun": 0.0,
+    "torch": 0.0,
+    "fistR": 0.0,
+    "fistL": 0.0
+   }
+  },
+  "aim": {
+   "frames": 60,
+   "fps": 30,
+   "duration_s": 1.967,
+   "loop": false,
+   "source": "authored on Rifle Idle stance (raise 0.5 s, hold 1.5 s)",
+   "root_speed_mps": 0,
+   "planted_foot_speed_mps": 0.002,
+   "travel_m": 0,
+   "gun_vs_hand_max_mm": 0,
+   "torch_vs_hand_max_mm": 0,
+   "grip_fingers_drift_mm": 11.133,
+   "into_trunk_mm": {
+    "gun": 0.0,
+    "torch": 0.0,
+    "fistR": 0.0,
+    "fistL": 0.0
+   }
+  },
+  "aim_hold": {
+   "frames": 60,
+   "fps": 30,
+   "duration_s": 1.967,
+   "loop": true,
+   "source": "authored (hold loop)",
+   "root_speed_mps": 0,
+   "planted_foot_speed_mps": 0.002,
+   "travel_m": 0,
+   "gun_vs_hand_max_mm": 0,
+   "torch_vs_hand_max_mm": 0,
+   "grip_fingers_drift_mm": 11.133,
+   "into_trunk_mm": {
+    "gun": 0.0,
+    "torch": 0.0,
+    "fistR": 0.0,
+    "fistL": 0.0
+   }
+  }
+ }
+}

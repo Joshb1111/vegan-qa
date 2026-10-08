@@ -1,0 +1,56 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
+<title>Far Field</title>
+<link rel="icon" href="data:,">
+<style>
+html,body{margin:0;height:100%;overflow:hidden;background:#0b0d10;touch-action:none;user-select:none;-webkit-user-select:none}
+canvas{display:block;position:absolute;left:0;top:0;width:100%;height:100%;outline:none}
+#fps{position:absolute;left:12px;top:10px;font:12px ui-monospace,Menlo,monospace;color:#c6ced6;background:rgba(8,10,12,.55);padding:3px 7px;border-radius:4px;pointer-events:none;z-index:3}
+#boot{position:absolute;inset:0;z-index:20;background:#0b0d10;display:flex;flex-direction:column;align-items:center;justify-content:center;transition:opacity .7s ease;pointer-events:none}
+#boot.off{opacity:0}
+#boot h1{margin:0;font:300 22px/1 "Helvetica Neue",Helvetica,Arial,sans-serif;letter-spacing:.42em;text-indent:.42em;color:#9aa4ad;text-transform:none}
+#boot .bar{margin-top:26px;width:min(220px,50vw);height:1px;background:rgba(154,164,173,.16);overflow:hidden}
+#boot .bar i{display:block;height:100%;width:100%;background:#8d98a2;transform:scaleX(0);transform-origin:0 50%;transition:transform .3s ease-out}
+</style></head>
+<body>
+<canvas id="c" tabindex="0" aria-label="Far Field: a rabbit's journey along the foot of an enormous wall, at dusk, into the night and through the Works"></canvas>
+<div id="boot" aria-label="Loading"><h1>Far Field</h1><div class="bar"><i id="bootbar"></i></div></div>
+<div id="ui"></div>
+<div id="fps" hidden></div>
+<!-- Far Field (working title). Sequence 1: Verge -> Courtyard -> Search -> breathing space; Sequence 2 (The Works): the way on ->
+     the first press and the gate -> the passage -> the long hall -> breathing space. One lane, no loading (ff-lane.js merges
+     Sequence 2's data into Sequence 1's at load). three.js r128 (the planet's build). The contract between these files is
+     docs/farfield/INTERFACES.md; the designs are docs/farfield/SEQUENCE-1.md (with its Amendments) and SEQUENCE-2.md.
+     look.html is the frozen look test and loads look/*.js, never these. Load order matters (INTERFACES §2). -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script src="js/ff-config.js?v=19"></script>
+<script src="js/ff-core.js?v=19"></script>
+<script src="js/ff-rules.js?v=19"></script>
+<script src="js/ff-level-s1.js?v=19"></script>
+<script src="js/ff-script-s1.js?v=19"></script>
+<script src="js/ff-rules-s2.js?v=19"></script>
+<script src="js/ff-level-s2.js?v=19"></script>
+<script src="js/ff-script-s2.js?v=19"></script>
+<script src="js/ff-lane.js?v=19"></script>
+<script src="js/ff-shading.js?v=19"></script>
+<script src="js/ff-post.js?v=19"></script>
+<script src="js/ff-level.js?v=19"></script>
+<script src="js/ff-world.js?v=19"></script>
+<script src="js/ff-world-s2.js?v=19"></script>
+<script src="js/ff-camera.js?v=19"></script>
+<script src="js/ff-rabbit.js?v=19"></script>
+<script src="js/ff-player.js?v=19"></script>
+<script src="js/ff-humans.js?v=19"></script>
+<script src="js/ff-guard.js?v=19"></script>
+<script src="js/ff-ai.js?v=19"></script>
+<script src="js/ff-works.js?v=19"></script>
+<script src="js/ff-painter.js?v=19"></script>
+<script src="js/ff-opening.js?v=19"></script>
+<script src="js/ff-truck.js?v=19"></script>
+<script src="js/ff-works-flow.js?v=19"></script>
+<script src="js/ff-events.js?v=19"></script>
+<script src="js/ff-audio.js?v=19"></script>
+<script src="js/ff-audio-s2.js?v=19"></script>
+<script src="js/ff-ui.js?v=19"></script>
+<script src="js/ff-main.js?v=19"></script>
+</body></html>

@@ -1,0 +1,75 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><title>Far Field · bake the test rabbit</title>
+<style>body{margin:0;padding:24px;background:#111417;color:#c9d1d9;font:14px/1.5 system-ui,sans-serif}a{color:#9ec5ff}code{color:#e6edf3}</style></head><body>
+<h1 style="font-size:18px;font-weight:600">Bake the temporary rabbit into a rigged .glb</h1>
+<p>Builds the procedural placeholder (same skeleton and bone names the commissioned model must have, see
+<code>docs/farfield/ASSETS-3D.md</code>), samples its code-driven motion into named clips at 30 fps, and exports glTF 2.0 binary.
+It exists to prove the model slot end to end: put the file in <code>public/farfield/models/</code> and open
+<code>look.html?rabbit=&lt;file&gt;</code> (or name it <code>ff_rabbit.glb</code> to make it the default).</p>
+<p id="out">Baking...</p>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/exporters/GLTFExporter.js"></script>
+<script src="../js/ff-config.js?v=2"></script>
+<script src="../js/ff-shading.js?v=2"></script>
+<script src="../js/ff-rabbit.js?v=2"></script>
+<script>
+'use strict';
+(function () {
+const T = THREE, L = FF.LOOK, FPS = 30;
+FF.applyShading(L);
+const rig = FF.Rabbit.buildProcedural(L, { detail: 0.62 }); /* lighter mesh for the test file */
+const bones = []; rig.mesh.traverse(o => { if (o.isBone) bones.push(o); });
+const lerp = (a, b, t) => a + (b - a) * t, clamp = (v, a, b) => Math.max(a, Math.min(b, v));
+const cycle = (speed, strideFn) => strideFn(speed) / speed;
+const gaitStride = v => lerp(0.26, 0.8, clamp((v - 0.9) / 1.5, 0, 1));
+
+/* sample the animator into a clip. state(i, n) -> animator state for frame i of n; dur in seconds; loop clips end where they start */
+function bake(name, dur, state, opts) {
+  opts = opts || {};
+  const anim = FF.ProcAnim(rig, { deterministic: true, forceSit: opts.sit });
+  if (opts.setup) opts.setup(anim);
+  const n = Math.max(2, Math.round(dur * FPS)), dt = dur / n;
+  for (let i = 0; i < Math.round((opts.preroll != null ? opts.preroll : 1.2) / dt); i++) anim.update(dt, state(-1, n));
+  if (opts.alignPhase) opts.alignPhase(anim);
+  const times = [], q = bones.map(() => []), hp = [];
+  for (let i = 0; i <= n; i++) {
+    if (i > 0) anim.update(dt, state(i, n));
+    times.push(i * dt);
+    bones.forEach((b, k) => q[k].push(b.quaternion.x, b.quaternion.y, b.quaternion.z, b.quaternion.w));
+    const h = rig.bones.hips.position; hp.push(h.x, h.y, h.z);
+  }
+  if (opts.loop) { bones.forEach((b, k) => { const a = q[k]; for (let j = 0; j < 4; j++) a[n * 4 + j] = a[j]; }); for (let j = 0; j < 3; j++) hp[n * 3 + j] = hp[j]; }
+  const tracks = bones.map((b, k) => new T.QuaternionKeyframeTrack(b.name + '.quaternion', times, q[k]));
+  tracks.push(new T.VectorKeyframeTrack('hips.position', times, hp));
+  return new T.AnimationClip(name, dur, tracks);
+}
+const G = (speed, extra) => () => Object.assign({ speed, vy: 0, grounded: true, crouch: false, push: false, effort: 0, landed: false }, extra || {});
+const phase0 = a => { a.st.phase = 0; a.st.cphase = 0; a.st.pphase = 0; };
+const clips = [
+  bake('idle_breathe', 2.0, G(0), { loop: true, preroll: 1.5, alignPhase: a => { a.st.t = 0; } }),
+  bake('idle_ear_twitch', 0.6, G(0), { preroll: 1.5, alignPhase: a => { a.st.t = 0; a.st.twitch.t = 0.05; a.st.twitch.side = 1; } }),
+  bake('listen', 1.0, G(0), { sit: 1, loop: true, preroll: 1.5, alignPhase: a => { a.st.t = 0; } }),
+  bake('walk', cycle(1.0, gaitStride), G(1.0), { loop: true, alignPhase: phase0 }),
+  bake('hop_run', cycle(2.75, gaitStride), G(2.75), { loop: true, alignPhase: phase0 }),
+  bake('jump_start', 0.12, (i, n) => ({ speed: 1.5, vy: 4.4, grounded: false, crouch: false, push: false, effort: 0, landed: false }), { preroll: 0.6 }),
+  bake('jump_air', 0.4, (i, n) => ({ speed: 1.5, vy: lerp(4.4, -4.5, Math.max(0, i) / n), grounded: false, crouch: false, push: false, effort: 0, landed: false }), { preroll: 0.1 }),
+  bake('jump_land', 0.25, (i, n) => ({ speed: 0, vy: 0, grounded: true, crouch: false, push: false, effort: 0, landed: i === 1 }), { preroll: 0.3 }),
+  bake('crouch_idle', 1.0, G(0, { crouch: true }), { loop: true, preroll: 1.2, alignPhase: a => { a.st.t = 0; } }),
+  bake('crouch_walk', 0.16 / 0.75, G(0.75, { crouch: true }), { loop: true, alignPhase: phase0 }),
+  bake('push_head', 0.14 / 0.62, G(0.62, { push: true, effort: 0.5 }), { loop: true, alignPhase: phase0 }),
+];
+/* rest pose back before export, so the joints' transforms in the file are the rest pose (the connected mesh itself is bound with
+   the legs a little extended, ff-rabbit.js EXT; its inverse bind matrices carry that) */
+bones.forEach(b => { b.quaternion.identity(); }); rig.bones.hips.position.copy(rig.rest.hips); rig.mesh.updateMatrixWorld(true);
+const root = new T.Group(); root.name = 'ff_rabbit'; root.add(rig.mesh);
+const t0 = performance.now();
+new T.GLTFExporter().parse(root, buf => {
+  const blob = new Blob([buf], { type: 'model/gltf-binary' }), url = URL.createObjectURL(blob);
+  const a = document.createElement('a'); a.href = url; a.download = 'ff_rabbit_test.glb'; a.textContent = 'Download ff_rabbit_test.glb';
+  document.getElementById('out').innerHTML = `Baked ${clips.length} clips (${clips.map(c => c.name + ' ' + c.duration.toFixed(2) + 's').join(', ')}), ${bones.length} bones, ${(buf.byteLength / 1024).toFixed(0)} KB in ${(performance.now() - t0).toFixed(0)} ms. `;
+  document.getElementById('out').appendChild(a);
+  let s = ''; const u8 = new Uint8Array(buf); for (let i = 0; i < u8.length; i += 0x8000) s += String.fromCharCode.apply(null, u8.subarray(i, i + 0x8000));
+  window.BAKED = { b64: btoa(s), bytes: buf.byteLength, clips: clips.map(c => c.name), bones: bones.map(b => b.name) };
+}, { binary: true, animations: clips, onlyVisible: false });
+})();
+</script>
+</body></html>
