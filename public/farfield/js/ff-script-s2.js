@@ -59,7 +59,10 @@ FF.S2.painter = {
   loopT: 12.0,
   sightFacing: { from: 8.9, to: 11.3, face: -1 },
   anchor: { trigger: 'passage-in', loopT: 2.0 },
-  lamp: { stand: [159.0, 1.5, -1.0], aim: [161.2, 1.2, -2.0], slot: 'K0', spill: 'painter-spill' },
+  /* review fixes 8 Oct: the tripod within his reach (0.81 m from his shoulder; it stood 1.4 m off, so in the look the lamp
+     swung round on its stand while his arm pointed into the air). It still rakes across him onto the wall to his right, so he
+     stands lit with his shadow thrown over the far letters, as before; nearer the wall, so a little dimmer and wider */
+  lamp: { stand: [159.62, 1.5, -1.25], aim: [161.3, 1.2, -2.0], slot: 'K0', spill: 'painter-spill' },
   /* THE LOOK (on NOTICE; FF.RULES.painter.look): he stops dead, turns fully to face the rabbit (left, or right if it is behind
      him), lifts the lamp off its tripod and holds its cold light on the rabbit, utterly still, 2.0 s (1.0 s if it happens
      again); lowers it, hangs it back, turns to the wall and scrapes again, harder (2.2 strokes/s) for 8 s; then the loop.

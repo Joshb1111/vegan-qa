@@ -16,7 +16,8 @@
    THE LOOK (FF.S2.painter.look, FF.RULES.painter.look): he stops dead 0.3, turns fully to the rabbit 0.6 (left, or right if
    it is behind him), lifts the lamp off its tripod 0.5 and holds its cold light on the rabbit, utterly still, 2.0 s (1.0 s
    the next time), lowers it 0.6, hangs it back 0.5, turns to the wall 0.8 and scrapes again, harder (2.2 strokes/s) for
-   8.0 s; then his loop resumes at the stop (loopT 8.0). He never steps, follows, calls out or reaches for the rabbit; he
+   8.0 s; then his loop resumes at the start of his scraping (loopT 0; review fixes 8 Oct: it resumed at the stop, so a rabbit
+   still in his light was looked at again a second later). He never steps, follows, calls out or reaches for the rabbit; he
    never emits 'fail'. Control stays the player's throughout.
    FACTS: painter {phase: scrape|stop|turn|reach|dip|look|lift|hold|lower|hang|resume, step, loopT, hard, x, face}
           (Audio: the scraping loop at 1.5 / 2.2 strokes/s, its stopping; Player: the ears; World: nothing needed)
@@ -136,7 +137,8 @@ const Painter = FF.Painter = {
       if (s !== P.seg) { P.seg = s; fact(LOOK_FACT[s.kind] || s.kind, s.kind, { n: P.looks }); if (s.kind === 'scrape-hard') P.hard = 1; }
       /* the light follows the rabbit while he holds it on it (he stays utterly still) */
       const r = G().rabbit; if (r && (s.kind === 'lift-lamp' || s.kind === 'hold')) LAMP.aim = [r.x, r.y + 0.15, 0];
-      if (P.lookT >= P.look[P.look.length - 1].t1) { P.mode = 'loop'; P.loopT = LOOP.find(q => q.kind === 'stop').t0; P.seg = segAt(LOOP, P.loopT); P.s = 0; P.grace = 0; P.hard = 0; P.face = 0; loopFact(P.seg); }
+      if (P.lookT >= P.look[P.look.length - 1].t1) { P.mode = 'loop'; P.loopT = 0;   /* review fixes 8 Oct: back to the start of his scraping (a full 8 s), not to the stop: no second look a second after the first */
+       P.seg = segAt(LOOP, P.loopT); P.s = 0; P.grace = 0; P.hard = 0; P.face = 0; loopFact(P.seg); }
     }
     /* the lamp: off the stand in the look (lift .. hang), on it otherwise */
     const k = P.mode === 'look' && P.seg ? P.seg.kind : '', lt = P.seg ? (P.lookT - P.seg.t0) / Math.max(1e-3, P.seg.dur) : 0;
@@ -170,6 +172,8 @@ const Painter = FF.Painter = {
       s: +P.s.toFixed(3), lit: +P.lit.toFixed(2), litBy: P.litBy, looks: P.looks, lookT: P.mode === 'look' ? +P.lookT.toFixed(2) : null, lamp: +LAMP.k.toFixed(2), lifted: LAMP.lifted, hard: !!P.hard, noticedAt: P.noticedAt, last: P.last };
   },
   setLoopT(t) { Painter.start(t, true); P.s = 0; P.grace = 0; },
+  /* 0 the lamp on its tripod .. 1 in his hand (the World dims the wall's words while the lamp is off the wall) */
+  get lampK() { return LAMP.k; },
   get loop() { if (!LOOP) build(); return LOOP; },
   dispose() { if (own && ctx) ctx.scene.remove(own); if (lampHead && ownHead && ctx) ctx.scene.remove(lampHead); },
 };
@@ -204,11 +208,12 @@ function pose(kind, u, dt) {
   } else if (kind === 'turn' || kind === 'still' || kind === 'turn-to') {
     b.upperArmR.rotation.x = -0.15; b.foreArmR.rotation.x = -0.25;
   } else if (kind === 'lift-lamp' || kind === 'hold' || kind === 'lower' || kind === 'hang') {
-    /* the lamp held out at shoulder height in the left hand, aimed at the rabbit; utterly still */
+    /* the lamp lifted off its tripod into his left hand and held close at chest height, the elbow bent, aimed down at the
+       rabbit; the other arm hangs; utterly still. Review fixes 8 Oct: not held out at arm's length (it read as pointing) */
     const e = kind === 'lift-lamp' ? u : kind === 'hang' ? 1 - u : 1;
-    b.upperArmL.rotation.x = -1.25 * e - 0.1; b.foreArmL.rotation.x = -0.35 * e; b.upperArmL.rotation.z = -0.1 * e;
-    b.upperArmR.rotation.x = -0.15; b.foreArmR.rotation.x = -0.25;
-    b.spine.rotation.x += 0.04 * e;
+    b.upperArmL.rotation.x = -0.1 - 0.42 * e; b.foreArmL.rotation.x = -0.15 - 1.05 * e; b.upperArmL.rotation.z = 0.12 * e;
+    b.upperArmR.rotation.x = -0.08; b.foreArmR.rotation.x = -0.12;
+    b.spine.rotation.x += 0.03 * e; b.head.rotation.x += 0.12 * e;
   }
   if (scraper) scraper.visible = true;
 }

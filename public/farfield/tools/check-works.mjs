@@ -164,7 +164,8 @@ function runP1(ph0, policy, delay, gait) {
     const sheltered = inCore(pitA, st.x) || inCore(pitB, st.x) || st.x < P1.x0 + PR.centreInset;
     if (state === 'descent' && !sheltered && (st.x < sluice.x0 || onTop) && y < floorAt(st.x, true) + lethalH(false)) return { ok: false, t, x: st.x, why: 'cut under P1', seq };
     const onTop = policy === 'wall' && (mode === 'go' || where === 'wall' || (mode === 'flee' && st.x > pitB.core[1]));
-    if (!onTop && state === 'rise' && Math.abs(st.x - (sluice.x0 + sluice.x1) / 2) <= (sluice.x1 - sluice.x0) / 2 + SL.lethalBand && g < PR.hLow + PR.lethalMargin) return { ok: false, t, x: st.x, why: 'cut in the sluice', seq };
+    /* the gate never cuts (review fixes 8 Oct): closing on a rabbit under it, it carries it clear to the side its centre is on */
+    if (!onTop && state === 'rise' && st.x + HW > sluice.x0 && st.x - HW < sluice.x1 && g < PR.hLow + PR.lethalMargin) { st.x = st.x < (sluice.x0 + sluice.x1) / 2 ? sluice.x0 - HW - PR.shove.clear : sluice.x1 + HW + PR.shove.clear; st.v = 0; seq.push('carried clear of the gate to ' + st.x.toFixed(2)); }
     if (st.x >= 146.2 + HW) return { ok: true, t, seq, margin };
     const danger = (state === 'release' || state === 'descent') && !sheltered;
     if (danger && mode !== 'flee') { if (react < 0) react = t + REACT;
@@ -224,7 +225,7 @@ function runLine(ph0, policy) {
         o.sort((a, b) => Math.abs(a.x - st.x) - Math.abs(b.x - st.x)); target = o[0].x; mode = 'flee';
         seq.push(`release of ${under.id} at x ${st.x.toFixed(2)} -> ${o[0].k} ${f2(Math.abs(o[0].x - st.x))} m`); } }
     if (mode === 'flee' && Math.abs(st.x - target) < 0.005) { mode = 'hold'; hold = st.x; react = -1; ready = -1; sawDown = true;
-      if (uL && (uL.s === 'release' || uL.s === 'descent')) margin = Math.min(margin, under.lethal - (uL.p - LINE.marks.release)); where = inPitC(st.x) ? 'pit-C' : 'gap'; }
+      if (uL && (uL.s === 'release' || uL.s === 'descent')) { const mm = under.lethal - (uL.p - LINE.marks.release); margin = Math.min(margin, mm); seq.push(`safe with ${mm.toFixed(2)} s to spare`); } where = inPitC(st.x) ? 'pit-C' : 'gap'; }
     if (mode === 'hold') {
       target = hold;
       const nxt = inPitC(st.x) ? QS[2] : QS.find(q => q.x0 > st.x);
@@ -252,9 +253,10 @@ const policies = [
   { name: 'runner (Shift all the way)', gait: 'run' },
 ];
 for (const pol of policies) {
-  let n = 0, ok = 0, tmin = Infinity, tmax = 0, sum = 0, fl = [], pitCUsed = 0, minM = Infinity;
-  for (let ph = 0; ph < LINE.period; ph += 0.25) { const r = runLine(ph, pol); n++; if (r.ok) { ok++; tmin = Math.min(tmin, r.t); tmax = Math.max(tmax, r.t); sum += r.t; minM = Math.min(minM, r.margin); if (r.seq.some(s => s.includes('pit-C'))) pitCUsed++; } else fl.push(`ph ${ph}: ${r.why} at x ${f2(r.x)} [${r.seq.join('; ')}]`); }
+  let n = 0, ok = 0, tmin = Infinity, tmax = 0, sum = 0, fl = [], pitCUsed = 0, minM = Infinity, closest = '';
+  for (let ph = 0; ph < LINE.period; ph += 0.25) { const r = runLine(ph, pol); n++; if (r.ok) { ok++; tmin = Math.min(tmin, r.t); tmax = Math.max(tmax, r.t); sum += r.t; if (r.margin < minM) { minM = r.margin; closest = `ph ${ph}: ${r.seq.join('; ')}`; } if (r.seq.some(s => s.includes('pit-C'))) pitCUsed++; } else fl.push(`ph ${ph}: ${r.why} at x ${f2(r.x)} [${r.seq.join('; ')}]`); }
   log(`  ${pol.name}: ${ok}/${n} survive; entry floor -> out of the great press ${f2(tmin)}-${f2(tmax)} s (mean ${f2(sum / Math.max(1, ok))}); shelters in pit C in ${pitCUsed}; least time to spare at a release ${f2(minM)} s`);
+  if (closest && minM < Infinity) log(`    closest call: ${closest}`);
   for (const f of fl.slice(0, 6)) log('    ' + f);
   check(ok === n, `long hall: the ${pol.name} survives from every arrival phase`);
 }
@@ -262,6 +264,33 @@ for (const pol of policies) {
 { const r = runLine(mod(QS[0].pass - 0.001, LINE.period), { gait: 'walk' });
   log('  the designed flow (Q1 just passable, leave after the reaction, walk on): ' + (r.ok ? `out after ${f2(r.t)} s` : 'CUT') + ' · ' + r.seq.join(' · '));
   check(r.ok && r.seq.some(s => s.includes('Q3') && s.includes('pit-C')), 'the designed climax: the continuous walker meets the great press\'s release over pit C and shelters there'); }
+/* review fixes 8 Oct: the climax as a player meets it. The designed flow (leave on Q1's first passable moment + the reaction,
+   walk on); at the great press's clank the walker stops where it is `r` seconds later, or never stops. Anywhere in slot C's
+   notch is safe (the ramp slide into the core: FF.Works, section 7), so is anywhere outside the great press's footprint. */
+function climax(stopAfter) {
+  const q1 = QS[0], q3 = QS[2], pitC = sh('pit-C'), st = { x: 168.9, v: 0 }, ph0 = mod(q1.pass - 0.001, LINE.period);
+  const notchOrCore = x => x >= pitC.x0 && x <= pitC.x1 && groundY(x) < PR.ramp.notchBelow;
+  let t = 0, go = null, rel = null, relX = null, stop = false;
+  for (let i = 0; i < 120 * 80; i++) {
+    const ph = mod(ph0 + t, LINE.period);
+    for (const q of QS) { const L = lineState(q, ph); if (L.s === 'descent' && inFoot(q, st.x) && !(q === q3 && notchOrCore(st.x)) && L.y < floorAt(st.x, false) + lethalH(false)) return { ok: false, x: st.x, relX, by: q.id }; }
+    if (st.x >= q3.x1 + HW + 0.02) return { ok: true, relX, stopX: null };
+    if (go == null) { const L = lineState(q1, ph); if (isPass(L.s, L.y)) go = t + REACT; }
+    const L3 = lineState(q3, ph);
+    if (rel == null && go != null && L3.s === 'release' && st.x > q3.x0 - 2.5) { rel = t; relX = st.x; }
+    if (rel != null && stopAfter != null && t >= rel + stopAfter) stop = true;
+    if (stop && rel != null && L3.s === 'up') return { ok: true, relX, stopX: st.x };
+    if (go != null && t >= go) stepTo(st, stop ? st.x : q3.x1 + 1.0, 'walk');
+    t += DT;
+  }
+  return { ok: false, x: st.x, relX, by: 'timeout' };
+}
+{ const rows = [], nonstop = climax(null);
+  let latest = null;
+  for (const r of [0.3, 0.6, 1.0, 1.4, 1.8, 2.2, 2.6]) { const q = climax(r); rows.push(`${r} s: ${q.ok ? 'safe' + (q.stopX != null ? ' (stopped at ' + f2(q.stopX) + ')' : '') : 'CUT at ' + f2(q.x)}`); if (q.ok) latest = r; }
+  log(`  the climax, stopping after the great press's clank (the designed flow; the clank with the walker at x ${f2(nonstop.relX)}): ` + rows.join(' · '));
+  log(`  never stopping (walking straight on through the clank): ${nonstop.ok ? 'out alive' : 'cut at ' + f2(nonstop.x) + ' by ' + nonstop.by} (by design: the great press is 8 m long; the slot is the shelter)`);
+  check(climax(0.6).ok && climax(1.4).ok && latest >= 1.4, `the climax: a walker who stops anywhere in the slot's notch within 1.4 s of the great press's clank (a 0.6 s reaction and more) is safe (latest safe stop tried: ${latest} s)`); }
 { let worst = null, fl = 0, n = 0;
   for (let k = 0; k <= 9; k += 0.25) for (let ph = 0; ph < 16; ph += 1) { n++; const r = runLine(ph, { gait: 'walk', delay: k }); if (!r.ok) { fl++; if (!worst) worst = `delay ${k} ph ${ph}: ${r.why} at ${f2(r.x)}`; } }
   log(`  late leavers (leaving 0-9 s after Q1 is passable, every arrival phase, ${n} runs): ${fl} cut` + (worst ? ' · first: ' + worst : ''));
@@ -370,10 +399,30 @@ const cpOf = id => L.checkpoint(id);
   for (let i = 0; i < 120 * 5; i++) { G.t += DT; WORKS.step(DT); }
   check(events.some(e => e[0] === 'fail'), 'P1: a centre 0.05 m inside its edge is the cut (no shove)');
 }
-{ /* the gate on the module: standing in it as it closes is the cut at the grammar's moment */
-  G.rabbit = stubRabbit((WK.sluice.x0 + WK.sluice.x1) / 2, WK.sluice.floorY, { low: true, crouchF: 1, crouchR: 1 }); WORKS.reset(cpOf('works-in')); WORKS.setPhase('P1', 7.0); events.length = 0;
-  let at = null; for (let i = 0; i < 120 * 5 && at == null; i++) { G.t += DT; WORKS.step(DT); if (events.some(e => e[0] === 'fail')) at = WORKS.clock('P1'); }
-  check(at != null && Math.abs(at - WK.sluiceShut) <= DT + 1e-6, `the gate cuts a rabbit standing in it as it closes at P1 phase ${at == null ? '-' : at.toFixed(3)} (the grammar's ${WK.sluiceShut.toFixed(3)})`);
+{ /* the gate on the module (review fixes 8 Oct): standing in it as it closes is never a cut: carried clear to the side its centre is on */
+  for (const [x, side] of [[WK.sluice.x0 + 0.02, 'slot B'], [WK.sluice.x1 - 0.02, 'the sill'], [WK.sluice.x0 - 0.05, 'slot B'], [WK.sluice.x1 + 0.12, 'the sill']]) {
+    G.rabbit = stubRabbit(x, WK.sluice.floorY, { low: true, crouchF: 1, crouchR: 1 }); WORKS.reset(cpOf('works-in')); WORKS.setPhase('P1', 7.0); events.length = 0;
+    let at = null; for (let i = 0; i < 120 * 6; i++) { G.t += DT; WORKS.step(DT); const sh = events.find(e => e[0] === 'works:shove'); if (sh && at == null) at = WORKS.clock('P1'); }
+    const f = events.filter(e => e[0] === 'fail').length, clear = G.rabbit.x + RB.hw <= WK.sluice.x0 + 1e-6 || G.rabbit.x - RB.hw >= WK.sluice.x1 - 1e-6;
+    check(f === 0 && clear && ((side === 'slot B') === (G.rabbit.x < WK.sluice.x0)), `the gate never cuts: a rabbit at x ${x.toFixed(2)} as it closes is carried clear to ${side} (x ${G.rabbit.x.toFixed(3)}, at P1 phase ${at == null ? '-' : at.toFixed(2)}); no failure`);
+  }
+}
+{ /* the ramp slide on the module (review fixes 8 Oct): a stub rabbit standing anywhere in each slot's notch (every 2.5 cm) as its
+     press comes down is never cut; it ends in the core */
+  for (const pid of ['pit-A', 'pit-B', 'pit-C']) {
+    const p = sh(pid), m = WORKS.machine(p.under); let n = 0, bad = [], slid = 0;
+    for (let x = p.x0; x <= p.x1 + 1e-9; x += 0.025) {
+      if (groundY(x) >= PR.ramp.notchBelow || (p.sluice && x > p.core[1])) continue;
+      const y = Math.max(groundY(x - RB.hw * 0.9), groundY(x), groundY(x + RB.hw * 0.9));
+      G.rabbit = stubRabbit(x, y); WORKS.reset(cpOf('works-in')); WORKS.setPhase(m.clock, (m.offset || 0) + m.period - 0.25); events.length = 0; n++;
+      for (let i = 0; i < 120 * 5; i++) { G.t += DT; WORKS.step(DT); }
+      if (events.some(e => e[0] === 'works:shove' && e[2].kind === 'ramp')) slid++;
+      /* never cut; and either carried into the core, or so deep in the notch that the platen (stopping at y 0) clears its back */
+      const deep = G.rabbit.y + PR.hStand + PR.lethalMargin <= 1e-9, inCore = G.rabbit.x >= p.core[0] - 1e-6 && G.rabbit.x <= p.core[1] + 1e-6;
+      if (events.some(e => e[0] === 'fail') || !(inCore || deep)) bad.push(x.toFixed(3));
+    }
+    check(bad.length === 0, `${pid}: standing anywhere in its notch (${n} points, ${slid} on the ramps slide into the core) as ${p.under} comes down: never cut (in the core at the contact, or deep enough that the platen clears its back)` + (bad.length ? ' · bad at ' + bad.slice(0, 6).join(', ') : ''));
+  }
 }
 { /* the checkpoints on the module: each restart puts its station at the data's phase */
   let ok = true; for (const c of S2.checkpoints.filter(k => k.works)) { G.rabbit = stubRabbit(c.x, c.y); WORKS.reset(c); const k = c.works.P1 != null ? 'P1' : 'line'; if (Math.abs(WORKS.clock(k) - c.works[k]) > 1e-9) ok = false; }

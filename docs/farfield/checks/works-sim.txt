@@ -11,7 +11,7 @@ PASS every contact lands on the 4.0 s heartbeat
 PASS the sluice window >= 5.0 s
 PASS pit-A core [141.6, 142.6] lies inside the rule's core [141.55, 142.65] (whole body over floor <= -0.26)
 PASS pit-B core [144.6, 145.44] lies inside the rule's core [144.55, 145.44] (whole body over floor <= -0.26)
-PASS pit-C core [184.75, 185.85] lies inside the rule's core [184.75, 185.85] (whole body over floor <= -0.26)
+PASS pit-C core [184.75, 186.45] lies inside the rule's core [184.75, 186.45] (whole body over floor <= -0.26)
 
 == 2. Fairness: at the RELEASE, from every point under every press (step 0.02 m), react 0.6 s, go to the nearest safety
   P1  worst point x 146.98: nearest safety 1.54 m (pit-B); walk margin 1.58 s; run margin 2.46 s (worst x 146.98)
@@ -42,15 +42,15 @@ PASS the first descent completes before the fastest rabbit can enter (lead 0.57 
 PASS the first press and the sluice: every walking route survives (no precise timing needed)
 
 == 4b. Routes through the long hall, from every arrival phase of the bar (step 0.25 s)
-  continuous walker (walks on whenever the press ahead is up): 64/64 survive; entry floor -> out of the great press 26.92-39.61 s (mean 32.52); shelters in pit C in 56; least time to spare at a release 1.41 s
+  continuous walker (walks on whenever the press ahead is up): 64/64 survive; entry floor -> out of the great press 26.92-38.97 s (mean 32.04); shelters in pit C in 56; least time to spare at a release 1.09 s
 PASS long hall: the continuous walker (walks on whenever the press ahead is up) survives from every arrival phase
-  walker who runs when a release catches it: 64/64 survive; entry floor -> out of the great press 26.92-39.61 s (mean 32.51); shelters in pit C in 56; least time to spare at a release 1.99 s
+  walker who runs when a release catches it: 64/64 survive; entry floor -> out of the great press 26.92-38.98 s (mean 32.04); shelters in pit C in 56; least time to spare at a release 1.37 s
 PASS long hall: the walker who runs when a release catches it survives from every arrival phase
   cautious walker (waits in every gap for a fresh rise): 64/64 survive; entry floor -> out of the great press 42.89-58.64 s (mean 50.77); shelters in pit C in 0; least time to spare at a release inf s
 PASS long hall: the cautious walker (waits in every gap for a fresh rise) survives from every arrival phase
   runner (Shift all the way): 64/64 survive; entry floor -> out of the great press 8.25-17.89 s (mean 11.25); shelters in pit C in 0; least time to spare at a release inf s
 PASS long hall: the runner (Shift all the way) survives from every arrival phase
-  the designed flow (Q1 just passable, leave after the reaction, walk on): out after 28.19 s · release of Q3 at x 185.85 -> pit-C 0.05 m
+  the designed flow (Q1 just passable, leave after the reaction, walk on): out after 27.56 s · release of Q3 at x 186.45 -> pit-C 0.05 m
 PASS the designed climax: the continuous walker meets the great press's release over pit C and shelters there
   late leavers (leaving 0-9 s after Q1 is passable, every arrival phase, 592 runs): 0 cut
 PASS long hall: leaving late never matters to a walker who reacts to the release
@@ -68,7 +68,7 @@ PASS works-line: restart in a shelter, the window 2.5-7 s after the restart
 PASS works-g1: restart in a shelter, the window 2.5-7 s after the restart
   works-g2       x 179.8 in G2 core: true; contact seen 2.00 s after the restart (picture back at 1.25); the way on opens 4.60 s after
 PASS works-g2: restart in a shelter, the window 2.5-7 s after the restart
-  works-pitC     x 185.3 in pit-C core: true; contact seen 2.00 s after the restart (picture back at 1.25); the way on opens 4.60 s after
+  works-pitC     x 185.6 in pit-C core: true; contact seen 2.00 s after the restart (picture back at 1.25); the way on opens 4.60 s after
 PASS works-pitC: restart in a shelter, the window 2.5-7 s after the restart
 
 == 6. The maintenance worker (Sequence 1's detection model A6; he sees only while turned along the lane)

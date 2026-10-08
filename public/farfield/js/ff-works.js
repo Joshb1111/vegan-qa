@@ -8,16 +8,20 @@
    ({P1} or {line}); a checkpoint past the trigger without one starts them at 0; before the trigger they are stopped.
    THE CUT (the non-graphic failure, as Sequence 1 §10): on the fixed step when a DESCENDING press's underside comes within
    lethalMargin of the rabbit's back as drawn (standing hStand 0.24 .. fully crouched hLow 0.15, by the Player's eased crouch) while the rabbit's CENTRE is inside its
-   footprint (inset centreInset) and it is not grounded in a pit core under that press: bus 'fail' {kind: 'machine', by, x}.
-   ff-events.js runs the flow (black on the next drawn frame, the restart at 0.80 s, control at 1.00, picture at 1.25).
+   footprint (inset centreInset) and it is not in a pit core under that press (grounded or not): bus 'fail' {kind: 'machine',
+   by, x}. ff-events.js runs the flow (black on the next drawn frame, the restart at 0.80 s, control at 1.00, picture at 1.25).
    Measured from the clank: 3.89 s (P1, Q1, Q2), 3.91 s (Q3) standing on the bed.
    THE CHAMFER SHOVE (fairness at the edges, involuntary, 0.12 s, no harm): a body that overlaps a descending footprint while
    its centre is outside it, in the last shove.time before contact, is pushed clear to the side its centre is on, with the
    startle (FF.Player.shove(toX, t) when the Player has it; otherwise this module moves G.rabbit.x itself before the Player
    steps). If that side is blocked by a solid, the cut applies instead.
+   THE RAMP SLIDE (review fixes 8 Oct; the same path, kind 'ramp'): a rabbit whose centre is in a slot's visible notch but
+   outside its core (on a ramp, where the ground dips below the bed) and whose back would meet the platen slides down into the
+   core in the last moments of the descent (ramp.lead s before contact, or as the iron comes within ramp.margin), 0.12-0.25 s.
+   The whole dark notch is a shelter, as it reads.
    THE SLUICE: its gap above pit B's floor follows P1 (lifts while P1 comes down, held open 0.30 while it presses, closes over
-   its rise). Closing: the rabbit's centre within lethalBand of the gate with the gap below hLow + lethalMargin -> the cut; a
-   body overlapping the gate there -> shoved to the nearer side.
+   its rise). Closing, it never cuts (review fixes 8 Oct): as its lower edge reaches the back of a rabbit under it, the rabbit
+   is carried clear to the side its centre is on (slot B or the sill), kind 'gate'.
    DYNAMIC SOLIDS: FF.S2.solids 'P1', 'Q1'-'Q3' (kind 'press': y0 = underside, y1 = underside + thick) and 'sluice' (y0 =
    floorY + gap, y1 = top) are set on every fixed step BEFORE the Player steps (main's STEP order: Works first), so the
    Player's collision and the cut use this step's positions. The objects are shared with the merged lane (ff-lane.js), so
@@ -34,7 +38,7 @@
      press  {id, phase: release|descent|contact|down|rise|up, x0, x1, x (centre), d (rabbit to footprint, m), great}
             'contact' is THE THUD (then 'down' on the same step); d <= FF.RULES.works.press.shake.within: shake + flinch
      sluice {phase: lift|open|close|shut, gap}
-     works:shove {id, from, to, dur}                       the chamfer shove started (Player: the startle)
+     works:shove {id, from, to, dur, kind: edge|ramp|gate} a shove started: the chamfer, the ramp slide, the gate (Player: the startle)
      fail   {kind: 'machine', by, x}                       the cut (Events: the failure flow; Audio: the muffled thud)
    Debug: FF.Works.debug() (window.__ff.works): {started, P1 {phase, y, state}, line {phase, Q1.., Q3}, sluice {gap, state},
      cut, shove, danger}. Test hooks: setPhase('P1'|'line', t), start(), stop().
@@ -119,6 +123,14 @@ function rabbitH(r) {
   return (r.crouch || r.low) ? P.hLow : P.hStand;
 }
 function inPitCore(m, x) { for (const p of m.pits) if (x >= p.core[0] - 1e-9 && x <= p.core[1] + 1e-9) return p; return null; }
+/* the slot's visible notch outside its core: the ramps (and, in slot B, the floor up to the gate), where the ground under the
+   centre dips below the bed (FF.RULES.works.press.ramp.notchBelow). Review fixes 8 Oct: the notch the player reads as the
+   shelter is twice as wide as the core, so a rabbit standing there slides down into the core instead of being cut. */
+function inNotch(m, x) {
+  const RP = PR().ramp; if (!RP || !FF.Level) return null;
+  for (const p of m.pits) if (x >= p.x0 && x <= p.x1 && !(x >= p.core[0] - 1e-9 && x <= p.core[1] + 1e-9) && FF.Level.groundY(x) < RP.notchBelow) return p;
+  return null;
+}
 function blockedAt(x, r, ignore) {
   const L = FF.Level, hw = FF.RULES.rabbit.hw, h = rabbitH(r);
   if (!L || !L.solidsIn) return false;
@@ -131,11 +143,11 @@ function cut(by, r) {
   st.shove = null;
   emit('fail', { kind: 'machine', by, x: +r.x.toFixed(2) });
 }
-function startShove(id, r, to) {
-  const dur = PR().shove.time;
-  st.shove = { id, from: r.x, to, t: 0, dur };
+function startShove(id, r, to, dur, kind) {
+  dur = dur || PR().shove.time; kind = kind || 'edge';
+  st.shove = { id, from: r.x, to, t: 0, dur, kind };
   if (FF.Player && typeof FF.Player.shove === 'function') { try { FF.Player.shove(to, dur); st.shove.player = true; } catch (e) { FF.report(e, 'Works.shove'); } }
-  emit('works:shove', { id, from: +r.x.toFixed(3), to: +to.toFixed(3), dur });
+  emit('works:shove', { id, from: +r.x.toFixed(3), to: +to.toFixed(3), dur: +dur.toFixed(3), kind });
 }
 function shoveStep(dt, r) {
   const s = st.shove; if (!s) return;
@@ -154,7 +166,20 @@ function hazards(dt) {
     const overlap = r.x + hw > m.x0 && r.x - hw < m.x1; if (!overlap) continue;
     const centreIn = r.x > m.x0 + P.centreInset && r.x < m.x1 - P.centreInset;
     if (centreIn) {
-      if (r.grounded !== false && inPitCore(m, r.x)) continue;              // a pit: the platen stops at y 0, over its back
+      /* a pit core: the platen stops at y 0, over its back. Review fixes 8 Oct: airborne too (a startled hop in the slot); the
+         Player holds a rabbit in the air under the descending platen (it is a ceiling there) */
+      if (inPitCore(m, r.x)) continue;
+      /* the slot's ramps (the rest of the visible notch): sliding down into the core (involuntary, like the chamfer shove) */
+      if (st.shove && st.shove.kind === 'ramp' && st.shove.id === m.id) continue;
+      const notch = inNotch(m, r.x);
+      if (notch && r.y + h + P.lethalMargin > 0) {
+        const RP = P.ramp, tc = m.marks.contact - c.phase;
+        if (tc <= RP.lead + 1e-9 || c.y < r.y + h + P.lethalMargin + RP.margin) {
+          const to = r.x < notch.core[0] ? notch.core[0] + RP.inset : notch.core[1] - RP.inset;
+          startShove(m.id, r, to, Math.max(RP.minTime, Math.min(RP.maxTime, Math.abs(to - r.x) / RP.speed)), 'ramp');
+          continue;
+        }
+      }
       if (c.y < r.y + h + P.lethalMargin) { cut(m.id, r); return; }
     } else if (!st.shove) {
       const tc = m.marks.contact - c.phase;
@@ -165,16 +190,20 @@ function hazards(dt) {
       }
     }
   }
-  /* the sluice, closing over P1's rise */
-  const s = SLU.cur; if (s.state === 'close') {
-    const S = SLR(), xc = (SLU.x0 + SLU.x1) / 2, half = (SLU.x1 - SLU.x0) / 2, lowH = P.hLow + P.lethalMargin;
+  /* the sluice, closing over P1's rise. Review fixes 8 Oct: it never cuts. The press is rising (the grammar's "never dangerous"),
+     and the gate's closing is a small motion the player can hardly see, so as its lower edge comes down to the rabbit's back the
+     gate's own weight on its counterweight cable stops being enough and the rabbit is carried clear, to the side its centre is
+     on (slot B or the sill), with the startle: the chamfer shove's path. Only if both sides were blocked would it cut (they
+     never are). */
+  const s = SLU.cur; if (s.state === 'close' && !st.shove) {
+    const xc = (SLU.x0 + SLU.x1) / 2;
     const near = r.y < SLU.top - 0.05 && r.y > SLU.floorY - 0.2;           // at the gate's level (not on the bed above, not in the culvert below)
-    if (near && s.gap < lowH) {
-      if (Math.abs(r.x - xc) <= half + S.lethalBand) { cut('sluice', r); return; }
-      if (!st.shove && r.x + hw > SLU.x0 && r.x - hw < SLU.x1) {
-        const to = r.x < xc ? SLU.x0 - hw - P.shove.clear : SLU.x1 + hw + P.shove.clear;
-        if (blockedAt(to, r, SLU.solidRef)) cut('sluice', r); else startShove('sluice', r, to);
-      }
+    if (near && r.x + hw > SLU.x0 && r.x - hw < SLU.x1 && SLU.floorY + s.gap < r.y + h + P.lethalMargin) {
+      const left = r.x < xc, a = SLU.x0 - hw - P.shove.clear, b = SLU.x1 + hw + P.shove.clear;
+      const to = left ? a : b, alt = left ? b : a;
+      if (!blockedAt(to, r, SLU.solidRef)) startShove('sluice', r, to, null, 'gate');
+      else if (!blockedAt(alt, r, SLU.solidRef)) startShove('sluice', r, alt, null, 'gate');
+      else { cut('sluice', r); return; }
     }
   }
 }

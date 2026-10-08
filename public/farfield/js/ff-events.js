@@ -504,12 +504,12 @@ const Events = FF.Events = {
       vergeStep(dt); walkwayStep(dt); endStep(dt); revealStep(dt);
       /* progress checkpoints: passing x; Search checkpoints: the centre in that cover's core and the searcher not alert
          (the last core reached undetected is the restart point, in any order) */
-      const list = FF.S1.checkpoints, cur = list.findIndex(k => k.id === st.cp), court = list.findIndex(k => k.id === 'courtyard');
+      const list = FF.S1.checkpoints, cur = list.findIndex(k => k.id === st.cp), court = list.findIndex(k => k.id === 'courtyard'), rest = list.findIndex(k => k.id === 'rest') < 0 ? Infinity : list.findIndex(k => k.id === 'rest');
       for (let i = 0; i < list.length; i++) {
         const c = list[i]; if (c.id === st.cp) continue;
         if (searchCps.includes(c.id)) {
           const cover = FF.S1.covers.find(k => k.checkpoint === c.id);
-          if (cover && cover.core && r.x >= cover.core[0] && r.x <= cover.core[1] && (!r.mode || r.mode === 'play') && !(FF.AI && FF.AI.danger && FF.AI.danger()) && cur >= court && st.cp !== 'rest') setCheckpoint(c.id);
+          if (cover && cover.core && r.x >= cover.core[0] && r.x <= cover.core[1] && (!r.mode || r.mode === 'play') && !(FF.AI && FF.AI.danger && FF.AI.danger()) && cur >= court && cur < rest) setCheckpoint(c.id);   // review fixes 8 Oct: never back from the rest or the Works to a Search cover
         } else if (i > cur && r.x >= c.x && (c.y == null || Math.abs(r.y - c.y) < 0.6)) setCheckpoint(c.id);
       }
       /* search-arrive on landing from the duct (SEQUENCE-1.md §9.7; 7 Oct v2): a pause -> Restart right after the drop, or

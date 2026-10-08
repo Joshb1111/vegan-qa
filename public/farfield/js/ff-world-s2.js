@@ -32,6 +32,12 @@
      WP    workLamp     lampQ1       doorLine    lampQ2      amberBulkhead  culvertLamp    the passage (and the long hall's door)
      WL    lampQ3       lampQ1       doorLine    lampQ2      amberBulkhead  exitGap        the long hall and outside (D0: the moon)
    The press lamps are unshadowed (their pools are masked to the footprint); only the high bay and the work lamp cast shadows.
+   REVIEW FIXES (8 Oct): the clank's water restyled (a spill of drops off the lower edge at once, a few soft streams off the top,
+   stopping at the bed) and the lamp flickers at the clank and tightens through the warning (the muted twins of the clank);
+   the gate's light hangs in the mist before slot B and lies on the gutter while it is open; the gate plate is drawn in section
+   behind the lane; the far windows draw over their building (polygon offset), larger and brighter, with the far sheds under
+   their sightline; no flat puddle discs; the long hall's gaps darker; the high bay's pool behind the lane on the apron; the
+   tripod lamp within the worker's reach; slot C's mask follows its wider floor.
    OWNER: the world builder (Sequence 2). docs/farfield/INTERFACES.md, "Sequence 2 build: world + camera". */
 'use strict';
 window.FF = window.FF || {};
@@ -49,12 +55,13 @@ const SLOT_I = { K0: 0, K1: 1, P0: 2, P1: 3 };
 const SLOPE = 69.6 / 44, yo = x => 0.5 + (x - 131.0) * SLOPE, yi = x => yo(x) - 2.5;
 /* where the rain may fall: outdoors, and inside only through the broken roof (x0, x1, z0, z1) */
 const RAIN_COLS = [[-1e4, 131.0, -99, 99], [193.8, 1e4, -99, 99], [136.5, 139.5, -5.2, 0.62], [142.0, 146.4, -3.0, 0.5], [173.25, 174.75, -6.2, 0.62], [178.65, 180.95, -6.2, 0.62]];
-const PITS = [[141.0, 143.2], [144.0, 146.2], [184.2, 186.4]];
+const PITS = [[141.0, 143.2], [144.0, 146.2], [184.2, 187.0]];   // review fixes 8 Oct: slot C 0.6 m wider on the exit side
 
 /* ---------------------------------------------------------------------------------------------- looks, lights, materials */
 const MATS = {
   bedC:     { color: '#51565c', roughness: 0.72, mottle: 0.12, wallFill: 0.9 },  // the bed's concrete (the apron, the gaps, the front face)
   bedSteel: { color: '#4c5157', roughness: 0.4, mottle: 0.12, wallFill: 0.2 },   // the wet steel bed plates under the presses
+  gapC:     { color: '#3c4146', roughness: 0.62, mottle: 0.14, wallFill: 0.5 },  // the long hall's gaps: darker, rain-wet (review fixes 8 Oct: dark = safe, and the rabbit reads there)
   iron:     { color: '#2d3136', roughness: 0.58, mottle: 0.08, wallFill: 0.42 },  // the platens
   ironDk:   { color: '#202428', roughness: 0.72, mottle: 0.05, wallFill: 0.3 },   // frames, screws, guides
   hallWall: { color: '#3b4148', roughness: 0.92, mottle: 0.09, wallFill: 1.0 },
@@ -79,16 +86,16 @@ const LIGHTS = {
     lampQ3:    { slot: 'K0', color: '#dfe6ec', intensity: 8.0, angle: 64 * D2R, penumbra: 0.2, distance: 0, decay: 1, beam: 0 },
     /* a cold high lamp under the broken roof over the apron: the rain shafts (shadowed: the platen and its frame cut the shaft) */
     highBay:   { slot: 'K1', color: '#cfd8e0', intensity: 2.8, angle: 16 * D2R, penumbra: 0.6, distance: 16, decay: 1, beam: 0.0075,
-                 pos: [137.7, 8.0, -4.6], target: [138.2, 0.0, -1.4], shadow: { size: 'secondShadow', near: 2.0, far: 16, bias: -0.0005, radius: 2.5 } },
+                 pos: [137.7, 8.0, -4.6], target: [138.2, 0.0, -3.1], shadow: { size: 'secondShadow', near: 2.0, far: 16, bias: -0.0005, radius: 2.5 } },
     /* the gate's light: from the culvert into slot B, by the gate's gap (a hairline when shut). Integration, 8 Oct: brighter,
        wider and aimed a little out of the notch (was 5.0, 70 deg, 2.6 m, aimed along the pit floor), so the light that floods
        slot B each time P1 comes down reads from pit A and the apron: it is the puzzle's one clue (SEQUENCE-2.md §5.2) */
-    sluiceGlow:{ slot: 'P0', color: '#d6dee6', intensity: 11.0, angle: 80 * D2R, penumbra: 0.9, distance: 3.4, decay: 2, beam: 0, pos: [146.15, -0.16, -0.15], target: [144.6, -0.40, 0.6] },
+    sluiceGlow:{ slot: 'P0', color: '#d6dee6', intensity: 15.0, angle: 80 * D2R, penumbra: 0.9, distance: 3.4, decay: 2, beam: 0, pos: [146.15, -0.16, -0.15], target: [144.6, -0.40, 0.6] },
     /* the intake's far end: the hall's light seen down the tunnel */
     intakeGlow:{ slot: 'P1', color: '#c9d3dc', intensity: 2.4, angle: 38 * D2R, penumbra: 0.9, distance: 4.6, decay: 2, beam: 0, pos: [136.6, 0.36, -0.1], target: [133.4, 0.0, 0.0] },
     /* the painter's tripod lamp (FF.Painter drives it; until it does, the World lights it on its stand aimed at the wall) */
-    workLamp:  { slot: 'K0', color: '#e6ecf1', intensity: 9.0, angle: 40 * D2R, penumbra: 0.45, distance: 14, decay: 1.6, beam: 0.0012,
-                 pos: [159.0, 1.5, -1.0], target: [161.2, 1.2, -2.0], shadow: { size: 'torchShadow', near: 0.1, bias: -0.0004, radius: 3 } },
+    workLamp:  { slot: 'K0', color: '#e6ecf1', intensity: 5.6, angle: 50 * D2R, penumbra: 0.5, distance: 14, decay: 1.6, beam: 0.0012,
+                 pos: [159.62, 1.5, -1.25], target: [161.3, 1.2, -2.0], shadow: { size: 'torchShadow', near: 0.1, bias: -0.0004, radius: 3 } },   // review fixes 8 Oct: = FF.S2.painter.lamp (in his reach); nearer the wall, so dimmer and wider (was 9, 40 deg)
     /* the long hall's light under the door into the passage */
     doorLine:  { slot: 'P0', color: '#d6dee6', intensity: 2.6, angle: 58 * D2R, penumbra: 0.85, distance: 3.4, decay: 2, beam: 0, pos: [167.15, 0.1, -0.05], target: [164.3, 0.0, 0.15] },
   },
@@ -123,6 +130,8 @@ const FOOT_GLSL = `
 uniform float uWOn; uniform vec4 uWFootX[4]; uniform vec4 uWFootZ[4]; uniform vec4 uWPit[3];
 float ffWFoot( vec3 p, vec4 a, vec4 b ) {
   if ( a.w < 0.5 ) return 1.0;
+  /* review fixes 8 Oct (frame cost): outside the footprint's soft edges the mask is exactly 0; skip the rest there */
+  if ( p.x <= a.x - a.z || p.x >= a.y + a.z || p.z <= b.x - b.z || p.z >= b.y + b.z ) return 0.0;
   float m = smoothstep( a.x - a.z, a.x + a.z, p.x ) * ( 1.0 - smoothstep( a.y - a.z, a.y + a.z, p.x ) );
   m *= smoothstep( b.x - b.z, b.x + b.z, p.z ) * ( 1.0 - smoothstep( b.y - b.z, b.y + b.z, p.z ) );
   if ( p.y > 0.02 || m <= 0.0 ) return m;
@@ -238,7 +247,8 @@ function buildHall() {
   P.add('bedSteel', B(145.6, 147.0, -0.10, 0.0, WZ, 0.4), true);
   P.add('bedC', B(145.6, 147.0, -0.4, -0.10, WZ, -0.8), true);
   /* the gate's frame: steel guide channels either side of the plate (the front one at the bed's front face) */
-  P.add('ironDk', B(145.52, 145.78, -0.42, 0.0, 0.40, 0.47)); P.add('ironDk', B(145.52, 145.78, -0.42, 0.0, -0.86, -0.78));
+  /* review fixes 8 Oct: the front guide only above the opening (it was a dark bar in front of a rabbit under the gate) */
+  P.add('ironDk', B(145.52, 145.78, -0.13, 0.0, 0.40, 0.47)); P.add('ironDk', B(145.52, 145.78, -0.42, 0.0, -0.86, -0.78));
   P.add('metalLight', B(145.55, 145.75, -0.13, -0.10, -0.8, 0.44));
   /* the culvert beyond the gate, in section (as the drain): the sill, the 0.6 m drop, the culvert under the wall's footing, the
      silt ramp up into the passage; a trickle down its middle */
@@ -246,6 +256,7 @@ function buildHall() {
   P.add('wet', A.profileGeo(146.3, 151.0, -0.22, 0.06, 0, 0.004, false));
   P.add('section', profFace(146.2, 153.0, 0.48, -3.2, 0)); P.add('section', B(146.0, 146.4, -3.2, -0.9, 0.4, 0.64)); P.add('section', B(152.7, 153.3, -3.2, 0.0, 0.45, 0.64));
   P.add('pipe', B(146.2, 151.4, -1.0, -0.1, -0.86, -0.8), true);                 // the culvert's back wall
+  P.add('ironDk', B(146.12, 146.2, -0.40, -0.335, -0.81, 0.46));                  // the steel angle along the sill's edge (a 6 cm step in the ground: the drop is one-way)
   P.add('pipe', B(147.0, 151.4, -0.14, -0.10, -0.8, 0.45));                       // its roof: the wall's footing
   P.add('pipe', B(151.4, 153.0, -1.0, 0.0, -1.3, -0.8), true);
   /* the walls: the back wall (panels, a dark plinth, the pipes), the left wall over the tunnel's end, the dividing wall and its
@@ -282,17 +293,19 @@ function buildHall() {
     const g = new T.PlaneGeometry(0.5, 0.4); g.rotateX(Math.PI / 2); g.translate(x, y - 0.005, z); P.obj(glow('#dbe3ea', 6.0, g)); }
   /* the culvert's far lamp (seen up the silt ramp) */
   { const [x, y, z] = LIGHTS.point.culvertLamp.pos; P.add('metal', B(x - 0.12, x + 0.12, y, y + 0.14, z - 0.08, z)); const g = new T.PlaneGeometry(0.2, 0.08); g.translate(x, y + 0.03, z + 0.003); P.obj(glow('#c3cdd6', 3.0, g)); }
-  /* debris on the apron, off the lane; a few puddles where the rain lands */
+  /* debris on the apron, off the lane. Review fixes 8 Oct: no flat puddle discs (they read as holes in the floor, as Sequence 1's
+     did); the floor's own mottle carries the wet */
   for (let i = 0; i < 10; i++) P.add('rubble', A.tilt(0.1 + rnd() * 0.25, 0.04 + rnd() * 0.08, 0.1 + rnd() * 0.25, (rnd() - 0.5) * 30, 136.3 + rnd() * 3.4, 0.02, rnd() < 0.5 ? -1.0 - rnd() * 4 : 0.25 + rnd() * 0.12, (rnd() - 0.5) * 40), true);
-  for (const [x, w, z, d] of [[137.6, 1.3, -1.6, 0.5], [138.8, 1.0, -3.2, 0.4], [137.2, 0.7, 0.1, 0.25]]) { const g = new T.CircleGeometry(1, 18); g.rotateX(-Math.PI / 2); g.scale(w / 2, 1, d); g.translate(x, 0.004, z); P.add('wetS', g); }
   /* THE FIRST PRESS (prop 'P1'), the gate (prop 'sluice') and the counterweight (prop 'counterweight') */
   pressProp('P1', P);
   { const s = S2().works.sluice, g = A.mkProp('sluice', (s.x0 + s.x1) / 2, s.floorY, 0);
     /* the plate slides up into a slot in the bed-end: its visible height shrinks as it lifts (scaled in frame()) */
-    const plate = new T.Mesh(FF.geo.merge([B(-0.045, 0.045, 0.0, 0.3, -0.8, 0.42), B(-0.06, 0.06, 0.0, 0.035, -0.8, 0.42)]), A.mat('metalLight'));
+    /* review fixes 8 Oct: drawn in section, its front edge behind the lane (z -0.12), so a rabbit under it stays in view */
+    const plate = new T.Mesh(FF.geo.merge([B(-0.045, 0.045, 0.0, 0.3, -0.8, -0.12), B(-0.06, 0.06, 0.0, 0.035, -0.8, -0.12)]), A.mat('metalLight'));
     plate.castShadow = true; plate.receiveShadow = true; g.add(plate); ST.sluicePlate = plate;
     /* beyond the gate the culvert's cold light is always there (a faint glow on the sill's back wall); the gap lets it into slot B */
     const q = new T.PlaneGeometry(0.62, 0.3); q.translate(146.0, -0.25, -0.79); const gl = glow('#d6dee6', 0.55, q); ST.sluiceGlowMesh = gl; P.obj(gl);
+    gateLightFx(P);
     }
   { const g = A.mkProp('counterweight', 137.5, 1.4, -4.2), me = new T.Mesh(B(-0.5, 0.5, 0, 2.2, -0.42, 0.42), A.mat('ironDk')); me.castShadow = true; me.receiveShadow = true; g.add(me); }
   P.done();
@@ -463,14 +476,14 @@ function buildLine() {
   const P = A.place('line', 166.4, 194.4); P.looks = ['line', 'passage', 'works-out'];
   const WZ = -6.5, ROOF = 16.0;
   /* the bed: floors in concrete, the steel plates under each press, slot C under the great press; front face, gutter, cut */
-  const steel = [[169.4, 173.2], [174.8, 178.6], [181.0, 189.0]], conc = [[167.0, 169.4], [173.2, 174.8], [178.6, 181.0], [189.0, 193.4]];
+  const steel = [[169.4, 173.2], [174.8, 178.6], [181.0, 189.0]], conc = [[167.0, 169.4], [189.0, 193.4]], gaps = [[173.2, 174.8], [178.6, 181.0]];
   for (const [a, b] of conc) P.add('bedC', A.profileGeo(a, b, WZ, 0.4, 0, 0, false));
+  for (const [a, b] of gaps) P.add('gapC', A.profileGeo(a, b, WZ, 0.4, 0, 0, false));   // review fixes 8 Oct: the gaps' floor darker (dark = safe)
   for (const [a, b] of steel) P.add('bedSteel', A.profileGeo(a, b, WZ, 0.4, 0, 0, false));
   P.add('bedC', profFace(167.0, 193.4, 0.4, -0.9, 0));
   P.add('trough', B(167.0, 193.4, -0.94, -0.9, 0.4, 0.62)); P.add('section', B(167.0, 193.8, -3.2, -0.94, 0.6, 0.64));
   for (const [a, b] of steel) for (let x = a + 1.27; x < b - 0.2; x += 1.27) P.add('ironDk', B(x - 0.012, x + 0.012, 0.0, 0.004, WZ, 0.4));
-  /* puddles in the gaps where the rain lands, a painted line worn to nothing at the entry */
-  for (const [x, w, z, d] of [[174.0, 1.2, -1.3, 0.6], [173.9, 0.6, 0.05, 0.22], [179.8, 1.8, -2.0, 0.7], [180.1, 0.9, 0.0, 0.25]]) { const g = new T.CircleGeometry(1, 18); g.rotateX(-Math.PI / 2); g.scale(w / 2, 1, d); g.translate(x, 0.004, z); P.add('wetS', g); }
+  /* review fixes 8 Oct: no flat puddle discs in the gaps (they read as holes in the floor, as Sequence 1's did) */
   /* the back wall: tall panels, pilasters behind each frame, a dark plinth, pipes high up; the roof (cut), open over the gaps */
   P.add('hallWall', B(166.6, 193.8, 0, ROOF, WZ - 0.3, WZ), true);
   for (let x = 169.0; x < 193.8; x += 2.6) P.add('hallDk', B(x - 0.04, x + 0.04, 0, ROOF, WZ, WZ + 0.012));
@@ -502,7 +515,6 @@ function buildOut() {
   const P = A.place('out', 193.2, 240.0); P.looks = ['works-out', 'line'];
   /* wet ground following the profile down the embankment into the fog; its front face */
   P.add('outGround', A.profileGeo(193.8, 240.0, -14.0, 6.0, -5.0, 0, true));
-  P.add('wet', (() => { const g = new T.CircleGeometry(1, 20); g.rotateX(-Math.PI / 2); g.scale(1.0, 1, 0.4); g.translate(195.4, 0.006, 0.3); return g; })());
   /* the Works' far side: the long hall's end in section and the colossal masses behind it, stepping back and up into the dark */
   P.add('works', B(176.0, 193.8, ROOFY(), ROOFY() + 2.0, -6.8, 0.6), true); P.add('section', B(176.0, 193.8, ROOFY(), ROOFY() + 2.0, 0.6, 0.64));
   P.bg('works', B(172.0, 195.5, 0, 34.0, -24.0, -7.4)); P.bg('works', B(150.0, 193.0, 0, 58.0, -48.0, -25.0)); P.bg('works', B(120.0, 186.0, 0, 92.0, -80, -50));
@@ -527,23 +539,27 @@ function buildOut() {
   P.bg('farNight', B(228.0, 292.0, 0, 7.0, -147.0, -140.0)); P.bg('farNight', B(240.0, 262.0, 7.0, 9.5, -147.0, -141.5));
   P.bg('grassFar', B(193.0, 330.0, -0.6, -0.05, -215.0, -14.0));
   for (const x of [214.0, 236.0, 271.0]) P.bg('far', cylY(0.06, 0, 4.5 + rnd() * 2, x, -48 - rnd() * 20, 5));
-  for (let i = 0; i < 7; i++) { const x = 196 + rnd() * 80, w = 5 + rnd() * 12; P.bg('farNight', B(x, x + w, 0, 1.5 + rnd() * 3.5, -95 - rnd() * 20, -88)); }
+  /* low far sheds (review fixes 8 Oct: at most 1.3 m, under the sightline to the far windows; up to 5 m they hid them) */
+  for (let i = 0; i < 7; i++) { const x = 196 + rnd() * 80, w = 5 + rnd() * 12; P.bg('farNight', B(x, x + w, 0, 0.6 + rnd() * 0.7, -95 - rnd() * 20, -88)); }
   farWindows(P);
   P.done();
 }
 const ROOFY = () => 16.0;
-/* the windows: one draw; every 6 s tiny figures cross every window at once, in step, and are gone (no sound) */
+/* the windows: one draw; every 6 s tiny figures cross every window at once, in step, and are gone (no sound).
+   Review fixes 8 Oct: they never showed in the game. The plane sat 5 cm in front of the building's face, 150 m away, and lost
+   the depth test to it (the post's scene target has a coarse depth buffer at that range): now a polygon offset draws them
+   over the face. A little larger (2.0 x 1.3 m) and brighter, so the figures read at 1x (about 3 x 10 px). */
 function farWindows(P) {
-  const pos = [], uv = [], win = [], rows = [[1.6, 2.7], [4.1, 5.2]], z = -139.95;
+  const pos = [], uv = [], win = [], rows = [[1.6, 2.9], [4.1, 5.4]], z = -139.9, W = 2.0, step = 3.1;
   let n = 0;
-  for (const [y0, y1] of rows) for (let x = 230.0; x < 289.5; x += 2.7) {
-    const x0 = x, x1 = x + 1.7;
+  for (const [y0, y1] of rows) for (let x = 230.4; x + W < 291.5; x += step) {
+    const x0 = x, x1 = x + W;
     const v = [[x0, y0, z, 0, 0], [x1, y0, z, 1, 0], [x1, y1, z, 1, 1], [x0, y0, z, 0, 0], [x1, y1, z, 1, 1], [x0, y1, z, 0, 1]];
     for (const q of v) { pos.push(q[0], q[1], q[2]); uv.push(q[3], q[4]); win.push(n); } n++;
   }
   const g = new T.BufferGeometry(); g.setAttribute('position', new T.Float32BufferAttribute(pos, 3)); g.setAttribute('uv', new T.Float32BufferAttribute(uv, 2)); g.setAttribute('win', new T.Float32BufferAttribute(win, 1));
   const m = new T.ShaderMaterial({
-    uniforms: { uT: FF.U.uFFTime, uCol: { value: FF.lin('#f2c48c').multiplyScalar(0.55) }, uFog: { value: FF.lin('#3a4148') } },
+    uniforms: { uT: FF.U.uFFTime, uCol: { value: FF.lin('#f2c48c').multiplyScalar(0.62) }, uFog: { value: FF.lin('#3a4148') } },
     vertexShader: 'attribute float win; varying vec2 vU; varying float vW; void main(){ vU = uv; vW = win; gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }',
     fragmentShader: `uniform float uT; uniform vec3 uCol, uFog; varying vec2 vU; varying float vW;
       void main(){
@@ -552,12 +568,13 @@ function farWindows(P) {
         float ph = mod(uT, 6.0), u = ph / 2.4;
         if (u < 1.0) {                       /* the figures: all at once, in step, left to right */
           float fx = -0.12 + 1.24 * u, bob = 0.02 * abs(sin(ph * 7.0));
-          float body = step(abs(vU.x - fx), 0.075) * step(vU.y, 0.70 + bob);
-          float head = step(length((vU - vec2(fx, 0.81 + bob)) * vec2(1.0, 1.15)), 0.085);
-          c *= 1.0 - 0.88 * max(body, head);
+          float body = step(abs(vU.x - fx), 0.07) * step(vU.y, 0.68 + bob);
+          float head = step(length((vU - vec2(fx, 0.79 + bob)) * vec2(1.0, 1.25)), 0.075);
+          c *= 1.0 - 0.9 * max(body, head);
         }
-        gl_FragColor = vec4(mix(c, uFog, 0.5), 1.0);
+        gl_FragColor = vec4(mix(c, uFog, 0.46), 1.0);
       }`,
+    polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -8,
   });
   const me = new T.Mesh(g, m); me.name = 'farWindows'; me.frustumCulled = false; P.obj(me, true); ST.farWin = me;
 }
@@ -565,28 +582,48 @@ function farWindows(P) {
 /* ---------------------------------------------------------------------------------------------- water: the sheet off the top
    front edge at the clank, the burst from under the edges at the contact (additive, cheap, only drawn while they play) */
 const FX_VERT = 'varying vec3 vP; void main(){ vec4 w = modelMatrix * vec4(position, 1.0); vP = w.xyz; gl_Position = projectionMatrix * viewMatrix * w; }';
+/* Review fixes 8 Oct: the sheet read as a rendering glitch (a crisp barcode of 42 threads a metre, a curtain of white streaks
+   over the whole bed frame, falling through the floor). Now, at the clank:
+     - a SPILL of drops off the platen's LOWER front edge at once (the jolt shakes the water hanging there off it): short
+       falling streaks all along the edge in the first 0.4 s, seen from anywhere the bed is (the muted twin of the clank);
+     - a few thicker, soft STREAMS off its TOP front edge (about one a metre, each 5-10 cm wide), breaking up as they fall,
+       fading with the fall, with a thin sheet just off the edge; dimmer than the lit bed;
+     - all of it stops at the bed's surface (y 0), never through a floor. */
 function sheetFx(id, P) {
-  const p = ST.press[id], top = p.upY + p.th, bot = -0.9;
+  const p = ST.press[id], top = p.upY + p.th, bot = 0.0, under = p.upY - FF.RULES.works.press.jolt;
   const g = new T.PlaneGeometry(p.x1 - p.x0 + 0.1, top - bot); g.translate((p.x0 + p.x1) / 2, (top + bot) / 2, p.z1 + 0.035);
   const m = new T.ShaderMaterial({
-    uniforms: { uT: { value: -1 }, uTop: { value: top }, uBot: { value: bot }, uCol: { value: FF.lin('#c9d3dc').multiplyScalar(0.3) }, uX0: { value: p.x0 }, uX1: { value: p.x1 } },
+    uniforms: { uT: { value: -1 }, uTop: { value: top }, uUnder: { value: under }, uBot: { value: bot }, uCol: { value: FF.lin('#c9d3dc').multiplyScalar(0.2) },
+      uX0: { value: p.x0 }, uX1: { value: p.x1 }, uN: { value: Math.max(4, Math.round((p.x1 - p.x0) / 1.0)) } },
     vertexShader: FX_VERT,
-    fragmentShader: `uniform float uT, uTop, uBot, uX0, uX1; uniform vec3 uCol; varying vec3 vP;
-      /* a hash without sin (integration, 8 Oct): sin() of the lane numbers here (about 6000 x 127) is beyond float precision
-         on some GPUs, which can leave the threads' break-up in step */
+    fragmentShader: `uniform float uT, uTop, uUnder, uBot, uX0, uX1, uN; uniform vec3 uCol; varying vec3 vP;
+      /* a hash without sin (sin() of the lane numbers is beyond float precision on some GPUs) */
       float hs(float n) { float p = fract(n * 0.1031); p *= p + 33.33; p *= p + p; return fract(p); }
+      float vn(float x) { float i = floor(x), f = fract(x); f = f * f * (3.0 - 2.0 * f); return mix(hs(i), hs(i + 1.0), f); }
       void main(){
         if (uT < 0.0) discard;
-        float fall = uTop - vP.y; if (fall < 0.0) discard;
-        float lane = floor(vP.x * 42.0), r = hs(lane), u = fract(vP.x * 42.0);
-        float t0 = uT - 0.08 * r - sqrt(2.0 * fall / 9.8);          /* when this parcel left the edge */
-        float on = step(0.0, t0) * (1.0 - smoothstep(0.3 + 0.5 * r, 0.7 + 0.6 * r, t0));
-        float thread = (1.0 - smoothstep(0.06, 0.2, abs(u - 0.5))) * step(0.45, r);                 /* thin threads of water, not every lane */
-        float broken = smoothstep(0.25, 0.6, fract(vP.y * 2.3 + uT * 5.5 + r * 7.0));                 /* breaking into drops as they fall */
-        float s = thread * mix(1.0, broken, smoothstep(0.3, 1.5, fall)) * (0.55 + 0.45 * r);
-        float edge = smoothstep(uX0 - 0.05, uX0 + 0.25, vP.x) * (1.0 - smoothstep(uX1 - 0.25, uX1 + 0.05, vP.x));
-        float a = on * s * edge * smoothstep(0.0, 0.25, fall) * (1.0 - smoothstep(uTop - uBot - 0.3, uTop - uBot, fall));
-        if (a < 0.002) discard;
+        float a = 0.0;
+        /* the streams off the top front edge */
+        float fall = uTop - vP.y, cell = (uX1 - uX0) / uN, ci = floor((vP.x - uX0) / cell), r = hs(ci + 7.0);
+        float cx = uX0 + (ci + 0.25 + 0.5 * r) * cell, w = 0.025 + 0.025 * hs(ci + 3.1);
+        float prof = exp(-pow((vP.x - cx) / w, 2.0));
+        if (fall > 0.0) {
+          float t0 = uT - 0.06 * r - sqrt(2.0 * fall / 9.8);                    /* when this parcel left the edge */
+          float on = step(0.0, t0) * (1.0 - smoothstep(0.4 + 0.5 * r, 0.9 + 0.7 * r, t0));
+          float brk = smoothstep(0.3, 0.8, vn(vP.y * 2.1 + uT * 9.0 + r * 17.0));          /* breaking up, unevenly, as it falls */
+          a += prof * on * mix(1.0, brk, smoothstep(0.2, 1.0, fall)) * exp(-fall * 0.75) * (0.55 + 0.45 * hs(ci + 1.7));
+          a += 0.10 * on * (1.0 - smoothstep(0.0, 0.3, fall));                     /* the thin sheet just off the edge */
+        }
+        /* the spill off the lower front edge at the jolt */
+        float fu = uUnder - vP.y;
+        if (fu > 0.0 && uT < 1.3) {
+          float lane = floor(vP.x * 7.0), q = hs(lane + 11.0), u = fract(vP.x * 7.0);
+          float tt = uT - 0.35 * q, yd = 4.9 * tt * tt, L = 0.10 + 0.5 * min(max(tt, 0.0), 0.5);
+          float drop = step(0.0, tt) * smoothstep(yd - L, yd, fu) * step(fu, yd);
+          a += 0.85 * drop * exp(-pow((u - 0.5) / 0.09, 2.0)) * step(0.3, q) * exp(-fu * 0.35);
+        }
+        a *= smoothstep(uX0 - 0.05, uX0 + 0.2, vP.x) * (1.0 - smoothstep(uX1 - 0.2, uX1 + 0.05, vP.x)) * smoothstep(uBot, uBot + 0.2, vP.y);
+        if (a < 0.003) discard;
         gl_FragColor = vec4(uCol * a, 1.0);
       }`,
     blending: T.CustomBlending, blendSrc: T.OneFactor, blendDst: T.OneFactor, depthWrite: false, transparent: true,
@@ -620,6 +657,37 @@ function burstFx(id, P) {
   const me = new T.Mesh(g, m); me.visible = false; me.renderOrder = 12; me.frustumCulled = false; me.name = 'burst:' + id; P.obj(me);
   ST.fx.push({ kind: 'burst', id, mesh: me, dur: 0.75 });
 }
+/* the gate's light seen from the hall (review fixes 8 Oct: the first press's one clue was a thin strip at the frame's edge,
+   lit just as the press slammed down and took the eye): while the gate is open, its cold light spills out of slot B's notch
+   onto the wet gutter in front of it and hangs in the mist and rain before the press's front face, a soft fan rising out of
+   the far notch. Both by the gate's gap (k 0..1), so every cycle a light comes on in the far notch. Additive, two quads. */
+function gateLightFx(P) {
+  const col = FF.lin('#d6dee6');
+  const mk = (frag, extra) => new T.ShaderMaterial({ uniforms: Object.assign({ uK: { value: 0 }, uT: FF.U.uFFTime, uCol: { value: col.clone() } }, extra || {}), vertexShader: FX_VERT, fragmentShader: frag,
+    blending: T.CustomBlending, blendSrc: T.OneFactor, blendDst: T.OneFactor, depthWrite: false, transparent: true });
+  /* the fan in the mist in front of the notch (it stands in front of the press's face, z 0.66) */
+  const g = new T.PlaneGeometry(4.0, 2.6); g.translate(145.0, 0.4, 0.66);
+  const fan = new T.Mesh(g, mk(`uniform float uK, uT; uniform vec3 uCol; varying vec3 vP;
+      void main(){
+        if (uK < 0.01) discard;
+        vec2 d = vP.xy - vec2(145.05, -0.22);
+        float core = exp(-pow(d.x / 0.75, 2.0) - pow(d.y / 0.22, 2.0));                           /* the notch's mouth */
+        float up = max(d.y, 0.0), wide = 0.55 + 0.55 * up;
+        float mist = exp(-pow(d.x / wide, 2.0)) * exp(-up * 1.55) * smoothstep(-0.25, 0.05, d.y);   /* the fan rising in the mist */
+        float drift = 0.88 + 0.12 * sin(vP.x * 2.3 + vP.y * 1.7 - uT * 0.5) * sin(vP.x * 0.9 - vP.y * 2.6 + uT * 0.35);   /* slow mist, no stripes */
+        float a = uK * (0.13 * core + 0.08 * mist * drift);
+        if (a < 0.002) discard;
+        gl_FragColor = vec4(uCol * a, 1.0);
+      }`));
+  fan.renderOrder = 12; fan.frustumCulled = false; fan.visible = false; fan.name = 'gateFan'; P.obj(fan);
+  /* the light on the wet gutter in front of slot B */
+  const q = new T.PlaneGeometry(2.6, 0.24); q.rotateX(-Math.PI / 2); q.translate(145.0, -0.893, 0.51);
+  const pool = new T.Mesh(q, mk(`uniform float uK; uniform vec3 uCol; varying vec3 vP;
+      void main(){ float a = uK * 0.16 * exp(-pow((vP.x - 145.2) / 0.7, 2.0)); if (a < 0.002) discard; gl_FragColor = vec4(uCol * a, 1.0); }`));
+  pool.renderOrder = 12; pool.frustumCulled = false; pool.visible = false; pool.name = 'gatePool'; P.obj(pool);
+  ST.gateFx = [fan, pool];
+}
+
 /* drips: static edges (the intake's lip, the broken roof, the pipe, the end door), and each platen's edges while it hangs still */
 const DRIP_FS = 'uniform vec3 uCol; varying float vA; void main(){ vec2 c = gl_PointCoord - 0.5; c.y *= 0.6; float a = smoothstep(0.5, 0.15, length(c)); gl_FragColor = vec4(uCol * a * vA, 1.0); }';
 const DRIP_VS = `attribute vec4 per; attribute float y1; uniform float uTime, uPx; varying float vA;
@@ -706,7 +774,7 @@ const W2 = FF.WorldS2 = {
   /* per set: the contact-shadow boxes (1..5 are the world's) */
   applySet(set, k, off) {
     for (let i = 1; i <= 5; i++) off(i);
-    if (set === 'WP') { FF.setAOBox(1, [156.2, 0.2, -0.05], [0.6, 0.2, 0.55], k, 0.35); FF.setAOBox(2, [158.0, 0.43, -0.6], [0.45, 0.43, 0.27], k * 0.7, 0.3); FF.setAOBox(3, [159.0, 0.6, -1.0], [0.35, 0.6, 0.35], k * 0.5, 0.3); }
+    if (set === 'WP') { FF.setAOBox(1, [156.2, 0.2, -0.05], [0.6, 0.2, 0.55], k, 0.35); FF.setAOBox(2, [158.0, 0.43, -0.6], [0.45, 0.43, 0.27], k * 0.7, 0.3); FF.setAOBox(3, [159.62, 0.6, -1.25], [0.35, 0.6, 0.35], k * 0.5, 0.3); }
     else if (set === 'WL') { FF.setAOBox(1, [199.7, 0.6, -0.1], [0.22, 0.6, 1.05], k * 0.8, 0.4); FF.setAOBox(2, [205.3, 0.6, -0.1], [0.22, 0.6, 1.05], k * 0.8, 0.4); FF.setAOBox(3, [202.5, 0.24, -0.1], [3.5, 0.24, 0.7], k * 0.6, 0.6); }
   },
   /* the lights the World owns, from the machines (FF.Works) and the places */
@@ -719,8 +787,13 @@ const W2 = FF.WorldS2 = {
       h.st.pos = [p.cx, yl, cz]; h.st.target = [p.cx, -1, cz];
       h.st.angle = Math.min(1.5, Math.atan(hd / Math.max(yl, 0.05)) + 0.12); h.st.penumbra = 0.15; h.st.distance = 0; h.st.decay = 1;
       const base = A.SPOT_DEF[LAMP_OF[id]].intensity;
-      h.st.derived = base * (0.62 + 0.95 * k * k) * sstep(0.02, 0.3, y);
-      p.lampK = k; p.y = y; p.state = s ? s.state : 'up';
+      /* review fixes 8 Oct: the clank shakes the lamp under the platen (a flicker in the first 0.3 s, the muted twin of the clank
+         seen wherever the bed is), then the pool is brighter and tighter through the warning */
+      const mk = id === 'P1' ? S2().works.P1.marks : S2().works.line.marks;
+      const rt = s && s.state === 'release' && s.phase != null ? s.phase - mk.release : -1, du = s && s.state === 'descent' && s.phase != null ? (s.phase - mk.descent) / (mk.contact - mk.descent) : -1;
+      const fl = rt >= 0 ? (rt < 0.05 ? 0.2 : rt < 0.10 ? 1.45 : rt < 0.17 ? 0.4 : rt < 0.30 ? 1.35 : 1.25) : du >= 0 ? 1.25 - 0.25 * du : 1;
+      h.st.derived = base * (0.62 + 0.95 * k * k) * sstep(0.02, 0.3, y) * fl;
+      p.lampK = k; p.y = y; p.state = s ? s.state : 'up'; p.tight = rt >= 0 ? 0.42 * Math.min(1, rt / 0.25) : du >= 0 ? 0.42 * (1 - du) : 0;
       const strip = ST.glowStrips[id]; if (strip) strip.material.color.copy(FF.lin('#e6edf2')).multiplyScalar(0.5 + 3.5 * h.st.derived / base);
     }
     H.highBay.st.derived = A.SPOT_DEF.highBay.intensity;
@@ -728,6 +801,7 @@ const W2 = FF.WorldS2 = {
     H.doorLine.st.derived = A.SPOT_DEF.doorLine.intensity;
     { const sl = W && W.sluice ? W.sluice() : { gap: 0 }, g = clamp(sl.gap / 0.30, 0, 1);
       H.sluiceGlow.st.derived = A.SPOT_DEF.sluiceGlow.intensity * (0.07 + 0.93 * g);
+      if (ST.gateFx) for (const o of ST.gateFx) { o.material.uniforms.uK.value = g * g * (3 - 2 * g); o.visible = g > 0.02 && A.places.hall.group.visible; }
       if (ST.sluicePlate) { const s = S2().works.sluice; ST.sluicePlate.scale.y = Math.max(0.02, (s.top - (s.floorY + sl.gap)) / 0.3); }
     }
     /* the work lamp on its stand until the Painter drives it */
@@ -742,7 +816,7 @@ const W2 = FF.WorldS2 = {
     for (const slot in SLOT_I) {
       const i = SLOT_I[slot], id = own[slot], pid = id && Object.keys(LAMP_OF).find(k => LAMP_OF[k] === id), p = pid && ST.press[pid];
       const ux = FF.U.uWFootX.value[i], uz = FF.U.uWFootZ.value[i];
-      if (p && set[0] === 'W') { const soft = 0.04 + 0.3 * clamp((p.y != null ? p.y : p.upY) / p.upY, 0, 1); ux.set(p.x0, p.x1, soft, 1); uz.set(p.z0, p.z1, 0.1, 1); anyFoot = 1; }
+      if (p && set[0] === 'W') { const soft = (0.04 + 0.3 * clamp((p.y != null ? p.y : p.upY) / p.upY, 0, 1)) * (1 - (p.tight || 0)); ux.set(p.x0, p.x1, soft, 1); uz.set(p.z0, p.z1, 0.1, 1); anyFoot = 1; }
       else { ux.set(0, 0, 0.1, 0); uz.set(0, 0, 0.1, 0); }
     }
     FF.U.uWOn.value = anyFoot;
@@ -756,6 +830,8 @@ const W2 = FF.WorldS2 = {
     for (const d of ST.drips) { const p = ST.press[d.id]; d.mesh.visible = p.state === 'up' && A.places[d.id === 'P1' ? 'hall' : 'line'].group.visible; d.mesh.material.uniforms.uPx.value = ctx.renderer.getPixelRatio(); }
     if (ST.dripStatic) { ST.dripStatic.visible = cam.x > 124 && cam.x < 214; ST.dripStatic.material.uniforms.uPx.value = ctx.renderer.getPixelRatio(); }
     if (ST.intakeHalo) ST.intakeHalo.visible = cam.x < 141;
+    /* review fixes 8 Oct: while his lamp is off the wall (the look) the words sink back into the dark wall; nothing frames them */
+    if (ST.decal) { const k = FF.Painter && FF.Painter.lampK != null ? FF.Painter.lampK : 0, o = 1 - 0.45 * k * k * (3 - 2 * k); if (Math.abs(ST.decal.material.opacity - o) > 1e-3) ST.decal.material.opacity = o; }
   },
   /* the rain inside the Works: only through the broken roof, stopped by the platens' tops; lit by the high bay */
   rain(u, cam) {

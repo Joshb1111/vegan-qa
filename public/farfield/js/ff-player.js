@@ -56,21 +56,37 @@ const FLEE_STATES = { spotted: 1, aim: 1, pursue: 1, grab: 1, lower: 1 };
    coming down or pressing counts as cover for the flatten pose (flat, held breath); AFRAID within 3 m of a moving press; the
    0.15 s startle at a contact within 6 m; the ears to the Works' sounds (FF.RULES.behave.earsWorks: the clank, the roar, the
    thud, the gate's draught, the scraping and its stopping); the surfaces; the settle chain under the pipe (ending a); and
-   THE JOIN: Sequence 1's rest no longer auto-stops (60 s) and its settle no longer locks input (FF.S2.join.player). */
+   THE JOIN: Sequence 1's rest no longer auto-stops (60 s) and its settle no longer locks input (FF.S2.join.player).
+   Review fixes (8 Oct): a moving solid (a press, the gate) is solid from inside a slot too (a move that would leave less than
+   the crouched height under it is refused, so the rabbit can no longer walk up a ramp into a pressed-down platen), and a
+   ceiling in the air (a hop under a descending platen is held down); no hop in a slot while its press comes down or presses;
+   within 6 m of a press in the halls the mood never drops below ALERT (the ears on the hanging iron, no sniffing idles); a
+   little more rim in the long hall's gaps; one look back at the top of the embankment when walking on. */
 const WORKS = () => !!(FF.Works && FF.S2 && FF.S2.works);
 const joined = () => !!(FF.S2 && FF.S2.join && FF.S2.join.player && FF.S2.join.player.settleLocksInput === false);
-const W2 = { threat: 99, pitCovered: false, scrape: false, look: false };
+const W2 = { threat: 99, pitCovered: false, scrape: false, look: false, near: 99, nearId: null, noJump: false, alert: false };
 function worksAssess() {
-  W2.threat = 99; W2.pitCovered = false;
+  W2.threat = 99; W2.pitCovered = false; W2.near = 99; W2.nearId = null; W2.noJump = false;
   if (!WORKS() || !FF.Works.started) return;
   const hw = RB().hw;
   for (const id of ['P1', 'Q1', 'Q2', 'Q3']) {
     const p = FF.Works.press(id); if (!p) continue;
     const moving = p.state === 'release' || p.state === 'descent', d = Math.max(0, p.x0 - (S.x + hw), (S.x - hw) - p.x1);
     if (moving) W2.threat = Math.min(W2.threat, d);
+    if (d < W2.near) { W2.near = d; W2.nearId = id; }
     if ((moving || p.state === 'down') && d === 0) { const sh = FF.Works.shelterAt(S.x); if (sh && sh.kind === 'pit' && sh.under === id && S.y < -0.2) W2.pitCovered = true; }
+    /* review fixes 8 Oct: in a slot (its core or its ramps, below the bed) while its press is coming down or pressing, the rabbit
+       stays down: a startled hop would only meet the iron, or land it on the lit bed's end under the press */
+    if ((moving || p.state === 'down') && S.y < -0.04 && (FF.S2.shelters || []).some(s => s.kind === 'pit' && s.under === id && S.x >= s.x0 && S.x <= s.x1)) W2.noJump = true;
   }
 }
+/* the lowest underside of a MOVING solid (a press, the gate) over the body at x, at or above y (Infinity if none) */
+function dynCeil(x, y) {
+  let c = Infinity; const hw = RB().hw;
+  for (const s of FF.Level.solidsIn(x - hw, x + hw, y - 1e-6, y + 50)) if (s.dynamic && s.y0 >= y - 1e-6 && s.y0 < c) c = s.y0;
+  return c;
+}
+const inWorksMachines = () => WORKS() && S.x > 139.0 && S.x < 190.0;
 function worksSurface() {
   const p = FF.G.place, x = S.x, wet = S.y < -0.2;
   if (p === 'approach') return x < 129.6 ? 'concrete' : 'wet-concrete';
@@ -100,6 +116,10 @@ const P = {
   crouchFollow: 0.06,                         // a deliberate crouch (Down): the hips follow the shoulders this much later (s)
   runHint: { x0: 13.0, x1: 20.5, court: [57.5, 66.0], ranBefore: 1.0, remindAfter: 60 },   // where the "Shift run" hint may show; skipped once the player has run this long;
                                                                          // shown once more on entering the Courtyard if the player has not run for remindAfter s
+  /* Sequence 2 (review fixes 8 Oct) */
+  dynClear: 0.03,          // a move under a moving solid (a press, the gate) keeps at least hCrouch + this between the floor and its underside
+  gapRim: 1.22,            // the rabbit's rim in the long hall's gaps (G1, G2: dark, rain), for readability (>= 3.0x)
+  embankLook: 207.9,       // walking on past the pipe: one look back at the Works at the top of the embankment (additive; a sit-up if it stops)
 };
 
 /* ------------------------------------------------------------------ the gaits (timing only; ff-rabbit.js draws them)
@@ -148,7 +168,7 @@ function freshB(keepSeen) {
     srPrevX: null, srMoving: false, holdWant: null, holdWantT: 0, srWasMoving: false, aimK: 0, grabK: 0, noticeT: -1, flinchK: 0, wasBoxMoving: false, firstSqueezeId: null,
     drainRecovered: false, escaped: false, lastPlace: null, walkwayT: -1, ranT: 0, shove: null,
   });
-  Object.assign(W2, { threat: 99, pitCovered: false, scrape: false, look: false });
+  Object.assign(W2, { threat: 99, pitCovered: false, scrape: false, look: false, near: 99, nearId: null, noJump: false, alert: false });
   B.seen = seen; B.src.clear();
   B.add = { startle: 9, shake: 9, splash: 9, sniff: 9, twitchL: 9, twitchR: 9, look: 9, lookDir: -1, snap: 9 };
   B.ears = { pL: 0.06, pR: 0.06, yL: -0.45, yR: 0.45, w: 1 }; B.head = { yaw: 0, pitch: 0 };
@@ -270,6 +290,9 @@ function pollSources(dt) {
   if (G.place === 'verge' && S.x > 28) addSrc('gurgle', { x: 38.75, y: -0.4, z: -0.5, w: 0.3, life: 0.3, kind: 'wayOn', quiet: true });
   /* Sequence 2: the worker's scraping (a loop while he scrapes) */
   if (W2.scrape && WORKS() && S.x > 150 && S.x < 168) { const PD = FF.S2.painter; addSrc('scrape', { x: PD.x, y: 1.2, z: PD.z, w: (BH().earsWorks || {}).scrape || 0.7, life: 0.3, kind: 'chain', quiet: true }); }
+  /* Sequence 2 (review fixes 8 Oct): in the press halls the nearest press is always in the ears (its hanging iron), so they keep
+     tracking the machine while it hangs still */
+  if (W2.alert && W2.nearId) { const p = FF.Works.press(W2.nearId); if (p) addSrc('press-near', { x: clamp(S.x, p.x0, p.x1), y: p.y + 0.2, z: -1.0, w: 0.4, life: 0.3, kind: 'other', quiet: true }); }
   /* the settle chain's listen: the ears swivel to the fence (nothing is left there), then forward to the drip */
   if (B.pose && B.pose.step === 'listen') {
     if (B.pose.t < 1.3) addSrc('fence-mem', { x: G.place === 'out' && WORKS() ? 193.8 : 113.2, y: 0.5, z: 0, w: 0.7, life: 0.2, kind: 'other', quiet: true });
@@ -308,6 +331,9 @@ function assess(dt) {
   let afraid = (G.place === 'search' && sr && sr.active && sr.state !== 'off') || B.searchT < 5 || (searching && near < P.afraidNear) || B.beamD < 2;
   /* Sequence 2: within 3 m of a press that is coming down, sheltering under one, or in the worker's lamp */
   worksAssess(); if (W2.threat < 3 || W2.pitCovered || W2.look) afraid = true;
+  /* Sequence 2 (review fixes 8 Oct; SEQUENCE-2.md §16): in the press halls, within 6 m of a press, the mood never drops below
+     ALERT (no calm sniffing under the machine); calm idles stay for the culvert, the passage and the pipe */
+  W2.alert = W2.near <= 6 && (G.place === 'hall' || G.place === 'line');
   B.cueT += dt; B.moodT += dt;
   const m = B.mood;
   if (flee) { setMood('flee'); B.safeT = 0; }
@@ -315,8 +341,8 @@ function assess(dt) {
   else if (m === 'settled') { /* held until input ends the loaf */ }
   else if (afraid && !(m === 'recover' && B.escaped && G.place !== 'search')) setMood('afraid');
   else if (m === 'afraid') setMood(B.escaped ? 'recover' : 'alert');
-  else if (m === 'recover') { B.recoverT += dt; if (B.recoverT >= H.breathHz.recover[2]) setMood('calm'); }
-  else if (B.cueT < H.calmAfter || human || (B.vehicleT >= 0 && !B.vehicleGone && G.place === 'verge')) { if (m === 'calm') setMood('alert'); }
+  else if (m === 'recover') { B.recoverT += dt; if (B.recoverT >= H.breathHz.recover[2]) setMood(W2.alert ? 'alert' : 'calm'); }
+  else if (B.cueT < H.calmAfter || human || W2.alert || (B.vehicleT >= 0 && !B.vehicleGone && G.place === 'verge')) { if (m === 'calm') setMood('alert'); }
   else if (m === 'alert' && B.cueT >= H.calmAfter) setMood('calm');
   /* breathing: rate by mood; held (shallow) while a beam is within 1.0 m */
   const hz = H.breathHz, mm = B.mood;
@@ -428,7 +454,7 @@ function schedule(dt, dir) {
   if (safe && still > BH().idles.groomAfter && B.groomCool <= 0 && r < 0.35) { B.groomCool = 12; setPose('groom', { dur: 4.0 }); return; }
   if (safe && surface() === 'grass' && still > 4 && r < 0.5) { setPose('nibble', { dur: rr(2.5, 3.5) }); return; }
   if (still > BH().idles.sitUpListen && r < 0.25) { setPose('sit', { dur: rr(2.0, 3.5) }); return; }
-  if (B.sniffCool <= 0 && r < 0.45) { B.sniffCool = 5; setPose('sniff', { dur: 2.0 }); return; }
+  if (B.sniffCool <= 0 && r < 0.45 && !W2.alert) { B.sniffCool = 5; setPose('sniff', { dur: 2.0 }); return; }
 }
 function dropAhead() { const R = RB(), ax = S.x + S.face * (R.hw + 0.12); return S.y - floorAt(ax, S.y + 0.05) > P.edgeDrop || (FF.Level.hitSolid(ax - 0.02, ax + 0.02, S.y + 0.01, S.y + 0.2) || {}).kind === 'edge'; }
 function chainStep(dt) {
@@ -803,6 +829,15 @@ const Player = FF.Player = {
       if (S.grounded && dir === -side && !S.crouch) { S.push = true; box.vx = approach(box.vx, dir * FF.RULES.box.push, FF.RULES.box.accel * dt); S.vx = box.vx; if (B.pose) cancelPose(0.12); }
       else if (S.grounded || S.vx * side > 0) S.vx = 0;     /* in the air, pressing towards the box keeps its speed, so a hop from beside it lands on top */
     }
+    /* Sequence 2 (review fixes 8 Oct): a press that is down (or coming down) is solid from inside a slot too. xHit skips every
+       solid the body already overlaps in x (the rabbit is under it), so walking up a slot's ramp under a pressed-down platen
+       used to carry the rabbit up into the iron and along the bed inside it. A move is refused where the floor it would stand
+       on leaves less than the crouched height (+ dynClear) under a moving solid, when it makes that clearance smaller; the
+       rabbit waits at the foot of the ramp until the press rises (the squeeze and the low pose take over as it does). */
+    if (nx !== S.x && inWorksMachines()) {
+      const nf = S.grounded ? floorAt(nx, S.y + 0.05) : S.y, cN = dynCeil(nx, nf) - nf;
+      if (cN < R.hCrouch + P.dynClear && cN < dynCeil(S.x, S.y) - S.y - 1e-6) { nx = S.x; S.vx = 0; }
+    }
     S.x = nx;
     S.effort = approach(S.effort, S.push ? (Math.abs(box.vx) < 0.15 ? 1 : 0.5) : 0, 4 * dt);
     const moving = Math.abs(box.vx) > 0.02; if (moving !== B.wasBoxMoving) { B.wasBoxMoving = moving; FF.bus.emit('box', { moving, v: +box.vx.toFixed(3), x: +box.x.toFixed(3) }); }
@@ -819,7 +854,8 @@ const Player = FF.Player = {
     /* jump: buffered presses, coyote time, a cut when released early; not while squeezed or under a low hide */
     if (jumpP || up) S.buf = R.buffer; else S.buf = Math.max(0, S.buf - dt);
     S.coyote = S.grounded ? R.coyote : Math.max(0, S.coyote - dt);
-    if (S.buf > 0 && S.coyote > 0 && !S.crouch && FF.Level.ceilingAbove(S.x, R.hw, S.y) - S.y > P.jumpHeadroom) {
+    if (S.buf > 0 && WORKS()) worksAssess();            // (fresh: a jump on the first step after a restart)
+    if (S.buf > 0 && S.coyote > 0 && !S.crouch && !W2.noJump && FF.Level.ceilingAbove(S.x, R.hw, S.y) - S.y > P.jumpHeadroom) {
       S.vy = Math.sqrt(2 * R.gravity * R.jumpHeight); S.grounded = false; S.coyote = 0; S.buf = 0; S.airT = 0; S.cut = false; S.onBox = false;
       /* a hop with a direction held leaps forward like a rabbit (v2 review: at the walk it went nearly straight up and landed
          short of the post): at least hopMin at take-off, easing off in the air (hopDrag) */
@@ -838,6 +874,8 @@ const Player = FF.Player = {
     if (!S.grounded) {
       S.vy -= R.gravity * (S.vy < 0 ? R.fallGravity : 1) * dt;
       let ny = S.y + S.vy * dt; const f = floorAt(S.x, S.y + 0.001);
+      /* Sequence 2 (review fixes 8 Oct): a descending platen (or the gate) is a ceiling the rabbit cannot jump into: it holds it down */
+      if (inWorksMachines()) { const cd = dynCeil(S.x, S.y); if (ny + h > cd) { ny = cd - h - 1e-4; if (S.vy > 0) S.vy = 0; } }
       if (S.vy <= 0 && ny <= f) { ny = f; S.grounded = true; S.vy = 0; }
       const c = FF.Level.ceilingAbove(S.x, R.hw, S.y + 0.01); if (S.vy > 0 && ny + h > c) { ny = c - h - 1e-4; S.vy = 0; }
       S.y = ny; if (S.y > S.peakY) S.peakY = S.y;
@@ -877,7 +915,9 @@ const Player = FF.Player = {
     const RU = FF.Rabbit.uniforms;
     if (RU) {
       const lr = (look && look.rabbit) || L.rabbit; RU.lift.value = lr.lift != null ? lr.lift : L.rabbit.lift;
-      const want = S.hidden ? Math.min(1, BH().hideRim / Math.max(0.05, lr.rimStrength || L.rabbit.rimStrength)) : 1;
+      /* Sequence 2 (review fixes 8 Oct): a little more rim in the long hall's dark, rainy gaps, so the rabbit reads there (>= 3.0x) */
+      const gap = WORKS() && FF.G.place === 'line' && (FF.S2.shelters || []).some(s => s.kind === 'gap' && S.x >= s.x0 && S.x <= s.x1);
+      const want = S.hidden ? Math.min(1, BH().hideRim / Math.max(0.05, lr.rimStrength || L.rabbit.rimStrength)) : gap ? P.gapRim : 1;
       RU.rimK.value += (want - RU.rimK.value) * (1 - Math.exp(-dt * P.rimEase));
     }
   },
@@ -902,7 +942,7 @@ const Player = FF.Player = {
       fleeing: S.fleeing, inCore: S.inCore, hidden: S.hidden, ears: { pL: +B.ears.pL.toFixed(2), pR: +B.ears.pR.toFixed(2), yL: +B.ears.yL.toFixed(2), yR: +B.ears.yR.toFixed(2) },
       head: { yaw: +B.head.yaw.toFixed(2), pitch: +B.head.pitch.toFixed(2) }, top: B.top || [], reachFails: B.reachFails, inv: B.inv ? B.inv.kind : null, locked: B.locked, frozen: B.frozen,
       seen: Object.keys(B.seen), queue: B.queue.map(q => q.name), add: Object.fromEntries(Object.entries(B.add).map(([k, v]) => [k, typeof v === 'number' ? +v.toFixed(2) : v])),
-      aimK: +B.aimK.toFixed(2), flinchK: +B.flinchK.toFixed(2), shove: B.shove ? +B.shove.to.toFixed(3) : null, works: WORKS() ? { threat: +W2.threat.toFixed(2), pitCovered: W2.pitCovered, scrape: W2.scrape, look: W2.look } : null, vehicle: { t: +B.vehicleT.toFixed(2), stopped: B.vehicleStopped, gateOpen: B.gateOpen },
+      aimK: +B.aimK.toFixed(2), flinchK: +B.flinchK.toFixed(2), shove: B.shove ? +B.shove.to.toFixed(3) : null, works: WORKS() ? { threat: +W2.threat.toFixed(2), pitCovered: W2.pitCovered, scrape: W2.scrape, look: W2.look, alert: W2.alert, noJump: W2.noJump, near: +W2.near.toFixed(2) } : null, vehicle: { t: +B.vehicleT.toFixed(2), stopped: B.vehicleStopped, gateOpen: B.gateOpen },
       run: !!S.run, crouchHeld: !!S.crouchHeld, crouchF: +S.crouchF.toFixed(3), crouchR: +S.crouchR.toFixed(3), sq: S.sq ? S.sq.phase : null, ranT: +B.ranT.toFixed(2),
       gait: S.gait ? { name: S.gait.name, phase: +S.gait.phase.toFixed(3), stride: +S.gait.stride.toFixed(3), cadence: +S.gait.cadence.toFixed(2), runK: +S.gait.runK.toFixed(2),
         feet: FEET.filter(k => S.gait.feet[k]).join(','), lift: [+S.gait.lift.front.toFixed(4), +S.gait.lift.rear.toFixed(4)] } : null };
@@ -943,6 +983,12 @@ function behave(dt, dir, act) {
     if (was < 4.0 && B.restArrive >= 4.0) { queue('shake', { dur: 0.8, within: 2.5, moving: () => { B.add.shake = 0; } }); B.restArrive = -1; }
   }
   if (G.place === 'rest' && S.x >= 116 && !B.chain && !B.settledSent && !joined()) { B.restT += dt; if (B.restT >= BH().settle.autoStop && Math.abs(S.vx) > 0.05) { B.autoStop = true; B.restT = 0; } }
+  /* Sequence 2 (review fixes 8 Oct): walking on past the pipe, at the top of the embankment, one look back at the Works (a turn of
+     the head while it walks; a short sit-up to listen if the player stops there). Never a stop: it is the player's walk */
+  if (WORKS() && G.place === 'out' && !B.seen.embankLook && S.x >= P.embankLook && S.vx > 0.3 && S.grounded) {
+    B.seen.embankLook = true; B.add.look = 0; B.add.lookDir = S.face > 0 ? -1 : 1;
+    queue('sit', { dur: 1.6, within: 1.2, delay: 0.6 });
+  }
   /* poses run their course */
   if (B.pose) { B.pose.t += dt; if (!B.pose.loop && B.pose.dur && B.pose.t >= B.pose.dur) finishPose(); }
   if (B.inv && B.inv.kind === 'lip' && !B.pose) B.inv = null;

@@ -38,6 +38,12 @@ FF.RULES.works = {
        side its centre is on (to x0 - hw - clear or x1 + hw + clear), with the 0.15 s startle. No harm. If that side is a wall,
        the cut applies instead (P1's right end abuts the dividing wall). */
     shove: { time: 0.12, clear: 0.01 },
+    /* THE RAMP SLIDE (review fixes, 8 Oct): the dark notch the player reads as a slot is wider than its core (the ramps), and a
+       rabbit stopped there was cut while visibly inside the notch. Now a rabbit whose centre is in the notch (ground under the
+       centre below notchBelow) but outside the core, whose back would meet the platen, slides down into the core (to the core's
+       edge + inset) once the contact is within `lead` s or the iron within `margin` m of the cut height: |dx| / speed s,
+       clamped to minTime..maxTime. Involuntary, like the chamfer shove (the startle; no harm). */
+    ramp: { notchBelow: -0.04, lead: 0.32, margin: 0.25, speed: 2.8, minTime: 0.12, maxTime: 0.25, inset: 0.03 },
     passClear: 0.30,             // while RISING, a rabbit may go under once the underside clears this (the checker's "passable")
     shake: { amp: 0.012, time: 0.25, within: 6.0 },   // a tiny camera shake at a contact within 6 m (physical feedback, not a takeover)
     flinchWithin: 6.0,           // the rabbit's 0.15 s additive startle at a contact within 6 m (control kept)
@@ -51,8 +57,10 @@ FF.RULES.works = {
        DOWN     g = open                                                  (4.0 s held open: cold light and a draught flood pit B)
        RISE     g = open * (1 + cos(PI v)) / 2                            (closes slowly, 4.0 s)
        UP       g = 0
-     The cut: while CLOSING, the rabbit's centre within lethalBand of the sluice's x-span and g < h + lethalMargin (the rabbit
-     is low under it: h = press.hLow). Otherwise the chamfer shove pushes it to the nearer side. Passable while g >= passClear. */
+     Closing, it NEVER cuts (review fixes, 8 Oct; the rising press is "never dangerous", and the gate's small motion could only
+     be learned by dying): once its lower edge comes within lethalMargin of the back of a rabbit under it, the rabbit is carried
+     clear to the side its centre is on (slot B or the sill), the shove's path. Passable while g >= passClear. lethalBand is
+     kept for the design check's report only. */
   sluice: { open: 0.30, jolt: 0.01, lethalBand: 0.08, passClear: 0.18 },
 
   /* SHELTERS: a pit is safe where the whole body stands over floor at or below floorMax (the platen stops at y 0; a standing

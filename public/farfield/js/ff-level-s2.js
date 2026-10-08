@@ -52,9 +52,13 @@ FF.S2 = {
     [140.0, 0.00],                       // the apron (safe)
     [141.0, 0.00], [141.6, -0.40], [142.6, -0.40], [143.2, 0.00],   // PIT A: ramps both sides (walk in, walk out)
     [144.0, 0.00], [144.6, -0.40],       // PIT B: ramp in on the left; its right wall is the SLUICE (145.6) under the bed-end
-    [146.2, -0.40], [146.2, -1.00],      // the sill beyond the sluice (0.30 clear), then a 0.6 m drop into the culvert (one-way)
+    [146.12, -0.40], [146.12, -0.34], [146.2, -0.34], [146.2, -1.00],   // the sill beyond the sluice (0.30 clear), then a 0.6 m drop into the culvert (one-way).
+                                         // Review fixes 8 Oct: a 6 cm steel angle along the sill's edge (146.12-146.2): walked over from the gate, but a hop
+                                         // from the culvert floor (apex 0.52 + the 0.10 step-up) no longer reaches it, so the drop is one-way as designed
     [151.0, -1.00], [153.0, 0.00],       // the culvert under the dividing wall, a silt ramp up into the passage
-    [184.2, 0.00], [184.8, -0.40], [185.8, -0.40], [186.4, 0.00],   // PIT C under the great press (ramps both sides)
+    [184.2, 0.00], [184.8, -0.40], [186.4, -0.40], [187.0, 0.00],   // PIT C under the great press (ramps both sides). Review fixes 8 Oct: 0.6 m wider on
+                                                                    // the exit side (floor to 186.4, was 185.8): a walker meeting the clank at its near lip
+                                                                    // has about 1.8 s (2.4 s in the notch) to stop in it, not 1.2
     [208.0, 0.00], [214.0, -2.00], [232.0, -2.40],                  // the embankment: down the wet grass into the fog (ending b)
   ],
 
@@ -83,7 +87,7 @@ FF.S2 = {
 
   /* SHELTERS (the Works' covers). A pit's core: the whole body over floor <= FF.RULES.works.shelter.floorMax (-0.26), so the
      platen at y 0 clears the rabbit's back; computed from the ground above (pit A ramps 141.0-141.6 / 142.6-143.2 -> centre
-     141.55-142.65, rounded in; pit B ramp 144.0-144.6, right wall 145.6 -> 144.55-145.44; pit C -> 184.75-185.85). A gap's
+     141.55-142.65, rounded in; pit B ramp 144.0-144.6, right wall 145.6 -> 144.55-145.44; pit C -> 184.75-186.45, review fixes 8 Oct). A gap's
      core: the body clear of both footprints. Floors: outside every footprint. They read from the camera as dark notches in
      the bed's front face (a pit), rain falling through an unlit slot of roof (a gap), unlit floor (a floor). */
   shelters: [
@@ -95,7 +99,7 @@ FF.S2 = {
     { id: 'line-entry', kind: 'floor', x0: 167.0, x1: 169.4, core: [167.2, 169.24], checkpoint: 'works-line' },
     { id: 'G1',         kind: 'gap',   x0: 173.2, x1: 174.8, core: [173.36, 174.64], checkpoint: 'works-g1' },
     { id: 'G2',         kind: 'gap',   x0: 178.6, x1: 181.0, core: [178.76, 180.84], checkpoint: 'works-g2' },
-    { id: 'pit-C',      kind: 'pit',   x0: 184.2, x1: 186.4, floor: -0.40, core: [184.75, 185.85], under: 'Q3', checkpoint: 'works-pitC' },
+    { id: 'pit-C',      kind: 'pit',   x0: 184.2, x1: 187.0, floor: -0.40, core: [184.75, 186.45], under: 'Q3', checkpoint: 'works-pitC' },
     { id: 'line-exit',  kind: 'floor', x0: 189.0, x1: 193.4, core: [189.16, 193.4] },
     { id: 'pipe',       kind: 'rest',  x0: 199.0, x1: 206.0, y1: 0.48, rest: [200.0, 205.0] },
   ],
@@ -131,7 +135,7 @@ FF.S2 = {
     { id: 'works-line',    x: 168.0, y: 0,     face: 1, save: true, works: { line: 2.0 }, note: 'Q1 descending: contact 2.0 s after the restart, passable 4.66 s after' },
     { id: 'works-g1',      x: 174.0, y: 0,     face: 1, when: 'centre in G1 core', works: { line: 6.0 }, note: 'Q2 descending ahead; passable 4.66 s after the restart' },
     { id: 'works-g2',      x: 179.8, y: 0,     face: 1, when: 'centre in G2 core', works: { line: 10.0 }, note: 'Q3 descending ahead; passable 4.60 s after the restart' },
-    { id: 'works-pitC',    x: 185.3, y: -0.40, face: 1, pose: 'hide', when: 'centre in pit C core', works: { line: 10.0 }, note: 'the great press comes down over the pit, rises, then walk out right (3.5 m)' },
+    { id: 'works-pitC',    x: 185.6, y: -0.40, face: 1, pose: 'hide', when: 'centre in pit C core', works: { line: 10.0 }, note: 'the great press comes down over the pit, rises, then walk out right (3.4 m)' },
     { id: 'works-out',     x: 195.2, y: 0,     face: 1, save: true },
   ],
 
@@ -142,8 +146,8 @@ FF.S2 = {
       { id: 'tunnel',      x0: 131.0, x1: 134.0, dist: 7.8, height: 0.85, horizon: 0.57, lookAhead: 1.4, note: 'in section (near-black cut faces), as the drain' },
       { id: 'hall-arrive', x0: 134.0, x1: 139.6, span: [135.6, 147.6], maxDist: 14.6, height: 1.35, horizon: 0.60, hold: true,
         note: 'the establishing frame of the first press: the apron, the whole bed with its two dark notches, the platen, the wall. A held span (as verge-gate), never control; the edge rule keeps the rabbit in while it creeps out' },
-      { id: 'hall-bed',    x0: 139.6, x1: 147.0, span: [138.8, 147.6], height: 0.95, horizon: 0.56, hold: true,
-        note: 'world builder 7 Oct night: height 1.30 / horizon 0.60 put the floor at 89% of the frame and slot A / B\'s floor (y -0.40) at its bottom edge; now the bed at 78%, the slots\' floor at 87%, the hanging platen\'s underside at 18%' },
+      { id: 'hall-bed',    x0: 139.6, x1: 147.0, span: [138.8, 147.6], height: 1.08, horizon: 0.565, hold: true,
+        note: 'world builder 7 Oct night: height 1.30 / horizon 0.60 put the floor at 89% of the frame and slot A / B\'s floor (y -0.40) at its bottom edge; then 0.95 / 0.56 put the hanging platen\'s underside at 16% (from inside the bed the press read as a flat ceiling). Review fixes 8 Oct: 1.08 / 0.565 keeps about half of its front face in frame and the slots\' floor about 9% above the bottom edge' },
       { id: 'culvert',     x0: 145.7, x1: 152.4, yBelow: -0.25, y: -0.20, dist: 7.6, lookAhead: 1.6, note: 'in section, as the drain' },
       { id: 'passage',     x0: 152.4, x1: 166.6, span: [153.4, 163.4], softHold: [157.6, 159.2], height: 1.15, horizon: 0.58,
         note: 'the worker and his patch of wall are in frame while the rabbit waits in the dark: framing for reading his routine; no lean, hold or move towards the wall (no camera emphasis on the sign)' },
@@ -156,7 +160,7 @@ FF.S2 = {
       { id: 'out-intimate', when: 'settle chain running under the pipe', dist: 5.8, height: 0.62, horizon: 0.58, lookAhead: 0.3, follow: 1.2, ease: 3.0 },
       { id: 'out-pullout', scripted: true, to: { dist: 22.0, height: 4.0, horizon: 0.52, driftX: 4.0 }, time: 8.0, ease: 'inOutSine', interruptible: true,
         note: 'ending (a): the pipe becomes a crack at the foot of the Works\' far side; across the fog, the long lit building of the next place' },
-      { id: 'out-leave',   x0: 209.0, x1: 232.0, holdX: 207.4, height: 1.10, horizon: 0.57, note: 'ending (b): the camera stops following; the rabbit walks on down the slope into the fog' },
+      { id: 'out-leave',   x0: 209.0, x1: 232.0, holdX: 209.0, dist: 12.4, height: 1.55, horizon: 0.42, note: 'ending (b): the camera stops following; the rabbit walks on down the slope into the fog. Review fixes 8 Oct: held later, higher and wider (was 207.4, dist 8.4, height 1.10, horizon 0.57: the rabbit dropped out of the bottom edge before the fade), so it goes small down the slope with the far lit windows ahead until the fade' },
     ],
   },
 
@@ -169,7 +173,7 @@ FF.S2 = {
     { id: 'bed-notches',   place: 'hall', note: 'the bed\'s front face (z +0.40) with the pits cut through it as dark notches; in front of it a gutter at y -0.9 (unplayable) so nothing hides a rabbit in a pit; water drains into the pits after each contact' },
     { id: 'roof-gaps',     place: 'hall', note: 'the hall\'s broken roof: rain falls in shafts lit by high cold lamps, over the apron and the bed' },
     { id: 'culvert-section', place: 'culvert', note: 'the culvert in section under the bed and the wall: near-black cut faces, a trickle, the passage lamp\'s glow at the far end' },
-    { id: 'passage-set',   place: 'passage', note: 'a long low service passage (ceiling 3.0 m, back wall z -2.0): pipes and cable trays, an amber bulkhead lamp over the door to the long hall, the worker\'s tripod lamp (x 159.0, z -1.0, 1.5 m up, aimed at the wall at 161.2), his steel trolley (x 158.0, z -0.6, behind the lane), a bucket (161.4, z -0.9), a paint tray and roller leaning on the wall' },
+    { id: 'passage-set',   place: 'passage', note: 'a long low service passage (ceiling 3.0 m, back wall z -2.0): pipes and cable trays, an amber bulkhead lamp over the door to the long hall, the worker\'s tripod lamp (x 159.62, z -1.25, 1.5 m up, within his reach, raking across him onto the wall at 161.3: review fixes 8 Oct; was 159.0, z -1.0, aimed at 161.2), his steel trolley (x 158.0, z -0.6, behind the lane), a bucket (161.4, z -0.9), a paint tray and roller leaning on the wall' },
     { id: 'scrubbed-wall', place: 'passage', x0: 158.6, x1: 162.8, y0: 0.85, y1: 1.55, z: -2.0,
       note: 'THE ONE RESISTANCE DETAIL (SEQUENCE-2.md §7): hand-sprayed END ANIMAL USE on the back wall, the same hand and paint as the Courtyard\'s painted-over wall. "END" already under a fresh, still-wet grey patch, ghosting through; "ANIMAL" half scraped to a pale smear where he is working now; "USE" untouched, weathered. Lit only by his own work lamp, as his work needs; no light, sound, camera move, hint or UI of its own' },
     { id: 'line-frames',   place: 'line', note: 'three press frames in one long hall, the great press\'s frame twice the others\' mass; the vast arm seen through the roof gaps; the roof open over G1 and G2 (rain falls there, unlit: dark = safe), each platen\'s footprint lit by its own strip lamp (lit = where it comes down)' },
@@ -204,7 +208,7 @@ FF.S2 = {
       wallFill: { color: '#73828f', intensity: 0.46, floor: 0.5, height: 3.0, lean: 0.0, topFade: 0.3 },
       fog: { color: '#1b2126', density: 0.025, start: 5.0, glowStrength: 0.4 }, rain: { rate: 0.0 }, rabbit: { rimStrength: 0.28, lift: 0.025 },
       grade: { saturation: 0.70, contrast: 1.04, lift: [0.026, 0.030, 0.036], gain: [0.99, 1.0, 1.02], vignette: 0.60, bottomWeight: 0.3, grain: 0.033, bloom: 0.3, bloomThreshold: 4.0 },
-      lights: { workLamp: { color: '#e6ecf1', intensity: 9, angle: 40, penumbra: 0.45 }, amber: { color: '#ffae4a', intensity: 0.7 }, doorLine: { color: '#d6dee6', intensity: 3 } },
+      lights: { workLamp: { color: '#e6ecf1', intensity: 5.6, angle: 50, penumbra: 0.5 }, amber: { color: '#ffae4a', intensity: 0.7 }, doorLine: { color: '#d6dee6', intensity: 3 } },
     },
     line: {               // the long hall: the same night as the press hall, bigger; three footprint lamps; rain falls in the unlit gaps
       exposure: 1.12, key: { dir: [-0.2, -1.0, 0.35] }, sky: { intensity: 0.0 },
