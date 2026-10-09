@@ -231,8 +231,9 @@ body.intro #game{background:#5abfb2}
 #quest{transition:font-size .35s ease,padding .35s ease,max-width .35s ease,opacity .35s}
 #quest.mini{font-size:13.5px;padding:3px 9px 4px;max-width:min(200px,46vw);opacity:.92;pointer-events:auto;cursor:pointer}
 #quest.mini small,#quest.mini .tk{display:none}#quest.mini b{display:inline;font-size:13px;margin-right:5px}
-@media (pointer:coarse),(max-width:560px){#ba,#ba.ink{font-size:12.5px !important;padding:1px 7px 2px !important;letter-spacing:.02em}#ba.act .bt{border-bottom-width:1.5px}}
+@media (pointer:coarse),(max-width:560px){#ba,#ba.ink{font-size:13px !important;padding:1px 7px 2px !important;letter-spacing:.02em}#ba.act .bt{border-bottom-width:1.5px}}
 #tricks [data-t][hidden]{display:none !important}
+#ba,#ba.ink{min-width:0 !important;width:auto !important;height:auto !important;line-height:1.2 !important} /* the box hugs the words */
 </style>
 </head>
 <body>
@@ -2919,7 +2920,7 @@ const GRINDS=[{x0:RAIL.x0,z0:RAIL.dz,x1:RAIL.x1,z1:RAIL.dz,name:'Boardslide',hOf
   {x0:STAIR.x1,z0:0,x1:STAIR.x1+STAIR.steps*STAIR.run,z1:0,name:'Handrail grind',hOff:.9},{x0:ELEDGE.x0,z0:ELEDGE.z,x1:ELEDGE.x1,z1:ELEDGE.z,name:'Ledge grind'}];
 const TRICKS={ollie:['Ollie',40],kickflip:['Kickflip',110],heelflip:['Heelflip',110],shoveit:['Pop shove-it',80],tailwhip:['Tailwhip',120],barspin:['Barspin',100],whip2:['Double tailwhip',240]};
 const SCOOT_TRICK={kickflip:'tailwhip',heelflip:'barspin',shoveit:'whip2'};
-function trickLabels(){const sc=ride.veh==='scooter';const L=sc?{ollie:'Hop',kickflip:'Tail<br>whip',heelflip:'Bar<br>spin',shoveit:'Double<br>whip',manual:'Wheelie'}:{ollie:'Ollie',kickflip:'Kick<br>flip',heelflip:'Heel<br>flip',shoveit:'Shove',manual:'Manual'};document.querySelectorAll('#tricks [data-t]').forEach(el=>{el.innerHTML=L[el.dataset.t]||el.innerHTML;el.hidden=sc&&(el.dataset.t==='shoveit'||el.dataset.t==='manual');});} /* Josh: no Double whip / Wheelie buttons on the scooter (cleaner) */
+function trickLabels(){const sc=ride.veh==='scooter';const L=sc?{ollie:'Hop',kickflip:'Tail<br>whip',heelflip:'Bar<br>spin',shoveit:'Double<br>whip',manual:'Wheelie'}:{ollie:'Ollie',kickflip:'Kick<br>flip',heelflip:'Heel<br>flip',shoveit:'Shove',manual:'Manual'};document.querySelectorAll('#tricks [data-t]').forEach(el=>{el.innerHTML=L[el.dataset.t]||el.innerHTML;const t_=el.dataset.t,ph=matchMedia('(pointer:coarse)').matches;el.hidden=sc?(t_==='shoveit'||t_==='manual'):(ph&&(t_==='heelflip'||t_==='manual'));});} /* Josh: no Double whip / Wheelie buttons on the scooter (cleaner) */
 let trickHide=0;
 function showTrick(name,pts){const el=$('#trickname');el.innerHTML=name+(pts?' <small>+'+pts+'</small>':'');el.classList.add('show');trickHide=performance.now()/1000+1.4;}
 function addTrick(name,pts){ride.combo.push([name,pts]);ride.comboT=1.1;const mult=ride.combo.length;showTrick(name+(mult>1?'  x'+mult:''),pts);}
