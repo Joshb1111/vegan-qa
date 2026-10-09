@@ -287,7 +287,7 @@ body.intro #game{background:#5abfb2}
 </section>
 <div id="racehud" class="ink" hidden><b>0:00.0</b><small>0 / 0 rings</small><span class="hb"><button type="button" id="race-quit">quit</button><button type="button" id="race-restart">restart</button><button type="button" id="dash-go" hidden>start now</button></span></div>
 <div id="racepick" class="ink" hidden><h2>Race</h2><button type="button" id="pick-solo" class="ink">Solo time trial<small>the ring course, against the clock</small></button><button type="button" id="pick-dash" class="ink">Join multiplayer race<small>Downhill Dash · up to five racers</small></button><button type="button" id="pick-x">not now</button></div>
-<div id="fightpick" class="ink" hidden><h2>Street fight</h2><button type="button" id="fp-bot" class="ink">Fight the Spider-Bot<small>beat him to unlock the webs</small></button><button type="button" id="fp-pvp" class="ink">Fight another player (1v1)</button><p id="fp-note"></p><button type="button" id="fp-x">not now</button></div>
+
 <div id="dashend" class="ink" hidden><h2>Downhill Dash</h2><ol id="dash-list"></ol><div class="row"><button type="button" id="dash-again" class="ink">Race again</button><button type="button" id="dash-town" class="ink">Back to town</button></div></div>
 <div id="raceend" class="ink" hidden><h2>Skate park race</h2><p id="race-time" hidden></p><form id="race-post" hidden><input id="race-name" type="text" maxlength="16" placeholder="Your name for the board" aria-label="Your name"><button class="ink" type="submit">Post it</button></form><ol id="race-top"><li>loading…</li></ol><button id="race-close" class="ink" type="button">Back to the park</button></div>
 <div id="quest" class="ink" hidden></div><div id="flash"></div>
@@ -1161,7 +1161,7 @@ function townAlong(road,o){o=o||{};const kerb=road.kerb;const end=Math.min(road.
     function skateboard(){const g=new THREE.Group();if(BOARD_MODEL){g.add(BOARD_MODEL.clone());return g;}const deck=box(1.22,.055,.42,pick([P.red,P.blue,P.yellow]));deck.position.set(0,.125,0);g.add(deck);const grip=plain(1.14,.02,.38,0x2b2e31);grip.position.set(0,.162,0);g.add(grip); /* grip tape on top */
   for(const x of [-.4,.4])for(const z of [-.15,.15]){const w_=cyl(.06,.06,.06,P.cream2,8);w_.rotation.x=Math.PI/2;g.add(at(w_,x,.06,z));}return g;}
     SKATE_SPOT=pt;
-    {const len=RAIL.x1-RAIL.x0,NSEG=3,sl=len/NSEG;for(let k=0;k<NSEG;k++){const seg=new THREE.Group();const bar=cyl(.04,.04,sl+.06,0x3b4248,10);bar.rotation.z=Math.PI/2;bar.position.y=RAIL.h;seg.add(bar);seg.add(at(cyl(.035,.035,RAIL.h,0x59626a,8),0,RAIL.h/2,0));seg.add(at(box(.34,.03,.34,0x59626a),0,.015,0));const [,sl_,sa_]=pt(RAIL.x0+sl*(k+.5),RAIL.dz);placeOn(seg,sl_,sa_,yawFor(sl_,sa_,north));colliders.push(seg);}}
+    {const len=RAIL.x1-RAIL.x0,NSEG=3,sl=len/NSEG;for(let k=0;k<NSEG;k++){const seg=new THREE.Group();const bar=cyl(.04,.04,sl+.06,0x3b4248,10);bar.rotation.z=Math.PI/2;bar.position.y=RAIL.h;seg.add(bar);seg.add(at(cyl(.035,.035,RAIL.h,0x59626a,8),0,RAIL.h/2,0));seg.add(at(box(.34,.03,.34,0x59626a),0,.015,0));const [,sl_,sa_]=pt(RAIL.x0+sl*(k+.5),RAIL.dz);placeOn(seg,sl_,sa_,yawFor(sl_,sa_,north));colliders.push(seg);solidBox(seg,{min:{x:-sl/2-.05,y:0,z:-.13},max:{x:sl/2+.05,y:RAIL.h+.05,z:.13}});solids[solids.length-1].park=true;}} /* thin solid on foot; a hop clears it (top .5), so the grind still works */
     /* west wing */
     {const qp=quarterPipe(WQP.z1-WQP.z0,WQP.r);const [,ql,qa]=pt(WQP.x+.6,(WQP.z0+WQP.z1)/2);placeOn(qp,ql,qa,yawFor(ql,qa,east));bendPark(qp);colliders.push(qp);(window.__wingMeshes=window.__wingMeshes||[]).push(qp);
      /* (the west wing's grind rail was here; Josh had it removed to clear the space by the race booth) */}
@@ -1655,7 +1655,7 @@ function hero2Tick(dt,speed){
     // residents: Josh's four modelled characters, cloned with their skeletons
     const su=document.createElement('script');{const sr=LD.wait(20000);su.addEventListener('load',sr);su.addEventListener('error',sr);}su.src='https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/utils/SkeletonUtils.js';
     su.onload=()=>{
-    loader.load('assets/spidey.glb',g=>{const root=g.scene; /* the mesh is skinned to a rig in other units, and its rest pose is collapsed: size him from the animated skeleton instead */
+    0&&loader.load('assets/spidey.glb',g=>{const root=g.scene; /* the mesh is skinned to a rig in other units, and its rest pose is collapsed: size him from the animated skeleton instead */
       root.traverse(m=>{if(m.isMesh){const old=m.material;if(old.map){old.map.encoding=THREE.LinearEncoding;old.map.needsUpdate=true;}m.material=new THREE.MeshToonMaterial({map:old.map||null,color:old.map?0xffffff:old.color,gradientMap:grad,skinning:!!m.isSkinnedMesh,side:THREE.DoubleSide});m.frustumCulled=false;m.castShadow=true;}});
       for(const c of g.animations){c.tracks=c.tracks.filter(t=>!(t.name.endsWith('.position')&&/Hips/.test(t.name))||false);SPIDEY.clips[c.name]=c;} /* hips position tracks carry root motion */
       SPIDEY.model=root;
@@ -1733,6 +1733,24 @@ const npcs=[];
     const b=document.createElement('button');b.type='button';b.dataset.go=n.id;b.innerHTML='<i></i>'+n.name+'<small>'+n.sub+'</small>';$('#stops').appendChild(b);
   });
 })();
+
+/* residents keep clear of the spawn (15 m) and of walls: standing ones are nudged out, walkers turn round at the zone's edge */
+const SPAWN_CLEAR=15.5;let _spN=null;function spawnN(){return _spN=_spN||sphere(START_LON,window.__roads.mainLat(START_LON));}
+function spawnDist(q){return Math.acos(clamp(q.clone().normalize().dot(spawnN()),-1,1))*R;}
+window.__tidyLog=[];
+function tidyResidents(deep){const sp0=spawnN(),M=.85;for(const n of npcs){if(n.walker||n.patrol||n===talking||n.sitSpot)continue;const q=sphere(n.lon,n.lat).multiplyScalar(R),q0=q.clone();
+  for(let pass=0;pass<8;pass++){let hit=false;
+   const U=q.clone().normalize();const dd=Math.acos(clamp(U.dot(sp0),-1,1))*R;
+   if(dd<SPAWN_CLEAR){const t=U.clone().addScaledVector(sp0,-U.dot(sp0));if(t.lengthSq()<1e-10)t.set(0,1,0).cross(sp0);t.normalize();const a=(SPAWN_CLEAR+.4)/R;q.copy(sp0.clone().multiplyScalar(Math.cos(a)).addScaledVector(t,Math.sin(a))).multiplyScalar(R);hit=true;}
+   for(const s of solids){if(s.top!==undefined&&s.top<.8)continue;if(Math.abs(s.c.x-q.x)>14||Math.abs(s.c.y-q.y)>14||Math.abs(s.c.z-q.z)>14)continue;const U2=q.clone().normalize();const d=q.clone().sub(s.c);
+    if(s.r!==undefined){d.addScaledVector(U2,-d.dot(U2));const L=d.length(),pen=s.r+M-L;if(pen>0){if(L<1e-4)d.set(1,0,0).cross(U2);d.normalize();q.addScaledVector(d,pen);hit=true;}continue;}
+    const lx=d.dot(s.X),lz=d.dot(s.Z),ox=s.hx+M-Math.abs(lx),oz=s.hz+M-Math.abs(lz);if(ox>0&&oz>0&&Math.abs(d.dot(U2))<30){if(ox<oz)q.addScaledVector(s.X,(lx<0?-1:1)*ox);else q.addScaledVector(s.Z,(lz<0?-1:1)*oz);hit=true;}}
+   q.normalize().multiplyScalar(R);if(!hit)break;}
+  if(deep){const rc=new THREE.Raycaster();rc.far=1.2;for(let it=0;it<4;it++){const U=q.clone().normalize();const t1=new THREE.Vector3(0,1,0).cross(U);if(t1.lengthSq()<1e-6)t1.set(1,0,0);t1.normalize();const o=U.clone().multiplyScalar(gAt(U)+1.0);let any=false;
+    for(let k=0;k<12;k++){const dir=t1.clone().applyAxisAngle(U,k*Math.PI/6);rc.set(o,dir);const h=rc.intersectObjects(colliders,true).find(x=>x.distance>.02);if(h&&h.distance<.95){q.addScaledVector(dir,-(.95-h.distance));any=true;}}
+    q.normalize().multiplyScalar(R);if(!any)break;}}
+  if(q.distanceTo(q0)>.05){const [l,a]=lonLatOf(q.clone().normalize());window.__tidyLog.push(n.name+' '+q.distanceTo(q0).toFixed(1)+'m');n.lon=l;n.lat=a;}}}
+for(const ms of [3000,9000,20000,40000])setTimeout(()=>tidyResidents(true),ms);setInterval(()=>tidyResidents(false),5000);window.__tidy=tidyResidents;
 function npcPos(n){return sphere(n.lon,n.lat);}
 function npcWorld(n){const v=sphere(n.lon,n.lat);return v.multiplyScalar(gAt(v));}
 /* auto-walk follows the streets: nearest road → the main loop → the target's road → the target */
@@ -1902,7 +1920,7 @@ function update(dt){
       poseOn(n.rig.group,n.lon,n.lat,0);const f=new THREE.Vector3(0,0,-1).applyQuaternion(n.rig.group.quaternion);const r=new THREE.Vector3(1,0,0).applyQuaternion(n.rig.group.quaternion);
       n.yaw=Math.atan2(-toP.dot(r),toP.dot(f));} /* the rig's front after a yaw is f·cos − r·sin, so the sideways term is negated */
     else
-    if(n.walker&&!n.paused){n.s+=n.dir*n.speed*dt;const sm=atS(n.road,n.s);const q=offsetFrom(sm,n.lane);[n.lon,n.lat]=lonLatOf(q);n.yaw=yawFace(n.lon,n.lat,sm.t.clone().multiplyScalar(n.dir));sp=n.speed;}
+    if(n.walker&&!n.paused){const s0_=n.s;n.s+=n.dir*n.speed*dt;let sm=atS(n.road,n.s);let q=offsetFrom(sm,n.lane);if(spawnDist(q)<SPAWN_CLEAR&&spawnDist(q)<spawnDist(offsetFrom(atS(n.road,s0_),n.lane))){n.s=s0_;n.dir=-n.dir;sm=atS(n.road,n.s);q=offsetFrom(sm,n.lane);}[n.lon,n.lat]=lonLatOf(q);n.yaw=yawFace(n.lon,n.lat,sm.t.clone().multiplyScalar(n.dir));sp=n.speed;}
     if(n.patrol&&!n.paused&&n!==talking){n.restT-=dt;if(n.restT<=0){n.strolling=!n.strolling;n.restT=n.strolling?5+Math.random()*6:6+Math.random()*10;if(n.strolling)n.dir=n.s<(n.patrol.s0+n.patrol.s1)/2?1:-1;}
       if(n.strolling){n.s+=n.dir*n.speed*dt;if(n.s<=n.patrol.s0||n.s>=n.patrol.s1){n.s=clamp(n.s,n.patrol.s0,n.patrol.s1);n.strolling=false;n.restT=6+Math.random()*8;}const sm=atS(n.road,n.s);const q=offsetFrom(sm,n.lane);[n.lon,n.lat]=lonLatOf(q);n.yaw=yawFace(n.lon,n.lat,sm.t.clone().multiplyScalar(n.dir));sp=n.speed;}
       else{const ty=yawFace(n.lon,n.lat,frameAt(n.lon,n.lat).north.clone().negate());let d=ty-n.yaw;d=((d+Math.PI)%(2*Math.PI)+2*Math.PI)%(2*Math.PI)-Math.PI;n.yaw+=d*Math.min(1,dt*1.5);}}
@@ -1961,7 +1979,7 @@ function update(dt){
     nearQuest=false;if(QUEST.active&&QUEST.markers[QUEST.active]&&!nearRace&&!nearFilm){const mk=QUEST.markers[QUEST.active];const d=mk.w.distanceTo(pl);if(d<2.8){nearQuest=true;nearBoard=null;nearBench=false;if(nearN){nearN.paused=false;nearN=null;}place(mk.w,1.9);}} /* the photo comes first, even with a resident standing beside it */
     nearDoor=null;if(DOORS.length&&!nearQuest&&!nearN&&!nearBoard&&!nearBench&&!nearRace&&!nearFilm){let bd=2.1;for(const d of DOORS){if(Math.abs(d.w.x-pl.x)>3||Math.abs(d.w.y-pl.y)>3||Math.abs(d.w.z-pl.z)>3)continue;const dist=d.w.distanceTo(pl);if(dist<bd&&fwd.dot(d.inw)>.35){bd=dist;nearDoor=d;}}if(nearDoor)place(nearDoor.w,2.4);} /* right at the door and facing the house: nothing pops up while walking down the street */
     nearSeat=null;if(SEATS.length&&!nearN&&!nearBench&&!nearRace&&!nearFilm&&!nearQuest&&!nearDoor){let bd=1.6;for(const st of SEATS){const w=st.n.clone().multiplyScalar(gAt(st.n));if(Math.abs(w.x-pl.x)>3||Math.abs(w.y-pl.y)>3||Math.abs(w.z-pl.z)>3)continue;const d=w.distanceTo(pl);if(d<bd){bd=d;nearSeat=st;}}if(nearSeat){nearBoard=null;place(nearSeat.n.clone().multiplyScalar(gAt(nearSeat.n)),1.6);}}
-    nearSpidey=false;if(SPIDEY.npc&&!fight.on){const d=SPIDEY.w.distanceTo(pl);if(d<3.2&&!nearN&&!nearBench&&!nearRace&&!nearFilm){nearSpidey=true;nearBoard=null;place(SPIDEY.w,2.6);}}
+    nearSpidey=false;ensureWebPickup();if(WEBPK.item&&WEBPK.item.visible&&!fight.on){const d=WEBPK.w.distanceTo(pl);if(d<3.2&&!nearN&&!nearBench&&!nearRace&&!nearFilm){nearSpidey=true;nearBoard=null;place(WEBPK.w,2.6);}}
     if(ROOM.spawn&&Math.acos(clamp(up.dot(ROOM_N),-1,1))*R<5.5){inRoom=true;if(!nearN&&!nearBoard&&!nearBench&&!nearRace){const ba=$('#ba');ba.style.left=(W/2)+'px';ba.style.top=Math.max(40,H*.16)+'px';}}}
   const shown=ride.on?'ride':sitting?'sit':nearBench?'bench':nearRace?'race':nearFilm?'film':nearQuest?'quest':nearDoor?'door'+nearDoor.key:nearSeat?'seat'+SEATS.indexOf(nearSeat):nearSpidey?'spidey':nearBoard?'board':nearN?nearN:inRoom?'room':null;
   if(shown!==shownN){shownN=shown;const pr=$('#prompt'),ba=$('#ba');
@@ -1972,7 +1990,7 @@ function update(dt){
     else if(nearQuest){ba.textContent='Take a photo';ba.classList.remove('off');}
     else if(nearDoor){ba.textContent=nearDoor.act.label;ba.classList.remove('off');}
     else if(nearSeat){ba.textContent=nearSeat.label||'Sit down';ba.classList.remove('off');}
-    else if(nearSpidey){ba.textContent='1v1 Spider-Man';ba.classList.remove('off');}
+    else if(nearSpidey){ba.textContent='pick up webs';ba.classList.remove('off');}
     else if(nearBoard){ba.textContent=nearBoard.kind==='scooter'?'Ride the scooter':'Ride the skateboard';ba.classList.remove('off');}
     else if(inRoom){ba.textContent='Back to town';ba.classList.remove('off');}
     else if(!sitting&&!ride.on){pr.classList.add('off');ba.classList.add('off');}}
@@ -2123,7 +2141,7 @@ $('#stops').addEventListener('click',e=>{const wgt=e.target.closest('[data-wings
     if(pb.dataset.place==='sunsetSpawn'&&BENCH){if(sitting)standUp();if(ride.on)stopRide();autoTarget=null;autoRoute=[];up.copy(BENCH.n).addScaledVector(BENCH.face,-2.2/R).normalize();fwd.copy(BENCH.face);orthonormalize();v=0;camInit=false;firstMove();toggleStops(false);return;} /* straight to the sand behind the bench, facing the sea */const jump=(n,face)=>{if(sitting)standUp();if(ride.on)stopRide();if(talking)endTalk();autoTarget=null;autoRoute=[];autoFace=null;up.copy(n).normalize();fwd.copy(face);orthonormalize();v=0;pendingMove=0;camInit=false;firstMove();toggleStops(false);};if(pb.dataset.place==='earthlingsSpawn'){const sm=atS(ROADS[0],96.5);jump(sm.n,sm.t);return;} /* on the main street just before the chalk, facing the four activists */if(pb.dataset.place==='fireSpawn'){const f=window.DRESS&&window.DRESS.fireSpot&&window.DRESS.fireSpot();if(f)jump(f.n,f.face);else toggleStops(false);return;} /* the open side of the campfire, facing Kofi and the fire */const pl=PLACES[pb.dataset.place];if(pl){if(sitting)standUp();goTo(pl);firstMove();toggleStops(false);}return;}
   const b=e.target.closest('[data-go]');if(!b)return;const n=npcs.find(x=>x.id===b.dataset.go);if(sitting)standUp();goTo({n:npcPos(n)},n);firstMove();toggleStops(false);});
 (function placesMenu(){const top=document.createDocumentFragment(),h=document.createElement('h2');h.textContent='Places';top.appendChild(h); /* Places at the top, then People (Josh asked), then the settings */
-  for(const [k,t,sub] of [['sunset','The sunset bench','down the hill, by the sea'],['skate','Skate park','off the main street'],['cinema','Beach cinema','a screen on the sand'],['skateSpawn','Spawn at the skate park','jump straight there'],['sunsetSpawn','Spawn at the sunset bench','jump straight there'],['earthlingsSpawn','Spawn at the Earthlings protest','Jo, Josh, Sam and Jay on the main street'],['fireSpawn','Spawn at the forest campfire','Kofi playing by the fire'],['race','Skate park race','a ring course out at sea, against the clock'],['dash','Multiplayer race','Downhill Dash: up to five racers, ramps and boosts'],['board','Race leaderboard','the fastest laps'],['afk','Take a break (AFK)','a quiet room to wait in'],['fruit','Juicy Slice','the fruit stall game: walk up and play'],['spidey','Spider-Man','by the skate park']]){const b=document.createElement('button');b.type='button';b.dataset.place=k;b.innerHTML='<i></i>'+t+'<small>'+sub+'</small>';top.appendChild(b);}{const st=$('#stops');st.insertBefore(top,st.firstChild);const sh=document.createElement('h2');sh.textContent='Settings';st.appendChild(sh);}
+  for(const [k,t,sub] of [['sunset','The sunset bench','down the hill, by the sea'],['skate','Skate park','off the main street'],['cinema','Beach cinema','a screen on the sand'],['skateSpawn','Spawn at the skate park','jump straight there'],['sunsetSpawn','Spawn at the sunset bench','jump straight there'],['earthlingsSpawn','Spawn at the Earthlings protest','Jo, Josh, Sam and Jay on the main street'],['fireSpawn','Spawn at the forest campfire','Kofi playing by the fire'],['race','Skate park race','a ring course out at sea, against the clock'],['dash','Multiplayer race','Downhill Dash: up to five racers, ramps and boosts'],['board','Race leaderboard','the fastest laps'],['afk','Take a break (AFK)','a quiet room to wait in'],['fruit','Juicy Slice','the fruit stall game: walk up and play']]){const b=document.createElement('button');b.type='button';b.dataset.place=k;b.innerHTML='<i></i>'+t+'<small>'+sub+'</small>';top.appendChild(b);}{const st=$('#stops');st.insertBefore(top,st.firstChild);const sh=document.createElement('h2');sh.textContent='Settings';st.appendChild(sh);}
   const wb=document.createElement('button');wb.type='button';wb.dataset.webs='1';wb.hidden=!webUnlocked;wb.innerHTML='<i></i><span></span><small>jump while running to swing</small>';$('#stops').appendChild(wb);window.__webBtn=wb;webBtn();
   const gb=document.createElement('button');gb.type='button';gb.dataset.wings='1';gb.hidden=!WINGS.has;gb.innerHTML='<i></i><span></span><small>hold Jump to fly, let go to glide down</small>';$('#stops').appendChild(gb);window.__wingBtn=gb;wingsBtn();
   for(const [q,t,sub] of [['full','Graphics: high','sharpest; for computers and new phones'],['lite','Graphics: medium','slimmer models; for most phones'],['min','Graphics: low','small textures; for tablets and older devices']]){if(q===QUALITY)continue;const qb=document.createElement('button');qb.type='button';qb.dataset.q=q;qb.innerHTML='<i></i>'+t+'<small>'+sub+' (now: '+({full:'high',lite:'medium',min:'low'})[QUALITY]+')</small>';$('#stops').appendChild(qb);}
@@ -2217,6 +2235,21 @@ function thinkingBubble(n){clearTimeout(bubble.timer);bubble.who=n;bubble.chunks
 function meBubble(text){sbMe.innerHTML=esc(text);sbMe.hidden=false;clearTimeout(sbMe._t);sbMe._t=setTimeout(()=>{sbMe.hidden=true;},Math.max(2000,text.length*60));}
 function hideBubbles(){clearTimeout(bubble.timer);bubble.who=null;bubble.pending=false;sbN.hidden=true;sbMe.hidden=true;}
 function say(html,n,plainForVoice,key){if(typer){clearInterval(typer);typer=null;}const plain=plainForVoice||html.replace(/<[^>]+>/g,'');const wait=!!plainForVoice&&voiceOn&&hosted[n.name]!==false;if(plainForVoice)speak(plainForVoice,n);sayBubble(n,plain,key||'',wait);}
+/* ---------- the webs: a coiled bundle lying by a tree near the campfire; picking it up unlocks the web swing ---------- */
+const WEBPK={item:null,n:null,w:null,tried:0,t0:0};
+function ensureWebPickup(){const t=performance.now();if(webUnlocked){if(WEBPK.item)WEBPK.item.visible=false;return;}
+  if(!WEBPK.item){if(t-WEBPK.tried<1500||!window.DRESS||!window.DRESS.fireSpot)return;WEBPK.tried=t;if(!WEBPK.t0)WEBPK.t0=t;
+    const F=sphere(-.41,1.17);let best=null,bd=1e9;for(const so of solids){if(so.r===undefined||so.r<.2||so.r>1.1)continue;const c=so.c.clone().normalize();const d=Math.acos(clamp(c.dot(F),-1,1))*R;if(d<7.2||d>13)continue;const dd=Math.abs(d-8.5);if(dd<bd){bd=dd;best=so;}}
+    if(!best&&t-WEBPK.t0<12000)return; /* the trees may not have arrived yet: look again, and after 12 s settle for a spot on the clearing's edge */
+    let n;if(best){const c=best.c.clone().normalize();const tw=F.clone().addScaledVector(c,-F.dot(c)).normalize();n=c.clone().addScaledVector(tw,(best.r+1.1)/R).normalize();}
+    else{const sp=window.DRESS.fireSpot();const d=sp.face.clone().negate();n=F.clone().addScaledVector(d,-7.4/R).normalize();}
+    const g=new THREE.Group();const mat=new THREE.MeshBasicMaterial({color:0xf6f3ea});const web=new THREE.Group();
+    for(const [r,tb] of [[.34,.045],[.2,.04]]){const m=new THREE.Mesh(new THREE.TorusGeometry(r,tb,6,28),mat);m.rotation.x=Math.PI/2;web.add(m);}
+    for(let i=0;i<4;i++){const m=new THREE.Mesh(new THREE.CylinderGeometry(.025,.025,.74,5),mat);m.rotation.z=Math.PI/2;m.rotation.y=i*Math.PI/4;web.add(m);}
+    web.rotation.x=.35;g.add(web);const ring=new THREE.Mesh(new THREE.TorusGeometry(.62,.03,8,32),new THREE.MeshBasicMaterial({color:0xf4c945,transparent:true,opacity:.85}));ring.rotation.x=Math.PI/2;ring.position.y=.12;ring.userData.noInk=true;g.add(ring);
+    const [l,a]=lonLatOf(n);placeOn(g,l,a,0);g.userData.noCull=true;WEBPK.item=g;WEBPK.spin=web;WEBPK.ring=ring;WEBPK.n=n;WEBPK.w=n.clone().multiplyScalar(gAt(n));sceneDirty=true;}
+  const tt=t/1000;WEBPK.spin.rotation.y=tt*1.2;WEBPK.spin.position.y=.9+.1*Math.sin(tt*2);WEBPK.ring.scale.setScalar(1+.06*Math.sin(tt*3));WEBPK.w.copy(WEBPK.n).multiplyScalar(gAt(WEBPK.n));WEBPK.item.visible=true;}
+function pickUpWebs(){if(webUnlocked)return;webUnlocked=true;websOn=true;try{localStorage.setItem('planet-webs','1');localStorage.setItem('planet-webs-on','1');}catch(_){}webBtn();if(WEBPK.item)WEBPK.item.visible=false;try{sfx('land',.6);tone(520,1400,.5,'triangle',.1);}catch(_){}showTrick('Webs unlocked!  Jump while running to swing');sceneDirty=true;}
 /* ---------- Spider-Man: the arena fight and the web swing ---------- */
 function spideyInstance(){const root=THREE.SkeletonUtils.clone(SPIDEY.model); /* this rig already faces the game's forward (-Z); the Tripo characters need a half turn, he does not */const holder=new THREE.Group();holder.add(root);scene.add(holder);const mixer=new THREE.AnimationMixer(root);mixers.push(mixer);const act={};for(const k in SPIDEY.clips){act[k]=mixer.clipAction(SPIDEY.clips[k]);act[k].enabled=true;act[k].setEffectiveWeight(0);act[k].play();}
   const inst={holder,root,mixer,act,cur:null,hp:100,busy:0,x:0,face:1,vy:0,y:0,anim:'walk'};
@@ -2298,9 +2331,9 @@ function raceBuild(road){if(!road)return;race.road=road;race.dress=[];race.mats=
   const s0=atS(road,0);race.finC=s0.n.clone().multiplyScalar(gAt(s0.n)+1.4);race.finT=s0.t.clone();race.startN=atS(road,1.6).n.clone();race.startFwd=s0.t.clone();
   {const [l,a]=lonLatOf(s0.n);const arch=new THREE.Group();for(const x of [-3.2,3.2])arch.add(at(cyl(.1,.1,3.6,P.grey2,8),x,1.8,0));const ban=label('FINISH',6.2,.8,'#f4c945','#26333a',.55);ban.position.set(0,3.55,0);arch.add(ban);const ban2=ban.clone();ban2.rotation.y=Math.PI;arch.add(ban2);placeOn(arch,l,a,yawFor(l,a,s0.t));arch.translateY(-sinkFor(arch));arch.updateMatrixWorld(true);arch.userData.noCull=true;race.dress.push(arch);} /* the arch stands across the track at the start line */
   /* the booth at the skate park: a board showing the fastest laps, and where you start the race from */
-  {const bn=parkPt(-12.6,-17.4);const [l,a]=lonLatOf(bn);const g=new THREE.Group();g.add(at(cyl(.09,.1,3.7,P.grey2,8),-1.55,1.85,0));g.add(at(cyl(.09,.1,3.7,P.grey2,8),1.55,1.85,0));
+  {const bn=parkPt(-13,-21);const [l,a]=lonLatOf(bn);const g=new THREE.Group();g.add(at(cyl(.09,.1,3.7,P.grey2,8),-1.55,1.85,0));g.add(at(cyl(.09,.1,3.7,P.grey2,8),1.55,1.85,0));
     const cv=document.createElement('canvas');cv.width=512;cv.height=400;const tx=new THREE.CanvasTexture(cv);const bd=new THREE.Mesh(new THREE.PlaneGeometry(2.6,2.05),new THREE.MeshBasicMaterial({map:tx}));bd.userData.noInk=true;bd.position.set(0,2.6,.07);g.add(bd);const bd2=bd.clone();bd2.position.z=-.07;bd2.rotation.y=Math.PI;g.add(bd2);g.add(at(box(2.75,2.2,.1,P.ink),0,2.6,0)); /* printed on both faces */
-    placeOn(g,l,a,yawFor(l,a,_q.copy(parkPt(-16,-19.5)).sub(bn).normalize()));g.translateY(-sinkFor(g));g.updateMatrixWorld(true);colliders.push(g);race.booth={w:bn.clone().multiplyScalar(gAt(bn)),cv,tx};boothDraw([]);}
+    placeOn(g,l,a,yawFor(l,a,_q.copy(parkPt(-13,-10)).sub(bn).normalize()));g.translateY(-sinkFor(g));g.updateMatrixWorld(true);colliders.push(g);race.booth={w:bn.clone().multiplyScalar(gAt(bn)),cv,tx};boothDraw([]);}
   for(const o of race.dress){o.userData.noCull=true;o.visible=false;}race.shown=false;} /* hidden, and kept out of the horizon cull (which would show them again), until a race starts */
 function boothDraw(top){const b=race.booth;if(!b)return;const g=b.cv.getContext('2d');g.fillStyle='#f3efe4';g.fillRect(0,0,512,400);for(let i=0;i<16;i++){g.fillStyle=i%2?'#26333a':'#f3efe4';g.fillRect(i*32,0,32,22);g.fillStyle=i%2?'#f3efe4':'#26333a';g.fillRect(i*32,22,32,22);}
   g.fillStyle='#26333a';g.textAlign='center';g.font='700 46px "Patrick Hand","Segoe Print",cursive';g.fillText('SKATE RACE',256,96);g.font='26px "Patrick Hand","Segoe Print",cursive';g.fillStyle='#5f6d72';g.fillText('fastest laps round the isle',256,132);
@@ -2689,7 +2722,7 @@ function dashUpdate(dt){DASH_ON=dash.phase!=='idle';if(DASH.padTex)DASH.padTex.o
   if(dash.phase==='done'){v=Math.min(v,Math.max(0,(DASH.L-1.5-dash.s)*2.5));const h=dashSurf(up);if(h===null)dashPlace(DASH.L-2,0);else dash.s=DASH.s;}} /* roll to a stop on the finish deck */
 $('#dash-go').addEventListener('click',()=>{if(dash.phase==='lobby')dashCall({a:'go',rid:dash.rid}).then(j=>{dash.startAt=j.startAt;}).catch(()=>{});});
 $('#dash-again').addEventListener('click',()=>{const rid=dash.rid;dash.phase='idle';clearTimeout(dash.timer);if(rid)dashCall({a:'leave',rid}).catch(()=>{});joinDash();});$('#dash-town').addEventListener('click',()=>leaveDash(false));
-$('#fp-bot').addEventListener('click',()=>{duelCancel();$('#fightpick').hidden=true;startFight();});$('#fp-pvp').addEventListener('click',fightSearch);$('#fp-x').addEventListener('click',()=>{if(DUEL.game==='fight')duelCancel();$('#fightpick').hidden=true;game.focus();});
+
 $('#pick-solo').addEventListener('click',()=>{$('#racepick').hidden=true;startRace();});$('#pick-dash').addEventListener('click',joinDash);$('#pick-x').addEventListener('click',()=>{$('#racepick').hidden=true;game.focus();});
 window.__dash=dash;window.__DASH=DASH;window.__joinDash=joinDash;
 
@@ -2945,7 +2978,7 @@ function cineLayout(){if(!cine.on||!cine.el)return;const P=[];for(const c of cin
   cine.el.style.transform='matrix3d('+[t[0],t[3],0,t[6],t[1],t[4],0,t[7],0,0,1,0,t[2],t[5],0,t[8]].join(',')+')';cine.el.style.visibility='visible';}
 function closeFilm(){filmOn=false;paused=false;$('#film-frame').innerHTML='';$('#film').hidden=true;if(cine.on)standUp();game.focus();}
 $('#film-x').addEventListener('click',closeFilm);$('#film').addEventListener('click',e=>{if(e.target===$('#film'))closeFilm();});
-function action(){unlockAudio();if(ride.on){if(dash.phase!=='idle')return; /* no hopping off in the race */stopRide();return;}if(sitting){standUp();return;}if(nearBench&&!talking){sitDown();return;}if(nearSeat&&!talking){seatX(nearSeat);return;}if(nearRace&&!talking){$('#racepick').hidden=false;return;}if(nearFilm&&!talking){openFilm();return;}if(nearQuest&&!talking){questPhoto();return;}if(nearDoor&&!talking){enterHouse(nearDoor.act);return;}if(nearSpidey&&!talking){fightPick();return;}if(nearBoard&&!talking){startRide();return;}if(nearN&&!talking){startTalk(nearN);return;}if(inRoom&&!talking)leaveRoom();}
+function action(){unlockAudio();if(ride.on){if(dash.phase!=='idle')return; /* no hopping off in the race */stopRide();return;}if(sitting){standUp();return;}if(nearBench&&!talking){sitDown();return;}if(nearSeat&&!talking){seatX(nearSeat);return;}if(nearRace&&!talking){$('#racepick').hidden=false;return;}if(nearFilm&&!talking){openFilm();return;}if(nearQuest&&!talking){questPhoto();return;}if(nearDoor&&!talking){enterHouse(nearDoor.act);return;}if(nearSpidey&&!talking){pickUpWebs();return;}if(nearBoard&&!talking){startRide();return;}if(nearN&&!talking){startTalk(nearN);return;}if(inRoom&&!talking)leaveRoom();}
 /* sitting on the bench: the kid is set on the seat facing the sea and his legs are bent after the animation
    has run; the sun goes down, the stars come out for half a minute, then it brightens again */
 let sitting=false,nearBench=false,nightT=null,night=0;const sitOrbit={yaw:0,pitch:0}; /* while seated the controls swing the camera round him instead */const _sq=new THREE.Quaternion(),_sx=new THREE.Vector3(1,0,0);
