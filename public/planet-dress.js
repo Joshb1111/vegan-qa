@@ -1128,11 +1128,11 @@ function build(){if(built)return;built=true;const t=performance.now();setup();{c
   try{window.DRESS.zones=zones();}catch(e){window.DRESS.zerr=String(e&&e.stack||e);console.warn('zones',e);}
   treeSwap();for(const ms of [3000,9000,20000,40000])setTimeout(()=>{treeSwap();flushAll();},ms); /* trees still loading come in later */
   flushAll();window.DRESS.info={ms:Math.round(performance.now()-t),buildings:nb,cover:gc,bills:BILLS.map(b=>[b.name,b.list.length]),verts:BUCKETS.map(b=>[b.name,b.P.length/3])};console.log('dress: built',JSON.stringify(window.DRESS.info));}
-function poll(){if(built)return;if(ready())build();else setTimeout(poll,700);}
+function poll(){if(built)return;if(ready()){try{build();}finally{window.__dressBuilt=true;}}else setTimeout(poll,250);} /* the loading screen waits for this */
 
 window.DRESS={frame(dt,now){UT.value=now/1000;try{zonesFrame(dt,now/1000);}catch(e){}},glb,look(v){LOOKU.value=v;return v;},rebuild(){location.reload();},
   async calls(){const ri=renderer.info;ri.autoReset=false;ri.reset();await new Promise(r=>requestAnimationFrame(()=>requestAnimationFrame(r)));const c={calls:ri.render.calls,tris:ri.render.triangles};ri.autoReset=true;return c;},buckets:BUCKETS,bills:BILLS};
-setTimeout(poll,1500);
+setTimeout(poll,600);
 window.DRESS.GTR=GTR;window.DRESS.gtrRetune=()=>{for(const p of ZPEOPLE)if(p.gtr)gtrSeat(p,p.gtr);};window.DRESS.zpeople=ZPEOPLE; /* tuning Kofi's guitar from the console */
 window.DRESS.fireSpot=()=>{const f=ZFX.fire;if(!f||!f.toRoad)return null;const d=f.toRoad.clone().addScaledVector(f.n,-f.toRoad.dot(f.n)).normalize();return {n:tn(f.n,d.clone().multiplyScalar(3.6)),face:d.negate()};}; /* the menu's "Spawn at the forest campfire": on the open (road) side of the fire, facing it */
 arcadeModels();window.DRESS.cabs=CABS;arcWatch();window.DRESS.arcClear=AC; /* the arcade's cabinet models: on their own poll (the arcade is seated whenever its model loads) */
