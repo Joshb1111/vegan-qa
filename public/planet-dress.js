@@ -278,7 +278,7 @@ function street(o){const road=ROADS.find(r=>r.name===o.road)||MAIN,s0=o.s0,s1=o.
         const nb=offsetFrom(sm,sd*(kerb+2.9+rr()*.9));if(!solidHit(nb,.3)&&ch(.7)){if(ch(.85))plant(nb,0,true);else B.daisy.add(nb,rb(.6,.9),rb(.4,.6),1);}
         for(let j=0;j<2;j++){const nw=offsetFrom(S(s+rb(-1,1)),sd*(kerb+2.3+rr()*.3));B.weed.add(nw,rb(.3,.55),rb(.25,.5),rb(.85,1.1));}}flushRun();}
   /* gutters at the asphalt's edge, and weeds where kerb meets pavement and at the pavement's back */
-  for(const sd of sideOf){let run=[];const out=()=>{if(run.length>1)groundStrip(GUTTER,run,.3,.095,0xffffff,2.4,[0,1]);run=[];};for(let s=s0;s<=s1;s+=.8){const sm=S(s),n=offsetFrom(sm,sd*(kerb-.2));if(roadDist(n,others)<1.8){out();continue;}run.push(n);}out();
+  for(const sd of sideOf){let run=[];const out=()=>{if(run.length>1&&window.__gutters)groundStrip(GUTTER,run,.3,.095,0xffffff,2.4,[0,1]);run=[];}; /* Josh 9 Oct: the gutter strips with grates looked odd (and ran over the arcade steps): off */for(let s=s0;s<=s1;s+=.8){const sm=S(s),n=offsetFrom(sm,sd*(kerb-.2));if(roadDist(n,others)<1.8){out();continue;}run.push(n);}out();
     for(let s=s0;s<=s1;s+=rb(1.2,3.2)){const sm=S(s);const n=offsetFrom(sm,sd*(kerb+.1));if(junction(n)||solidHit(n,.1))continue;const c=Math.floor(rb(1,3.5));for(let j=0;j<c;j++)B[ch(.7)?'weed':'rosette'].add(offsetFrom(S(s+rb(-.3,.3)),sd*(kerb+.06+rr()*.1)),rb(.18,.32),rb(.14,.3),rb(.85,1.1));}
     for(let s=s0;s<=s1;s+=rb(.9,2.4)){const sm=S(s);const n=offsetFrom(sm,sd*(kerb+2.18+rr()*.12));if(junction(n)||solidHit(n,.05))continue;B[rp(['weed','weed','rosette','daisy'])].add(n,rb(.25,.5),rb(.2,.45),rb(.85,1.1));}}
   /* the asphalt: a few cracks and patches, lightly */
