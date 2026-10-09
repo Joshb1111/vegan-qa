@@ -224,14 +224,14 @@ body.intro #game{background:#5abfb2}
 
 /* Josh's hand-drawn prompt (9 Oct reference): small warm off-white panel, thin uneven charcoal line with corner overshoots, hand lettering, rust underline on the active action */
 #ba,#ba.ink{background:#f1b993 url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100' preserveAspectRatio='none'%3E%3Cg fill='none' stroke='%23292b2c' stroke-width='1.4' vector-effect='non-scaling-stroke' stroke-linecap='round'%3E%3Cpath vector-effect='non-scaling-stroke' d='M-1.5 3.2 L42 2.4 M46 2.6 L101.5 3.6'/%3E%3Cpath vector-effect='non-scaling-stroke' d='M98.6 -2 L98.2 55 L98.9 102'/%3E%3Cpath vector-effect='non-scaling-stroke' d='M101 96.8 L60 97.6 L-1 96.4'/%3E%3Cpath vector-effect='non-scaling-stroke' d='M1.6 101.5 L2.2 48 L1.4 -1.5'/%3E%3C/g%3E%3C/svg%3E") center/100% 100% no-repeat !important;
- color:#26292b !important;border:0 !important;border-radius:0 !important;box-shadow:none !important;font-family:"Patrick Hand","Segoe Print",cursive !important;font-size:19px !important;letter-spacing:.03em;padding:3px 13px 6px !important;overflow:visible;transition:opacity .28s ease,transform .28s ease !important}
+ color:#26292b !important;border:0 !important;border-radius:0 !important;box-shadow:none !important;font-family:"Patrick Hand","Segoe Print",cursive !important;font-size:14px !important;letter-spacing:.03em;padding:1px 9px 3px !important;overflow:visible;transition:opacity .28s ease,transform .28s ease !important}
 #ba .bt{display:inline-block}#ba .bt span{display:inline-block}#ba.act .bt{border-bottom:2px solid #b0523a;padding-bottom:1px;border-radius:0 0 40% 10%/0 0 2px 1px}
 
 /* Josh 9 Oct (mobile): the quest card shows in full when it changes, then settles into a small tag; tap it to open again. Smaller prompt on phones. */
 #quest{transition:font-size .35s ease,padding .35s ease,max-width .35s ease,opacity .35s}
 #quest.mini{font-size:13.5px;padding:3px 9px 4px;max-width:min(200px,46vw);opacity:.92;pointer-events:auto;cursor:pointer}
 #quest.mini small,#quest.mini .tk{display:none}#quest.mini b{display:inline;font-size:13px;margin-right:5px}
-@media (pointer:coarse),(max-width:560px){#ba,#ba.ink{font-size:15.5px !important;padding:2px 9px 4px !important;letter-spacing:.02em}#ba.act .bt{border-bottom-width:1.5px}}
+@media (pointer:coarse),(max-width:560px){#ba,#ba.ink{font-size:12.5px !important;padding:1px 7px 2px !important;letter-spacing:.02em}#ba.act .bt{border-bottom-width:1.5px}}
 </style>
 </head>
 <body>
@@ -2918,7 +2918,7 @@ const GRINDS=[{x0:RAIL.x0,z0:RAIL.dz,x1:RAIL.x1,z1:RAIL.dz,name:'Boardslide',hOf
   {x0:STAIR.x1,z0:0,x1:STAIR.x1+STAIR.steps*STAIR.run,z1:0,name:'Handrail grind',hOff:.9},{x0:ELEDGE.x0,z0:ELEDGE.z,x1:ELEDGE.x1,z1:ELEDGE.z,name:'Ledge grind'}];
 const TRICKS={ollie:['Ollie',40],kickflip:['Kickflip',110],heelflip:['Heelflip',110],shoveit:['Pop shove-it',80],tailwhip:['Tailwhip',120],barspin:['Barspin',100],whip2:['Double tailwhip',240]};
 const SCOOT_TRICK={kickflip:'tailwhip',heelflip:'barspin',shoveit:'whip2'};
-function trickLabels(){const sc=ride.veh==='scooter';const L=sc?{ollie:'Hop',kickflip:'Tail<br>whip',heelflip:'Bar<br>spin',shoveit:'Double<br>whip',manual:'Wheelie'}:{ollie:'Ollie',kickflip:'Kick<br>flip',heelflip:'Heel<br>flip',shoveit:'Shove',manual:'Manual'};document.querySelectorAll('#tricks [data-t]').forEach(el=>{el.innerHTML=L[el.dataset.t]||el.innerHTML;});}
+function trickLabels(){const sc=ride.veh==='scooter';const L=sc?{ollie:'Hop',kickflip:'Tail<br>whip',heelflip:'Bar<br>spin',shoveit:'Double<br>whip',manual:'Wheelie'}:{ollie:'Ollie',kickflip:'Kick<br>flip',heelflip:'Heel<br>flip',shoveit:'Shove',manual:'Manual'};document.querySelectorAll('#tricks [data-t]').forEach(el=>{el.innerHTML=L[el.dataset.t]||el.innerHTML;el.hidden=sc&&(el.dataset.t==='shoveit'||el.dataset.t==='manual');});} /* Josh: no Double whip / Wheelie buttons on the scooter (cleaner) */
 let trickHide=0;
 function showTrick(name,pts){const el=$('#trickname');el.innerHTML=name+(pts?' <small>+'+pts+'</small>':'');el.classList.add('show');trickHide=performance.now()/1000+1.4;}
 function addTrick(name,pts){ride.combo.push([name,pts]);ride.comboT=1.1;const mult=ride.combo.length;showTrick(name+(mult>1?'  x'+mult:''),pts);}
