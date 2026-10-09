@@ -533,7 +533,7 @@ const ROOM={lon:.6,lat:1.5};const ROOM_N=sphere(ROOM.lon,ROOM.lat);
    bowl to the south-west (1.8 deep), a floor-level rail along the south edge */
 const RAIL={dz:-18.4,x0:-9,x1:11,h:.5};
 const PARK_EXT={hx:44,hz:22.5}; /* the whole park including the wings either side of the model */
-const START_LON=3.44;let START_N=null; /* you start on the main street just west of the skate-park turning */
+const START_LON=3.5;let START_N=null; /* you start on the main street just west of the skate-park turning */
 const PARK_SINK={d:3.2,w:3.4}; /* the park is sunk into the ground: this deep, with grass banks this wide round the rim, so you look down over it as you arrive */
 function parkOut(n){const [dx,dz]=parkXZ(n);return Math.hypot(Math.max(0,Math.abs(dx)-PARK_EXT.hx),Math.max(0,Math.abs(dz)-PARK_EXT.hz));}
 /* the main street clips the park's south-west corner: there the pit gives way, so the street and its pavement stay on level
@@ -1691,6 +1691,7 @@ const npcs=[];
     const road=WALKERS[p.name]?ROADS.find(r=>r.name===WALKERS[p.name]):null;
     const spot=fixed(p.name)||(spots.length?spots.splice(Math.floor(rnd()*spots.length),1)[0]:{lon:rnd()*Math.PI*2,lat:.05});
     const n={...p,id:'p'+i,rig,lon:spot.lon,lat:spot.lat,walker:!!road,road,s:rnd()*(road?road.L:1),lane:(rnd()<.5?1:-1)*1.4,dir:rnd()<.5?1:-1,speed:1.6+rnd()*.6,yaw:spot.face?yawFace(spot.lon,spot.lat,spot.face):rnd()*Math.PI*2,facing:null,session:'planet-'+Math.random().toString(36).slice(2)};
+    if(road&&road.name==='main'){const sp0=sphere(START_LON,window.__roads.mainLat(START_LON));for(let k=0;k<6;k++){const q=offsetFrom(atS(road,n.s),n.lane);if(q.clone().normalize().angleTo(sp0)*R>28)break;n.s=(n.s+road.L/5)%road.L;}} /* walkers on the main road never start beside the spawn (Josh: 'talk to Theo' popped up on entering) */
     if(road){const sm=atS(road,n.s);const q=offsetFrom(sm,n.lane);[n.lon,n.lat]=lonLatOf(q);}
     if(p.name==='Leslie'){const br=ROADS.find(r=>r.name==='beach');n.road=br;n.patrol={s0:br.L-9.5,s1:br.L-2};n.lane=-2.8;n.s=br.L-4;n.strolling=false;n.restT=5+Math.random()*4;n.speed=.9;n.dir=-1;const sm=atS(br,n.s);const q=offsetFrom(sm,n.lane);[n.lon,n.lat]=lonLatOf(q);n.yaw=yawFace(n.lon,n.lat,frameAt(n.lon,n.lat).north.clone().negate());} /* the ghost drifts up and down the last stretch of beach beside the bench, resting between strolls, facing the sea */
     npcs.push(n);
