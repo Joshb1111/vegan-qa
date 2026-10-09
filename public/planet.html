@@ -226,6 +226,12 @@ body.intro #game{background:#5abfb2}
 #ba,#ba.ink{background:#f1b993 url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100' preserveAspectRatio='none'%3E%3Cg fill='none' stroke='%23292b2c' stroke-width='1.4' vector-effect='non-scaling-stroke' stroke-linecap='round'%3E%3Cpath vector-effect='non-scaling-stroke' d='M-1.5 3.2 L42 2.4 M46 2.6 L101.5 3.6'/%3E%3Cpath vector-effect='non-scaling-stroke' d='M98.6 -2 L98.2 55 L98.9 102'/%3E%3Cpath vector-effect='non-scaling-stroke' d='M101 96.8 L60 97.6 L-1 96.4'/%3E%3Cpath vector-effect='non-scaling-stroke' d='M1.6 101.5 L2.2 48 L1.4 -1.5'/%3E%3C/g%3E%3C/svg%3E") center/100% 100% no-repeat !important;
  color:#26292b !important;border:0 !important;border-radius:0 !important;box-shadow:none !important;font-family:"Patrick Hand","Segoe Print",cursive !important;font-size:19px !important;letter-spacing:.03em;padding:3px 13px 6px !important;overflow:visible;transition:opacity .28s ease,transform .28s ease !important}
 #ba .bt{display:inline-block}#ba .bt span{display:inline-block}#ba.act .bt{border-bottom:2px solid #b0523a;padding-bottom:1px;border-radius:0 0 40% 10%/0 0 2px 1px}
+
+/* Josh 9 Oct (mobile): the quest card shows in full when it changes, then settles into a small tag; tap it to open again. Smaller prompt on phones. */
+#quest{transition:font-size .35s ease,padding .35s ease,max-width .35s ease,opacity .35s}
+#quest.mini{font-size:13.5px;padding:3px 9px 4px;max-width:min(200px,46vw);opacity:.92;pointer-events:auto;cursor:pointer}
+#quest.mini small,#quest.mini .tk{display:none}#quest.mini b{display:inline;font-size:13px;margin-right:5px}
+@media (pointer:coarse),(max-width:560px){#ba,#ba.ink{font-size:15.5px !important;padding:2px 9px 4px !important;letter-spacing:.02em}#ba.act .bt{border-bottom-width:1.5px}}
 </style>
 </head>
 <body>
@@ -3026,5 +3032,8 @@ LD.build();
 (()=>{const ba=document.getElementById('ba');if(!ba)return;let busy=false;const fix=()=>{if(busy)return;const t=ba.textContent;if(ba.querySelector('.bt')&&ba.dataset.t===t)return;busy=true;ba.dataset.t=t;const bt=document.createElement('span');bt.className='bt';
  let sd=7;let first=true;for(let ch of t){if(first){if(!/^[A-Z][A-Z]/.test(t))ch=ch.toLowerCase();first=false;}sd=(sd*1103515245+12345)>>>0;const sp=document.createElement('span');sp.textContent=ch;const dy=((sd>>>8)%100)/100-.5,dr=((sd>>>16)%100)/100-.5;sp.style.transform=`translateY(${(dy*1.6).toFixed(2)}px) rotate(${(dr*2.4).toFixed(2)}deg)`;if(ch===' ')sp.style.width='.32em';bt.appendChild(sp);}
  ba.replaceChildren(bt);ba.dataset.t=ba.textContent;ba.classList.toggle('act',/^hop off/i.test(t));busy=false;};new MutationObserver(fix).observe(ba,{childList:true,characterData:true,subtree:true});fix();})();</script>
+<script>/* quest card: full for 6 s after it changes, then a small tag */
+(()=>{const q=document.getElementById('quest');if(!q)return;let last='',tm=0;const open=()=>{q.classList.remove('mini');clearTimeout(tm);tm=setTimeout(()=>q.classList.add('mini'),6000);};
+ new MutationObserver(()=>{const t=q.textContent;if(t!==last){last=t;open();}}).observe(q,{childList:true,subtree:true,characterData:true});q.addEventListener('click',open);open();})();</script>
 </body>
 </html>
