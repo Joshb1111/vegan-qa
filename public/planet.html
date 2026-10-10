@@ -2656,7 +2656,7 @@ function snowPuff(p,col,n,big){if(!SNOW.geo)SNOW.geo=new THREE.SphereGeometry(1,
 function snowLaunch(a,b,col,hit,tid,who){const m=new THREE.Mesh(SNOW.geo||(SNOW.geo=new THREE.SphereGeometry(1,8,6)),new THREE.MeshBasicMaterial({color:col}));m.scale.setScalar(.2);m.position.copy(a);scene.add(m);const T=clamp(.35+a.distanceTo(b)/16,.4,1);SNOW.balls.push({m,a,b,col,hit,tid,who,t:0,T});snowPoff(.05);}
 function snowTarget(){let best=null,bd=1e9;const me=player.group.position;for(const o of MP.others.values()){if(!o.av||!o.av.holder.visible)continue;const p=o.av.holder.position;const d=_sc.copy(p).sub(me);d.addScaledVector(up,-d.dot(up));const L=d.length();if(L>12||L<.5)continue;if(d.dot(fwd)/L<.5)continue;if(L<bd){bd=L;best=o;}}return best;}
 /* where a held snowball sits: an offset in the right hand's own frame, in metres (?ball tunes it) */
-window.__ball=window.__ball||{x:.088,y:.158,z:.064,rate:2.166,rel:.404,dist:19.4}; /* Josh's own tuning, 10 Oct */const _bq=new THREE.Quaternion();
+window.__ball=window.__ball||{x:.02,y:.126,z:.062,rate:2.166,rel:.4,dist:19.4}; /* Josh's own tuning, 10 Oct */const _bq=new THREE.Quaternion();
 function ballInHand(hb,out){const B=window.__ball;hb.getWorldPosition(out);hb.getWorldQuaternion(_bq);out.add(new THREE.Vector3(B.x,B.y,B.z).applyQuaternion(_bq));return out;}
 window.ballInHand=ballInHand;
 function snowThrow(roll){if(intro||fight.on||houseOn||talking||SNOW.cool>0)return false;SNOW.cool=.8;const col=SNOW.pal[Math.floor(Math.random()*SNOW.pal.length)];
