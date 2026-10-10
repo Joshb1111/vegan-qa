@@ -1385,7 +1385,7 @@ function hero2Tick(dt,speed){
   // one-shot bookkeeping
   if(H2.oneShot){const a=A[H2.oneShot.n];if(!a||(a.time>=a.getClip().duration-.05)||moving||sitting||ride.on||jump.on)H2.oneShot=null;}
   // airborne: jump on the edge, fall + land when a flight or glide ends
-  if(jump.on&&(!H2.jumpPrev||(jump.flip&&H2.flipCur!==jump.flip))){H2.flipCur=jump.flip||null;const nm=jump.flip&&A[jump.flip]?jump.flip:running&&A.run_jump?'run_jump':'jump';const a=A[nm];a.reset().play();const d=a.getClip().duration;a.setEffectiveTimeScale(Math.max(.6,Math.min(2.2,d/Math.max(.35,jump.dur||.7))));H2.cur=nm;H2.sitPrev=false;}
+  if(jump.on&&(!H2.jumpPrev||(jump.flip&&H2.flipCur!==jump.flip))){H2.flipCur=jump.flip||null;const nm=jump.flip&&A[jump.flip]?jump.flip:running&&A.run_jump?'run_jump':'jump';const a=A[nm];a.reset().play();const d=a.getClip().duration;const fk=jump.flip?(window.__flipSkip??.45):0;if(fk)a.time=d*fk;a.setEffectiveTimeScale(Math.max(.6,Math.min(2.2,d*(1-fk)/Math.max(.35,(jump.dur||.7)-(jump.t||0)))));H2.cur=nm;H2.sitPrev=false;}
   H2.jumpPrev=jump.on;
   if(fly.on||fly.k>.2){H2.airT+=dt;}else{if(H2.airT>1.2&&A.land){A.land.reset().play();H2.landT=A.land.getClip().duration;}H2.airT=0;}
   if(H2.landT>0)H2.landT-=dt;
@@ -2658,8 +2658,12 @@ function snowThrow(roll){if(intro||fight.on||houseOn||talking||SNOW.cool>0)retur
   const a=up.clone().multiplyScalar(gAt(up)+1.15).addScaledVector(fwd,.45);const tg=snowTarget();let b,hit=false,tid='';
   if(tg&&(roll===undefined?Math.random():roll)<.5){b=tg.av.holder.position.clone().addScaledVector(tg.av.holder.position.clone().normalize(),1.0);hit=true;tid=tg.id;}
   else{const n=up.clone().addScaledVector(fwd,9/R).normalize();b=n.multiplyScalar(gAt(n)+.12);}
-  snowLaunch(a,b,col,hit,tid,tg&&hit?tg.wantName:'');SNOW.balls[SNOW.balls.length-1].local=true;if(H2.act&&H2.act.throw){H2.act.throw.reset().play();H2.act.throw.setEffectiveTimeScale(2.2);H2.throwT=.95;}
-  if(LIVE.on&&LIVE.ch){const r=x=>Math.round(x*100)/100;LIVE.ch.publish('sb',{a:[r(a.x),r(a.y),r(a.z)],b:[r(b.x),r(b.y),r(b.z)],c:col,t:tid}).catch(()=>{});}
+  const send=a=>{snowLaunch(a,b,col,hit,tid,tg&&hit?tg.wantName:'');SNOW.balls[SNOW.balls.length-1].local=true;if(LIVE.on&&LIVE.ch){const r=x=>Math.round(x*100)/100;LIVE.ch.publish('sb',{a:[r(a.x),r(a.y),r(a.z)],b:[r(b.x),r(b.y),r(b.z)],c:col,t:tid}).catch(()=>{});}};
+  const TA=(typeof H2!=='undefined'&&H2Active()&&H2.act&&H2.act.throw)?H2.act.throw:null;
+  if(!TA){send(a);}else{const ts=window.__throwRate??1.25,du=TA.getClip().duration;TA.reset().play();TA.setEffectiveTimeScale(ts);H2.throwT=du/ts;
+    const hb=kidModel.userData.h2rh||(kidModel.userData.h2rh=(()=>{let r=null;kidModel.traverse(o=>{if(o.isBone&&/RightHand$/.test(o.name))r=o;});return r;})());
+    const held=new THREE.Mesh(new THREE.SphereGeometry(.085,12,9),new THREE.MeshToonMaterial({color:col}));held.userData.noInk=true;scene.add(held);const rel=du*(window.__throwRel??.42)/ts,t0=performance.now();
+    const follow=()=>{const el=(performance.now()-t0)/1000;if(hb){hb.getWorldPosition(held.position);held.position.addScaledVector(fwd,.04);}sceneDirty=true;if(el<rel){requestAnimationFrame(follow);return;}const a2=held.position.clone();scene.remove(held);held.geometry.dispose();held.material.dispose();send(hb?a2:a);};requestAnimationFrame(follow);}
   SNOW.last={hit,tid,col};return true;}
 function snowGet(pid,d){const ok=v=>Array.isArray(v)&&v.length===3&&v.every(x=>typeof x==='number'&&isFinite(x));if(!d||!ok(d.a)||!ok(d.b)||typeof d.c!=='number')return;const now=performance.now();if(now-(SNOW.rx.get(pid)||0)<400)return;SNOW.rx.set(pid,now);
   const a=new THREE.Vector3(...d.a),b=new THREE.Vector3(...d.b);if(Math.abs(a.length()-R)>8||Math.abs(b.length()-R)>8||a.distanceTo(b)>30)return;const o=MP.others.get(pid),nm=o?o.wantName:'Someone';const mine=d.t===MP.id;
