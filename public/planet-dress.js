@@ -774,7 +774,7 @@ function guitar(p){const g=new T.Group();const wood=new T.MeshBasicMaterial({col
    hinges. He leans in over it, head bowed to the neck, nodding in time and now and then lifting his head to sing. Numbers in GTR, which
    DRESS.GTR exposes for tuning from the console. Guitar-local: y runs up the neck (the body's centre at 0, the soundhole at .1, the nut at .8),
    z out of its face, x across the strings. */
-const GTR={c:[.12,.19,-.18],neck:[-1,.46,-.12],tilt:.5,L:[.04,.56,-.015],R:[.02,.2,.17],chord:.07,strum:.05,hz:1.6,pL:[-.25,-1,.4],pR:[1,.25,.25],lean:.16,look:[.36,.24],sing:.2,tw:[-.9,0],bend:[1.7,0]}; /* tw, bend: [left, right] hand turns about the forearm and about the elbow's axis, so the palms meet the neck and the strings */
+const GTR={c:[.12,.19,-.18],neck:[-1,.46,-.12],tilt:.5,L:[-.03,.56,-.03],R:[.02,.2,.17],chord:.07,strum:.05,hz:1.6,pL:[-.25,-1,.4],pR:[1,.25,.25],lean:.16,look:[.36,.24],sing:.2,tw:[-.7,0],bend:[2.2,0]}; /* tw, bend: [left, right] hand turns about the forearm and about the elbow's axis, so the palms meet the neck and the strings */
 const _gm=new T.Matrix4(),_gm2=new T.Matrix4(),_gs=new T.Vector3(),_gp=new T.Vector3(),_gq=new T.Quaternion(),_gq2=new T.Quaternion(),_gq3=new T.Quaternion(),_gu=new T.Vector3(),_gv=new T.Vector3(),_ge=new T.Vector3(),_gw=new T.Vector3(),_gn=new T.Vector3(),_gd=new T.Vector3(),_gt=new T.Vector3(),_gc=new T.Vector3();
 const gBasis=(d,n,q)=>q.setFromRotationMatrix(_gm2.makeBasis(d,n,_gc.crossVectors(d,n)));
 function gtrPrep(p,g){const H=p.holder,B=p.bones;let mesh=null;p.root.traverse(m=>{if(!mesh&&m.isSkinnedMesh)mesh=m;});if(!mesh||!B.Spine01||!B.Pelvis)return null;
