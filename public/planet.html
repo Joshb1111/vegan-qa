@@ -1354,6 +1354,7 @@ function hero2Setup(g){
   const holder=new THREE.Group();holder.add(root);root.rotation.y=Math.PI; /* the rig faces +Z in the file; the game's forward is -Z */
   const mx=new THREE.AnimationMixer(root);mixer=mx;
   for(const c of g.animations){const a=mx.clipAction(c);a.enabled=true;H2.act[c.name]=a;H2.w[c.name]=0;}
+  {const tc=g.animations.find(c=>c.name==='throw');if(tc){const up_=new THREE.AnimationClip('throw_up',tc.duration,tc.tracks.filter(t=>/Spine|Neck|Head|Shoulder|Arm|Hand/.test(t.name)));const a=mx.clipAction(up_);a.enabled=true;H2.act.throw_up=a;H2.w.throw_up=0;}} /* Josh: run and throw at once: the throw drives only the upper body */
   for(const n of ['idle','walk','run','fall','talk','sit','sit2','skate','skate2','look_around'])if(H2.act[n]&&n!=='look_around'){}
   const once=['swing_start','ollie','jump','run_jump','land','sit_down','sit_cheer','wave','look_around','open','open_drawer'];
   for(const n of once){const a=H2.act[n];if(a){a.setLoop(THREE.LoopOnce,1);a.clampWhenFinished=true;}}
@@ -1385,7 +1386,7 @@ function hero2Tick(dt,speed){
   // one-shot bookkeeping
   if(H2.oneShot){const a=A[H2.oneShot.n];if(!a||(a.time>=a.getClip().duration-.05)||moving||sitting||ride.on||jump.on)H2.oneShot=null;}
   // airborne: jump on the edge, fall + land when a flight or glide ends
-  if(jump.on&&(!H2.jumpPrev||(jump.flip&&H2.flipCur!==jump.flip))){H2.flipCur=jump.flip||null;const nm=jump.flip&&A[jump.flip]?jump.flip:running&&A.run_jump?'run_jump':'jump';const a=A[nm];a.reset().play();const d=a.getClip().duration;const fk=jump.flip?(window.__flipSkip??.45):0;if(fk)a.time=d*fk;a.setEffectiveTimeScale(Math.max(.6,Math.min(2.2,d*(1-fk)/Math.max(.35,(jump.dur||.7)-(jump.t||0)))));H2.cur=nm;H2.sitPrev=false;}
+  if(jump.on&&(!H2.jumpPrev||(jump.flip&&H2.flipCur!==jump.flip))){H2.flipCur=jump.flip||null;const nm=jump.flip&&A[jump.flip]?jump.flip:running&&A.run_jump?'run_jump':'jump';const a=A[nm];a.reset().play();const d=a.getClip().duration;const fk=jump.flip?(window.__flipSkip??.45):0;if(fk)a.time=d*fk;const fe=jump.flip==='backflip'?(window.__bfEnd??.8):jump.flip?(window.__ffEnd??.92):1;a.setEffectiveTimeScale(Math.max(.4,Math.min(2.2,d*(fe-fk)/Math.max(.35,(jump.dur||.7)-(jump.t||0))))); /* the clip's landing frame lands with him */H2.cur=nm;H2.sitPrev=false;}
   H2.jumpPrev=jump.on;
   if(fly.on||fly.k>.2){H2.airT+=dt;}else{if(H2.airT>1.2&&A.land){A.land.reset().play();H2.landT=A.land.getClip().duration;}H2.airT=0;}
   if(H2.landT>0)H2.landT-=dt;
@@ -1425,7 +1426,7 @@ function hero2Tick(dt,speed){
     if(moving||talking){H2.looking=false;H2.lookAt=0;}
   }
   if(moving&&!ride.on&&!sitting){}
-  if(H2.throwT>0){H2.throwT-=dt;if(!sitting&&!ride.on&&!fly.on&&!jump.on&&!talking&&A.throw){for(const k in T)T[k]*=.25;T.throw=1;}}
+  if(H2.throwT>0){H2.throwT-=dt;if(!sitting&&!ride.on&&!fly.on&&!jump.on&&!talking&&A.throw_up){T.throw_up=window.__throwUpW??4;}}
   if(H2.landT<=0&&!T.land&&A.land)A.land.stop?.();
   // ease: fast in, a little slower out; start clips that are wanted, stop ones that have faded away
   const gaitRate=Math.min(1,dt*8);
@@ -2655,15 +2656,14 @@ function snowPuff(p,col,n,big){if(!SNOW.geo)SNOW.geo=new THREE.SphereGeometry(1,
 function snowLaunch(a,b,col,hit,tid,who){const m=new THREE.Mesh(SNOW.geo||(SNOW.geo=new THREE.SphereGeometry(1,8,6)),new THREE.MeshBasicMaterial({color:col}));m.scale.setScalar(.2);m.position.copy(a);scene.add(m);const T=clamp(.35+a.distanceTo(b)/16,.4,1);SNOW.balls.push({m,a,b,col,hit,tid,who,t:0,T});snowPoff(.05);}
 function snowTarget(){let best=null,bd=1e9;const me=player.group.position;for(const o of MP.others.values()){if(!o.av||!o.av.holder.visible)continue;const p=o.av.holder.position;const d=_sc.copy(p).sub(me);d.addScaledVector(up,-d.dot(up));const L=d.length();if(L>12||L<.5)continue;if(d.dot(fwd)/L<.5)continue;if(L<bd){bd=L;best=o;}}return best;}
 function snowThrow(roll){if(intro||fight.on||houseOn||talking||SNOW.cool>0)return false;SNOW.cool=.8;const col=SNOW.pal[Math.floor(Math.random()*SNOW.pal.length)];
-  const a=up.clone().multiplyScalar(gAt(up)+1.15).addScaledVector(fwd,.45);const tg=snowTarget();let b,hit=false,tid='';
-  if(tg&&(roll===undefined?Math.random():roll)<.5){b=tg.av.holder.position.clone().addScaledVector(tg.av.holder.position.clone().normalize(),1.0);hit=true;tid=tg.id;}
-  else{const n=up.clone().addScaledVector(fwd,9/R).normalize();b=n.multiplyScalar(gAt(n)+.12);}
-  const send=a=>{snowLaunch(a,b,col,hit,tid,tg&&hit?tg.wantName:'');SNOW.balls[SNOW.balls.length-1].local=true;if(LIVE.on&&LIVE.ch){const r=x=>Math.round(x*100)/100;LIVE.ch.publish('sb',{a:[r(a.x),r(a.y),r(a.z)],b:[r(b.x),r(b.y),r(b.z)],c:col,t:tid}).catch(()=>{});}};
-  const TA=(typeof H2!=='undefined'&&H2Active()&&H2.act&&H2.act.throw)?H2.act.throw:null;
+  const a=up.clone().multiplyScalar(gAt(up)+1.15).addScaledVector(fwd,.45);const tg=snowTarget();let b,hit=false,tid='';const aimRoll=(roll===undefined?Math.random():roll);
+  const aim=()=>{hit=false;tid='';if(tg&&tg.av&&aimRoll<.5){b=tg.av.holder.position.clone().addScaledVector(tg.av.holder.position.clone().normalize(),1.0);hit=true;tid=tg.id;}else{const n=up.clone().addScaledVector(fwd,9/R).normalize();b=n.multiplyScalar(gAt(n)+.12);}};aim(); /* aimed again at the release, from where he is then */
+  const send=a=>{aim();snowLaunch(a,b,col,hit,tid,tg&&hit?tg.wantName:'');SNOW.balls[SNOW.balls.length-1].local=true;if(LIVE.on&&LIVE.ch){const r=x=>Math.round(x*100)/100;LIVE.ch.publish('sb',{a:[r(a.x),r(a.y),r(a.z)],b:[r(b.x),r(b.y),r(b.z)],c:col,t:tid}).catch(()=>{});}};
+  const TA=(typeof H2!=='undefined'&&H2Active()&&H2.act&&(H2.act.throw_up||H2.act.throw))?(H2.act.throw_up||H2.act.throw):null;
   if(!TA){send(a);}else{const ts=window.__throwRate??1.25,du=TA.getClip().duration;TA.reset().play();TA.setEffectiveTimeScale(ts);H2.throwT=du/ts;
     const hb=kidModel.userData.h2rh||(kidModel.userData.h2rh=(()=>{let r=null;kidModel.traverse(o=>{if(o.isBone&&/RightHand$/.test(o.name))r=o;});return r;})());const hk=kidModel.userData.h2rk||(kidModel.userData.h2rk=(()=>{let r=null;kidModel.traverse(o=>{if(o.isBone&&/RightHandMiddle1$/.test(o.name))r=o;});return r;})());const _hk=new THREE.Vector3();
     const held=new THREE.Mesh(new THREE.SphereGeometry(.085,12,9),new THREE.MeshToonMaterial({color:col}));held.userData.noInk=true;scene.add(held);const rel=du*(window.__throwRel??.42)/ts,t0=performance.now();
-    const follow=()=>{const el=(performance.now()-t0)/1000;if(hb){hb.getWorldPosition(held.position);if(hk){hk.getWorldPosition(_hk);held.position.lerp(_hk,window.__ballInHand??1.15);}else held.position.addScaledVector(fwd,.04);} /* in his palm, by the knuckles, not at the wrist */sceneDirty=true;if(el<rel){requestAnimationFrame(follow);return;}const a2=held.position.clone();scene.remove(held);held.geometry.dispose();held.material.dispose();send(hb?a2:a);};requestAnimationFrame(follow);}
+    const follow=()=>{const el=(performance.now()-t0)/1000;if(hb){hb.getWorldPosition(held.position);if(hk){hk.getWorldPosition(_hk);held.position.lerp(_hk,window.__ballInHand??1.85);}else held.position.addScaledVector(fwd,.04);} /* in his palm, by the knuckles, not at the wrist */sceneDirty=true;if(el<rel){requestAnimationFrame(follow);return;}const a2=held.position.clone();scene.remove(held);held.geometry.dispose();held.material.dispose();send(hb?a2:a);};requestAnimationFrame(follow);}
   SNOW.last={hit,tid,col};return true;}
 function snowGet(pid,d){const ok=v=>Array.isArray(v)&&v.length===3&&v.every(x=>typeof x==='number'&&isFinite(x));if(!d||!ok(d.a)||!ok(d.b)||typeof d.c!=='number')return;const now=performance.now();if(now-(SNOW.rx.get(pid)||0)<400)return;SNOW.rx.set(pid,now);
   const a=new THREE.Vector3(...d.a),b=new THREE.Vector3(...d.b);if(Math.abs(a.length()-R)>8||Math.abs(b.length()-R)>8||a.distanceTo(b)>30)return;const o=MP.others.get(pid),nm=o?o.wantName:'Someone';const mine=d.t===MP.id;
@@ -3101,7 +3101,7 @@ function applyRide(){if(!ride.on||!kidModel)return;const bones=kidModel.userData
   if(bones.Spine01)bones.Spine01.quaternion.multiply(_sq.setFromAxisAngle(_sx,-.32*ride.push*(.6+.4*Math.sin(ride.pushT)))); /* leans into each push */
   if(bones.Spine01&&ride.air===0&&!ride.grind){const t=performance.now()/1000;bones.Spine01.quaternion.multiply(_sq.setFromAxisAngle(_sx,.06*Math.sin(t*2.1))).multiply(_sq2.setFromAxisAngle(_sy,.05*Math.sin(t*1.7)));} /* a little sway so he is not stiff */
   if(bones.NeckTwist01)bones.NeckTwist01.quaternion.multiply(_sq.setFromAxisAngle(_sy,-.45));if(bones.Head)bones.Head.quaternion.multiply(_sq.setFromAxisAngle(_sy,-.5));}
-function flipTap(){if(typeof H2==='undefined'||!H2Active()||ride.on||sitting||talking||fly.on||fight.on||houseOn||web.on||intro||SNOW.mode)return false;const kind=v<-.3?'backflip':v>1.2?'front_flip':null;if(!kind||!H2.act[kind])return false;const d=Math.min(1.2,Math.max(.8,H2.act[kind].getClip().duration));if(jump.on){if(jump.flip)return false;jump.t=jump.t/jump.dur*d;}else{jump.on=true;jump.t=0;jumpSfx();firstMove();}jump.flip=kind;jump.dur=d;return true;} /* double-tap Jump while running = front flip, while backing up = backflip */
+function flipTap(){if(typeof H2==='undefined'||!H2Active()||ride.on||sitting||talking||fly.on||fight.on||houseOn||web.on||intro||SNOW.mode)return false;const kind=v<-.3?'backflip':v>1.2?'front_flip':null;if(!kind||!H2.act[kind])return false;const d=kind==='backflip'?(window.__bfDur??1.35):Math.min(1.2,Math.max(.8,H2.act[kind].getClip().duration));if(jump.on){if(jump.flip)return false;jump.t=jump.t/jump.dur*d;}else{jump.on=true;jump.t=0;jumpSfx();firstMove();}jump.flip=kind;jump.dur=d;return true;} /* double-tap Jump while running = front flip, while backing up = backflip */
 function doJump(){if(ride.on){ollie();return;}if(talking||sitting||jump.on)return;jump.on=true;jump.t=0;jump.dur=.62;jumpSfx();firstMove();}
 function jumpSfx(){if(!musicOn)return;const c=ensureCtx();if(!c)return;try{const o=c.createOscillator(),g=c.createGain();o.type='sine';const t=c.currentTime;o.frequency.setValueAtTime(300,t);o.frequency.exponentialRampToValueAtTime(720,t+.14);g.gain.setValueAtTime(.0001,t);g.gain.exponentialRampToValueAtTime(.3,t+.02);g.gain.exponentialRampToValueAtTime(.0001,t+.22);o.connect(g);g.connect(c.destination);o.start(t);o.stop(t+.24);}catch(_){}}
 /* the hop: legs tuck up under him at the top of the arc and straighten for the landing */
