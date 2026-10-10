@@ -774,7 +774,7 @@ function guitar(p){const g=new T.Group();const wood=new T.MeshBasicMaterial({col
    hinges. He leans in over it, head bowed to the neck, nodding in time and now and then lifting his head to sing. Numbers in GTR, which
    DRESS.GTR exposes for tuning from the console. Guitar-local: y runs up the neck (the body's centre at 0, the soundhole at .1, the nut at .8),
    z out of its face, x across the strings. */
-const GTR={c:[.12,.19,-.18],neck:[-1,.46,-.12],tilt:.5,L:[0,.56,.04],R:[.02,.2,.17],chord:.07,strum:.05,hz:1.6,pL:[-.25,-1,.4],pR:[1,.25,.25],lean:.16,look:[.36,.24],sing:.2,tw:[3,0],bend:[-1.2,0]}; /* tw, bend: [left, right] hand turns about the forearm and about the elbow's axis, so the palms meet the neck and the strings */
+const GTR={c:[.12,.19,-.18],neck:[-1,.46,-.12],tilt:.5,L:[.102,.57,.12],R:[.02,.2,.17],chord:.07,strum:.05,hz:1.6,pL:[-.2,-.89,.4],pR:[1,.25,.25],lean:.16,look:[.36,.24],sing:.2,tw:[-1.984,0],bend:[-.24,0],side:[0,0]}; /* tw, bend: [left, right] hand turns about the forearm and about the elbow's axis, so the palms meet the neck and the strings */
 const _gm=new T.Matrix4(),_gm2=new T.Matrix4(),_gs=new T.Vector3(),_gp=new T.Vector3(),_gq=new T.Quaternion(),_gq2=new T.Quaternion(),_gq3=new T.Quaternion(),_gu=new T.Vector3(),_gv=new T.Vector3(),_ge=new T.Vector3(),_gw=new T.Vector3(),_gn=new T.Vector3(),_gd=new T.Vector3(),_gt=new T.Vector3(),_gc=new T.Vector3();
 const gBasis=(d,n,q)=>q.setFromRotationMatrix(_gm2.makeBasis(d,n,_gc.crossVectors(d,n)));
 function gtrPrep(p,g){const H=p.holder,B=p.bones;let mesh=null;p.root.traverse(m=>{if(!mesh&&m.isSkinnedMesh)mesh=m;});if(!mesh||!B.Spine01||!B.Pelvis)return null;
@@ -813,7 +813,7 @@ function gtrPlay(p,t){const o=p.gtr,B=p.bones,H=p.holder;if(!o)return;
     _ge.copy(_gp).addScaledVector(_gu,ea).addScaledVector(_gv,eh);_gw.copy(_gp).addScaledVector(_gu,dc);_gn.crossVectors(_gv,_gu).normalize();
     _gd.subVectors(_ge,_gp).divideScalar(a.l1);const qu=gBasis(_gd,_gn,new T.Quaternion()).multiply(a.pu);
     _gd.subVectors(_gw,_ge).divideScalar(a.l2);const qf=gBasis(_gd,_gn,new T.Quaternion()).multiply(a.pf);
-    const j=L?0:1;_gq.setFromAxisAngle(_gd,GTR.tw[j]).multiply(_gq3.setFromAxisAngle(_gn,GTR.bend[j]+(L?0:.18*stroke)));const qh=_gq.multiply(qf).multiply(a.hq); /* the hand: its rest angle to the forearm, then turned (the strumming wrist flicks) */
+    const j=L?0:1;_gq.setFromAxisAngle(_gd,GTR.tw[j]).multiply(_gq3.setFromAxisAngle(_gn,GTR.bend[j]+(L?0:.18*stroke))).multiply(new T.Quaternion().setFromAxisAngle(new T.Vector3().crossVectors(_gd,_gn).normalize(),(GTR.side||[0,0])[j])); /* side: the third turn of the hand (Josh's tilt slider) */const qh=_gq.multiply(qf).multiply(a.hq); /* the hand: its rest angle to the forearm, then turned (the strumming wrist flicks) */
     a.off.copy(a.hc).applyQuaternion(qh); /* where the palm is from the wrist: next frame's wrist aim allows for it */
     a.up.quaternion.copy(_gq2.invert()).multiply(qu);a.ha.quaternion.copy(qf.clone().invert()).multiply(qh);a.fo.quaternion.copy(qu.invert()).multiply(qf);}
   if(B.Head){H.updateMatrixWorld(true);const look=GTR.look[0]*(1-sing*1.1)+.03*Math.sin(beat);
