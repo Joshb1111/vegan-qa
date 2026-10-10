@@ -774,7 +774,7 @@ function guitar(p){const g=new T.Group();const wood=new T.MeshBasicMaterial({col
    hinges. He leans in over it, head bowed to the neck, nodding in time and now and then lifting his head to sing. Numbers in GTR, which
    DRESS.GTR exposes for tuning from the console. Guitar-local: y runs up the neck (the body's centre at 0, the soundhole at .1, the nut at .8),
    z out of its face, x across the strings. */
-const GTR={c:[.12,.19,-.18],neck:[-1,.46,-.12],tilt:.5,L:[.04,.56,-.015],R:[-.01,.1,.075],chord:.07,strum:.05,hz:1.6,pL:[-.25,-1,.4],pR:[.75,-.35,.65],lean:.16,look:[.36,.24],sing:.2,tw:[.3,0],bend:[1.7,0]}; /* tw, bend: [left, right] hand turns about the forearm and about the elbow's axis, so the palms meet the neck and the strings */
+const GTR={c:[.12,.19,-.18],neck:[-1,.46,-.12],tilt:.5,L:[.04,.56,-.015],R:[-.01,.1,.115],chord:.07,strum:.05,hz:1.6,pL:[-.25,-1,.4],pR:[.75,-.35,.65],lean:.16,look:[.36,.24],sing:.2,tw:[.3,0],bend:[1.7,0]}; /* tw, bend: [left, right] hand turns about the forearm and about the elbow's axis, so the palms meet the neck and the strings */
 const _gm=new T.Matrix4(),_gm2=new T.Matrix4(),_gs=new T.Vector3(),_gp=new T.Vector3(),_gq=new T.Quaternion(),_gq2=new T.Quaternion(),_gq3=new T.Quaternion(),_gu=new T.Vector3(),_gv=new T.Vector3(),_ge=new T.Vector3(),_gw=new T.Vector3(),_gn=new T.Vector3(),_gd=new T.Vector3(),_gt=new T.Vector3(),_gc=new T.Vector3();
 const gBasis=(d,n,q)=>q.setFromRotationMatrix(_gm2.makeBasis(d,n,_gc.crossVectors(d,n)));
 function gtrPrep(p,g){const H=p.holder,B=p.bones;let mesh=null;p.root.traverse(m=>{if(!mesh&&m.isSkinnedMesh)mesh=m;});if(!mesh||!B.Spine01||!B.Pelvis)return null;
@@ -939,7 +939,7 @@ function zRecord(ctx,v){const F=FIRE_REC;F.last=performance.now();if(F.bad)retur
   if(v>.001){F.far=0;if(el.paused)el.play().catch(()=>{});}else if(!el.paused&&++F.far>180)el.pause();
   return F.ok&&!el.paused;}
 function zSound(t){const ctx=G.audio&&G.audio();const me=G.player&&G.player();if(!me){return;}
-  const dist=n=>n?me.distanceTo(n.clone().multiplyScalar(gAt(n))):1e9;const vf=Math.pow(Math.max(0,Math.min(1,1-(dist(ZFX.fire&&ZFX.fire.n)-3)/16)),1.4),vb=Math.pow(Math.max(0,Math.min(1,1-(dist(ZFX.radio&&ZFX.radio.n)-2)/14)),1.4);
+  const dist=n=>n?me.distanceTo(n.clone().multiplyScalar(gAt(n))):1e9;const vf=Math.pow(Math.max(0,Math.min(1,1-(dist(ZFX.fire&&ZFX.fire.n)-3)/16)),1.4),vb=(window.__beachRadio?1:0)*Math.pow(Math.max(0,Math.min(1,1-(dist(ZFX.radio&&ZFX.radio.n)-2)/14)),1.4); /* Josh 10 Oct: the beach radio tune is off */
   window.__duck=Math.max(vf*.9,vb*.8);if(!ctx){return;}
   if(!zAudio){zAudio={next:{fire:0,beach:0},step:{fire:0,beach:0},gain:{fire:ctx.createGain(),beach:ctx.createGain()}};for(const k in zAudio.gain){zAudio.gain[k].gain.value=0;const lp=ctx.createBiquadFilter();lp.type='lowpass';lp.frequency.value=k==='fire'?2600:3400;zAudio.gain[k].connect(lp);lp.connect(ctx.destination);}}
   const rec=zRecord(ctx,vf),vg=rec?0:vf; /* the record playing: Kofi's plucked cover rests */
